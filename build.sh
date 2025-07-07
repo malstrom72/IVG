@@ -30,7 +30,7 @@ echo
 echo Seems fine
 cd ..
 
-./tools/BuildCpp.sh $1 $2 ./output/IVG2PNG ./tools/IVG2PNG.cpp -DNUXPIXELS_SIMD=$simd -I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp -x c ./externals/libpng/*.c ./externals/zlib/*.c
+./tools/BuildCpp.sh $1 $2 ./output/IVG2PNG ./tools/IVG2PNG.cpp -DNUXPIXELS_SIMD=$simd -I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp ./externals/libpng/*.c ./externals/zlib/*.c
 
 echo Testing...
 cd tests
