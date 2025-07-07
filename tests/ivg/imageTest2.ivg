@@ -1,0 +1,41 @@
+FORMAT IVG-2 requires:IMPD-1
+BOUNDS 0,0,800,800
+
+wipe pattern:[
+	bounds 0,0,40,40
+	wipe navy
+	pen blue
+	ellipse 20,20,10
+]
+
+define image enbild [
+	bounds 0,0,100,100
+	mask [
+		rect -1,-1,102,102 rounded:10
+	]
+	wipe pattern:[
+		bounds 0,0,8,8
+		wipe green
+		fill lime
+		rect 0,0,16,1
+	] transform:[ rotate 33 ]
+	fill gradient:[radial 0.5,0.5,0.5 from:yellow to:black] opacity:0.9 relative:yes
+	pen black width:0.5
+	ellipse 50,50,30
+] resolution:1
+
+image 10,10 enbild
+image 110.25,10 enbild
+image 10,110.25 enbild
+image 115,115 enbild transform:[scale 0.5]
+image 170,115 enbild transform:[scale 0.357935793579]
+image 170,155 enbild transform:[scale 0.25]
+image 200,155 enbild transform:[scale 0.125]
+image 10,220 enbild transform:[scale 2.0]
+image 220,10 enbild transform:[scale 4.0]
+image 10.234,430.234 enbild transform:[scale 1.357935793579]
+image 150.234,430.234 enbild transform:[scale 1.357935793579] opacity:0.5
+image 290.234,430.234 enbild transform:[scale 1.357935793579] opacity:0.25
+image 10,580 enbild transform:[scale 3.357935793579,1.0]
+image 440,430 enbild transform:[scale 1.0,3.357935793579]
+image 630,430 enbild transform:[offset 5.5,2.34; scale 1.7,1.8; rotate 33; shear 0.25,0.12]

@@ -1,0 +1,38 @@
+FORMAT IVG-1 requires:IMPD-1
+BOUNDS 0,0,800,600
+
+reset
+offset 300,300
+scale 4
+shear 0.0,0.0
+wipe black
+
+context [
+	//r={$r-0.01}
+	s=0.92
+	r=20
+	h=0.0
+	options aa-gamma:1.5
+	mask [ wipe gradient:[radial 0,0,90 stops:0.0,#ff,0.1,#00,0.2,#ff,0.3,#00,0.4,#ff,0.5,#00,0.998,#ff,1.0,#00 ] ]
+	mask [ wipe gradient:[linear 0,0,20,20 stops:0.0,#ff,0.1,#00,0.2,#ff,0.3,#00,0.4,#ff,0.5,#00,1.0,#ff ] ]
+	options aa-gamma:1.0
+	//wipe white
+	//wipe gradient:[linear -100,-100,100,100 stops:0.0,black,1.0,white ]
+
+	fill opacity:1.0
+
+	context [
+		repeat 8 [
+			fill hsv($h,0.9,1.0,0.6)
+			mask [ star 0,0,3,100 ]
+			star 0,0,3,100
+			rotate $r;
+			scale $s;
+			h={$h+0.1}
+		]
+	]
+]
+
+fill red opacity:0.25
+ellipse 0,0,90
+

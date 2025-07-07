@@ -1,0 +1,31 @@
+FORMAT IVG-1 requires:IMPD-1
+BOUNDS 0,0,400,400
+
+WIPE yellow
+fill gradient:[linear 0,0,100,100 from:red to:lime]
+pen black
+for i from:0 to:8 [
+	context [
+		offset 50,50
+		RECT 0,0,100,100
+		offset 10,10
+		RECT 0,0,100,100
+		rotate 45 anchor:50,50
+		RECT 0,0,100,100
+		scale 0.5 anchor:50,50
+		RECT 0,0,100,100
+		offset 300,0
+		scale 2.0,1.0 anchor:50,50
+		RECT 0,0,100,100
+		offset 0,200
+		shear -0.5,0.0 anchor:50,50
+		RECT 0,0,100,100
+		shear 1.0,0.0 anchor:50,50
+		RECT 0,0,100,100
+		matrix 1,-1,1,0,200,-100 anchor:50,50
+		RECT 0,0,100,100
+	]
+	RECT 0,0,40,40
+	rotate 30 anchor:200,200
+	mask [ wipe 0.5 ]
+]

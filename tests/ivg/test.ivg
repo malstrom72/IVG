@@ -1,0 +1,44 @@
+FORMAT IVG-1 requires:IMPD-1
+BOUNDS 0,0,800,600
+
+RESET
+WIPE black
+OPTIONS aa-gamma:2.0 curve-quality:1.0
+
+randomArray = CALL [
+	LOCAL r = $randomArraySeed
+	LOCAL i
+	FOR i from:1 to:$0 [
+		r = {$r * 279470273 % 4294967291};
+		RETURN {($1)$i} = {$r / 4294967291 - 0.5}
+	]
+	RETURN {$1}.n = $0
+	randomArraySeed=$r
+]
+
+color=RED
+C = 5
+S = 2
+o = {100%}
+OFFSET 450,400; SCALE 0.7
+CONTEXT [
+	REPEAT 10 [
+		PEN $color opacity:$o
+
+		randomArraySeed = $S
+		$randomArray $C x; $randomArray $C y; $randomArray $C r
+
+		FILL NONE
+		PEN width:8.0 joints:curve caps:round opacity:{$o*0.2}
+		s = M
+		FOR i from:1 to:$C [ s=$s {$x$i*800} {$y$i*800} ]
+		PATH svg:[$s]
+		
+		FILL $color opacity:{$o*0.4}
+		PEN width:10.0 opacity:{$o}
+		FOR i from:1 to:$C [ ELLIPSE {$x$i*800},{$y$i*800},{$r$i*1000} ]
+
+		o = {$o*75%}
+		ROTATE 20; OFFSET 10,0; SCALE 0.7
+	]
+]

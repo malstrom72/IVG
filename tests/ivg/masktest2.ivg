@@ -1,0 +1,33 @@
+FORMAT IVG-1 requires:IMPD-1
+BOUNDS 0,0,800,600
+
+reset
+wipe black
+
+scale 1.1
+rotate 15
+
+wipe pattern:[
+	bounds 0,0,50,50
+	pen white
+	wipe gradient:[linear 0.0,0.0,50.0,50.0 from:yellow to:blue]
+	ellipse 25,25,20
+]
+
+context [
+	rotate 30
+	mask [ fill 0.8; rect 200,150,140,80 ]
+	wipe red
+]
+
+context [
+	rotate 0
+	mask [ fill relative:yes gradient:[linear 0.5,0.5,1.0,1.0 from:1 to:0]; rect 400,150,140,80 ]
+	wipe red
+]
+
+context [
+	rotate 0
+	mask [ fill relative:no gradient:[linear 470,290,500,335 from:1 to:0]; rect 400,250,140,80 ]
+	wipe red
+]

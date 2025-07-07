@@ -1,0 +1,433 @@
+_DEBUG
+
+_DEBUG case insensitive
+
+_DEBUG really case insensitive
+
+_DEBUG 1 2 3
+
+    _DEBUG    1    2    3
+	
+_DEBUG end-of-line comment //xxx
+
+_DEBUG multi-line comments/*xxx*/on a single line /* 1 2 3 */
+
+_DEBUG multi-line comments /* x
+ x
+ x
+ x
+ x */ on multiple lines /* 1 2 3
+*/
+
+_DEBUG nested comments are not allowed /* so this is ok /* // */
+
+_DEBUG just being silly // /* // */ //
+
+_DEBUG you can use /*
+*/ to have one statement /*
+*/ span multiple lines
+
+_DEBUG but this
+.. syntax
+  .. is much nicer
+		...
+
+_DEBUG or even\
+backslashes\
+but they won't count as delimiters for arguments
+
+_DEBUG and the opposite; _DEBUG separate statements on; ;;; _DEBUG the same source code line ;
+
+[ _DEBUG again you can ] [ _DEBUG also use brackets ]
+
+_DEBUG many
+_DEBUG statements
+_DEBUG in one go
+
+_DEBUG a b c d e f /* separate unnamed arguments */
+_DEBUG a b:c de:  f /* unnamed and named arguments */
+
+_DEBUG empty value: // is allowed
+
+_DEBUG [ a b c ] [d e f] /* blocked unnamed argument */
+
+_DEBUG " a b c " "d e f" /* quoted unnamed argument */
+
+_DEBUG [ a [ b c ] ] [d [ e: f ] ] /* blocks within blocks */
+
+_DEBUG " a b c ": [ d e f ] /* blocked named argument */
+
+_DEBUG " a b c ": " d e f " /* quoted named argument */
+
+_DEBUG "abc": " def": ghi:jkl mno:pqr! stu vwx:[yz ] // complex
+
+_DEBUG [asdf][qwer] asdf[qwer]zxcv [asdf]qwer qwer[asdf] // weird arguments
+
+_DEBUG [ /* comment in block is preserved */ ]
+
+_DEBUG expand:yes testing\n\tescapes\ \{\[
+
+_DEBUG [
+ multi
+    -line] [blocks
+	]
+
+_DEBUG [ // ] trick! continue on next line
+continued here ]
+
+// test variables
+  x  =   1234
+ _DEBUG $x
+
+x  =  /* drop comment */ 5678
+ _DEBUG $x
+
+_DEBUG 1234$x  // concatenation
+
+_DEBUG 1234{$x}9101112  // concatenation
+
+_DEBUG expand:yes [1234 $x  \" \\  9101112]  // concatenation
+
+_DEBUG expand:yes "1234 $x  \" \\  9101112"  // quotes prevents expansion and preserves space
+
+ y =  1234$x // concatenation in assignment
+_DEBUG $y
+TRACE |$y|
+
+y=1234/*comment here is space*/$x
+_DEBUG $y
+
+y =   spaces  in a  variable
+_DEBUG $y
+
+z=[ /* keep everything */ "and don't expand" (anything) ]
+TRACE $z
+
+f=[ TRACE this is a "sub-routine" ]
+$f
+
+f=[ TRACE [ $x follows ] $x ]
+$f
+
+x="is now changed (correct)"
+$f
+
+g=[ TRACE level 2 ]
+f=[ TRACE level 1; $g; TRACE level 1 again  ]
+$f
+
+g=[ z=correct ]
+f=[ z=wrong; $g; TRACE $z ]
+$f
+
+g=[ z=correct ]
+f=[ z=wrong; CALL $g; TRACE $z ]
+$f
+
+g=[ LOCAL z=wrong ]
+f=[ z=correct; CALL $g; TRACE $z ]
+$f
+
+g=[ LOCAL z=wrong ]
+f=[ z=correct; CALL [ $g ]; TRACE $z ]
+$f
+
+g=CALL [ LOCAL z=wrong ]
+f=[ z=correct; $g; TRACE $z ]
+$f
+
+g=CALL [ LOCAL z=wrong ]
+f=[ z=correct; [ $g ]; TRACE $z ]
+$f
+
+g=CALL [ LOCAL z=also-correct; CALL [ LOCAL z=wrong ]; TRACE $z ]
+f=[ z=correct; CALL [ $g ]; TRACE $z ]
+$f
+
+g=CALL [ z=also-incorrect; CALL [ z=also-correct ]; TRACE $z ]
+f=[ z=incorrect; CALL [ $g ]; TRACE $z ]
+$f
+
+g=CALL [ RETURN z=correct ]
+f=CALL [ LOCAL z=incorrect; CALL [ $g ]; TRACE $z ]
+$f
+
+g=CALL [ CALL [ RETURN z=correct ] correct ]
+f=CALL [ LOCAL z=incorrect; CALL [ $g ]; TRACE $z ]
+$f
+
+CALL [ LOCAL z=incorrect; CALL [ LOCAL z=correct; RETURN z ]; TRACE $z ] // return without = returns the local value to the caller frame
+
+aref=bvar
+$aref="indirectly assigned (correct)"
+TRACE $bvar
+
+b-c=minus is ok in variable names, although it can complicate things inside expressions
+c-23=$b-c // {$b-c} would not be ok cause it would be misinterpreted as subtract 'c' from '$b' and c isn't a number
+_b=$b-c
+_c=$c-23
+_d={$c(-23)} // ok, but {$c-23} is not ok as it would be misinterpreted as subtract 23 from '$c'
+TRACE {$_b==$[b-c]} == yes
+TRACE {$_c==$[c-23]} == yes
+TRACE {$_d==$[c-23]} == yes
+
+TRACE {1+1} == 2
+[ TRACE {  1  + /* */  1  
+} == 2 ]
+TRACE {1.2+1.5} == 2.7
+TRACE {1-1} == 0
+TRACE {1-2} == -1
+TRACE {1-2.5} == -1.5
+TRACE {8*6}==48
+TRACE {-8*6}==-48
+TRACE {8*-6}==-48
+TRACE {-8*-6}==48
+TRACE {-(-8*-6)}==-48
+TRACE {10/2} == 5
+TRACE {-9/2} == -4.5
+TRACE {6.3%5.5} == 0.8
+TRACE {6.3%} == 0.063
+TRACE { 6.3 % } == 0.063
+TRACE { 6.3 % 5.3 %} == 0.046
+TRACE { 5 * 7 % 3 } == 2
+TRACE { (5 * 7) % 3 } == 2
+TRACE { 5 * (7 % 3) } == 5
+TRACE {3*(9-3)} == 18
+TRACE {3*9-3} == 24
+TRACE {3-9*3} == -24
+TRACE {-3--9*-3} == -30
+TRACE {  -3  -  -9  *  -3  } == -30
+TRACE { +   55 } == 55
+TRACE { 2 ** 3 } == 8
+TRACE { -2 ** 3 } == 8
+TRACE { 2 ** 4 } == 16
+TRACE { -2 ** 4 } == -16
+TRACE { (-2) ** 4 } == 16
+x=3;y=9;z=5
+TRACE {$x**2}==9
+TRACE {$x+$y*$z} == 48
+TRACE {0 == 0} == yes
+TRACE {0.0 == 0} == yes
+TRACE {.0 == 0} == yes
+TRACE {0. == 0} == yes
+TRACE {0.e0 == 0} == yes
+TRACE {0.0e0 == 0} == yes
+TRACE {.0e0 == 0} == yes
+TRACE {.0E0 == 0} == yes
+TRACE {.0E+0 == 0} == yes
+TRACE {.0E-0 == 0} == yes
+TRACE {1.0E-3 == 0.001} == yes
+TRACE {1.0E+3 == 1000.0} == yes
+TRACE {0.000000000001 == 0.000000000001} == yes
+TRACE {0.99999999999999 == 1.0} == yes
+TRACE {$x == 3} == yes
+TRACE {$x == 3.0} == yes
+TRACE {$x == 3.0e0} == yes
+TRACE {$x == 0.003e3} == yes
+TRACE {$x == 2.9} == no
+TRACE {$x != 3} == no
+TRACE {$x != 3.0} == no
+TRACE {$x != 3.1} == yes
+TRACE {$x < 3} == no
+TRACE {$x < 3.1} == yes
+TRACE {$x <= 3} == yes
+TRACE {$x <= 3.1} == yes
+TRACE {$x <= 2.9} == no
+TRACE {$x > 3} == no
+TRACE {$x > 2.9} == yes
+TRACE {$x >= 3} == yes
+TRACE {$x >= 3.1} == no
+TRACE {$x >= 2.9} == yes
+TRACE {$x == 3 ? a : b} == a
+TRACE {$x == 3.1 ? a : b} == b
+TRACE {$x == 3.0 ? ($x >= 3.0 ? a : b) : c} == a
+TRACE {$x != 3.0 ? ($x >= 3.0 ? a : b) : ($x > 3.0 ? c : d)} == d
+trace { -10 < 0 ? -1 : (-10 > 0 ? 1 : 0) }
+trace { (-10 < 0 ? -1 : -10 > 0) ? 1 : 0 }
+trace { -10 < 0 ? -1 : -10 > 0 ? 1 : 0 } // right->left associativity, answer is -1, not 1
+TRACE {1<1000} == yes
+TRACE {1000<a} == yes
+TRACE {1<0aaa} == yes // numbers are always < strings
+
+TRACE {abs(-0.5) " " acos(0.5) " " asin(0.5) " " atan(0.5) " " ceil(0.1) " " ceil(-0.1) " " cos(0.5) " " cosh(0.5) " " exp(0.5)
+ " " floor(0.9) " " floor(-0.1) " " log(0.5) " " log10(0.5) " " sin(0.5) " " sinh(0.5) " " sqrt(0.5) " " tan(0.5) " " tanh(0.5) }
+
+x0=m;x1=a;x2=n;x3=x
+TRACE {$(x 0)} == m
+i = 0; s=; REPEAT 4 [ s = $s{$x$i}; i = {$i + 1} ]
+TRACE $s == manx
+i = 0; s=; REPEAT 4 while:[yes] [ s = $s{$x($i)}; i = {$i + 1} ]
+TRACE $s == manx
+i = 0; s=nogo; REPEAT 4 while:[no] [ s = $s{$(x($i))}; i = {$i + 1} ]
+TRACE $s == nogo
+i = 0; s=ma; REPEAT 100 while:[{$i<2}] [ s = $s{($(x($i)))}; i = {$i + 1} ]
+TRACE $s == mama
+
+indirect=z
+TRACE {$$indirect} == 5
+TRACE { $ (  $ ( indirect )   ) } == 5
+
+fib = CALL [
+	LOCAL y = $1
+	IF {$y >= 2} [
+		LOCAL x
+		$fib x {$y - 1}
+		$fib y {$y - 2}
+		y = {$x + $y}
+	]
+	RETURN $0 = $y
+]
+
+$fib z 12
+TRACE $z == 144
+
+FOR i FrOm:1 tO:10 [ TRACE $i ]
+FOR [i]  to: 1 fROm: {10+0}  [ TRACE $i ]
+for i from:1.5 to:10.3 [ trace $i ]
+for i from:10.5 to:1.3 [ trace $i ]
+for i from:-3 to:7 step:2.2 [ trace $i ]
+for i from:-3 to:7 step:-2.2 [ trace $i ]
+for i from:7 to:-3 step:-2.2 [ trace $i ]
+for i from:7 to:-3 step:2.2 [ trace $i ]
+
+array = CALL [ LOCAL i; FOR i FROM:1 to:{$n-1} [ RETURN {($0)$i} = {$$i} ]; {$0}_n = {$n-1} ]
+foreach = CALL [ LOCAL i; FOR i from:1 to:{$(($0)_n)} [ CALL $1 {$(($0)$i)} ] ]
+$array a 1 b 1000.0 zmurf [oh yeah]
+s = {[]}
+/* leaving ^ out for now : $foreach a [ s = {\[^$s($s==[]?[]:\ )^$0\]} ] */
+$foreach a [ s = $s{($s==[]?[]:\ )}$0 ]
+TRACE $s
+
+d= december
+FOR x in:[  january ,february , march april, may,june,,july,august   september  [october] november $d ] [ TRACE $x ]
+FOR x in:[  january ,february , march april, may,june,,july,august   september  [october] november $d ] reverse:yes [ TRACE $x ]
+
+IF [no] [ TRACE INCORRECT!! ] else:[ TRACE OK ]
+
+r = 1;
+rnd = [ r = {$r * 279470273 % 4294967291} ]
+s=; repeat 8 [ $rnd; s=$s$r ]
+TRACE $s
+
+randomArraySeed = 1
+randomArray = CALL [
+	LOCAL r = $randomArraySeed
+	LOCAL i
+	FOR i from:1 to:$0 [
+		r = {$r * 279470273 % 4294967291};
+		RETURN {($1)$i} = {$r / 4294967291}
+	]
+	{$1}_n = $0
+	randomArraySeed=$r
+]
+$randomArray 20 a
+s={\[}; $foreach a [ s = $s $0 ]; s=$s{\]}
+FOR x in:$s [ TRACE $x ]
+
+META ACME-CORP-EXT-1 meta is always ok and ignored by client if the first argument is unrecognized
+
+INCLUDE includeTest.impd [first argument] [second argument] labeled:[labeled argument]
+
+_DEBUG "a b c"
+
+_DEBUG "a b c" " d e f "
+
+_DEBUG "a b c" " d e f " expand:yes
+
+_DEBUG "a b c" " d e f \t\t $g " expand:yes
+
+trace {"abcdefgh"{3}}
+
+trace {"abcdefgh"{3:}}
+
+trace {"abcdefgh"{:3}}
+
+trace {"abcdefgh"{-3:}}
+
+trace {"abcdefgh"{-3:2}}
+
+trace {"abcdefgh"{-3:-22}}
+
+trace {"abcdefgh"{:-3}}
+
+trace {"abcdefgh"{6:5}}
+
+trace {"abcdefgh"{10:5}}
+
+trace {"abcdefgh"{10:-5}}
+
+trace {"abcdefgh"{:-5}}
+
+trace {"abcdefgh"{0:0}}
+
+trace {"abcdefgh"{0:2}}
+
+trace {"abcdefgh"{0:1000}}
+
+trace {"abcdefgh"{0:-2}}
+
+trace {"abcdefgh"{0:-1000}}
+
+trace {"abcdefgh"{1000:0}}
+
+trace {"abcdefgh"{1000:2}}
+
+trace {"abcdefgh"{1000:1000}}
+
+trace {"abcdefgh"{1000:-2}}
+
+trace {"abcdefgh"{1000:-1000}}
+
+trace {"abcdefgh"{-1000:0}}
+
+trace {"abcdefgh"{-1000:2}}
+
+trace {"abcdefgh"{-1000:1000}}
+
+trace {"abcdefgh"{-1000:-2}}
+
+trace {"abcdefgh"{-1000:-1000}}
+
+trace {len("abcdef")}
+
+trace {len("abcdef" "ghi")}
+
+trace {len([abcdef ghi])}
+
+trace {len([abcdef      ghi])}
+
+trace {len("abcdef      ghi")}
+
+this = complete
+trace {[expand $this /* but not this */]}
+
+trace {no?1/0:1}
+
+trace {(yes?1%1:1%0)}
+
+x=abcd
+trace {(no?x*23:x)}
+
+trace {(no?log(-1):1)}
+
+trace {(no?(x?1:2):3)}
+
+trace {(yes?(1):(x?2:3))}
+
+trace {pi}
+
+trace {sin(pi)}
+
+trace {cos(pi)}
+
+trace {tan(pi/2)}
+
+a=adam
+b=bertil
+ab=aktiebolag
+abertil=en bertil
+trace {$a $b}
+trace {($a) $b}
+trace {$a b}
+trace {($a) b}
+trace {$a$b}

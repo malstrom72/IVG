@@ -1,0 +1,9 @@
+reset
+bounds 0,0,500,500
+wipe black
+rotate 10
+rotate -20
+mask [ ellipse 200,200,100,100 ]
+fill pattern:[ bounds 0,0,400,400; wipe red ]
+fill transform:[ scale 0.1 ]
+rect 0,0,500,500

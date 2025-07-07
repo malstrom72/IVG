@@ -1,0 +1,18 @@
+@ECHO OFF
+SETLOCAL ENABLEEXTENSIONS
+SET BIN_PATH=..\
+FOR %%f IN (*.ivg) DO (
+	ECHO Doing %%f
+	ECHO.
+	%BIN_PATH%ivg2png.exe %%f golden\%%~nf.png
+	IF ERRORLEVEL 1 GOTO BAD
+	ECHO.
+	ECHO.
+)
+GOTO END
+
+:BAD
+ECHO OOPS!!
+
+:END
+ENDLOCAL

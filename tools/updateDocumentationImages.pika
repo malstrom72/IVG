@@ -1,0 +1,24 @@
+#! /usr/local/bin/PikaCmd
+
+//include('debug.pika');
+include('stdlib.pika');
+include('systools.pika');
+
+ivgSource = '';
+tempDir = makeTempDir();
+sourceDir = dirOfPath($1);
+tokenize(load($1), >{
+	if (span($0, "\t ") >= 1) {
+		ivgSource #= $0 # LF;
+	} else if (span($0, "\t ") < length($0)) {
+		if (wildmatch($0, '![[][]]({*})', @filepath)) {
+			name = filenameOfPath(filepath);
+			sourcePath = bake('{tempDir}{DIR_SLASH}{name}.ivg');
+			save(sourcePath, ivgSource);
+			print("Rendering: " # name);
+			shell(bake("../output/IVG2PNG {sourcePath} {sourceDir}{DIR_SLASH}{filepath}"));
+		};
+		ivgSource = '';
+	}
+});
+wipeTempDir(tempDir);

@@ -1,0 +1,136 @@
+1
+Exception: Invalid instruction
+in statement: 2
+Exception: Unrecognized instruction: grmlb
+in statement: grmlb
+Exception: Missing */
+in statement: _DEBUG unterminated /*
+
+Exception: Missing ]
+in statement: _DEBUG unterminated [
+
+Exception: Missing ]
+in statement: _DEBUG unterminated [ // ]
+
+Exception: Missing ]
+in statement: _DEBUG unterminated [ [ ]
+
+Exception: Missing }
+in statement: _DEBUG unterminated {
+
+Exception: Missing }
+in statement: _DEBUG unterminated { // }
+
+Exception: Missing }
+in statement: _DEBUG unterminated { { }
+
+Exception: Missing }
+in statement: _DEBUG invalid order { [ } ]
+
+Exception: Label cannot be empty
+in statement: _DEBUG :empty name is not allowed
+Exception: Label cannot be empty
+in statement: _DEBUG "":empty name is not allowed
+Exception: Label cannot be empty
+in statement: _DEBUG empty:name :is not allowed
+Exception: Syntax error
+in statement: _DEBUG a:b:
+Exception: Syntax error
+in statement: _DEBUG [a ]:[ c]:
+Exception: Variable y does not exist
+in statement: x=$y
+Exception: Invalid variable name
+in statement: LOCAL [ $y = 23; x = $y; ]
+Exception: Variable mIxEdCase does not exist
+in statement: x = $mIxEdCase
+Exception: Invalid number: not a number
+in statement: TRACE {$a-b}
+Exception: Invalid number: not a number
+in statement: TRACE {$c-23}
+Exception: Invalid instruction
+in statement: =x
+Exception: Invalid instruction
+in statement: 23=x
+Exception: Invalid instruction
+in statement: .23=x
+Exception: Invalid instruction
+in statement: -23=x
+Exception: Invalid instruction
+in statement: =x
+Exception: Cannot return in global frame
+in statement: RETURN asdf
+Exception: Variable asdf does not exist
+in statement: RETURN asdf
+Exception: Recursion limit reached
+in statement: [ $x ]
+Exception: Recursion limit reached
+in statement: [ $x ]
+Exception: Syntax error
+in statement: _DEBUG x = { / 0} // syntax error
+Exception: Division by zero
+in statement: _DEBUG x = { 23 / 0 } // division by zero is not legal
+Exception: Invalid number: y
+in statement: _DEBUG x = { y + 3 } // y is not number
+Exception: Invalid number: y
+in statement: _DEBUG x = { y + } // bad ending
+Exception: Invalid number: 23z
+in statement: _DEBUG x = { (23z) % 5 } // invalid number
+Exception: Invalid number: .
+in statement: _DEBUG x = {.+.} // invalid number
+Exception: Invalid number: a
+in statement: _DEBUG x = {+a} // invalid number
+Exception: Invalid number: 1e
+in statement: _DEBUG x = {+(1e)} // invalid number
+Exception: Invalid number: 1e.0
+in statement: _DEBUG x = {+(1e.0)} // invalid number
+Exception: Encountered STOP instruction
+in statement: STOP
+Exception: Missing indexed argument 1
+in statement: IF
+Exception: Missing indexed argument 2
+in statement: IF [no]
+Exception: Missing indexed argument 1
+in statement: REPEAT
+Exception: Missing indexed argument 2
+in statement: REPEAT 5
+Exception: Missing indexed argument 1
+in statement: FOR
+Exception: Missing indexed argument 2
+in statement: FOR x
+Exception: Missing argument: from
+in statement: FOR x []
+Exception: Missing indexed argument 2
+in statement: FOR x in:blahblah
+Exception: Missing argument: to
+in statement: FOR x from:0 []
+Exception: Missing argument: from
+in statement: FOR x to:100 []
+Exception: Missing indexed argument 2
+in statement: FOR x from:0 to:100
+Exception: Invalid integer: 
+in statement: REPEAT while:[no] []
+Exception: Duplicate label: while
+in statement: REPEAT while:[no] 100 while:[yes] []
+Exception: 'while:' condition has to be enclosed in [ ]
+in statement: REPEAT 100 while:no []
+Exception: Syntax error
+in statement: TRACE {{3:5}} // syntax error
+Exception: Syntax error
+in statement: TRACE {"abcd"{}} // syntax error
+Exception: Syntax error
+in statement: TRACE {"abcd"{:}} // syntax error
+Exception: Invalid number: a
+in statement: TRACE {"abcd"{a:b}} // invalid number
+Exception: Division by zero
+in statement: TRACE {1 / 0} // Division by zero
+Exception: Modulo by zero
+in statement: TRACE {1 % 0} // Modulo by zero
+Exception: Math error (log of 0 or less)
+in statement: TRACE {log(0)} // Math error
+Exception: Math error (log of 0 or less)
+in statement: TRACE {log(-1)} // Math error
+Exception: Math error (sqrt of negative)
+in statement: TRACE {sqrt(-1)} // Math error
+Exception: Statements limit reached
+in statement: []
+Exception: Statements limit reached

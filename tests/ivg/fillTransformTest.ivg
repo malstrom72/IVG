@@ -1,0 +1,86 @@
+FORMAT IVG-1 requires:IMPD-1
+BOUNDS 0,0,800,600
+
+reset
+wipe black
+options pattern-resolution:1 aa-gamma:1.5
+p = pattern:[bounds 0,0,20,20; wipe black; fill black; pen blue width:2;
+	//X=1.0
+	//offset {0.5/$X-0.5},{0.5/$X-0.5}
+	rect 0,0,20,20
+	pen width:0.5
+	ellipse 10,10,8
+	pen none;
+	fill red;
+	rect 19.0,0.0,1.0,20.0
+	rect 0.0,19.0,20.0,1.0
+]
+
+/*
+a=output size, b=pattern size, s=scale factor
+((a-1)*b*s)/(a*(b-s))
+*/
+
+options pattern-resolution:1 aa-gamma:1.5
+fill $p relative:yes transform:[scale {23/45}]
+context [
+//pen yellow dash:1.0,10.0 opacity:0.5
+rect 200,300,300,200 ]
+
+f = gradient:[radial 0,0,100 from:green to:none]
+
+context [
+	scale 0.5
+	fill $f transform:[offset 200,200; scale 2] relative:no
+	pen yellow
+	rotate 0
+	rect 100,100,200,200
+	scale 0.9
+	fill transform:[offset 400,300]
+	rect 200,200,400,400
+	pen none
+	fill transform:[offset 400,500; scale 0.7]
+	rect 200,200,400,400
+
+	fill transform:[offset 0.5,0.5; scale {1/100}] relative:yes
+	rect 100,50,200,50
+]
+
+scale 0.9
+
+fill $p transform:[] relative:no
+rect 600,50,70,70
+
+fill transform:[offset 15.0,5.0]
+rect 670,50,70,70
+
+fill relative:no transform:[scale {1}]
+rect 640,140,20,20
+
+fill relative:yes transform:[]
+rect 670,140,20,20
+
+pen yellow width:0.5
+rect 695,135,20,20
+pen none
+
+options pattern-resolution:10 aa-gamma:1.5
+
+fill $p relative:no
+rect 640,180,20,20
+
+fill relative:yes
+rect 670,180,20,20
+
+pen yellow width:0.5
+rect 695,175,20,20
+pen none
+
+options pattern-resolution:1 aa-gamma:1.5
+
+//pen yellow width:0.5
+scale 1.3
+offset -160,-50
+fill $p transform:[scale {1.0/10.0}] relative:yes
+rect 640,250,200,200
+pen none

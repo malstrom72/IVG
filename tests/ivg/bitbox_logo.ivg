@@ -1,0 +1,207 @@
+//
+//  Bitbox Logo - Created by Fredrik Lidström on 2013-07-04.
+//
+format IVG-1 requires:IMPD-1; bounds 0,0,400,160
+
+scale 4
+
+bit=[
+  [ . . . . . . . . . . . . . . . . . . . . . . ]
+  [ . X X X X X . . . X X X X . . X X X X X X . ]
+  [ . X X : : X X . . . X X : . . . . X X : . . ]
+  [ . X X : : X X . . . X X . . . . . X X . . . ]
+  [ . X X X X X : . . . X X . . . . . X X . . . ]
+  [ . X X : : X X . . . X X . . . . . X X . . . ]
+  [ . X X : : X X . . . X X . . . . . X X . . . ]
+  [ . X X X X X : . . X X X X . . . . X X . . . ]
+  [ . . . . . . . . . . . . . . . . . . . . . . ]
+]
+box=[
+  [ . . . . . . . . . . . . . . . . . . . . . . ]
+  [ . X X X X X . . . X X X X . . X X . . X X . ]
+  [ . X X : : X X . X X : : X X . X X : . X X . ]
+  [ . X X : : X X . X X : : X X . : X X X X . . ]
+  [ . X X X X X : . X X : : X X . . : X X : . . ]
+  [ . X X : : X X . X X : : X X . . X X X X : . ]
+  [ . X X : : X X . X X : : X X . X X : : X X . ]
+  [ . X X X X X . . . X X X X . . X X : : X X . ]
+  [ . . . . . . . . . . . . . . . . . . . . . . ]
+]
+
+// View tilt constant
+viewtilt=0.33
+
+
+/***** "FUNCTIONS" *****/
+// Set the size of a voxel
+// voxelsize x y z
+voxelsize=CALL [ 
+  voxel_x_size=$0
+  voxel_y_size=$1
+  voxel_z_size=$2
+  voxel_x_tilt={$0*$viewtilt}
+  voxel_z_tilt={$2*$viewtilt}
+]
+
+// By using hsv colors we can tone colors
+// hsvadjust <var> <h> <s> <v> <brightness-factor>
+hsvadjust=CALL [
+  LOCAL h=$1
+  LOCAL s=$2
+  LOCAL v={$3 * $4}
+  if {$4 < 1.0} s={$s + $s * (1.0 - $4)}
+  if {$v > 1.0} s={$s * (2.0 - $v)}
+  $0=hsv({$h < 0 ? 0 : $h > 1 ? 1 : $h},{$s < 0 ? 0 : $s > 1 ? 1 : $s},{$v < 0 ? 0 : $v > 1 ? 1 : $v})
+]
+
+// Calculate colors for each side and edge
+// voxelcolor h s v
+voxelcolor=CALL [
+  $hsvadjust fill_front        $0 $1 $2 1    
+  $hsvadjust fill_front_shadow $0 $1 $2 0.7  
+  $hsvadjust pen_front         $0 $1 $2 0.9
+  $hsvadjust pen_bottom        $0 $1 $2 0.50
+
+  $hsvadjust fill_side        $0 $1 $2 0.90  
+  $hsvadjust fill_side_shadow $0 $1 $2 0.7  
+  $hsvadjust pen_side         $0 $1 $2 0.85
+
+  $hsvadjust fill_top        $0 $1 $2 1.22  
+  $hsvadjust fill_top_shadow $0 $1 $2 0.78  
+  $hsvadjust pen_top         $0 $1 $2 0.80
+
+  $hsvadjust pen_highlight $0 $1 $2 1.7
+]
+
+// Draw a voxel
+// drawvoxel ($0=drawtop) ($1=drawright) ($2=drawbottom) ($3=drawleft) ($4=drawback) ($5=drawfront) ($6=shadowfront) ($7=shadowside) ($8=shadowtop)
+drawvoxel=CALL [
+  // Draw the voxel side
+  if {$1} [
+    fill {$7 ? $fill_side_shadow : $fill_side}; pen none; path svg:[M{$voxel_x_size} {$voxel_x_tilt} l{$voxel_z_size} -{$voxel_z_tilt} l0 {$voxel_y_size} l-{$voxel_z_size} {$voxel_z_tilt} z]
+    if {$2} [ pen $pen_bottom width:1; path svg:[M{$voxel_x_size} {$voxel_x_tilt+$voxel_y_size} l{$voxel_z_size} -{$voxel_z_tilt}] ]
+    if {$4} [ pen $pen_side width:1; path svg:[M{$voxel_x_size+$voxel_z_size} {$voxel_x_tilt+$voxel_y_size-$voxel_z_tilt} l0 -{$voxel_y_size}] ]
+  ]
+  // Draw the voxel top
+  if {$0} [
+    fill {$8 ? $fill_top_shadow : $fill_top}; pen none; path svg:[M0 0 l{$voxel_x_size} {$voxel_x_tilt} l{$voxel_z_size} -{$voxel_z_tilt} l-{$voxel_x_size} -{$voxel_x_tilt} z]
+    if {$3} [ pen $pen_top width:1; path svg:[M0 0 l{$voxel_z_size} -{$voxel_z_tilt}] ]
+    if {$4} [ pen $pen_top width:1; path svg:[M{$voxel_z_size} -{$voxel_z_tilt} l{$voxel_x_size} {$voxel_x_tilt} ] ]
+    if {$1} [ pen $pen_highlight width:2; path svg:[M{$voxel_x_size} {$voxel_x_tilt} l{$voxel_z_size} -{$voxel_z_tilt}] ]
+  ]
+  // Draw the voxel front face
+  if {$5} [
+    fill {$6 ? $fill_front_shadow : $fill_front}; pen none; path svg:[M0 0 l{$voxel_x_size} {$voxel_x_tilt} l0 {$voxel_y_size} l-{$voxel_x_size} -{$voxel_x_tilt} z]
+    if {$2} [ pen $pen_bottom width:1; path svg:[M0 {$voxel_y_size} l{$voxel_x_size} {$voxel_x_tilt} ] ]
+    if {$3} [ pen $pen_front width:1; path svg:[M0 0 l0 {$voxel_y_size}] ]
+    if {$1} [ pen $pen_highlight width:2; path svg:[M{$voxel_x_size} {$voxel_x_tilt} l0 {$voxel_y_size}] ]
+    if {$0} [ pen $pen_highlight width:2; path svg:[M0 0 l{$voxel_x_size} {$voxel_x_tilt}] ]
+  ]
+];
+
+// Step through a text array and draw the voxels in x or z direction
+// voxeltext <text array> (x|z)
+voxeltext=CALL [
+  LOCAL x
+  LOCAL y
+
+  // Create a voxel matrix out of the text array
+  y=0;
+  for r in:$0 [
+    x=0; 
+    for v in:$r [ 
+      voxel{$x}.{$y}=$v; 
+      x={$x+1} 
+    ]; 
+    y={$y+1}
+  ];
+  voxel.x=$x
+  voxel.y=$y
+
+  zaxis={$1 == z}
+  
+  // Step through the voxel matrix
+  for y from:{$voxel.y-2} to:1 [
+    context [
+      // step x through backwards if drawing in z-axis
+      for x from:{$zaxis ? $voxel.x-2 : 1} to:{$zaxis ? 1: $voxel.x-2} [         
+        if { $voxel($x).($y) == X} [          
+          $drawvoxel 
+            .. { $voxel($x).($y-1) != X }            // Draw top if no voxel above
+            .. { $zaxis || $voxel($x+1).($y) != X }  // Draw right if no voxel on the side or text is in z-axis
+            .. { $voxel($x).($y+1) != X }            // Draw bottom if no voxel below
+            .. { $zaxis || $voxel($x-1).($y) != X }  // Draw left if no voxel on the side or text is in z-axis
+            .. { !$zaxis || $voxel($x+1).($y) != X } // Draw back if text is in x-axis or no voxel is behind
+            .. { !$zaxis || $voxel($x-1).($y) != X } // Draw front if text is in x-axis or no voxel is in front
+            .. { $zaxis && $voxel($x-1).($y) != . }  // Only do front shadowing if text is in z-axis
+            .. { !$zaxis && $voxel($x+1).($y) != .}  // Only do side shadowing if text is in x-axis
+            .. { $voxel($x).($y-1) != .}             // Always do top shadowing if needed
+        ]
+        // Offset next voxel in x or z axis
+        offset { ($zaxis ? -$voxel_z_size : $voxel_x_size)-0.1},{ ($zaxis ? $voxel_z_tilt : $voxel_x_tilt)-0.1}
+      ]
+    ]
+    // Offset next voxel row in y
+    offset 0,-{$voxel_y_size-0.1}
+  ] 
+]
+
+
+/***** DRAW INSTRUCTIONS *****/
+
+options aa-gamma:2.5
+scale 0.84
+offset 30,4.8
+
+// Draw the black sticker outline
+fill none; pen #90000000 width:3 caps:square; path svg:[M0 0 l32 0 l9 -3 l9 3 l34 0 L84 41 L0 41 z]
+// Draw the background
+fill #333388; pen #8080d0 width:2 caps:square; rect 0,0,84,41
+
+// Setup the scale to fit the logo in the sticker 
+offset 2,17; scale 0.1,0.1
+
+
+/***** DRAW THE BLUE BOX *****/
+options aa-gamma:1.2
+
+context [
+  pen width:1
+  offset 120,-110
+  $voxelsize 270 160 270
+  $voxelcolor {230/360} 0.80 0.95  // blue
+  $drawvoxel yes yes yes yes yes yes   no no no
+]
+/***** DRAW THE WHITE BUTTONS *****/
+context [
+  offset 290,-172
+  $voxelsize 99 24 99 
+  $voxelcolor {235/360} 0 0.66  // white
+  $drawvoxel yes yes yes yes yes yes   yes yes no
+  offset 115,38
+  $drawvoxel yes yes yes yes yes yes   yes no no 
+  offset -230,0
+  $drawvoxel yes yes yes yes yes yes   no yes no
+  offset 115,38
+  $drawvoxel yes yes yes yes yes yes   no no no
+]
+
+/***** DRAW BIT TEXT *****/
+options aa-gamma:2.5  // high gamma to avoid gaps between voxels and make it look "pixly"
+
+context [
+  offset 15,80
+  $voxelsize 15 20 50
+  $voxelcolor {355/360} 0.80 0.99  // red
+
+  $voxeltext $bit x  
+]
+
+/***** DRAW BOX TEXT *****/
+context [
+  offset 714,70
+  $voxelsize 50 20 15
+  $voxelcolor {125/360} 0.80 0.99  // green
+
+  $voxeltext $box z
+]

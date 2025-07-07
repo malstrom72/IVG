@@ -1,0 +1,38 @@
+FORMAT IVG-1 requires:IMPD-1
+BOUNDS 0,0,800,600
+
+reset
+wipe white
+fill pattern:[
+	bounds -100,-100,200,200
+	wipe gradient:[radial 0,0,100 stops:[0.0,lime 0.2,lime 0.21,red 0.4,red 0.41,yellow 0.6,yellow 0.61,aqua 0.8,aqua 0.81,fuchsia 1.0,fuchsia]]
+]
+
+context [
+	fill gradient:[radial 0,0,100 stops:[0.0,lime 0.2,lime 0.21,red 0.4,red 0.41,yellow 0.6,yellow 0.61,aqua 0.8,aqua 0.81,fuchsia 1.0,fuchsia]]
+	offset 400,150
+	rotate 20
+	scale 2,1
+	rect -100,-100,200,200
+	fill none; pen black; path svg:M100,0L0,0L0,100
+]
+
+context [
+	offset 400,400
+	rotate 15
+	scale 2.93,0.68
+	rect -100,-100,200,200
+	fill none; pen black; path svg:M100,0L0,0L0,100
+]
+
+//r={$r+0.1}
+r=1.5
+context [
+	fill opacity:{cos($r)*0.5+0.5}
+	pen opacity:{cos($r)*0.5+0.5}
+	offset 400,400
+	scale 2,1
+	shear 1.0,0
+	rect -100,-100,200,200
+	fill none; pen black; path svg:M100,0L0,0L0,100
+]

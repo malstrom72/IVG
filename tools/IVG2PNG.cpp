@@ -1,0 +1,204 @@
+#include <iostream>
+#include <fstream>
+#include <stdexcept>
+#include "src/IVG.h"
+#include "png.h"
+#include "zlib.h"
+
+using namespace std;
+using namespace IVG;
+using namespace IMPD;
+using namespace NuXPixels;
+
+
+// Important! Make sure to compile with exceptions enabled for C code. E.g. in GCC -fexceptions (GCC_ENABLE_EXCEPTIONS)
+
+static void PNGAPI myPNGErrorFunction(png_struct* png_ptr, png_const_charp error_msg) {
+	throw std::runtime_error(std::string("Error writing PNG image : ") + std::string(static_cast<const char*>(error_msg)));
+}
+
+static bool isLittleEndian() {
+	assert(sizeof (unsigned int) == 4);
+	static const unsigned char bytes[4] = { 0x4A, 0x3B, 0x2C, 0x1D };
+	if (*reinterpret_cast<const unsigned int*>(bytes) == 0x1D2C3B4A) {
+		return true;
+	} else {
+		assert(*reinterpret_cast<const unsigned int*>(bytes) == 0x4A3B2C1D);
+		return false;
+	}
+}
+
+class IVGExecutorWithExternalFonts : public IVGExecutor {
+	public:		IVGExecutorWithExternalFonts(Canvas& canvas, const AffineTransformation& xform = AffineTransformation())
+					: IVGExecutor(canvas, xform) {
+				}
+				virtual std::vector<const Font*> lookupFonts(IMPD::Interpreter& interpreter, const IMPD::WideString& fontName
+					, const IMPD::UniString& forString) {
+					(void)interpreter;
+					std::pair< FontMap::iterator, bool > insertResult
+							= loadedFonts.insert( std::make_pair(fontName, Font()) );
+					if (insertResult.second) {
+						const std::string fontName8Bit(fontName.begin(), fontName.end());
+						String fontCode;
+						{
+							std::ifstream fileStream((fontName8Bit + ".ivgfont").c_str());
+							if (!fileStream.good()) {
+								return std::vector<const Font*>();
+							}
+							fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+							const std::istreambuf_iterator<Char> it(fileStream);
+							const std::istreambuf_iterator<Char> end;
+							fontCode = std::string(it, end);
+						}
+						std::wcerr << "parsing external font " << fontName << std::endl;
+						FontParser fontParser;
+						STLMapVariables vars;
+						Interpreter impd(fontParser, vars);
+						impd.run(fontCode);
+						insertResult.first->second = fontParser.finalizeFont();
+					}
+					return std::vector<const Font*>(1, &insertResult.first->second);
+				}
+	protected:	FontMap loadedFonts;
+};
+
+#ifdef LIBFUZZ
+struct FuzzerExecutor : public IVGExecutor {
+	FuzzerExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform = NuXPixels::AffineTransformation())
+			: IVGExecutor(canvas, initialTransform) { }
+	virtual void trace(IMPD::Interpreter& interpreter, const IMPD::WideString& s) { }
+};
+
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
+	const std::string ivgSource(reinterpret_cast<const char*>(Data), reinterpret_cast<const char*>(Data) + Size);
+	SelfContainedARGB32Canvas canvas;
+	try {
+		{
+			STLMapVariables topVars;
+			FuzzerExecutor ivgExecutor(canvas);
+			Interpreter impd(ivgExecutor, topVars);
+			impd.run(ivgSource);
+		}
+	}
+	catch (IMPD::Exception&) {
+		;
+	}
+	return 0;
+}
+#endif
+
+#ifndef LIBFUZZ
+int main(int argc, const char* argv[]) {
+	try {
+		if (argc != 3) {
+			std::cerr << "IVG2PNG <input.ivg> <output.png>\n\nVery simple!\n\n";
+			return 1;
+		}
+
+		std::string ivgContents;
+		{
+			std::ifstream inStream(argv[1]);
+			if (!inStream.good()) throw std::runtime_error("Could not open input IVG file");
+			ivgContents.assign(std::istreambuf_iterator<char>(inStream), std::istreambuf_iterator<char>());
+			if (!inStream.good()) throw std::runtime_error("Could not read input IVG file");
+			inStream.close();
+		}
+		std::cerr << "Read source IVG..." << std::endl;
+
+		SelfContainedARGB32Canvas canvas;
+		{
+			STLMapVariables topVars;
+			IVGExecutorWithExternalFonts ivgExecutor(canvas);
+			Interpreter impd(ivgExecutor, topVars);
+			impd.run(ivgContents);
+		}
+		std::cerr << "Rasterized image..." << std::endl;
+
+		SelfContainedRaster<ARGB32>* raster = canvas.accessRaster();
+		if (raster == 0) throw std::runtime_error("IVG image is empty");
+		IntRect bounds = raster->calcBounds();
+		if (bounds.width <= 0 || bounds.height <= 0) throw std::runtime_error("IVG image is empty");
+
+		std::vector<png_bytep> rowPointers(bounds.height);
+		int imageStride = raster->getStride();
+		ARGB32::Pixel* pixels = raster->getPixelPointer() + bounds.top * imageStride + bounds.left;
+		for (int i = 0; i < bounds.height; ++i) {
+			ARGB32::Pixel* p = pixels + i * imageStride;
+			rowPointers[i] = reinterpret_cast<png_bytep>(p);
+			for (int x = 0; x < bounds.width; ++x) {
+				int a = (*p >> 24) & 0xFF;
+				if (a != 0xFF && a != 0x00) {
+					int m = 0xFFFF / a;
+					int r = (((*p >> 16) & 0xFF) * m) >> 8;
+					int g = (((*p >> 8) & 0xFF) * m) >> 8;
+					int b = (((*p >> 0) & 0xFF) * m) >> 8;
+					assert(0 <= r && r < 0x100);
+					assert(0 <= g && g < 0x100);
+					assert(0 <= b && b < 0x100);
+					*p = (a << 24) | (r << 16) | (g << 8) | (b << 0);
+				}
+				++p;
+			}
+		}
+		std::cerr << "Converted to non-premultiplied alpha..." << std::endl;
+
+		{
+			FILE* f = NULL;
+			png_structp png_ptr = 0;
+			png_infop info_ptr = 0;
+		
+			try {
+				f = fopen(argv[2], "wb");
+				if (f == NULL) throw std::runtime_error("Could not open output PNG file");
+
+				png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, myPNGErrorFunction, 0);
+				if (png_ptr == 0) throw std::runtime_error("Error writing PNG image : could not initialize");
+
+				info_ptr = png_create_info_struct(png_ptr);
+				if (info_ptr == 0) throw std::runtime_error("Error writing PNG image : could not initialize");
+
+				png_set_compression_level(png_ptr, Z_BEST_COMPRESSION);
+				png_init_io(png_ptr, f);
+
+				png_set_IHDR(png_ptr, info_ptr, bounds.width, bounds.height, 8, PNG_COLOR_TYPE_RGB_ALPHA
+						, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+				
+				png_set_sRGB_gAMA_and_cHRM(png_ptr, info_ptr, PNG_sRGB_INTENT_ABSOLUTE);
+
+				png_set_oFFs(png_ptr, info_ptr, bounds.left, bounds.top, PNG_OFFSET_PIXEL);
+
+				png_set_rows(png_ptr, info_ptr, &rowPointers[0]);
+
+				png_write_png(png_ptr, info_ptr, (isLittleEndian() ? PNG_TRANSFORM_BGR : PNG_TRANSFORM_SWAP_ALPHA), NULL);
+
+				png_destroy_write_struct(&png_ptr, &info_ptr);
+				fclose(f);
+				f = NULL;
+			}
+			catch (...) {
+				png_destroy_write_struct(&png_ptr, &info_ptr);
+				if (f != NULL) {
+					fclose(f);
+					f = NULL;
+				}
+				throw;
+			}
+		}
+		std::cerr << "Written to PNG." << std::endl;
+	}
+	catch (const IMPD::Exception& x) {
+		std::cerr << "Exception: " << x.what() << std::endl;
+		if (x.hasStatement()) std::cerr << "in statement: " << x.getStatement() << std::endl;
+		return 1;
+	}
+	catch (const std::exception& x) {
+		std::cerr << "Exception: " << x.what() << std::endl;
+		return 1;
+	}
+	catch (...) {
+		std::cerr << "General exception" << std::endl;
+		return 1;
+	}
+	return 0;
+}
+#endif

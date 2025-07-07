@@ -1,0 +1,110 @@
+FORMAT IVG-2 requires:IMPD-1
+
+// Set the canvas bounds to 400x400 pixels and scale the canvas by a factor of 2
+bounds 0,0,400,400
+scale 2
+
+// Set the gamma correction applied to strokes to improve anti-alias quality
+options aa-gamma:1.5
+
+// Wipe the canvas with a blue gradient fill
+WIPE gradient:[linear 0,0,200,200 from:#0000C0 to:#C0C0C0]
+
+// Begin a new drawing context
+context [
+  // Define a fill pattern that draws a 10x10 checkerboard
+  fill pattern:[
+    bounds 0,0,20,20
+    pen none
+    fill white
+    RECT 0,0,10,10
+    RECT 10,10,10,10
+  ]
+  
+  // Set the pen to a solid blue line with a curve joint and a width of 25
+  pen #0000FF width:25.0 joints:curve
+  
+  // Draw a rectangle with the pattern and a blue, solid outline
+  RECT 50,50,100,100
+]
+
+// Begin another drawing context
+context [
+  // Mask this context with a circle
+  mask [
+    ELLIPSE 100,100,90
+  ]
+  
+  context [
+    // Set the pen to a black, dashed line with a round cap and a width of 2
+    pen black caps:round dash:10 width:2
+    
+    // Draw a dashed black "X" using an SVG path
+    PATH svg:[M 20,20 L 180,180 M 180,20 L 20,180]
+  ]
+  
+  // Set the fill color to a pale green with an opacity of 0.5
+  fill rgb(0.3,0.9,0.7) opacity:0.5
+  
+  // Set the rotation and offset variables
+  rot=3
+  offX=60
+  offY=40
+  
+  // Offset the origin of the drawing
+  offset $offX,$offY
+  
+  // Repeat the following block of code 360/$rot times
+  repeat {360/$rot} [
+    // Rotate the drawing context by around the point (100-$offX,100-$offY)
+    rotate $rot anchor:{100-$offX},{100-$offY}
+    
+    // Draw a 1 pixel tall green line from (0,100) to (200,100)
+    RECT 0,100,200,1
+  ]
+]
+
+// Set the pen using hue, saturation, value
+pen hsv(0.8,0.3,0.9) width:3 joints:miter
+
+// Draw a star with 14 points centered at (100,100), radii 30 and 15, rotation 180
+STAR 100,100,14,30,15 rotation:180
+
+// Define an image called "dial" with a resolution of 2.0
+define image dial resolution:2.0 [
+  bounds 0,0,100,100
+  fill gradient:[radial 50,50,50 from:#FF0000 to:#0000FF]
+  ELLIPSE 50,50,30
+  pen black; fill yellow opacity:0.5
+  RECT 50,46.5,25,6 rounded:5
+]
+
+// Define a function called "drawDial" that takes 3 arguments: x, y, and rotation
+drawDial = [
+	// Draw the "dial" image at the specified x and y position
+	IMAGE $0,$1 dial
+	.. align:[middle center]	// Align the image to the middle center of the image
+	.. clip:20,20,60,60			// Set the clip rectangle to the center 40x40 pixels of the image
+	.. width:25 height:25		// Set the width and height of the output to 25x25 pixels
+	.. transform:[rotate $2]	// Rotate the image by the specified number of degrees
+	.. opacity:0.8				// Set the opacity of the image to 80%
+]
+
+// Call the "drawOne" function 4 times with different arguments
+call $drawDial 20 20 0
+call $drawDial 180 20 90
+call $drawDial 20 180 45
+call $drawDial 180 180 135
+
+// Set the font to serif. The shear transformation creates a slant and the tracking value increases the space between letters
+// IVG in itself has no built-in fonts, but "serif", "sans-serif" and "code" are included in ivgfiddle
+font serif size:12 color:white outline:black transform:[shear -0.2,0] tracking:0.1
+
+// Draw centered text around position (100, 45), store the final x position in the variable "x"
+TEXT at:100,45 "Imperative Vector Graphics" anchor:center caret:x
+
+// Set the fill color to none, and the pen color to a pale green with a width of 2
+fill none; pen hsv(0.5,0.7,0.7) width:2.0
+
+// Draw a rectangle with rounded corners around the text
+RECT {200-$x-5},30,{$x*2-200+10},22 rounded:10

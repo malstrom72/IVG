@@ -1,0 +1,138 @@
+// you can't break a statement into multiple lines without [ ] or something
+TRACE 1
+2 // begins with a number, invalid instruction
+3
+
+grmlb // unrecognized instruction
+
+_DEBUG unterminated /*
+
+_DEBUG unterminated [
+
+_DEBUG unterminated [ // ]
+
+_DEBUG unterminated [ [ ]
+
+_DEBUG unterminated {
+
+_DEBUG unterminated { // }
+
+_DEBUG unterminated { { }
+
+_DEBUG invalid order { [ } ]
+
+_DEBUG :empty name is not allowed
+
+_DEBUG "":empty name is not allowed
+
+_DEBUG empty:name :is not allowed
+
+_DEBUG a:b: // not ok
+
+_DEBUG [a ]:[ c]: // not ok
+
+x=$y; TRACE BAD!! // $y doesn't exist
+
+LOCAL [ $y = 23; x = $y; ]
+x = $y; TRACE BAD!! // again, $y doesn't exist
+
+mIxEdCasE=I exist
+x = $mIxEdCase; TRACE BAD!! // variable names are case sensitive
+
+a=not a number; a-b=okay; TRACE {$a-b}; TRACE BAD!! // $a-b is ok, but not {$a-b}
+
+c=not a number; c-23=okay; TRACE {$c-23}; TRACE BAD!! // $c-23 is ok, but not {$c-23}
+
+// bad assignments
+=x; TRACE BAD!!
+
+23=x; TRACE BAD!!
+
+.23=x; TRACE BAD!!
+
+-23=x; TRACE BAD!!
+
+{}=x; TRACE BAD!!
+
+RETURN asdf; TRACE BAD!! // cannot return in global frame
+
+CALL [ RETURN asdf ]; TRACE BAD!! // asdf doesn't exist
+
+// recursion limit
+x = [ $y ]
+y = [ $x ]
+$x
+TRACE BAD!!
+
+x = IF yes [ $x ]
+$x
+TRACE BAD!!
+
+_DEBUG x = { / 0} // syntax error
+
+_DEBUG x = { 23 / 0 } // division by zero is not legal
+
+_DEBUG x = { y + 3 } // y is not number
+
+_DEBUG x = { y + } // bad ending
+
+_DEBUG x = { (23z) % 5 } // invalid number
+
+_DEBUG x = {.+.} // invalid number
+
+_DEBUG x = {+a} // invalid number
+
+_DEBUG x = {+(1e)} // invalid number
+
+_DEBUG x = {+(1e.0)} // invalid number
+
+STOP
+
+IF // missing arg
+
+IF [no] // missing arg
+
+REPEAT // missing arg
+
+REPEAT 5 // missing arg
+
+FOR // missing arg
+
+FOR x // missing arg
+
+FOR x [] // missing arg
+
+FOR x in:blahblah // missing arg
+
+FOR x from:0 [] // missing arg
+
+FOR x to:100 [] // missing arg
+
+FOR x from:0 to:100 // missing arg
+
+REPEAT while:[no] [] // missing arg
+
+REPEAT while:[no] 100 while:[yes] [] // duplicate arg
+
+REPEAT 100 while:no [] // while condition must be enclosed in [ ]
+
+TRACE {{3:5}} // syntax error
+
+TRACE {"abcd"{}} // syntax error
+
+TRACE {"abcd"{:}} // syntax error
+
+TRACE {"abcd"{a:b}} // invalid number
+
+TRACE {1 / 0} // Division by zero
+
+TRACE {1 % 0} // Modulo by zero
+
+TRACE {log(0)} // Math error
+
+TRACE {log(-1)} // Math error
+
+TRACE {sqrt(-1)} // Math error
+
+REPEAT 1073741823 [] // statements count limit
+

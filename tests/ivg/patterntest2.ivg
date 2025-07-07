@@ -1,0 +1,40 @@
+FORMAT IVG-1 requires:IMPD-1
+BOUNDS 0,0,800,600
+
+/*reset
+wipe white
+fill relative:yes pattern:[bounds 0,0,100,100; fill black; ellipse 50,50,49 ]
+rect 100,100,200,200
+rect 100,100,200,200
+rect 300,300,50,50
+rect 500,500,25,25
+
+pen black
+fill relative:no pattern:[bounds 0,0,100,100; fill red; ellipse 50,50,49 ]
+rect 500,100,200,200
+rotate 10
+scale 1.1,0.9
+fill relative:no pattern:[bounds 0,0,100,100; fill red; ellipse 50,50,49 ]
+rect 500,100,200,200
+*/
+
+reset
+options pattern-resolution:1.0
+
+r=0
+s=1.00
+offset 200,200
+wipe white
+fill relative:yes gradient:[ radial 0.5,0.5,0.5 from:yellow to:black]
+rotate $r
+scale $s,3
+fill pattern:[ bounds -15,-15,30,30; pen black; ellipse 0,0,10  ]
+	.. relative:yes 
+pen width:2
+rect 100,100,100,100
+pen red width:10 opacity:0.1
+rect -64,-64,128,128
+rotate -20
+rect 64,64,64,64
+s={$s+0.01}
+r={$r+1}
