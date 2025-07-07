@@ -3,7 +3,7 @@
 SETLOCAL ENABLEEXTENSIONS ENABLEDELAYEDEXPANSION
 
 IF NOT "%~1"=="" IF NOT "%~2"=="" IF NOT "%~3"=="" GOTO argsOK
-ECHO build debug^|release x86^|x64^|arm64 nosimd^|simd
+ECHO build debug^|beta^|release x86^|x64^|arm64 nosimd^|simd
 EXIT /B 1
 
 :argsOK
