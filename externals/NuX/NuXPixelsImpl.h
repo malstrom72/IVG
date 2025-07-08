@@ -246,6 +246,9 @@ template<class T> const typename T::Pixel* Span<T>::getPixelPointer() const { re
 
 /* --- SpanBuffer --- */
 
+/**
+Iterator walks spans in a SpanBuffer sequentially.
+**/
 template<class T> class SpanBuffer<T>::iterator {
 	public:		iterator(Span<T>* p) : p(p) { }
 	public:		Span<T>& operator*() { return *p; }
@@ -1252,6 +1255,9 @@ template<class T> Gradient<T>::Gradient(typename T::Pixel start, typename T::Pix
 
 /* --- Texture --- */
 
+/**
+Impl contains the sampling logic for the Texture renderer.
+**/
 template<class T> class Texture<T>::Impl {
 	friend class Texture<T>;
 	public:		Impl(const Raster<T>& image, bool wrap, const AffineTransformation& transformation, const IntRect& sourceRect);
