@@ -9,8 +9,9 @@ format IVG-2 requires:ImpD-1
 ```
 
 Instructions cover shapes, paths, images and text as well as directives for styling and transformations. See
-[`IVG Documentation`](docs/IVG%20Documentation.md) and
-[`ImpD Documentation`](docs/ImpD%20Documentation.md) for the complete specification.
+[`IVG Documentation`](docs/IVG%20Documentation.md),
+[`ImpD Documentation`](docs/ImpD%20Documentation.md) and
+[`NuXPixels Documentation`](docs/NuXPixels%20Documentation.md) for the complete specification.
 
 For integration details and API examples, see
 [`Developer Guide`](docs/Developer%20Guide.md).
