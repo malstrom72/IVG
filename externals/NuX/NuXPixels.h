@@ -154,11 +154,11 @@ inline Fixed32_32 multiply(Int32 v1, Fixed32_32 v2) throw() { return v1 * v2; }
 #else // #ifdef NUXPIXELS_INT64_TYPE
 
 /**
-Fixed32_32 represents a 32.32 fixed-point value for precision math.
+	Fixed32_32 represents a 32.32 fixed-point value for precision math.
 
-example:
-Fixed32_32 half = toFixed32_32(0, 0x80000000);
-Fixed32_32 one = multiply(2, half);
+	example:
+	Fixed32_32 half = toFixed32_32(0, 0x80000000);
+	Fixed32_32 one = multiply(2, half);
 **/
 class Fixed32_32 {
 	public:		Fixed32_32() { }
@@ -199,12 +199,6 @@ inline Fixed32_32 multiply(UInt16 v1, Fixed32_32 v2) throw() {
 
 #endif // #ifdef NUXPIXELS_INT64_TYPE
 
-/**
-Point holds an (x,y) coordinate used for geometry calculations.
-
-example:
-Point<int> origin(0, 0);
-**/
 template<typename T> class Point {
 	public:		Point();
 	public:		Point(T x, T y);
@@ -215,12 +209,6 @@ template<typename T> class Point {
 	public:		T y;
 };
 
-/**
-Rect defines an axis aligned rectangle with various helpers.
-
-example:
-Rect<int> bounds(0, 0, 64, 64);
-**/
 template<typename T> class Rect {
 	public:		Rect();
 	public:		Rect(T left, T top, T width, T height);
@@ -248,11 +236,12 @@ extern const IntRect FULL_RECT; // top:-0x40000000, left:-0x40000000, width:0x7F
 
 // FIX : I don't like the incosistency here, Path methods are destructive, but AffineTransformation methods return new transformations. (Except invert!!)
 // FIX : transformation concatenation is done in different order in different APIs, but the most common in 2D (e.g. Quartz, Java) seems to be the opposite of what I have chosen here. We should perhaps create a new matrix class with the opposite concat order and a backwards compatibility class (derived) for my personal old projects.
-/**
-AffineTransformation stores a 2x3 matrix used to transform vertices.
 
-example:
-AffineTransformation t = AffineTransformation().translate(10, 5).rotate(0.5);
+/**
+	AffineTransformation stores a 2x3 matrix used to transform vertices.
+
+	example:
+	AffineTransformation t = AffineTransformation().translate(10, 5).rotate(0.5);
 **/
 class AffineTransformation {
 	public:		AffineTransformation();
@@ -276,10 +265,11 @@ class AffineTransformation {
 };
 
 /**
-Path records drawing commands for shapes that can be filled or stroked.
+	Path records drawing commands for shapes that can be filled or stroked.
 
-example:
-Path p; p.moveTo(0,0).lineTo(10,10).close();
+	example:
+	Path p;
+	p.moveTo(0,0).lineTo(10,10).close();
 **/
 class Path {
 	public:		enum EndCapStyle { BUTT, ROUND, SQUARE };
@@ -335,10 +325,7 @@ inline UInt32 alphaToScale(UInt8 alpha) { return alpha + (alpha != 0 ? 1 : 0); }
 inline UInt8 scaleToAlpha(UInt32 scale) { assert(0 <= scale && scale <= 256); return scale - (scale >> 8); }
 
 /**
-ARGB32 is a 32-bit pixel with alpha, red, green and blue components.
-
-example:
-ARGB32::Pixel red = 0xFFFF0000;
+	ARGB32 is a 32-bit pixel with alpha, red, green and blue components.
 **/
 class ARGB32 {
 	public:		enum { COMPONENT_COUNT = 4 };
@@ -461,10 +448,7 @@ inline ARGB32::Pixel ARGB32::join(const UInt8 components[COMPONENT_COUNT]) {
 }
 
 /**
-Mask8 holds 8-bit coverage values for masking and blending.
-
-example:
-Mask8::Pixel max = Mask8::maximum();
+	Mask8 holds 8-bit coverage values for masking and blending.
 **/
 class Mask8 {
 	public:		enum { COMPONENT_COUNT = 1 };
@@ -528,13 +512,6 @@ template<class T> class Span {
 	#define NUXPIXELS_SPAN_ARRAY(T, n) NuXPixels::Span<T> (n)[NuXPixels::MAX_RENDER_LENGTH];
 #endif
 
-/**
-SpanBuffer stores runs of pixels used during rendering.
-
-example:
-NUXPIXELS_SPAN_ARRAY(ARGB32, spans);
-SpanBuffer<ARGB32> buf(spans, pixels);
-**/
 template<class T> class SpanBuffer {
 	public:		class iterator;
 #if (NUXPIXELS_ICC_HACK)
@@ -567,10 +544,10 @@ template<class T> class Inverter;
 template<class T> class Offsetter;
 
 /**
-Renderer is the abstract base for anything that can produce pixel spans.
+	Renderer is the abstract base for anything that can produce pixel spans.
 
-example:
-myRaster.fill(Solid<ARGB32>(0xff0000ff), area);
+	example:
+	myRaster.fill(Solid<ARGB32>(0xff0000ff), area);
 **/
 template<class T> class Renderer {
 	public:		virtual IntRect calcBounds() const = 0;
@@ -586,10 +563,7 @@ template<class T> class Renderer {
 
 // FIX : no inlines here (?)
 /**
-Raster represents an in-memory pixel buffer that can be rendered to.
-
-example:
-Raster<ARGB32> screen(pixels, stride, FULL_RECT, true);
+	Raster represents an in-memory pixel buffer that can be rendered to. It does not own the memory.
 **/
 template<class T> class Raster : public Renderer<T> {
 	public:		Raster(typename T::Pixel* pixels, int stride, const IntRect& bounds, bool opaque);	///< Warning! If opaque is true you must never have transparent pixels in this raster.
@@ -623,10 +597,7 @@ template<class T> void Raster<T>::setPixel(int x, int y, const typename T::Pixel
 }
 
 /**
-SelfContainedRaster owns its memory and behaves like a Raster.
-
-example:
-SelfContainedRaster<Mask8> mask(IntRect(0,0,64,64));
+	SelfContainedRaster owns its memory and behaves like a Raster.
 **/
 template<class T> class SelfContainedRaster : public Raster<T> {
 	public:		SelfContainedRaster();
@@ -639,10 +610,10 @@ template<class T> class SelfContainedRaster : public Raster<T> {
 };
 
 /**
-Solid renders a single constant pixel value across the span.
+	Solid renders a single constant pixel value for all spans.
 
-example:
-Solid<ARGB32> blue(0xff0000ff);
+	example:
+	Solid<ARGB32> blue(0xff0000ff);
 **/
 template<class T> class Solid : public Renderer<T> {
 	public:		Solid(const typename T::Pixel& pixel);
@@ -652,10 +623,10 @@ template<class T> class Solid : public Renderer<T> {
 };
 
 /**
-RLERaster stores spans in run-length encoded form to save memory.
+	RLERaster stores spans in run-length encoded form to save memory.
 
-example:
-RLERaster<Mask8> cache(area, mask);
+	example:
+	RLERaster<Mask8> cache(area, mask);
 **/
 template<class T> class RLERaster : public Renderer<T> {
 	public:		RLERaster(const IntRect& bounds, const Renderer<T>& source = Solid<T>(T::transparent()));
@@ -682,10 +653,10 @@ template<class T> class RLERaster : public Renderer<T> {
 };
 
 /**
-SolidRect quickly fills a rectangle with a solid color.
+	SolidRect quickly fills a rectangle with a solid color.
 
-example:
-SolidRect<ARGB32> box(0xffffffff, IntRect(10,10,50,20));
+	example:
+	SolidRect<ARGB32> box(0xffffffff, IntRect(10,10,50,20));
 **/
 template<class T> class SolidRect : public Renderer<T> {
 	public:		SolidRect(const typename T::Pixel& pixel, const IntRect& rect);
@@ -697,10 +668,10 @@ template<class T> class SolidRect : public Renderer<T> {
 
 // FIX : common super-class for all filters? (i.e. renderers having a source)
 /**
-Clipper confines a renderer's output to a rectangular area.
+	Clipper confines a renderer's output to a rectangular area.
 
-example:
-Clipper<ARGB32> clipped(texture, IntRect(0,0,32,32));
+	example:
+	Clipper<ARGB32> clipped(texture, IntRect(0,0,32,32));
 **/
 template<class T> class Clipper : public Renderer<T> {
 	public:		Clipper(const Renderer<T>& source, const IntRect& rect);
@@ -711,10 +682,11 @@ template<class T> class Clipper : public Renderer<T> {
 };
 
 /**
-Offsetter translates the coordinates of another renderer.
+	Offsetter translates the coordinates of another renderer. Operator + and - (with a IntPoint) in Renderer<T>
+	returns an Offsetter<T>.
 
-example:
-texture + IntPoint(2, 2);
+	example:
+	texture + IntPoint(2, 2);
 **/
 template<class T> class Offsetter : public Renderer<T> {
 	public:		Offsetter(const Renderer<T>& source, int offsetX, int offsetY);
@@ -727,10 +699,7 @@ template<class T> class Offsetter : public Renderer<T> {
 
 // FIX : a unary operators calcBounds is always either FULL or source's bounds, depending on the result of converting a transparent pixel, so why not just test a converting a transparent pixel?
 /**
-UnaryOperator processes each pixel from a source renderer individually.
-
-example:
-Inverter<Mask8> inverted(mask);
+	UnaryOperator processes each pixel from a source renderer individually.
 **/
 template<class S, class T> class UnaryOperator : public Renderer<T> {
 	public:		UnaryOperator(const Renderer<S>& source);
@@ -743,10 +712,10 @@ template<class S, class T> class UnaryOperator : public Renderer<T> {
 };
 
 /**
-Lookup applies a lookup table to mask values to produce pixels.
+	Lookup applies a lookup table to mask values to produce pixels.
 
-example:
-Lookup<ARGB32, LookupTable<ARGB32>> shaded(mask, table);
+	example:
+	Lookup<ARGB32, LookupTable<ARGB32>> shaded(mask, table);
 **/
 template<class T, class L> class Lookup : public UnaryOperator<Mask8, T> {
 	public:		typedef UnaryOperator<Mask8, T> super;
@@ -757,10 +726,10 @@ template<class T, class L> class Lookup : public UnaryOperator<Mask8, T> {
 };
 
 /**
-Inverter flips the color components of its source renderer.
+	Inverter flips the color components of its source renderer. operator ~ in Renderer<T> returns an Inverter<T>.
 
-example:
-Inverter<ARGB32> neg(image);
+	example:
+	Inverter<ARGB32> neg(image);
 **/
 template<class T> class Inverter : public UnaryOperator<T, T> {
 	public:		Inverter(const Renderer<T>& source);
@@ -769,10 +738,10 @@ template<class T> class Inverter : public UnaryOperator<T, T> {
 };
 
 /**
-Converter transforms pixels from one format to another.
+	Converter transforms pixels from one format to another.
 
-example:
-Converter<Mask8, ARGB32> toColor(maskRenderer);
+	example:
+	Converter<Mask8, ARGB32> toColor(maskRenderer);
 **/
 template<class S, class T> class Converter : public UnaryOperator<S, T> {
 	public:		typedef UnaryOperator<S, T> super;
@@ -782,10 +751,10 @@ template<class S, class T> class Converter : public UnaryOperator<S, T> {
 };
 
 /**
-LinearAscend produces a linear gradient mask between two points.
+	LinearAscend produces a linear gradient mask between two points.
 
-example:
-LinearAscend mask(0, 0, 0, 100);
+	example:
+	LinearAscend mask(0, 0, 0, 100);
 **/
 class LinearAscend : public Renderer<Mask8> { // FIX : name? LinearMask, LinearAscent?
 	public:		LinearAscend(double startX, double startY, double endX, double endY);
@@ -798,10 +767,10 @@ class LinearAscend : public Renderer<Mask8> { // FIX : name? LinearMask, LinearA
 };
 
 /**
-RadialAscend creates a radial gradient mask around a center point.
+	RadialAscend creates a radial gradient mask around a center point.
 
-example:
-RadialAscend spot(50, 50, 40, 40);
+	example:
+	RadialAscend spot(50, 50, 40, 40);
 **/
 class RadialAscend : public Renderer<Mask8> {
 	public:		RadialAscend(double centerX, double centerY, double width, double height);	// width and height must be non-zero
@@ -817,10 +786,10 @@ class RadialAscend : public Renderer<Mask8> {
 };
 
 /**
-Texture samples from an image raster with an affine transformation.
+	Texture samples from an image raster with an affine transformation.
 
-example:
-Texture<ARGB32> tex(image, true, AffineTransformation().scale(2));
+	example:
+	Texture<ARGB32> tex(image, true, AffineTransformation().scale(2));
 **/
 template<class T> class Texture : public Renderer<T> {
 	public:		Texture(const Raster<T>& image, bool wrap = true, const AffineTransformation& transformation = AffineTransformation(), const IntRect& sourceRect = FULL_RECT);
@@ -832,7 +801,7 @@ template<class T> class Texture : public Renderer<T> {
 };
 
 /**
-BinaryOperator combines output from two renderers pixel by pixel.
+	BinaryOperator combines output from two renderers pixel by pixel.
 **/
 template<class A, class B> class BinaryOperator : public Renderer<A> {
 	public:		BinaryOperator(const Renderer<A>& rendererA, const Renderer<B>& rendererB);
@@ -842,10 +811,10 @@ template<class A, class B> class BinaryOperator : public Renderer<A> {
 };
 
 /**
-Blender overlays one renderer on top of another using alpha blending.
+	Blender overlays one renderer on top of another using alpha blending. Operator | in Renderer<T> returns a Blender<T>.
 
-example:
-result.fill(Blender<ARGB32>(background, overlay), area);
+	example:
+	result.fill(Blender<ARGB32>(background, overlay), area);
 **/
 template<class T> class Blender : public BinaryOperator<T, T> {
 	public:		typedef BinaryOperator<T, T> super;
@@ -857,10 +826,10 @@ template<class T> class Blender : public BinaryOperator<T, T> {
 };
 
 /**
-Adder simply adds pixel values from two renderers.
+	Adder simply adds pixel values from two renderers. Operator + in Renderer<T> returns an Adder<T>.
 
-example:
-Adder<Mask8> combined(maskA, maskB);
+	example:
+	Adder<Mask8> combined(maskA, maskB);
 **/
 template<class T> class Adder : public BinaryOperator<T, T> {
 	public:		typedef BinaryOperator<T, T> super;
@@ -870,10 +839,10 @@ template<class T> class Adder : public BinaryOperator<T, T> {
 };
 
 /**
-Multiplier multiplies pixel values from two renderers.
+	Multiplier multiplies pixel values from two renderers.
 
-example:
-Multiplier<ARGB32, Mask8> masked(image, mask);
+	example:
+	Multiplier<ARGB32, Mask8> masked(image, mask);
 **/
 template<class A, class B> class Multiplier : public BinaryOperator<A, B> {
 	public:		typedef BinaryOperator<A, B> super;
@@ -883,7 +852,7 @@ template<class A, class B> class Multiplier : public BinaryOperator<A, B> {
 };
 
 /**
-Optimizer analyzes spans from a renderer to minimize redundant output.
+	Optimizer analyzes spans from a renderer to minimize redundant output.
 **/
 template<class T> class Optimizer : public Renderer<T> {
 	public:		Optimizer(const Renderer<T>& source);
@@ -898,7 +867,7 @@ template<class T> class Optimizer : public Renderer<T> {
 
 // FIX : switch on these instead, class bloating...
 /**
-FillRule determines how polygon winding produces coverage.
+	FillRule determines how polygon winding produces coverage.
 **/
 class FillRule {
 	public:		virtual void processCoverage(int span, const Int32* source, Mask8::Pixel* destination) const = 0;
@@ -906,14 +875,14 @@ class FillRule {
 };
 
 /**
-NonZeroFillRule counts winding direction to determine fill.
+	NonZeroFillRule counts winding direction to determine fill.
 **/
 class NonZeroFillRule : public FillRule {
 	public:		virtual void processCoverage(int span, const Int32* source, Mask8::Pixel* destination) const;
 };
 
 /**
-EvenOddFillRule toggles fill state every time an edge is crossed.
+	EvenOddFillRule toggles fill state every time an edge is crossed.
 **/
 class EvenOddFillRule : public FillRule {
 	public:		virtual void processCoverage(int span, const Int32* source, Mask8::Pixel* destination) const;
@@ -922,10 +891,10 @@ class EvenOddFillRule : public FillRule {
 // FIX : needs some updating, shouldn't require bounds as an argument for example, also I don't like the class-bloating of the various fill-rules. Non-zero or even-odd is the only ones needed.
 // Also: this is (I believe) the only renderer that doesn't allow random access coordinates. It needs to render from top to bottom, left to right. Once only.
 /**
-PolygonMask rasterizes a path into a coverage mask using a fill rule.
+	PolygonMask rasterizes a path into a coverage mask using a fill rule.
 
-example:
-PolygonMask mask(path, bounds, PolygonMask::nonZeroFillRule);
+	example:
+	PolygonMask mask(path, bounds, PolygonMask::nonZeroFillRule);
 **/
 class PolygonMask : public Renderer<Mask8> {
 	public:		static NonZeroFillRule nonZeroFillRule;
@@ -954,7 +923,7 @@ protected:	IntRect bounds; // FIX : shouldn't need both area and bounds
 };
 
 /**
-LookupTable holds 256 entries for mapping mask values to colors.
+	LookupTable holds 256 entries for mapping mask values to colors.
 **/
 template<class T> class LookupTable {
 	protected:	LookupTable();
@@ -967,18 +936,18 @@ template<class T> class LookupTable {
 };
 
 /**
-GammaTable precomputes gamma corrected values for mask pixels.
+	GammaTable precomputes gamma corrected values for mask pixels.
 **/
 class GammaTable : public LookupTable<Mask8> {
 	public:		GammaTable(double gamma);
 };
 
 /**
-Gradient interpolates between color stops to fill pixels.
+	Gradient interpolates between color stops to fill pixels.
 
-example:
-Gradient<ARGB32>::Stop stops[] = {{0.0, 0xff0000ff}, {1.0, 0xffffffff}};
-Gradient<ARGB32> grad(2, stops);
+	example:
+	Gradient<ARGB32>::Stop stops[] = {{0.0, 0xff0000ff}, {1.0, 0xffffffff}};
+	Gradient<ARGB32> grad(2, stops);
 **/
 template<class T> class Gradient : public LookupTable<T> {
 	public:		class Stop {
