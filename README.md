@@ -9,3 +9,5 @@ format IVG-2 requires:ImpD-1
 ```
 
 Instructions cover shapes, paths, images and text as well as directives for styling and transformations. See `docs/IVG Documentation.md` and `docs/ImpD Documentation.md` for the complete specification.
+
+For integration details and API examples, see `docs/Developer Guide.md`.
