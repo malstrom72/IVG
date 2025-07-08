@@ -560,8 +560,8 @@ Path& Path::addStar(double centerX, double centerY, int points, double radius1, 
 }
 
 /**
-	StrokeSegment is an internal class for storing info on line-segments to stroke.
-*/
+StrokeSegment is an internal helper for path stroking.
+**/
 class StrokeSegment {
 	public:		StrokeSegment(const Vertex& v = Vertex(), const Vertex& d = Vertex(), double l = 0.0)
 						: v(v), d(d), l(l) { }
@@ -1091,10 +1091,8 @@ void EvenOddFillRule::processCoverage(int count, const Int32* source, Mask8::Pix
 /* --- PolygonMask --- */
 
 /**
-	PolygonMask::Segment is an internal class used during rasterization. It represents a
-	single line segment with info on current position and direction (in integer coordinates),
-	as well as the pixel span for the last row rasterized.
-*/
+PolygonMask::Segment holds a polygon edge while generating a mask.
+**/
 class PolygonMask::Segment {
 	public:		int topY;			//< Starting y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
 	public:		int bottomY;		//< Ending y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
