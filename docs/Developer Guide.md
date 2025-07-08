@@ -67,3 +67,4 @@ Instantiate your derived executor when creating the interpreter so that image an
 - `tools/IVG2PNG.cpp` – minimal example program that converts an IVG file to PNG.
 - `docs/ImpD Documentation.md` – specification of the ImpD scripting language.
 - `docs/IVG Documentation.md` – detailed description of available drawing instructions.
+- `docs/NuXPixels Documentation.md` – overview of the low-level rendering library.
