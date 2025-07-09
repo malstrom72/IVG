@@ -23,3 +23,7 @@ Included in this distribution is a standalone .html application called _IVGFiddl
 and see the graphical output in real-time.
 
 [ivgfiddle-link]: https://htmlpreview.github.io/?https://github.com/malstrom72/IVG/blob/main/tools/ivgfiddle/output/ivgfiddle.html
+
+## AI-Assisted Content
+
+This project occasionally uses AI (such as OpenAI Codex) to help with writing documentation, generating code comments, producing test code, and automating repetitive edits. All of the underlying source code has been hand-written and refined over many years.
