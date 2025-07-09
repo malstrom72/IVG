@@ -768,9 +768,10 @@ template<class S, class T> class Converter : public UnaryOperator<S, T> {
 
 /**
 	LinearAscend produces a linear gradient mask between two points.
-
+	
 	example:
-	LinearAscend mask(0, 0, 0, 100);
+	Gradient<ARGB32> grad(0xff0000ff, 0xffffffff);
+	canvas |= grad[LinearAscend(0, 0, 0, 100)];
 **/
 class LinearAscend : public Renderer<Mask8> { // FIX : name? LinearMask, LinearAscent?
 	public:		LinearAscend(double startX, double startY, double endX, double endY);
@@ -784,9 +785,10 @@ class LinearAscend : public Renderer<Mask8> { // FIX : name? LinearMask, LinearA
 
 /**
 	RadialAscend creates a radial gradient mask around a center point.
-
+	
 	example:
-	RadialAscend spot(50, 50, 40, 40);
+	Gradient<ARGB32> grad(0xffff0000, 0xff00ff00);
+	canvas |= grad[RadialAscend(50, 50, 40, 40)];
 **/
 class RadialAscend : public Renderer<Mask8> {
 	public:		RadialAscend(double centerX, double centerY, double width, double height);	// width and height must be non-zero
