@@ -8,7 +8,11 @@
   - [AffineTransformations](#affinetransformations)
 - [Rendering pipeline](#rendering-pipeline)
   - [Raster and Renderer](#raster-and-renderer)
+  - [PolygonMask](#polygonmask)
   - [Gradients](#gradients)
+  - [Solid and Texture](#solid-and-texture)
+  - [RLERaster](#rleraster)
+  - [Operator overloading](#operator-overloading-and-pull-model)
 - [Path construction](#path-construction)
 - [Examples](#examples)
 ## Intro
@@ -20,11 +24,37 @@ _NuXPixels_ is a small C++ library for 2D graphics rendering. It is designed to 
 ### Points and Rectangles
 `NuXPixels` defines generic `Point<T>` and `Rect<T>` templates for integer and floating point coordinates. Convenience typedefs such as `IntPoint`, `IntRect` and `Vertex` (a double precision point) are available for common use.
 
+`Rect<T>` provides helpers like `offset`, `calcUnion` and `calcIntersection` to manipulate regions.
+These operations simplify clipping logic:
+
+```cpp
+IntRect a(0, 0, 50, 50);
+IntRect b(20, 20, 10, 10);
+IntRect clipped = a.calcIntersection(b);
+```
+
 ### Colors
 The library ships with a few pixel formats. `ARGB32` stores premultiplied 8‑bit channels and provides helpers like `isOpaque`, `add`, `blend` and `fromFloatRGB`. A lightweight `Mask8` type is used when rendering coverage masks.
 
+`ARGB32` also includes `multiply` and `interpolate` utilities for pixel arithmetic. A color can be
+constructed from floats and then modulated:
+
+```cpp
+ARGB32::Pixel p = ARGB32::fromFloatRGB(1.0, 0.0, 0.0, 0.5);
+ARGB32::Pixel dark = ARGB32::multiply(p, 128);
+```
+
 ### AffineTransformations
 `AffineTransformation` represents 2×3 matrices for translation, scaling, rotation and shearing. Transformations can be composed with the `transform()` function and applied to vertices or paths.
+
+Chained calls build complex transforms in a readable manner:
+
+```cpp
+AffineTransformation t = AffineTransformation()
+    .translate(20, 10)
+    .scale(2)
+    .rotate(0.25 * M_PI);
+```
 
 ## Rendering pipeline
 
@@ -36,6 +66,11 @@ while `SelfContainedRaster<T>` manages its own memory. Canvases in IVG typically
 blend color data from `Renderer<ARGB32>` through coverage masks produced by
 `Renderer<Mask8>` sources.
 
+```cpp
+ARGB32::Pixel pixels[256 * 256];
+Raster<ARGB32> view(pixels, 256, IntRect(0, 0, 256, 256), false);
+```
+
 ### PolygonMask
 `PolygonMask` is the workhorse renderer for filling shapes. Given a vector `Path` and an optional fill rule, it converts the geometry into a scanline coverage mask (`Renderer<Mask8>`). Paint sources such as solid colors or gradients are then blended through this mask onto the destination raster. Most higher level drawing operations in NuXPixels build a `PolygonMask` internally and render it row by row from top to bottom. Both even‑odd and non‑zero winding rules are supported.
 
@@ -45,6 +80,32 @@ A `Gradient` lookup table produces color values for linear or radial fills.
 into a gradient: `gradient[LinearAscend(x0, y0, x1, y1)]` or
 `gradient[RadialAscend(cx, cy, rx, ry)]` yield a color renderer. The library also
 provides a `GammaTable` for simple tone adjustments.
+
+```cpp
+Gradient<ARGB32>::Stop stops[] = {
+    {0.0, 0xff0000ff}, {1.0, 0xffffffff}
+};
+Gradient<ARGB32> grad(2, stops);
+canvas |= grad[LinearAscend(0, 0, 0, 100)];
+```
+
+### Solid and Texture
+`Solid<T>` outputs a constant pixel value. `Texture<T>` samples from a raster using an affine
+transformation and optional wrapping.
+
+```cpp
+Texture<ARGB32> tex(image, true, AffineTransformation().scale(0.5));
+canvas |= tex * mask;
+```
+
+### RLERaster
+`RLERaster<T>` stores spans in run-length encoded form for reuse. It is handy for caching
+masks so that complex paths need not be rasterized repeatedly.
+
+```cpp
+RLERaster<Mask8> cache(area, mask);
+canvas |= Solid<ARGB32>(color) * cache;
+```
 
 ### Operator overloading and pull model
 Renderers can be combined with `*`, `+`, `|`, `+=`, `*=`, and `|=` operators.
@@ -60,6 +121,13 @@ efficient even with many layers.
 
 ## Path construction
 `Path` is a sequence of drawing commands supporting lines, quadratic and cubic curves. It can be modified with helper methods like `addRect`, `addEllipse`, `addRoundedRect` and `stroke`. Paths operate in double precision and can be transformed with an `AffineTransformation` before rendering.
+
+```cpp
+Path star;
+star.addStar(40, 40, 5, 20, 10, 0);
+star.stroke(3.0, Path::ROUND, Path::MITER);
+star.dash(5.0, 2.0);
+```
 
 
 ## Examples
@@ -84,3 +152,14 @@ is then blended onto `canvas` with `|=`. The entire expression becomes a pull
 pipeline: the canvas requests pixels, which asks the mask for coverage, which in
 turn iterates the path only for the visible spans. Similar expressions can chain
 gradients or multiple masks together.
+
+Another example uses a texture and gradient:
+
+```cpp
+SelfContainedRaster<ARGB32> texCanvas(IntRect(0, 0, 64, 64));
+Gradient<ARGB32> grad(ARGB32::transparent(), 0xff00ff00);
+texCanvas |= grad[RadialAscend(32, 32, 32, 32)];
+
+Texture<ARGB32> tex(texCanvas, true);
+canvas |= tex * mask;
+```
