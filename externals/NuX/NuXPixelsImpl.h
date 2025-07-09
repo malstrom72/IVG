@@ -247,7 +247,9 @@ template<class T> const typename T::Pixel* Span<T>::getPixelPointer() const { re
 /* --- SpanBuffer --- */
 
 /**
-	Iterator walks spans in a SpanBuffer sequentially.
+        Iterator walks spans in a SpanBuffer sequentially. Incrementing advances
+        by the length of the current span, while decrementing relies on the copy
+        stored at the end of the previous span to step backwards.
 **/
 template<class T> class SpanBuffer<T>::iterator {
 	public:		iterator(Span<T>* p) : p(p) { }
