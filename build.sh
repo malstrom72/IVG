@@ -30,7 +30,8 @@ echo
 echo Seems fine
 cd ..
 
-./tools/BuildCpp.sh $1 $2 ./output/IVG2PNG ./tools/IVG2PNG.cpp -DNUXPIXELS_SIMD=$simd -I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp ./externals/libpng/*.c ./externals/zlib/*.c
+# -ffp-contract=off is necessary to avoid issues with floating point optimizations that can cause differences in results
+./tools/BuildCpp.sh $1 $2 ./output/IVG2PNG -ffp-contract=off ./tools/IVG2PNG.cpp -DNUXPIXELS_SIMD=$simd -I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp ./externals/libpng/*.c ./externals/zlib/*.c
 
 echo Testing...
 cd tests
