@@ -4,9 +4,8 @@ CD /D "%~dp0\.."
 SETLOCAL ENABLEEXTENSIONS ENABLEDELAYEDEXPANSION
 
 IF NOT "%~1"=="" IF NOT "%~2"=="" IF NOT "%~3"=="" GOTO argsOK
-ECHO buildAndTest debug^|beta^|release x86^|x64^|arm64 nosimd^|simd
-EXIT /B 1
-
+	ECHO buildAndTest debug^|beta^|release x86^|x64^|arm64 nosimd^|simd
+	EXIT /B 1
 :argsOK
 
 IF "%~3" == "simd" (

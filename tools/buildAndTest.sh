@@ -3,7 +3,7 @@ set -e -o pipefail -u
 cd "$(dirname "$0")"/..
 
 if [ $# -lt 3 ]; then
-        echo "buildAndTest.sh debug|beta|release x64|x86|arm64|native|fat nosimd|simd"
+    echo "buildAndTest.sh debug|beta|release x64|x86|arm64|native|fat nosimd|simd"
 	exit 1
 fi
 
