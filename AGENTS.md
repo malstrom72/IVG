@@ -20,7 +20,7 @@ The project uses a consistent folder structure. Build output is written to `outp
 - `benchmarks/` – JavaScript performance tests.
 - `output/` – contains only build artifacts (and any runtime dependencies), no source files.
 
-Root level `build.sh` and `build.cmd` (mirrored implementations) should build and test both the beta and release targets.
+Root-level `build.sh` and `build.cmd` (mirrored implementations) should build and test both the beta and release targets.
 
 ### Formatting rules
 
@@ -48,7 +48,7 @@ CD /D "%~dp0\.."
 For robust error handling, `.sh` scripts should begin with:
 
 ```bash
-set -e -o pipefail
+set -e -o pipefail -u
 ```
 
 And `.cmd` scripts normally use a simple error check:
