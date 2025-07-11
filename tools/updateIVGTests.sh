@@ -1,20 +1,16 @@
 #!/bin/bash
-set -e -o pipefail
+set -e -o pipefail -u
+cd "$(dirname "$0")"/../tests
 
-if [ -z "$1" ]; then
-	EXE="../output/IVG2PNG"
-else
-	EXE=$1
-fi
+EXE=${1:-../output/IVG2PNG}
 
-for f in ./ivg/*.ivg; do
-	n=${f#./ivg/}
-	n=${n%.ivg}
-	echo Doing "$n"
-	echo
-	$EXE "$f" "./png/$n.png"
-	echo
-	echo
-
+for f in ivg/*.ivg; do
+        n=${f#ivg/}
+        n=${n%.ivg}
+        echo Doing "$n"
+        echo
+        "$EXE" "$f" "png/$n.png"
+        echo
+        echo
 done
 
