@@ -1,10 +1,10 @@
 @ECHO OFF
-CD /D "%~dp0"
+CD /D "%~dp0\.."
 
 SETLOCAL ENABLEEXTENSIONS ENABLEDELAYEDEXPANSION
 
 IF NOT "%~1"=="" IF NOT "%~2"=="" IF NOT "%~3"=="" GOTO argsOK
-ECHO build debug^|beta^|release x86^|x64^|arm64 nosimd^|simd
+ECHO buildAndTest debug^|beta^|release x86^|x64^|arm64 nosimd^|simd
 EXIT /B 1
 
 :argsOK
