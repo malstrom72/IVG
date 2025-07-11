@@ -22,17 +22,15 @@ Included in this distribution is a standalone .html application called _IVGFiddl
 [`ivgfiddle.html`][ivgfiddle-link] file in your favorite browser (Google Chrome). It will let you experiment with IVG code
 and see the graphical output in real-time.
 
+[ivgfiddle-link]: https://htmlpreview.github.io/?https://github.com/malstrom72/IVG/blob/main/tools/ivgfiddle/output/ivgfiddle.html
+
 ### Updating Regression Tests
 
-The golden PNGs under `tests/png` can be regenerated using `tools/updateIVGTests.sh`
-or `tools/updateIVGTests.bat`. These scripts change to the correct folder
-automatically so you can run them from anywhere:
+The golden PNGs under `tests/png` can be regenerated using `tools/updateIVGTests.sh` or `tools\updateIVGTests.bat`. 
 
 ```bash
 ./tools/updateIVGTests.sh
 ```
-
-[ivgfiddle-link]: https://htmlpreview.github.io/?https://github.com/malstrom72/IVG/blob/main/tools/ivgfiddle/output/ivgfiddle.html
 
 ## AI-Assisted Content
 
