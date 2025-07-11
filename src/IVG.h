@@ -200,6 +200,7 @@ class Canvas {
 class MaskMakerCanvas : public Canvas {
 	public:		MaskMakerCanvas(const NuXPixels::IntRect& bounds);
 	public:		virtual void parsePaint(IMPD::Interpreter& impd, IVGExecutor& executor, Context& context, IMPD::ArgumentsContainer& args, Paint& paint) const;
+	public:		virtual void blendWithARGB32(const NuXPixels::Renderer<NuXPixels::ARGB32>& source);
 	public:		virtual void blendWithMask8(const NuXPixels::Renderer<NuXPixels::Mask8>& source);
 	public:		virtual void defineBounds(const NuXPixels::IntRect& newBounds);
 	public:		virtual NuXPixels::IntRect getBounds() const;

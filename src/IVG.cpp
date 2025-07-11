@@ -321,7 +321,11 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 MaskMakerCanvas::MaskMakerCanvas(const IntRect& bounds) : mask8RLE(new RLERaster<Mask8>(bounds)) { }
 
 void MaskMakerCanvas::parsePaint(Interpreter& impd, IVGExecutor& executor, Context& context, ArgumentsContainer& args, Paint& paint) const {
-	parsePaintOfType<Mask8>(impd, executor, context, args, paint);
+        parsePaintOfType<Mask8>(impd, executor, context, args, paint);
+}
+
+void MaskMakerCanvas::blendWithARGB32(const Renderer<ARGB32>& source) {
+        (*mask8RLE) |= Converter<ARGB32, Mask8>(source);
 }
 
 void MaskMakerCanvas::blendWithMask8(const Renderer<Mask8>& source) { (*mask8RLE) |= source; }
@@ -645,8 +649,8 @@ void PatternBase::makePattern(Interpreter& impd, IVGExecutor& executor, Context&
 }
 
 template<> void PatternPainter<Mask8>::blendWithARGB32(const Renderer<ARGB32>& source) {
-	(void)source;
-	assert(0);
+       if (image.get() == 0) Interpreter::throwRunTimeError("Undeclared bounds");
+       (*image) |= Converter<ARGB32, Mask8>(source);
 }
 
 template<> void PatternPainter<ARGB32>::blendWithMask8(const Renderer<Mask8>& source) {

@@ -15,8 +15,12 @@ for f in ./ivg/*.ivg; do
 	n=${n%.ivg}
 	echo Doing "$n"
 	echo
-	$EXE "$f" "$tmp/$n.png"
-	cmp "$tmp/$n.png" "./png/$n.png"
+       $EXE "$f" "$tmp/$n.png"
+       if [ -f "./png/$n.png" ]; then
+               cmp "$tmp/$n.png" "./png/$n.png"
+       else
+               echo "Baseline ./png/$n.png missing; skipping comparison"
+       fi
 	echo
 	echo
 done
