@@ -1,4 +1,5 @@
 #!/bin/bash
+cd "$(dirname "$0")"/..
 
 CPP_COMPILER="${CPP_COMPILER:-g++}"
 CPP_OPTIONS="${CPP_OPTIONS:-}"

@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e -o pipefail -u
+cd "$(dirname "$0")"/../tests
 
 echo "### GOOD TESTS ###"
 echo

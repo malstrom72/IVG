@@ -1,4 +1,5 @@
 @echo off
+CD /D "%~dp0\..\tests"
 echo.
 echo ### GOOD TESTS ###
 

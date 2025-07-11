@@ -1,5 +1,6 @@
 @ECHO OFF
 SETLOCAL ENABLEEXTENSIONS
+CD /D "%~dp0\..\tests"
 
 IF "%~1"=="" (
 	SET exe="../output/IVG2PNG"

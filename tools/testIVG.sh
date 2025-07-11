@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e -o pipefail
+cd "$(dirname "$0")"/../tests
 
 if [ -z "$1" ]; then
 	EXE="../output/IVG2PNG"
