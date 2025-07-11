@@ -3,10 +3,10 @@ FORMAT IVG-2 requires:IMPD-1
 BOUNDS 0,0,80,80
 
 define image blob [
-bounds 0,0,40,40
-wipe #00000000
-fill white
-ellipse 20,20,18
+    bounds 0,0,40,40
+    wipe #00000000
+    fill white
+    ellipse 20,20,18
 ]
 
 wipe black
