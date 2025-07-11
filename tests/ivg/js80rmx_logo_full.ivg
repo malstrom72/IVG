@@ -1,0 +1,99 @@
+//
+//  JS80RMX Logo - Created by Fredrik Lidström on 2020-02-26.
+//
+format IVG-1 requires:IMPD-1; bounds 0,0,100,40
+
+/***** DATA *****/
+JS80=[
+  [ . . X X X X . . . X X X X . . . . X X X X . . . . X X X X . ]
+  [ . . . X X . . . X X . . X X . . X X . . X X . . X X . . X X ]
+  [ . . . X X . . . X X . . . . . . X X . . X X . . X X . X X X ]
+  [ . . . X X . . . . X X X X . . . . X X X X . . . X X X . X X ]
+  [ . . . X X . . . . . . . X X . . X X . . X X . . X X . . X X ]
+  [ X X . X X . . . X X . . X X . . X X . . X X . . X X . . X X ]
+  [ . X X X . . . . . X X X X . . . . X X X X . . . . X X X X . ]
+]
+RMX=[
+  [ X X X X X . . . X X . . . X X . X X . . X X ]
+  [ X X . . X X . . X X X . X X X . X X . . X X ]
+  [ X X . . X X . . X X X X X X X . . X X X X . ]
+  [ X X X X X . . . X X . X . X X . . . X X . . ]
+  [ X X X X . . . . X X . . . X X . . X X X X . ]
+  [ X X . X X . . . X X . . . X X . X X . . X X ]
+  [ X X . . X X . . X X . . . X X . X X . . X X ]
+]
+
+
+/***** FUNCTIONS *****/
+
+// Draw pixel text from array
+pixelText=[
+    LOCAL x
+    LOCAL y
+    LOCAL svgpath
+    LOCAL penStart=-1
+    LOCAL penDown=[
+      if {$penStart < 0} [
+        penStart=$x
+      ]
+    ]
+    LOCAL penUp=[
+      if {$penStart >= 0} [
+        svgpath={$svgpath}M{$penStart},{$y}H{$x}
+        penStart=-1
+      ]
+    ]
+    
+    y=0
+    for line in:$0 [
+      x=0
+      for pixel in:$line [
+        if {$pixel == X} [
+          CALL $penDown
+        ] else:[
+          CALL $penUp
+        ]
+        x={$x + 1}
+      ]
+      CALL $penUp
+      y={$y + 1}
+    ]
+    // TRACE $svgpath
+    path svg:[$svgpath]
+]
+
+/***** DRAW INSTRUCTIONS *****/
+reset
+options aa-gamma:2.5
+
+// Setup the scale to fit the logo in the sticker 
+scale 0.84
+offset 35,23
+rotate -12.74
+
+// Draw the background
+fill none; pen #40000000 width:2 caps:square; rect 0.1,0.1,72,23
+fill #202f65; pen #cccccc width:1 caps:square; rect 0,0,72,23
+
+// Draw the texts
+context [
+  fill none
+  
+  offset 9,8
+  pen #29ccd1 width:1 caps:butt
+  CALL $pixelText $JS80
+
+  offset 32,0
+  pen #5879ce
+  CALL $pixelText $RMX
+]
+
+// Add fake scan line overlay
+fill pattern:[
+  bounds 0,0,10,1
+  fill none
+  pen #60000000 width:0.15
+  path svg:[M0,0.5h72]
+];
+pen none
+rect -0.5,-0.5,73,24

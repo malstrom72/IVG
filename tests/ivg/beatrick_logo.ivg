@@ -1,3 +1,6 @@
+//
+//  Beatrick Logo - Created by Fredrik Lidström on 2013-01-09.
+//
 format IVG-1 requires:IMPD-1; bounds 0,0,100,40
 
 rotate 3; scale 0.14; offset -2275,-110
@@ -35,6 +38,6 @@ pen #ED1C24 width:11; fill none
 $beatrick
 
 options aa-gamma:1.8
-fill gradient:[linear 2742,197,2744,316.4407 stops:0.0,#78CC78,0.1,#74C174,0.3,#6AA86A,0.6,#5C825C,0.8,#4F5D4F]
+fill gradient:[linear 2742,197,2744,316.4407 stops:0,#55A0A4,.28,#50C5A2,0.84,#1B7139,1,#21402B]
 pen #EEEDE3 width:4
 $beatrick
