@@ -15,8 +15,8 @@ MKDIR %tempDir%
 FOR %%f IN (ivg\*.ivg) DO (
 	ECHO Doing %%f
 	ECHO.
-	%exe% %%f %tempDir%\%%~nf.png || GOTO error
-	fc %tempDir%\%%~nf.png png\%%~nf.png || GOTO error
+	%exe% "%%f" "%tempDir%\%%~nf.png" || GOTO error
+	fc "%tempDir%\%%~nf.png" "png\%%~nf.png" || GOTO error
 	ECHO.
 	ECHO.
 )
