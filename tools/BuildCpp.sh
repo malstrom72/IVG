@@ -1,5 +1,4 @@
 #!/bin/bash
-cd "$(dirname "$0")"/..
 
 CPP_COMPILER="${CPP_COMPILER:-g++}"
 CPP_OPTIONS="${CPP_OPTIONS:-}"
@@ -8,7 +7,7 @@ CPP_MODEL="${CPP_MODEL:-native}"
 
 # Parsing build target and model
 if [[ "$1" =~ ^(debug|beta|release)$ ]]; then
-CPP_TARGET="$1"
+	CPP_TARGET="$1"
 	shift
 fi
 
