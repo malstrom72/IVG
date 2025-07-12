@@ -1,67 +1,70 @@
 # IVG
 
-IVG (Imperative Vector Graphics) is a compact, dependency-free 2D vector format and renderer written in C++. Graphics are described using the small imperative language **ImpD**, enabling variables and basic control flow for generative images.
+IVG (Imperative Vector Graphics) is a compact, dependency-free 2D vector format and renderer written in standard C++. Graphics are described using the small imperative language **ImpD**, which supports variables and control flow for defining procedural images.
 
-The renderer relies only on the included **NuXPixels** library and provides high-quality anti-aliasing. A typical file begins with the version line:
+The renderer is built on the included **NuXPixels** rasterizer and provides high-quality gamma-correct anti-aliasing. The format is concise and designed for both hand-written and generated vector graphics.
 
-```
-format IVG-2 requires:ImpD-1
-```
+## Features
 
-Instructions cover shapes, paths, images and text as well as directives for styling and transformations. See
-[`IVG Documentation`](docs/IVG%20Documentation.md),
-[`ImpD Documentation`](docs/ImpD%20Documentation.md) and
-[`NuXPixels Documentation`](docs/NuXPixels%20Documentation.md) for the complete specification.
+- Graphics are described using **ImpD**, a minimal imperative language for image construction.  
+- Built-in **NuXPixels** rasterizer provides high-quality, gamma-correcting anti-aliasing.  
+- Renderer written in **portable, dependency-free C++**, with no reliance on third-party libraries.  
+- Supports **paths, shapes, images, text, styling, transformations**, and nesting.  
+- Simple `.ivgfont` format for embedded vector fonts, converted from standard font formats.
+- **Standalone HTML editor** (IVGFiddle) for live editing and previewing IVG code.  
+- Built-in **test suite** with regression output compared to golden PNGs.  
+- Self-contained format and tools designed for experimentation and integration.
 
-For integration details and API examples, see
-[`Developer Guide`](docs/Developer%20Guide.md).
+## Prerequisites
 
-### Build & Test
+You will need a standard C++ compiler.
 
-Run `./build.sh` (or `build.cmd` on Windows) from the repository root to
-compile the sample tools and execute the regression tests. The Windows
-build uses the Microsoft Visual C++ compiler. `tools/BuildCpp.cmd`
-automatically locates the latest installed Visual Studio via `vswhere.exe`
-and falls back to versions 9.0–14.0 when `vswhere` is not available.
+- On **macOS** or **Linux**, use `g++` or `clang++`.
+- On **Windows**, the build requires Microsoft Visual C++. Any version from Visual Studio 2008 (VC9.0) onward should work. The build scripts locate the compiler automatically using `vswhere.exe`, falling back to known versions if needed.
 
-### Prerequisites
+## Build & Test
 
-A standard C++ compiler such as `g++`, `clang++` or MSVC is required.
-On macOS and Linux the scripts use the default compiler on your path.
-On Windows MSVC must be installed.
+Run `./build.sh` (or `build.cmd` on Windows) from the repository root. This builds the renderer tools and runs the regression tests.
 
-This project is released under the [BSD 2-Clause License](LICENSE).
+Both the **beta** and **release** targets are compiled with optimizations enabled. The **beta** build additionally has assertions turned on.
 
-### Fonts
+## Helper Scripts
 
-The repository includes several `.ivgfont` files converted from
-Source Sans Pro, Source Serif Pro and Source Code Pro. They are
-distributed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL).
+- `build.sh` / `build.cmd` – build both the **beta** and **release** targets and run all tests  
+- `tools/updateDocumentation.sh` / `.cmd` – rebuild HTML documentation using Pandoc and PikaScript  
+- `tools/updateIVGTests.sh` / `.bat` – regenerate golden PNGs from all `.ivg` test files  
 
-![Example output](docs/images/starExample.png)
+## IVGFiddle
 
-### IVGFiddle
+Included in this repository is a standalone HTML application called **IVGFiddle**. You can open it in your browser to write IVG code and see the output rendered in real time.
 
-Included in this distribution is a standalone .html application called _IVGFiddle_. You can run it simply by opening the
-[`ivgfiddle.html`][ivgfiddle-link] file in your favorite browser (Google Chrome). It will let you experiment with IVG code
-and see the graphical output in real-time.
+- File location: `tools/ivgfiddle/output/ivgfiddle.html`
 
-[ivgfiddle-link]: https://htmlpreview.github.io/?https://github.com/malstrom72/IVG/blob/main/tools/ivgfiddle/output/ivgfiddle.html
+You can also try it live without cloning the repo:  
+[IVGFiddle](https://htmlpreview.github.io/?https://github.com/malstrom72/IVG/blob/main/tools/ivgfiddle/output/ivgfiddle.html)
 
-### Updating Regression Tests
+## Fonts
 
-The golden PNGs under `tests/png` can be regenerated using `tools/updateIVGTests.sh` or `tools\updateIVGTests.bat`. 
+The repository includes several `.ivgfont` files converted from the following open-source fonts:
 
-```bash
-./tools/updateIVGTests.sh
-```
+- Source Sans Pro  
+- Source Serif Pro  
+- Source Code Pro  
 
-### Helper Scripts
+These fonts are licensed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL).
 
-`tools/updateDocumentation.sh` rebuilds the HTML documentation using
-Pandoc and [PikaScript](https://pikascript.com). `tools/updateIVGTests.sh`
-reruns all IVG files in `tests/ivg` to update the reference PNGs.
+## Documentation
 
-## AI-Assisted Content
+- [IVG Documentation](docs/IVG%20Documentation.md)  
+- [ImpD Documentation](docs/ImpD%20Documentation.md)  
+- [NuXPixels Documentation](docs/NuXPixels%20Documentation.md)  
+- [Developer Guide](docs/Developer%20Guide.md)  
 
-This project occasionally uses AI (such as OpenAI Codex) to help with writing documentation, generating code comments, producing test code, and automating repetitive edits. All of the underlying source code has been hand-written and refined over many years.
+## AI Usage
+
+AI tools (such as OpenAI Codex) have occasionally been used to assist with documentation, code comments, test generation, and repetitive edits. All core source code has been written and refined by hand over many years.
+
+## License
+
+This project is released under the [BSD 2-Clause License](LICENSE).  
+Fonts are distributed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL).
