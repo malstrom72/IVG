@@ -16,6 +16,8 @@ Instructions cover shapes, paths, images and text as well as directives for styl
 For integration details and API examples, see
 [`Developer Guide`](docs/Developer%20Guide.md).
 
+This project is released under the [BSD 2-Clause License](LICENSE).
+
 ### IVGFiddle
 
 Included in this distribution is a standalone .html application called _IVGFiddle_. You can run it simply by opening the
