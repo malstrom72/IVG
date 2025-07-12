@@ -31,8 +31,8 @@ Both the **beta** and **release** targets are compiled with optimizations enable
 ## Helper Scripts
 
 - `build.sh` / `build.cmd` – build both the **beta** and **release** targets and run all tests  
-- `tools/updateDocumentation.sh` / `.cmd` – rebuild HTML documentation using Pandoc and PikaScript  
 - `tools/updateIVGTests.sh` / `.bat` – regenerate golden PNGs from all `.ivg` test files  
+- `tools/updateDocumentation.sh` – rebuild HTML documentation using Pandoc and PikaScript (Mac / Linux only)
 
 ## IVGFiddle
 
