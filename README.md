@@ -16,7 +16,29 @@ Instructions cover shapes, paths, images and text as well as directives for styl
 For integration details and API examples, see
 [`Developer Guide`](docs/Developer%20Guide.md).
 
+### Build & Test
+
+Run `./build.sh` (or `build.cmd` on Windows) from the repository root to
+compile the sample tools and execute the regression tests. The Windows
+build uses the Microsoft Visual C++ compiler. `tools/BuildCpp.cmd`
+automatically locates the latest installed Visual Studio via `vswhere.exe`
+and falls back to versions 9.0–14.0 when `vswhere` is not available.
+
+### Prerequisites
+
+A standard C++ compiler such as `g++`, `clang++` or MSVC is required.
+On macOS and Linux the scripts use the default compiler on your path.
+On Windows MSVC must be installed.
+
 This project is released under the [BSD 2-Clause License](LICENSE).
+
+### Fonts
+
+The repository includes several `.ivgfont` files converted from
+Source Sans Pro, Source Serif Pro and Source Code Pro. They are
+distributed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL).
+
+![Example output](docs/images/starExample.png)
 
 ### IVGFiddle
 
@@ -33,6 +55,12 @@ The golden PNGs under `tests/png` can be regenerated using `tools/updateIVGTests
 ```bash
 ./tools/updateIVGTests.sh
 ```
+
+### Helper Scripts
+
+`tools/updateDocumentation.sh` rebuilds the HTML documentation using
+Pandoc and [PikaScript](https://pikascript.com). `tools/updateIVGTests.sh`
+reruns all IVG files in `tests/ivg` to update the reference PNGs.
 
 ## AI-Assisted Content
 
