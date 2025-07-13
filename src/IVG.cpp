@@ -369,8 +369,8 @@ class CombinedMask {
 				}
 	public:		operator const Renderer<Mask8>&() const { return *output; }
 	protected:	const Renderer<Mask8>* output;
-	protected:	auto_ptr< Lookup<Mask8, LookupTable<Mask8> > > lookup;
-	protected:	auto_ptr< Multiplier<Mask8, Mask8> > multiplier;
+	protected:	std::unique_ptr< Lookup<Mask8, LookupTable<Mask8> > > lookup;
+	protected:	std::unique_ptr< Multiplier<Mask8, Mask8> > multiplier;
 };
 
 /* --- Colors --- */
@@ -675,7 +675,7 @@ template<class PIXEL_TYPE> void Canvas::parsePaintOfType(Interpreter& impd, IVGE
 
 	// Important to parse pattern first so that we don't apply other attributes (e.g. "relative") before we draw the texture.
 	if ((s = args.fetchOptional("pattern", false)) != 0) {
-		auto_ptr< PatternPainter<PIXEL_TYPE> > patternPainter(new PatternPainter<PIXEL_TYPE>(context.calcPatternScale()));
+		std::unique_ptr< PatternPainter<PIXEL_TYPE> > patternPainter(new PatternPainter<PIXEL_TYPE>(context.calcPatternScale()));
 		patternPainter->makePattern(impd, executor, context, *s);
 		paint.painter = patternPainter.release();
 	} else if ((s = args.fetchOptional("gradient")) != 0) {
