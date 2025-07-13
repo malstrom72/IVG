@@ -49,10 +49,33 @@ class MyExecutor : public Executor {
 				}
 };
 
+static bool testUniStringConversions() {
+	UniString sample;
+	sample.push_back(static_cast<UniChar>('A'));
+	sample.push_back(static_cast<UniChar>(0x20AC));
+	sample.push_back(static_cast<UniChar>(0x1F600));
+	WideString wide = convertUniToWideString(sample);
+	UniString uni = convertWideToUniString(wide);
+	if (uni != sample) return false;
+	WideString wide2 = convertUniToWideString(uni);
+	if (wide != wide2) return false;
+	
+	WideString wideSample = L"A\u20AC\U0001F600";
+	UniString uni2 = convertWideToUniString(wideSample);
+	WideString wide3 = convertUniToWideString(uni2);
+	if (wideSample != wide3) return false;
+	UniString uni3 = convertWideToUniString(wide3);
+	if (uni2 != uni3) return false;
+	return true;
+}
+
 int main(int argc, const char* argv[]) {
 	MyExecutor myExecutor;
 	STLMapVariables topVars;
 	Interpreter imp(myExecutor, topVars);
+
+	assert(testUniStringConversions());
+
 	String s;
 	String code;
 	while (!std::cin.eof()) {
