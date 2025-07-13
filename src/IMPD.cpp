@@ -85,8 +85,8 @@ WideString convertUniToWideString(const UniString& s) {
 UniString convertWideToUniString(const WideString& s) {
 	if (s.empty()) {
 		return UniString();
-       } else if (sizeof (WideChar) == sizeof (UniChar)) {
-               return UniString(s.begin(), s.end());
+	} else if (sizeof (WideChar) == sizeof (UniChar)) {
+    	return UniString(s.begin(), s.end());
 	} else if (sizeof (WideChar) == sizeof (uint16_t)) {
 		const size_t requiredSize = calcUTF16ToUTF32Size(s.size(), reinterpret_cast<const uint16_t*>(s.data()));
 		UniString us(requiredSize, L'\0');
