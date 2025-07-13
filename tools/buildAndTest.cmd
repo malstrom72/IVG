@@ -41,7 +41,7 @@ CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVG2PNG "-DNUXPIXELS_SIMD=%simd%" /I"."
 
 ECHO Testing...
 CD tests
-CALL ..\tools\testIVG.bat ..\output\IVG2PNG || GOTO error
+CALL ..\tools\testIVG.cmd ..\output\IVG2PNG || GOTO error
 
 GOTO :eof
 
