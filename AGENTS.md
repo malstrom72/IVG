@@ -47,25 +47,31 @@ All user-facing `.sh` and `.cmd` files must work when launched from any director
 They should start by changing to their own folder (or the repository root) so that
 relative paths resolve correctly.
 
-Every `.sh` script must have a corresponding `.cmd` implementation with identical behavior. Use `.cmd` files rather than `.bat`.
+`.sh` scripts must be runnable without requiring `chmod +x`; always invoke them with  
+`bash path/to/script.sh` (do **not** rely on the system-default `sh`).  
+Each script must start with a portable she-bang:
 
-```bash
-# example for a shell script
-cd "$(dirname "$0")"/..
-
-REM example for a .cmd script
-CD /D "%~dp0\.."
 ```
-
-For robust error handling, `.sh` scripts should begin with:
-
-```bash
+#!/usr/bin/env bash
 set -e -o pipefail -u
 ```
 
-And `.cmd` scripts normally use a simple error check:
+Every `.sh` script must have a corresponding `.cmd` implementation with identical behavior. Use `.cmd` files rather than `.bat`.
 
-```batch
+```
+# example for a shell script
+cd "$(dirname "$0")"/..
+```
+
+REM example for a .cmd script  
+```
+CD /D "%~dp0\.."
+```
+
+For robust error handling, `.sh` scripts should begin as shown above, and `.cmd`
+scripts normally use a simple error check:
+
+```
 CALL buildAndTest.cmd %target% || GOTO error
 EXIT /b 0
 :error
