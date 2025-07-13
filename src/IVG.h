@@ -45,10 +45,21 @@ using NuXPixels::Rect; // Rect is a typedef in Carbon which can confuse the comp
 
 inline double square(double d) { return d * d; }
 
+/**
+	Small helper that wraps a pointer which might live on the heap.
+	- If you assign a freshly created object it is kept in a std::unique_ptr
+	  and deleted automatically when the Inheritable instance goes away.
+	- If you only pass in an existing object the class just stores the pointer
+	  and never attempts to free it.
+	
+	IVG keeps optional gamma tables, painters and masks in stack classes using
+	this wrapper so dynamic helpers are cleaned up through RAII without extra
+	code.
+**/
 template<class T> class Inheritable {
 	public:		Inheritable() : inherited(0) { }
 	public:		Inheritable(const Inheritable<T>& c) : inherited(c.inherited) { }
-	public:		Inheritable(const T* o) : inherited(o), owned(o) { }
+	public:		Inheritable(const T* o) : inherited(o), owned(const_cast<T*>(o)) { }
 	public:		Inheritable& operator=(T* o) { inherited = o; owned.reset(o); return *this; }
 	public:		Inheritable& operator=(const Inheritable<T>& c) {
 					inherited = c.inherited;
@@ -60,7 +71,7 @@ template<class T> class Inheritable {
 	public:		operator const T*() const { return inherited; }
 	public:		virtual ~Inheritable() { }
 	protected:	const T* inherited;
-	protected:	std::auto_ptr<T> owned;
+	protected:	std::unique_ptr<T> owned;
 };
 
 class Options {
@@ -205,7 +216,7 @@ class MaskMakerCanvas : public Canvas {
 	public:		virtual void defineBounds(const NuXPixels::IntRect& newBounds);
 	public:		virtual NuXPixels::IntRect getBounds() const;
 	public:		NuXPixels::RLERaster<NuXPixels::Mask8>* finish(bool invert);
-	protected:	std::auto_ptr< NuXPixels::RLERaster<NuXPixels::Mask8> > mask8RLE;
+	protected:	std::unique_ptr< NuXPixels::RLERaster<NuXPixels::Mask8> > mask8RLE;
 };
 
 class Context {
@@ -453,7 +464,7 @@ template<class PIXEL_TYPE> class PatternPainter : public PatternBase {
 					if (image.get() == 0) IMPD::Interpreter::throwRunTimeError("Undeclared bounds");
 					return image->calcBounds();
 				}
-	protected:	std::auto_ptr< NuXPixels::SelfContainedRaster<PIXEL_TYPE> > image;
+	protected:	std::unique_ptr< NuXPixels::SelfContainedRaster<PIXEL_TYPE> > image;
 };
 
 class ARGB32Canvas : public Canvas {
@@ -476,7 +487,7 @@ class SelfContainedARGB32Canvas : public Canvas {
 	public:		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>* accessRaster();
 	public:		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>* relinquishRaster();
 	protected:	void checkBoundsDeclared() const;
-	protected:	std::auto_ptr< NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> > raster;
+	protected:	std::unique_ptr< NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> > raster;
 	protected:	const double rescaleBounds;
 };
 
