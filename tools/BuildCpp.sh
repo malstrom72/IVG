@@ -36,11 +36,15 @@ macFlags() {
 }
 case "$CPP_MODEL" in
 	x64|x86|arm64|fat)
-		if [[ "$unameOut" == "Darwin" ]]; then
-			CPP_OPTIONS="$(macFlags "$CPP_MODEL") $CPP_OPTIONS"
-		else
-			[[ "$CPP_MODEL" == "x86" ]] && CPP_OPTIONS="-m32 $CPP_OPTIONS" || CPP_OPTIONS="-m64 $CPP_OPTIONS"
-		fi ;;
+                if [[ "$unameOut" == "Darwin" ]]; then
+                        CPP_OPTIONS="$(macFlags "$CPP_MODEL") $CPP_OPTIONS"
+                else
+                        if [[ "$CPP_MODEL" == "x86" ]]; then
+                                CPP_OPTIONS="-m32 -msse2 $CPP_OPTIONS"
+                        else
+                                CPP_OPTIONS="-m64 $CPP_OPTIONS"
+                        fi
+                fi ;;
 	native) ;; # No flags
 	*) echo "Unrecognized CPP_MODEL: $CPP_MODEL"; exit 1 ;;
 esac
