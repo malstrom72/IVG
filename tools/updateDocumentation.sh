@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e -o pipefail -u
 cd "$(dirname "$0")"
 which -s pika || curl -fsSL https://nuedge.net/pikascript/install.sh | sh

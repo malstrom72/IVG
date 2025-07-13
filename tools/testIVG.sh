@@ -1,5 +1,5 @@
-#!/bin/bash
-set -e -o pipefail
+#!/usr/bin/env bash
+set -e -o pipefail -u
 cd "$(dirname "$0")"/../tests
 
 if [ -z "$1" ]; then

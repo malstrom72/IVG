@@ -4,7 +4,7 @@ This document summarizes how to integrate the IVG renderer into a C++ project an
 
 ## Building the library
 
-Use `build.sh` (or `build.bat` on Windows) to compile the tools and run the regression tests. A typical invocation is:
+Use `build.sh` (or `build.cmd` on Windows) to compile the tools and run the regression tests. A typical invocation is:
 
 ```bash
 ./build.sh beta native nosimd

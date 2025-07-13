@@ -33,7 +33,7 @@ On **macOS** and **Linux**, the build script also compiles a SIMD-enabled varian
 ## Helper Scripts
 
 - `build.sh` / `build.cmd` – build both the **beta** and **release** targets and run all tests  
-- `tools/updateIVGTests.sh` / `.bat` – regenerate golden PNGs from all `.ivg` test files  
+- `tools/updateIVGTests.sh` / `.cmd` – regenerate golden PNGs from all `.ivg` test files
 - `tools/updateDocumentation.sh` – rebuild HTML documentation using Pandoc and PikaScript (Mac / Linux only)
 
 ## IVGFiddle
