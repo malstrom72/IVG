@@ -38,6 +38,9 @@ const int ESCAPE_CODE_COUNT = 7;
 WideString convertUniToWideString(const UniString& s);
 UniString convertWideToUniString(const WideString& s);
 
+/**
+       Helper representing a pair of iterators into a string.
+**/
 struct StringRange {
 	StringRange(const StringIt& b, const StringIt& e) : b(b), e(e) { }
 	StringRange(const String& s) : b(s.begin()), e(s.end()) { }
@@ -47,6 +50,9 @@ struct StringRange {
 	StringIt e;
 };
 
+/**
+       Base class for all IMPD specific exceptions carrying an optional statement.
+**/
 class Exception : public std::exception {
 	friend class Interpreter;
 	protected:	Exception(const std::string& error) : error(error) { }
@@ -76,6 +82,9 @@ struct Argument {
 };
 typedef std::vector<Argument> ArgumentVector;
 
+/**
+       Stores and validates instruction arguments during parsing.
+**/
 class ArgumentsContainer {
 	public:		static ArgumentsContainer parse(const Interpreter& interpreter, const StringRange& range);
 	public:		ArgumentsContainer(const Interpreter& interpreter, const ArgumentVector& arguments);
@@ -101,6 +110,9 @@ class ArgumentsContainer {
 	protected:	int unfetchedCount;
 };
 
+/**
+       Interface representing a storage backend for interpreter variables.
+**/
 class Variables {
 	public:		virtual bool declare(const String& var, const String& value) = 0;										///< Create a new variable and assign value. Variable must not already exist. Return false if it does exist.
 	public:		virtual bool assign(const String& var, const String& value) = 0;										///< Assign value to an existing variable. Variable must exist. Return false if variable does not exist.
@@ -108,6 +120,9 @@ class Variables {
 	public:		virtual ~Variables() { }
 };
 
+/**
+       Simple variable store implemented using an STL map.
+**/
 class STLMapVariables : public Variables {
 	public:		virtual bool declare(const String& var, const String& value);
 	public:		virtual bool assign(const String& var, const String& value);
@@ -115,6 +130,9 @@ class STLMapVariables : public Variables {
 	protected:	StringStringMap vars;
 };
 
+/**
+       Abstract interface for executing instructions and loading resources.
+**/
 class Executor {
 	public:		virtual bool format(Interpreter& interpreter, const String& identifier, const StringVector& uses	
 						, const StringVector& requires) = 0;															///< Return false to throw FormatException if "identifier" is not correct or any element in "requires" is unknown / not supported. Empty requirements and requirements of 'IMPD-1' etc are removed from the list before this call. All strings are passed in lower case.
@@ -125,6 +143,9 @@ class Executor {
 	public:		virtual ~Executor() { }
 };
 
+/**
+       Executes IMPD scripts using an external Executor and variable store.
+**/
 class Interpreter {
 	public:		static const String CURRENT_IMPD_REQUIRES_ID;
 	public:		static const String YES_STRING;
