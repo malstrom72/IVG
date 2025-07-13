@@ -30,18 +30,30 @@
     	#define NUXSIMD_ALTIVEC 0
 		#define NUXSIMD_NEON 1
 		#define NUXSIMD_SSE 0
-	#elif (__LITTLE_ENDIAN__)
-		#define NUXSIMD_BIG_ENDIAN 0
-		#define NUXSIMD_LITTLE_ENDIAN 1
-    	#define NUXSIMD_ALTIVEC 0
-		#define NUXSIMD_NEON 0
-		#define NUXSIMD_SSE 1
-	#elif (__BIG_ENDIAN__)
-		#define NUXSIMD_BIG_ENDIAN 1
-		#define NUXSIMD_LITTLE_ENDIAN 0
-    	#define NUXSIMD_ALTIVEC 1
-		#define NUXSIMD_NEON 0
-		#define NUXSIMD_SSE 0
+#elif (__LITTLE_ENDIAN__)
+	#define NUXSIMD_BIG_ENDIAN 0
+	#define NUXSIMD_LITTLE_ENDIAN 1
+	#define NUXSIMD_ALTIVEC 0
+	#define NUXSIMD_NEON 0
+	#define NUXSIMD_SSE 1
+#elif defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+	#define NUXSIMD_BIG_ENDIAN 0
+	#define NUXSIMD_LITTLE_ENDIAN 1
+	#define NUXSIMD_ALTIVEC 0
+	#define NUXSIMD_NEON 0
+	#define NUXSIMD_SSE 1
+#elif defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+	#define NUXSIMD_BIG_ENDIAN 1
+	#define NUXSIMD_LITTLE_ENDIAN 0
+	#define NUXSIMD_ALTIVEC 1
+	#define NUXSIMD_NEON 0
+	#define NUXSIMD_SSE 0
+#elif (__BIG_ENDIAN__)
+	#define NUXSIMD_BIG_ENDIAN 1
+	#define NUXSIMD_LITTLE_ENDIAN 0
+	#define NUXSIMD_ALTIVEC 1
+	#define NUXSIMD_NEON 0
+	#define NUXSIMD_SSE 0
 	#endif
 	#define NUXSIMD_INLINE inline __attribute__((always_inline))
 	
