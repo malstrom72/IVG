@@ -10,9 +10,9 @@
 #endif
 
 #if defined(_MSC_VER) // Visual C++ version
-	
-	#define NUXSIMD_WIN 1
-	#define NUXSIMD_MAC 0
+
+        #define NUXSIMD_WIN 1
+        #define NUXSIMD_POSIX 0 // macOS/Linux
 	#define NUXSIMD_BIG_ENDIAN 0
 	#define NUXSIMD_LITTLE_ENDIAN 1
 	#define NUXSIMD_INLINE __forceinline
@@ -20,10 +20,10 @@
     #define NUXSIMD_NEON 0
     #define NUXSIMD_SSE 1
 	
-#elif defined(__APPLE__) // Mac OS X version
-	
-	#define NUXSIMD_WIN 0
-	#define NUXSIMD_MAC 1
+#elif defined(__APPLE__) || defined(__linux__) // Unix-like (macOS/Linux)
+
+        #define NUXSIMD_WIN 0
+        #define NUXSIMD_POSIX 1 // macOS/Linux
 	#if (__ARM_NEON__)
 		#define NUXSIMD_BIG_ENDIAN 0
 		#define NUXSIMD_LITTLE_ENDIAN 1
@@ -69,17 +69,17 @@ namespace NuXSIMD {
 
 #if (NUXSIMD_WIN)
 	#define SIMD_ALIGN(x) __declspec(align(16)) x
-#elif (NUXSIMD_MAC)
-	#define SIMD_ALIGN(x) x __attribute__ ((aligned (16)))
-#endif // (NUXSIMD_MAC)
+#elif (NUXSIMD_POSIX)
+        #define SIMD_ALIGN(x) x __attribute__ ((aligned (16)))
+#endif // (NUXSIMD_POSIX)
 
 NUXSIMD_INLINE bool isAligned(const void* p) { return ((reinterpret_cast<intptr_t>(p) & 0xF) == 0); }
 template<typename T> NUXSIMD_INLINE T* allocateAligned(size_t size) {
 	const size_t bytes = ((size * sizeof (T) + 15) & ~15U);
-#if (NUXSIMD_NEON)
-	T* alloced = reinterpret_cast<T*>(aligned_alloc(16, bytes));
+#if (NUXSIMD_NEON || NUXSIMD_POSIX)
+        T* alloced = reinterpret_cast<T*>(aligned_alloc(16, bytes));
 #else
-	T* alloced = reinterpret_cast<T*>(_mm_malloc(bytes, 16));
+        T* alloced = reinterpret_cast<T*>(_mm_malloc(bytes, 16));
 #endif
 	if (alloced == 0) {
 		throw std::bad_alloc();
@@ -89,10 +89,10 @@ template<typename T> NUXSIMD_INLINE T* allocateAligned(size_t size) {
 }
 NUXSIMD_INLINE void freeAligned(void* p) {
 	assert(p != 0);
-#if (NUXSIMD_NEON)
-	free(p);
+#if (NUXSIMD_NEON || NUXSIMD_POSIX)
+        free(p);
 #else
-	_mm_free(p);
+        _mm_free(p);
 #endif
 }
 struct Aligned {

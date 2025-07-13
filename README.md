@@ -28,6 +28,8 @@ Run `./build.sh` (or `build.cmd` on Windows) from the repository root. This buil
 
 Both the **beta** and **release** targets are compiled with optimizations enabled. The **beta** build additionally has assertions turned on.
 
+On **macOS** and **Linux**, the build script also compiles a SIMD-enabled variant using SSE or NEON instructions when available.
+
 ## Helper Scripts
 
 - `build.sh` / `build.cmd` – build both the **beta** and **release** targets and run all tests  
