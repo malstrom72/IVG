@@ -23,6 +23,8 @@ The project uses a consistent folder structure. Build output is written to `outp
 
 Root-level `build.sh` and `build.cmd` (mirrored implementations) should build and test both the beta and release targets.
 
+BuildCpp.sh and BuildCpp.cmd are copied from another repository. Only make changes to them if there is no other solution.
+
 ## Formatting rules
 Key style points:
 - Tab characters for indentation, *not spaces*. A tab character equals four spaces.
