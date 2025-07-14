@@ -43,13 +43,11 @@ Key style points:
 - Inside comment text, wrap any variable, parameter, class or function names in back-ticks, e.g. `blah` is the temporary buffer.
 
 ## Script portability
-All user-facing `.sh` and `.cmd` files must work when launched from any directory.
-They should start by changing to their own folder (or the repository root) so that
-relative paths resolve correctly.
+All user-facing `.sh` and `.cmd` files must work when launched from any directory. They should start by changing
+to their own folder (or the repository root) so that relative paths resolve correctly.
 
-`.sh` scripts must be runnable without requiring `chmod +x`; always invoke them with  
-`bash path/to/script.sh` (do **not** rely on the system-default `sh`).  
-Each script must start with a portable she-bang:
+`.sh` scripts must be runnable without requiring `chmod +x`; always invoke them with `bash path/to/script.sh` (do
+**not** rely on the system-default `sh`).  Each script must start with a portable she-bang:
 
 ```
 #!/usr/bin/env bash
