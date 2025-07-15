@@ -15,6 +15,39 @@ The renderer is built on the included **NuXPixels** rasterizer and provides high
 - Built-in **test suite** with regression output compared to golden PNGs.  
 - Self-contained format and tools designed for experimentation and integration.
 
+## Mini Examples
+
+
+Here are a couple of quick snippets written in ImpD. Each one produces the image right below it.
+
+```ImpD
+format IVG-2 requires:ImpD-1
+bounds 0,0,300,80
+
+fill #406080
+RECT 60,10,180,60
+
+fill #80C0E0
+pen #C0E0E0
+RECT 80,20,140,40 rounded:30,20
+```
+![Rounded rectangle example](docs/images/rectExample.png)
+
+```ImpD
+WIPE #E0E0E0
+
+// Fill a red circle.
+fill #802020
+ELLIPSE 150,100,80
+
+// Outline a flat ellipse, rotated 10 degrees clockwise.
+fill none
+pen #802020 width:5
+rotate 10 anchor:150,100
+ELLIPSE 150,100,140,30
+```
+![Ellipse example](docs/images/ellipseExample.png)
+
 ## Prerequisites
 
 You will need a standard C++ compiler.
