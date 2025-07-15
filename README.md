@@ -9,7 +9,7 @@ The renderer is built on the included **NuXPixels** rasterizer and provides high
 - Graphics are described using **ImpD**, a minimal imperative language for image construction.  
 - Built-in **NuXPixels** rasterizer provides high-quality, gamma-correcting anti-aliasing.  
 - Renderer written in **portable, dependency-free C++**, with no reliance on third-party libraries.  
-- Supports **paths, shapes, images, text, styling, transformations**, and nesting.  
+- Supports **paths, shapes, images, text, styling, transformations**, and nesting. SVG path commands are fully supported.
 - Simple `.ivgfont` format for embedded vector fonts, converted from standard font formats.
 - **Standalone HTML editor** (IVGFiddle) for live editing and previewing IVG code.  
 - Built-in **test suite** with regression output compared to golden PNGs.  
