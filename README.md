@@ -69,6 +69,28 @@ On **macOS** and **Linux**, the build script also compiles a SIMD-enabled varian
 - `tools/updateIVGTests.sh` / `.cmd` – regenerate golden PNGs from all `.ivg` test files
 - `tools/updateDocumentation.sh` – rebuild HTML documentation using Pandoc and PikaScript (Mac / Linux only)
 
+## Building the fuzz target
+
+The `tools/build_ivg_fuzz.sh` script compiles `tools/IVG2PNG.cpp` using clang and libFuzzer:
+
+```
+bash tools/build_ivg_fuzz.sh
+```
+
+The resulting binary is placed in `output/IVGFuzz` and can be run with a directory containing seed inputs:
+
+```
+./output/IVGFuzz corpus/
+```
+
+On macOS the default clang from Xcode does not ship the libFuzzer runtime.
+Install the `llvm` package via Homebrew and invoke the script with that
+compiler:
+
+```
+CPP_COMPILER=$(brew --prefix llvm)/bin/clang++ bash tools/build_ivg_fuzz.sh
+```
+
 ## IVGFiddle
 
 Included in this repository is a standalone HTML application called **IVGFiddle**. You can open it in your browser to write IVG code and see the output rendered in real time.
