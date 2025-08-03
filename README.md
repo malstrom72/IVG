@@ -91,6 +91,10 @@ compiler:
 CPP_COMPILER=$(brew --prefix llvm)/bin/clang++ bash tools/build_ivg_fuzz.sh
 ```
 
+Some releases of Apple's `ld64` linker crash with libFuzzer's sanitizer
+instrumentation. The helper script uses LLVM's `lld` linker on macOS to
+avoid this assertion failure.
+
 ## IVGFiddle
 
 Included in this repository is a standalone HTML application called **IVGFiddle**. You can open it in your browser to write IVG code and see the output rendered in real time.

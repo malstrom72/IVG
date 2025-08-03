@@ -6,7 +6,7 @@ mkdir -p ./output
 CPP_COMPILER="${CPP_COMPILER:-clang++}"
 CPP_OPTIONS="${CPP_OPTIONS:--fsanitize=fuzzer,address,undefined}"
 if [ "$(uname -s)" = "Darwin" ]; then
-CPP_OPTIONS+=" -UTARGET_OS_MAC"
+	CPP_OPTIONS+=" -UTARGET_OS_MAC -fuse-ld=lld"
 fi
 export CPP_COMPILER CPP_OPTIONS
 
