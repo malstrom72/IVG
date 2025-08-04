@@ -1553,6 +1553,14 @@ void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
 		Interpreter::throwRunTimeError(String("bounds height out of range [1..32767]: ")
 				+ Interpreter::toString(scaledBounds.height));
 	}
+	if (scaledBounds.left <= -32768 || scaledBounds.left >= 32768) {
+		Interpreter::throwRunTimeError(String("bounds left out of range [-32767..32767]: ")
+				+ Interpreter::toString(scaledBounds.left));
+	}
+	if (scaledBounds.top <= -32768 || scaledBounds.top >= 32768) {
+		Interpreter::throwRunTimeError(String("bounds top out of range [-32767..32767]: ")
+				+ Interpreter::toString(scaledBounds.top));
+	}
 	raster.reset(new SelfContainedRaster<ARGB32>(scaledBounds));
 	(*raster) = Solid<ARGB32>(ARGB32::transparent());
 }
