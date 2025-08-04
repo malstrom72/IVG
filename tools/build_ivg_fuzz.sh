@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
 set -e -o pipefail -u
 cd "$(dirname "$0")"/..
-
-mkdir -p ./output
-CPP_COMPILER="${CPP_COMPILER:-clang++}"
-CPP_OPTIONS="${CPP_OPTIONS:--fsanitize=fuzzer,address,undefined}"
-if [ "$(uname -s)" = "Darwin" ]; then
-	CPP_OPTIONS+=" -UTARGET_OS_MAC"
-	if "$CPP_COMPILER" -fuse-ld=lld -c -x c /dev/null -o /dev/null >/dev/null 2>&1; then
-		CPP_OPTIONS+=" -fuse-ld=lld"
-	fi
-fi
-export CPP_COMPILER CPP_OPTIONS
-
-./tools/BuildCpp.sh release native ./output/IVGFuzz -DLIBFUZZ -I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib ./tools/IVG2PNG.cpp ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp ./externals/libpng/*.c ./externals/zlib/*.c
+CPP_OPTIONS="-fsanitize=fuzzer,address" bash ./tools/BuildCpp.sh beta native ./output/IVGFuzz -UTARGET_OS_MAC -DLIBFUZZ -I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib ./tools/IVG2PNG.cpp ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp ./externals/libpng/*.c ./externals/zlib/*.c

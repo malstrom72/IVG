@@ -1,0 +1,37 @@
+FORMAT IVG-1 requires:IMPD-1
+BOUNDS 0,4444444444444444444444444440,800,600
+
+reset
+wipe white
+
+offset 200,200
+
+rotate 15
+scale 2.0,1.0
+shear 0.25,0.5
+
+sx=30;sy=-10;ex=85;ey=100;
+
+fill relative:no gradient:[linear $sx,$sy,$ex,$ey from:red to:lime] opacity:0.8
+pen none
+rect -514,-150,700,300
+
+fill none
+pen black opacity:0.8 width:0
+path svg:M{$sx},{$sy}L{$ex},{$ey}
+dx={$sx-($ey-$sy)}
+dy={$sy+($ex-$sx)}
+path svg:M{$sx},{$sy}L{$dx},{$dy}
+path svg:M{$sx},{$sy}L{$sx+($dy-$sy)},{$sy-($dx-$sx)}
+l={sqrt(($dx-$sx)**2+($dy-$sy)**2)};
+rx={($dx-$sx)/$l};
+ry={($dy-$sy)-$l};
+path svg:M{$sx},{$sy}L{$sx+($dx-$sx)/$l},{$sy+($dy-$sy)/$l}
+nx={($ex-$sx)};
+ny={($ey-$sy)};
+px = { ($nx*$rx + $ny*$ry) }
+py = { ($ny*$rx - $nx*$ry) }
+path svg:M{$sx},{$sy}L{$sx},{$sy+$py}
+ellipse {$sx+$px},{$sy+$py},10
+
+ellipse 100,100,100,100
