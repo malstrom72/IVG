@@ -323,7 +323,7 @@ class Path {
 	public:		Path& close();
 	public:		Path& closeAll();
 	public:		Path& stroke(double width, EndCapStyle endCaps = BUTT, JointStyle joints = BEVEL, double miterLimit = 2.0, double curveQuality = 1.0);
-	public:		Path& dash(double dashLength, double gapLength, double dashOffset = 0.0);
+	public:		Path& dash(double dashLength, double gapLength, double dashOffset = 0.0, size_type maxInstructions = 0);
 	public:		Path& transform(const AffineTransformation& transformation);
 	public:		bool empty() const;
 	public:		size_type size() const;

@@ -790,7 +790,7 @@ Path& Path::stroke(double width, EndCapStyle endCaps, JointStyle joints, double 
 	return *this;
 }
 
-Path& Path::dash(double dashLength, double gapLength, double dashOffset) {
+Path& Path::dash(double dashLength, double gapLength, double dashOffset, size_type maxInstructions) {
 	assert(0.0 <= dashLength);
 	assert(0.0 <= gapLength);
 	assert(0.0 <= dashOffset && dashOffset <= (dashLength + gapLength));
@@ -840,6 +840,9 @@ Path& Path::dash(double dashLength, double gapLength, double dashOffset) {
 								dashed.push_back(Instruction(MOVE, lv));
 								r += dashLength;
 							}
+							if (maxInstructions > 0 && dashed.size() > maxInstructions) {
+								break;
+							}
 						} while (l > 0.0);
 					}
 				}
@@ -847,13 +850,16 @@ Path& Path::dash(double dashLength, double gapLength, double dashOffset) {
 					(dashed.begin() + firstDashIndex)->first = LINE;
 					std::rotate(dashed.begin() + firstDashIndex, dashed.begin() + lastDashIndex, dashed.end());
 				}
+				if (maxInstructions > 0 && dashed.size() > maxInstructions) {
+					break;
+				}
 			}
 		}
 		
 		instructions.swap(dashed);
 		openIndex = instructions.size() - 1;
 	}
-	
+
 	return *this;
 }
 

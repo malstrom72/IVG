@@ -45,6 +45,7 @@ using IMPD::UniChar;
 const double DEGREES = PI2 / 360.0;
 const double MIN_CURVE_QUALITY = 0.001;
 const double MAX_CURVE_QUALITY = 100.0;
+const size_t MAX_PATH_INSTRUCTIONS = 10000000;
 
 static StringIt eatSpace(StringIt p, const StringIt& e) {
 	while (p != e && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')) ++p;
@@ -748,7 +749,10 @@ void Context::stroke(const Path& path, Stroke& stroke, const Rect<double>& paint
 		if (stroke.gap > EPSILON) {
 			double l = stroke.dash + stroke.gap;
 			double dashOffset = fmod(fmod(stroke.dashOffset, l) + l, l);  // floor modulo trick
-			strokePath.dash(stroke.dash, stroke.gap, dashOffset);
+			strokePath.dash(stroke.dash, stroke.gap, dashOffset, MAX_PATH_INSTRUCTIONS);
+			if (strokePath.size() >= MAX_PATH_INSTRUCTIONS) {
+				Interpreter::throwRunTimeError("Path too long after dashing");
+			}
 		}
 		strokePath.stroke(stroke.width * widthMultiplier, stroke.caps, stroke.joints, stroke.miterLimit
 				, calcCurveQuality());
