@@ -92,8 +92,9 @@ CPP_COMPILER=$(brew --prefix llvm)/bin/clang++ bash tools/build_ivg_fuzz.sh
 ```
 
 Some releases of Apple's `ld64` linker crash with libFuzzer's sanitizer
-instrumentation. The helper script uses LLVM's `lld` linker on macOS to
-avoid this assertion failure.
+instrumentation. The helper script tries to use LLVM's `lld` linker on
+macOS to avoid this assertion failure and falls back to `ld64` if `clang`
+does not support `-fuse-ld=lld`.
 
 ## IVGFiddle
 
