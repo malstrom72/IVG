@@ -53,7 +53,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "tests/ivg/unicode.ivg output.png"
+            argument = " /Users/magnus/git/IVG/fuzzCrashes/timeout-86eea0ec777e1ebf5331067c712709c34407f753 output.png"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

@@ -134,6 +134,25 @@ static Mask8::Pixel parseOpacity(const Interpreter& impd, const StringRange& r) 
 	return static_cast<Mask8::Pixel>(i);
 }
 
+void checkBounds(const IntRect& bounds) {
+	if (bounds.width <= 0 || bounds.width >= 32768) {
+		IMPD::Interpreter::throwRunTimeError(IMPD::String("bounds width out of range [1..32767]: ")
+				+ IMPD::Interpreter::toString(bounds.width));
+	}
+	if (bounds.height <= 0 || bounds.height >= 32768) {
+		IMPD::Interpreter::throwRunTimeError(IMPD::String("bounds height out of range [1..32767]: ")
+				+ IMPD::Interpreter::toString(bounds.height));
+	}
+	if (bounds.left <= -32768 || bounds.left >= 32768) {
+		IMPD::Interpreter::throwRunTimeError(IMPD::String("bounds left out of range [-32767..32767]: ")
+				+ IMPD::Interpreter::toString(bounds.left));
+	}
+	if (bounds.top <= -32768 || bounds.top >= 32768) {
+		IMPD::Interpreter::throwRunTimeError(IMPD::String("bounds top out of range [-32767..32767]: ")
+				+ IMPD::Interpreter::toString(bounds.top));
+	}
+}
+
 bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, const char*& errorString) {
 	assert(curveQuality > 0.0);
 	StringIt p = svgSource.begin();
@@ -1549,22 +1568,7 @@ void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
 				, newBounds.top * rescaleBounds, newBounds.width * rescaleBounds, newBounds.height * rescaleBounds));
 	}
 	if (raster.get() != 0) Interpreter::throwRunTimeError("Multiple bounds declarations");
-	if (scaledBounds.width <= 0 || scaledBounds.width >= 32768) {
-		Interpreter::throwRunTimeError(String("bounds width out of range [1..32767]: ")
-				+ Interpreter::toString(scaledBounds.width));
-	}
-	if (scaledBounds.height <= 0 || scaledBounds.height >= 32768) {
-		Interpreter::throwRunTimeError(String("bounds height out of range [1..32767]: ")
-				+ Interpreter::toString(scaledBounds.height));
-	}
-	if (scaledBounds.left <= -32768 || scaledBounds.left >= 32768) {
-		Interpreter::throwRunTimeError(String("bounds left out of range [-32767..32767]: ")
-				+ Interpreter::toString(scaledBounds.left));
-	}
-	if (scaledBounds.top <= -32768 || scaledBounds.top >= 32768) {
-		Interpreter::throwRunTimeError(String("bounds top out of range [-32767..32767]: ")
-				+ Interpreter::toString(scaledBounds.top));
-	}
+	checkBounds(scaledBounds);
 	raster.reset(new SelfContainedRaster<ARGB32>(scaledBounds));
 	(*raster) = Solid<ARGB32>(ARGB32::transparent());
 }

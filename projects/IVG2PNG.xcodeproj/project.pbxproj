@@ -14,7 +14,6 @@
 		F745AF772B0CED3A002A2B09 /* pngwrite.c in Sources */ = {isa = PBXBuildFile; fileRef = F745AF602B0CED3A002A2B09 /* pngwrite.c */; };
 		F745AF782B0CED3A002A2B09 /* pngwutil.c in Sources */ = {isa = PBXBuildFile; fileRef = F745AF632B0CED3A002A2B09 /* pngwutil.c */; };
 		F745AF792B0CED3A002A2B09 /* pngwtran.c in Sources */ = {isa = PBXBuildFile; fileRef = F745AF652B0CED3A002A2B09 /* pngwtran.c */; };
-		F745AF7A2B0CED3A002A2B09 /* example.c in Sources */ = {isa = PBXBuildFile; fileRef = F745AF672B0CED3A002A2B09 /* example.c */; };
 		F745AF7B2B0CED3A002A2B09 /* pngpread.c in Sources */ = {isa = PBXBuildFile; fileRef = F745AF6A2B0CED3A002A2B09 /* pngpread.c */; };
 		F745AF7C2B0CED3A002A2B09 /* pngread.c in Sources */ = {isa = PBXBuildFile; fileRef = F745AF6C2B0CED3A002A2B09 /* pngread.c */; };
 		F745AF7D2B0CED3A002A2B09 /* pngmem.c in Sources */ = {isa = PBXBuildFile; fileRef = F745AF6D2B0CED3A002A2B09 /* pngmem.c */; };
@@ -65,7 +64,6 @@
 		F745AF612B0CED3A002A2B09 /* png.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = png.h; sourceTree = "<group>"; };
 		F745AF632B0CED3A002A2B09 /* pngwutil.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pngwutil.c; sourceTree = "<group>"; };
 		F745AF652B0CED3A002A2B09 /* pngwtran.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pngwtran.c; sourceTree = "<group>"; };
-		F745AF672B0CED3A002A2B09 /* example.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = example.c; sourceTree = "<group>"; };
 		F745AF682B0CED3A002A2B09 /* pnglibconf.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pnglibconf.h; sourceTree = "<group>"; };
 		F745AF692B0CED3A002A2B09 /* pngconf.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = pngconf.h; sourceTree = "<group>"; };
 		F745AF6A2B0CED3A002A2B09 /* pngpread.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = pngpread.c; sourceTree = "<group>"; };
@@ -103,7 +101,7 @@
 		F7E0030617295EA200455EEC /* IMPD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = IMPD.h; sourceTree = "<group>"; };
 		F7E0030717295EA200455EEC /* IVG.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IVG.cpp; sourceTree = "<group>"; };
 		F7E0030817295EA200455EEC /* IVG.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = IVG.h; sourceTree = "<group>"; };
-		F7E934E416D411E200C7AEC3 /* IVG2PNG.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IVG2PNG.cpp; sourceTree = "<group>"; };
+		F7E934E416D411E200C7AEC3 /* IVG2PNG.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = IVG2PNG.cpp; path = ../tools/IVG2PNG.cpp; sourceTree = "<group>"; };
 		F7E934E816D411E200C7AEC3 /* IVG2PNG */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = IVG2PNG; sourceTree = BUILT_PRODUCTS_DIR; };
 		F7E9355016D4126B00C7AEC3 /* NuXPixels.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = NuXPixels.cpp; path = ../externals/NuX/NuXPixels.cpp; sourceTree = "<group>"; };
 		F7E9355116D4126B00C7AEC3 /* NuXPixels.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = NuXPixels.h; path = ../externals/NuX/NuXPixels.h; sourceTree = "<group>"; };
@@ -151,7 +149,6 @@
 				F745AF612B0CED3A002A2B09 /* png.h */,
 				F745AF632B0CED3A002A2B09 /* pngwutil.c */,
 				F745AF652B0CED3A002A2B09 /* pngwtran.c */,
-				F745AF672B0CED3A002A2B09 /* example.c */,
 				F745AF682B0CED3A002A2B09 /* pnglibconf.h */,
 				F745AF692B0CED3A002A2B09 /* pngconf.h */,
 				F745AF6A2B0CED3A002A2B09 /* pngpread.c */,
@@ -281,7 +278,6 @@
 				F745AFA32B0CEDB1002A2B09 /* inffast.c in Sources */,
 				F745AF7F2B0CED3A002A2B09 /* png.c in Sources */,
 				F745AF822B0CED3A002A2B09 /* pngset.c in Sources */,
-				F745AF7A2B0CED3A002A2B09 /* example.c in Sources */,
 				F745AF752B0CED3A002A2B09 /* pngwio.c in Sources */,
 				F745AF742B0CED3A002A2B09 /* pngerror.c in Sources */,
 				F745AF782B0CED3A002A2B09 /* pngwutil.c in Sources */,

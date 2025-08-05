@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Bucket
+   uuid = "18117F2D-57B0-42E6-AE84-529ACDC6E157"
+   type = "0"
+   version = "2.0">
+   <Breakpoints>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "33D21520-442F-4FFD-AE6F-8070C953CAB6"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "../../externals/NuX/NuXPixelsImpl.h"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "1677"
+            endingLineNumber = "1677"
+            landmarkName = "render(x, y, length, output)"
+            landmarkType = "9">
+            <Locations>
+               <Location
+                  uuid = "33D21520-442F-4FFD-AE6F-8070C953CAB6 - 335a4ab301bbb005"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "NuXPixels::Texture&lt;NuXPixels::ARGB32&gt;::render(int, int, int, NuXPixels::SpanBuffer&lt;NuXPixels::ARGB32&gt;&amp;) const"
+                  moduleName = "IVG2PNG"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/magnus/git/IVG/externals/NuX/NuXPixelsImpl.h"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "1677"
+                  endingLineNumber = "1677"
+                  offsetFromSymbolStart = "372">
+               </Location>
+               <Location
+                  uuid = "33D21520-442F-4FFD-AE6F-8070C953CAB6 - bf2ef1849e7984ab"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "NuXPixels::Texture&lt;NuXPixels::Mask8&gt;::render(int, int, int, NuXPixels::SpanBuffer&lt;NuXPixels::Mask8&gt;&amp;) const"
+                  moduleName = "IVG2PNG"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/magnus/git/IVG/externals/NuX/NuXPixelsImpl.h"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "1677"
+                  endingLineNumber = "1677"
+                  offsetFromSymbolStart = "372">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "F11D7DEB-6885-4244-8FE7-B50FAB7CAAF4"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "../../src/IVG.cpp"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "1565"
+            endingLineNumber = "1565"
+            landmarkName = "SelfContainedARGB32Canvas::defineBounds(newBounds)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "C7049925-044F-4794-ABB2-C20FF3E29891"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "../../src/IVG.h"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "536"
+            endingLineNumber = "536"
+            landmarkName = "doPaint(withPaint, inContext, sourceBounds, mask)"
+            landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "C7049925-044F-4794-ABB2-C20FF3E29891 - 67ff028140ef0da1"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "IVG::PatternPainter&lt;NuXPixels::Mask8&gt;::defineBounds(NuXPixels::Rect&lt;int&gt; const&amp;)"
+                  moduleName = "IVG2PNG"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/magnus/git/IVG/src/IVG.h"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "534"
+                  endingLineNumber = "534"
+                  offsetFromSymbolStart = "24">
+               </Location>
+               <Location
+                  uuid = "C7049925-044F-4794-ABB2-C20FF3E29891 - 3367918f8f5236e7"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "IVG::PatternPainter&lt;NuXPixels::ARGB32&gt;::defineBounds(NuXPixels::Rect&lt;int&gt; const&amp;)"
+                  moduleName = "IVG2PNG"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/magnus/git/IVG/src/IVG.h"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "534"
+                  endingLineNumber = "534"
+                  offsetFromSymbolStart = "24">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "7CB22927-9118-4001-BDBD-4A85568CE0AB"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "../../externals/NuX/NuXPixelsImpl.h"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "1685"
+            endingLineNumber = "1685"
+            landmarkName = "render(x, y, length, output)"
+            landmarkType = "9">
+            <Locations>
+               <Location
+                  uuid = "7CB22927-9118-4001-BDBD-4A85568CE0AB - 335a4ab301bbb33d"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "NuXPixels::Texture&lt;NuXPixels::ARGB32&gt;::render(int, int, int, NuXPixels::SpanBuffer&lt;NuXPixels::ARGB32&gt;&amp;) const"
+                  moduleName = "IVG2PNG"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/magnus/git/IVG/externals/NuX/NuXPixelsImpl.h"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "1685"
+                  endingLineNumber = "1685"
+                  offsetFromSymbolStart = "204">
+               </Location>
+               <Location
+                  uuid = "7CB22927-9118-4001-BDBD-4A85568CE0AB - bf2ef1849e798793"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "NuXPixels::Texture&lt;NuXPixels::Mask8&gt;::render(int, int, int, NuXPixels::SpanBuffer&lt;NuXPixels::Mask8&gt;&amp;) const"
+                  moduleName = "IVG2PNG"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/magnus/git/IVG/externals/NuX/NuXPixelsImpl.h"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "1685"
+                  endingLineNumber = "1685"
+                  offsetFromSymbolStart = "204">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+   </Breakpoints>
+</Bucket>
