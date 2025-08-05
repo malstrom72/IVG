@@ -25,6 +25,7 @@
 #include <cerrno>
 #include <cstring>
 #include <algorithm>
+#include <limits>
 #include "IMPD.h"
 
 namespace IMPD {
@@ -686,7 +687,15 @@ StringIt Interpreter::parseHex(StringIt p, const StringIt& e, uint32_t& i) {
 }
 
 StringIt Interpreter::parseUnsignedInt(StringIt p, const StringIt& e, uint32_t& i) {
-	for (i = 0; p != e && *p >= '0' && *p <= '9'; ++p) i = i * 10 + (*p - '0');
+	const uint32_t maxDiv10 = std::numeric_limits<uint32_t>::max() / 10;
+	const uint32_t maxMod10 = std::numeric_limits<uint32_t>::max() % 10;
+	i = 0;
+	while (p != e && *p >= '0' && *p <= '9') {
+		uint32_t d = static_cast<uint32_t>(*p - '0');
+		if (i > maxDiv10 || (i == maxDiv10 && d > maxMod10)) throwRunTimeError("Integer overflow");
+		i = i * 10 + d;
+		++p;
+	}
 	return p;
 }
 
@@ -694,7 +703,13 @@ StringIt Interpreter::parseInt(StringIt p, const StringIt& e, int32_t& i) {
 	bool negative = (e - p >= 2 && ((*p == '+' || *p == '-') && p[1] >= '0' && p[1] <= '9') ? (*p++ == '-') : false);
 	uint32_t ui;
 	p = parseUnsignedInt(p, e, ui);
-	i = (negative ? -static_cast<int>(ui) : ui);
+	if (negative) {
+		if (ui > static_cast<uint32_t>(std::numeric_limits<int32_t>::max()) + 1u) throwRunTimeError("Integer overflow");
+		i = -static_cast<int32_t>(ui);
+	} else {
+		if (ui > static_cast<uint32_t>(std::numeric_limits<int32_t>::max())) throwRunTimeError("Integer overflow");
+		i = static_cast<int32_t>(ui);
+	}
 	return p;
 }
 
