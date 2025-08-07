@@ -670,6 +670,7 @@ static void strokeOneSide(Path& stroked, double direction, const StrokeSegment* 
 			case Path::MITER: {
 				double d = (bdx * ady - adx * bdy);
 				double w = (fabs(d) >= EPSILON) ? (ady * (ax0 - bx0) - adx * (ay0 - by0)) / d : 0.0;
+				if (w > 0.0) w = -w;	/// w should be negative for outer joins; clamp so miter limit applies
 				if (w > miterLimitW) {
 					stroked.lineTo(bx0 + bdx * w, by0 + bdy * w);
 				} else {
