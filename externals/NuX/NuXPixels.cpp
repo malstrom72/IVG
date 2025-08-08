@@ -106,7 +106,7 @@ static inline void sort(int& a, int& b) {
 	int z = (y >> 31);
 	a = x + (y & z);
 	b = x + (y & ~z);
-}
+				}
 
 static double calcCircleRotationVector(double curveQuality, double diameter, double& rx, double& ry) {
 	double t = (diameter < EPSILON ? PI2
@@ -115,7 +115,7 @@ static double calcCircleRotationVector(double curveQuality, double diameter, dou
 	rx = cos(t);
 	ry = sin(t);
 	return t;
-}
+				}
 
 #ifndef NUXPIXELS_INT64_TYPE
 
@@ -632,10 +632,23 @@ static void strokeEnd(Path& stroked, double direction, const StrokeSegment* seg,
 	}
 }
 
+static inline void safeLineTo(Path& s, double x, double y) {
+	const Vertex p = s.getPosition();
+	const double dx = x - p.x;
+	const double dy = y - p.y;
+	if (dx * dx + dy * dy > 1e-24) s.lineTo(x, y);
+}
+
+/**
+	Offsets two consecutive segments and emits the outline for one side of the stroke.
+	`direction` is +1 for the left side and -1 for the right side when following the path.
+	The segments are offset by their perpendiculars; inner joins collapse while outer
+	joins are expanded according to `joints`, with miters clipped by `miterLimitW`.
+*/
 static void strokeOneSide(Path& stroked, double direction, const StrokeSegment* segA, const StrokeSegment* segB
 		, Path::JointStyle joints, double miterLimitW, double rx, double ry) {
 	int o = (direction >= 0) ? 0 : 1;
-	
+
 	double al = segA[0].l;
 	double adx = segA[0].d.x * direction;
 	double ady = segA[0].d.y * direction;
@@ -649,7 +662,7 @@ static void strokeOneSide(Path& stroked, double direction, const StrokeSegment* 
 	double bx0 = segB[o].v.x + bdy;
 	double by0 = segB[o].v.y - bdx;
 
-	if ((bx0 - ax1) * bdx + EPSILON * 2 <= (ay1 - by0) * bdy) { // Inner joint?
+	if ((bx0 - ax1) * bdx + EPSILON * 2 <= (ay1 - by0) * bdy) {
 		double d = (bdx * ady - adx * bdy);
 		double v = 0.0;
 		double w = 0.0;
@@ -657,39 +670,46 @@ static void strokeOneSide(Path& stroked, double direction, const StrokeSegment* 
 			v = (bdy * (ax0 - bx0) - bdx * (ay0 - by0)) / d;
 			w = (ady * (ax0 - bx0) - adx * (ay0 - by0)) / d;
 		}
-		if (v >= 0.0 && v <= al && w >= 0.0 && w <= bl) { // Crossing next line?
-			stroked.lineTo(ax0 + adx * v, ay0 + ady * v);
-		} else { // FIX : NOT ANY MORE! If lines do not cross, resort to a safe romb that fills correctly.
-			stroked.lineTo(ax1, ay1);
-			// FIX : CAN MAKE THINGS LOOK UGLY WITH REALLY SHORT SEGMENTS (LIKE DOUBLE-STROKING A CIRCLE)
-			// stroked.lineTo(bx0 - bdy, by0 + bdx);
-			stroked.lineTo(bx0, by0);
-		}	
+		if (v >= 0.0 && v <= al && w >= 0.0 && w <= bl) {
+			safeLineTo(stroked, ax0 + adx * v, ay0 + ady * v);
+		} else {
+			safeLineTo(stroked, ax1, ay1);
+			safeLineTo(stroked, bx0, by0);
+		}
 	} else {
 		switch (joints) {
 			case Path::MITER: {
 				double d = (bdx * ady - adx * bdy);
-				double w = (fabs(d) >= EPSILON) ? (ady * (ax0 - bx0) - adx * (ay0 - by0)) / d : 0.0;
-				if (w > miterLimitW) {
-					stroked.lineTo(bx0 + bdx * w, by0 + bdy * w);
+				if (fabs(d) < 1e-12) {
+					safeLineTo(stroked, ax1, ay1);
+					safeLineTo(stroked, bx0, by0);
+					break;
+				}
+				double w = (ady * (ax0 - bx0) - adx * (ay0 - by0)) / d;
+				if (w >= 0.0) {
+				// Intersection lies behind the start of `segB`; treat as a bevel to avoid spikes.
+				safeLineTo(stroked, ax1, ay1);
+				safeLineTo(stroked, bx0, by0);
+				} else if (w > miterLimitW) {
+				safeLineTo(stroked, bx0 + bdx * w, by0 + bdy * w);
 				} else {
-					stroked.lineTo(ax1 - adx * miterLimitW, ay1 - ady * miterLimitW);
-					stroked.lineTo(bx0 + bdx * miterLimitW, by0 + bdy * miterLimitW);
+				safeLineTo(stroked, ax1 - adx * miterLimitW, ay1 - ady * miterLimitW);
+				safeLineTo(stroked, bx0 + bdx * miterLimitW, by0 + bdy * miterLimitW);
 				}
 			}
 			break;
-			
+
 			case Path::BEVEL: {
-				stroked.lineTo(ax1, ay1);
-				stroked.lineTo(bx0, by0);
+				safeLineTo(stroked, ax1, ay1);
+				safeLineTo(stroked, bx0, by0);
 			}
 			break;
-			
+
 			case Path::CURVE: {
 				strokeRounded(stroked, ax1, ay1, bx0, by0, bdx, bdy, rx, ry);
 			}
 			break;
-			
+
 			default: assert(0);
 		}
 	}
