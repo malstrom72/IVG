@@ -632,6 +632,13 @@ static void strokeEnd(Path& stroked, double direction, const StrokeSegment* seg,
 	}
 }
 
+static inline void safeLineTo(Path& s, double x, double y) {
+	const Vertex p = s.getPosition();
+	const double dx = x - p.x;
+	const double dy = y - p.y;
+	if (dx * dx + dy * dy > 1e-24) s.lineTo(x, y);
+}
+
 /**
 	Offsets two consecutive segments and emits the outline for one side of the stroke.
 	`direction` is +1 for the left side and -1 for the right side when following the path.
@@ -640,62 +647,66 @@ static void strokeEnd(Path& stroked, double direction, const StrokeSegment* seg,
 */
 static void strokeOneSide(Path& stroked, double direction, const StrokeSegment* segA, const StrokeSegment* segB
 		, Path::JointStyle joints, double miterLimitW, double rx, double ry) {
-	int o = (direction >= 0) ? 0 : 1;		// select start/end index depending on traversal direction
-	
-	double al = segA[0].l;		// length of A measured in stroke widths
-	double adx = segA[0].d.x * direction;	// normalized delta for segment A
+	int o = (direction >= 0) ? 0 : 1;
+
+	double al = segA[0].l;
+	double adx = segA[0].d.x * direction;
 	double ady = segA[0].d.y * direction;
-	double ax0 = segA[o].v.x + ady;	// offset point A at start of join
+	double ax0 = segA[o].v.x + ady;
 	double ay0 = segA[o].v.y - adx;
-	double ax1 = segA[1 - o].v.x + ady;	// offset point A at end of join
+	double ax1 = segA[1 - o].v.x + ady;
 	double ay1 = segA[1 - o].v.y - adx;
-	double bl = segB[0].l;		// length of B in stroke widths
-	double bdx = segB[0].d.x * direction;	// normalized delta for segment B
+	double bl = segB[0].l;
+	double bdx = segB[0].d.x * direction;
 	double bdy = segB[0].d.y * direction;
-	double bx0 = segB[o].v.x + bdy;	// offset point B at start of join
+	double bx0 = segB[o].v.x + bdy;
 	double by0 = segB[o].v.y - bdx;
 
-	if ((bx0 - ax1) * bdx + EPSILON * 2 <= (ay1 - by0) * bdy) { // Inner joint? B inside half-plane of A
-		double d = (bdx * ady - adx * bdy);	// determinant of direction matrix
-		double v = 0.0;		// param along segment A
-		double w = 0.0;		// param along segment B
+	if ((bx0 - ax1) * bdx + EPSILON * 2 <= (ay1 - by0) * bdy) {
+		double d = (bdx * ady - adx * bdy);
+		double v = 0.0;
+		double w = 0.0;
 		if (fabs(d) >= EPSILON) {
 			v = (bdy * (ax0 - bx0) - bdx * (ay0 - by0)) / d;
 			w = (ady * (ax0 - bx0) - adx * (ay0 - by0)) / d;
 		}
-		if (v >= 0.0 && v <= al && w >= 0.0 && w <= bl) { // Do the offset lines cross before segment ends?
-			stroked.lineTo(ax0 + adx * v, ay0 + ady * v);
-		} else { // If lines do not cross, resort to a safe romb that fills correctly
-			stroked.lineTo(ax1, ay1);
-		// stroked.lineTo(bx0 - bdy, by0 + bdx); // would produce a slimmer join
-			stroked.lineTo(bx0, by0);
-		}	
-	} else { // Outer joint
+		if (v >= 0.0 && v <= al && w >= 0.0 && w <= bl) {
+			safeLineTo(stroked, ax0 + adx * v, ay0 + ady * v);
+		} else {
+			safeLineTo(stroked, ax1, ay1);
+			safeLineTo(stroked, bx0, by0);
+		}
+	} else {
 		switch (joints) {
 			case Path::MITER: {
-				double d = (bdx * ady - adx * bdy);	// same determinant as above
-				double w = (fabs(d) >= EPSILON) ? (ady * (ax0 - bx0) - adx * (ay0 - by0)) / d : 0.0;	// param along B
-				if (w > 0.0) w = -w;	// w should be negative for outer joins; clamp so miter limit applies
-				if (w > miterLimitW) {	// Intersection within miter limit?
-					stroked.lineTo(bx0 + bdx * w, by0 + bdy * w);
-				} else { // Clip to miter limit
-					stroked.lineTo(ax1 - adx * miterLimitW, ay1 - ady * miterLimitW);
-					stroked.lineTo(bx0 + bdx * miterLimitW, by0 + bdy * miterLimitW);
+				double d = (bdx * ady - adx * bdy);
+				if (fabs(d) < 1e-12) {
+					safeLineTo(stroked, ax1, ay1);
+					safeLineTo(stroked, bx0, by0);
+					break;
+				}
+				double w = (ady * (ax0 - bx0) - adx * (ay0 - by0)) / d;
+				if (w > 0.0) w = -w;
+				if (w > miterLimitW) {
+					safeLineTo(stroked, bx0 + bdx * w, by0 + bdy * w);
+				} else {
+					safeLineTo(stroked, ax1 - adx * miterLimitW, ay1 - ady * miterLimitW);
+					safeLineTo(stroked, bx0 + bdx * miterLimitW, by0 + bdy * miterLimitW);
 				}
 			}
 			break;
-			
+
 			case Path::BEVEL: {
-				stroked.lineTo(ax1, ay1);
-				stroked.lineTo(bx0, by0);
+				safeLineTo(stroked, ax1, ay1);
+				safeLineTo(stroked, bx0, by0);
 			}
 			break;
-			
+
 			case Path::CURVE: {
 				strokeRounded(stroked, ax1, ay1, bx0, by0, bdx, bdy, rx, ry);
 			}
 			break;
-			
+
 			default: assert(0);
 		}
 	}
