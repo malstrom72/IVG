@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+	<g transform="scale(4)">
+		<path d="M25 50.82287539 25.08010694512 23.54328731441 26 24.66164890644 25.080107 23.54328735097"
+			stroke="black"
+			stroke-width="2"
+			stroke-linecap="butt"
+			stroke-linejoin="miter"
+			stroke-miterlimit="100"
+			fill="none" />
+	</g>
+</svg>
