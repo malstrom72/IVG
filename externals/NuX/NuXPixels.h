@@ -932,7 +932,11 @@ class EvenOddFillRule : public FillRule {
 // Also: this is (I believe) the only renderer that doesn't allow random access coordinates. It needs to render from top to bottom, left to right. Once only.
 /**
 	PolygonMask rasterizes a path into a coverage mask using a fill rule.
-
+	It works by:
+	1. Converting each path edge into a vertical segment and sorting them by their top Y.
+	2. Scanning rows from top to bottom while maintaining an active list of segments ordered by X.
+	3. For each row, accumulating edge coverage per column to build a span buffer.
+	4. Applying the selected fill rule to turn accumulated coverage into mask pixels.
 	example:
 	PolygonMask mask(path, bounds, PolygonMask::nonZeroFillRule);
 **/
