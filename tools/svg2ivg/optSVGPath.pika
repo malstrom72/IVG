@@ -1,0 +1,123 @@
+#! /usr/local/bin/PikaCmd
+
+include('stdlib.pika');
+
+WHITE = " \t\r\n";
+
+s = void;
+prec = void;
+decimals = void;
+
+for (i = 1; i < $n;) {
+	a = coalesce(@$[i++]);
+	if (a{:2} == '-p') {
+		a = trim(a{2:});
+		if (a == void) a = coalesce(@$[i++]);
+		prec = +a;
+	} else if (a{:2} == '-d') {
+		a = trim(a{2:});
+		if (a == void) a = coalesce(@$[i++]);
+		decimals = +a;
+	} else if (s == void) {
+		s = a;
+	} else {
+		print("Usage: optSVGPath <path> [-p <precision>] [-d <decimals>]");
+		throw("Invalid arguments");
+	};
+};
+
+if (s == void) {
+	print("Usage: optSVGPath [-p <precision>] [-d <decimals>] <path-data>");
+	throw("Missing path data argument");
+};
+
+o = '';
+
+numberSpan = function {
+	args(@s, @i);
+	b = i;
+	if (span(s{i}, "-+") == 1) ++i;
+	i += (int = span(s{i:}, "0123456789"));
+	fract = 0;
+	if (s{i} === '.') {
+		fract = span(s{i + 1:}, "0123456789");
+		if (int != 0 || fract != 0) {
+			i += 1 + fract;
+		};
+	};
+	if ((int != 0 || fract != 0) && upper(s{i}) === 'E') {
+		sign = span(s{i + 1}, "-+");
+		exp = span(s{i + 1 + sign:}, "0123456789");
+		if (exp != 0) i += 1 + sign + exp;
+	};
+	( i - b )
+};
+
+changePrecision = function {
+	args(@s, @p, @d);
+	
+	// re-format to valid pikascript number
+	
+	sign = '';
+	exp = '';
+	if (span(s{0}, "-+") == 1) {
+		if (s{0} === '-') sign = '-';
+		s = s{1:}
+	};
+	i = find(s, 'eE');
+	exp = s{i + 1:};
+	if (exp != '') {
+		expSign = '';
+		if (span(exp{0}, "-+") == 1) {
+			if (exp{0} === '-') expSign = '-';
+			exp = exp{1:}
+		};
+		exp = exp{span(exp, "0"):};
+		if (exp != '') exp = 'e' # expSign # exp;
+	};
+	s = s{:i};
+	s = s{span(s, "0"):};
+	if (s{0} === '.') s = '0' # s;
+	if (s === '' || right(s, 1) === '.') s #= '0';
+	
+	// change precision
+	
+	s = sign # s # exp;
+	if (d != void) s = round(pow(10.0,d)*s)/pow(10.0,d); //trunc(s, d);
+	if (p != void) s = precision(s, p);
+	if (length(+s) <= length(s)) s = +s;
+	
+	// optimize svg number
+	
+	if (s{0} === '0' && s !== '0') s = s{1:};
+	if (s{0:2} === '-0') s = '-' # s{2:};
+	
+	( replace(s, 'e+', 'e') )
+};
+
+ln = -1;
+for (i = 0; i < length(s);) {
+	i += span(s{i:}, WHITE);
+	if (span(s{i}, "ACHLMQSTVZachlmqstvz") == 1) {
+		c = s{i++};
+		o #= c;
+		ln = -1;
+	} else if ((j = numberSpan(s, i)) > 0) {
+		n = s{i:j};
+		if (prec != void || decimals != void) n = changePrecision(n, prec, decimals);
+		i += j;
+		i += span(s{i:}, WHITE);
+		if (s{i} === ',') {
+			++i;
+			i += span(s{i:}, WHITE);
+		};
+		if (ln >= 0 && numberSpan(o # n, ln) > length(o) - ln) o #= ',';
+		ln = length(o);
+		o #= n;
+	} else {
+		throw("Parse error");
+	}
+};
+
+print(o);
+( o )

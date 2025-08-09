@@ -1,0 +1,288 @@
+#! /usr/local/bin/PikaCmd
+
+include('debug.pika');
+include('stdlib.pika');
+include('objects.pika');
+include('systools.pika');
+include('initPPEG.pika');
+
+outputString = '';
+
+indent = 0;
+
+output = function {
+	if ($0 === "]") {
+		--::indent;
+	};
+	::outputString #= repeat("\t", ::indent) # $0 # LF;
+	if (right($0, 1) === "[") {
+		++::indent;
+	}
+};
+
+warning = function {
+	print("Warning! " # $0);
+};
+
+parseRect = function {
+	if (!wildmatch($0, "[ \t\n\r]*{[-+0-9.eE]?*}[ \t\n\r]*[, \t\n\r][ \t\n\r]*{[-+0-9.eE]?*}[ \t\n\r]*[, \t\n\r][ \t\n\r]*{[-+0-9.eE]?*}[ \t\n\r]*[, \t\n\r][ \t\n\r]*{[-+0-9.eE]?*}[ \t\n\r]*", @[$1].left, @[$1].top, @[$1].width, @[$1].height)) {
+		throw("Invalid rect: " # $0);
+	};
+};
+
+checkRequiredAttributes = function {
+	for (i = 1; i < $n; ++i) {
+		if (!exists(@[$0][$[i]])) {
+			throw("Missing required attribute: " # $[i]);
+		}
+	}
+};
+
+firstSVG = true;
+
+converters['svg'] = function {
+	args(@element, @attribs);
+	if (exists(@[attribs].width)) {
+		width = lower(trim([attribs].width));
+		if (right(width, 2) !== 'px') { // FIX : support %
+			warning("'width' attribute not in pixels units.");
+		};
+		width = +width{:parse(width, true)};
+	} else {
+		warning("Missing 'width' attribute. Assuming a width of 800.");
+		width = 800;
+	};
+	if (exists(@[attribs].height)) {
+		height = lower(trim([attribs].height));
+		if (right(height, 2) !== 'px') { // FIX : support %
+			warning("'height' attribute not in pixels units.");
+		};
+		height = +height{:parse(height, true)};
+	} else {
+		warning("Missing 'height' attribute. Assuming a height of 800.");
+		height = 800;
+	};
+	if (!::firstSVG) {
+		output('reset');
+	};
+	::firstSVG = false;
+	output(bake('bounds 0,0,{width},{height}'));
+	// FIX : correct preserveAspectRatio!
+	output('fill black');
+	output('pen miter-limit:4');
+	if (exists(@[attribs].viewBox)) {
+		parseRect([attribs].viewBox, @vb);
+		if (vb.left != 0 || vb.top != 0) {
+			output(bake('offset -{vb.left},-{vb.top}')); // FIX : correct?!
+		};
+		output(bake('scale {min(width / vb.width, height / vb.height)}'));
+	};
+	convertSVGContainer(element);
+};
+
+compose(@KNOWN_PRESENTATION_ATTRIBUTES, 'stroke', 'stroke-width', 'stroke-linejoin', 'stroke-linecap', 'stroke-miterlimit', 'fill');
+
+set(@IVG_COLORS,'none','aqua','black','blue','fuchsia','gray','green','lime','maroon','navy','olive','purple','red','silver','teal','white','yellow');
+// s = ''; foreach(@STANDARD_COLORS,>{ success = wildmatch($2, 'rgb({[0-9]?*},{[0-9]?*},{[0-9]?*})', @r, @g, @b); print($0); assert(success); s #= escape($1) # ',"#' # radix(r,16) # radix(g, 16) # radix(b, 16) # '",'; })
+map(@SVG_COLORS,'aliceblue',"#f0f8ff",'antiquewhite',"#faebd7",'aquamarine',"#7fffd4",'azure',"#f0ffff",'beige',"#f5f5dc",'bisque',"#ffe4c4",'blanchedalmond',"#ffebcd",'blueviolet',"#8a2be2",'brown',"#a52a2a",'burlywood',"#deb887",'cadetblue',"#5f9ea0",'chartreuse',"#7fff00",'chocolate',"#d2691e",'coral',"#ff7f50",'cornflowerblue',"#6495ed",'cornsilk',"#fff8dc",'crimson',"#dc143c",'cyan',"#00ffff",'darkblue',"#00008b",'darkcyan',"#008b8b",'darkgoldenrod',"#b8860b",'darkgray',"#a9a9a9",'darkgreen',"#006400",'darkgrey',"#a9a9a9",'darkkhaki',"#bdb76b",'darkmagenta',"#8b008b",'darkolivegreen',"#556b2f",'darkorange',"#ff8c00",'darkorchid',"#9932cc",'darkred',"#8b0000",'darksalmon',"#e9967a",'darkseagreen',"#8fbc8f",'darkslateblue',"#483d8b",'darkslategray',"#2f4f4f",'darkslategrey',"#2f4f4f",'darkturquoise',"#00ced1",'darkviolet',"#9400d3",'deeppink',"#ff1493",'deepskyblue',"#00bfff",'dimgray',"#696969",'dimgrey',"#696969",'dodgerblue',"#1e90ff",'firebrick',"#b22222",'floralwhite',"#fffaf0",'forestgreen',"#228b22",'gainsboro',"#dcdcdc",'ghostwhite',"#f8f8ff",'gold',"#ffd700",'goldenrod',"#daa520",'grey',"#808080",'greenyellow',"#adff2f",'honeydew',"#f0fff0",'hotpink',"#ff69b4",'indianred',"#cd5c5c",'indigo',"#4b0082",'ivory',"#fffff0",'khaki',"#f0e68c",'lavender',"#e6e6fa",'lavenderblush',"#fff0f5",'lawngreen',"#7cfc00",'lemonchiffon',"#fffacd",'lightblue',"#add8e6",'lightcoral',"#f08080",'lightcyan',"#e0ffff",'lightgoldenrodyellow',"#fafad2",'lightgray',"#d3d3d3",'lightgreen',"#90ee90",'lightgrey',"#d3d3d3",'lightpink',"#ffb6c1",'lightsalmon',"#ffa07a",'lightseagreen',"#20b2aa",'lightskyblue',"#87cefa",'lightslategray',"#778899",'lightslategrey',"#778899",'lightsteelblue',"#b0c4de",'lightyellow',"#ffffe0",'limegreen',"#32cd32",'linen',"#faf0e6",'magenta',"#ff00ff",'mediumaquamarine',"#66cdaa",'mediumblue',"#0000cd",'mediumorchid',"#ba55d3",'mediumpurple',"#9370db",'mediumseagreen',"#3cb371",'mediumslateblue',"#7b68ee",'mediumspringgreen',"#00fa9a",'mediumturquoise',"#48d1cc",'mediumvioletred',"#c71585",'midnightblue',"#191970",'mintcream',"#f5fffa",'mistyrose',"#ffe4e1",'moccasin',"#ffe4b5",'navajowhite',"#ffdead",'oldlace',"#fdf5e6",'olivedrab',"#6b8e23",'orange',"#ffa500",'orangered',"#ff4500",'orchid',"#da70d6",'palegoldenrod',"#eee8aa",'palegreen',"#98fb98",'paleturquoise',"#afeeee",'palevioletred',"#db7093",'papayawhip',"#ffefd5",'peachpuff',"#ffdab9",'peru',"#cd853f",'pink',"#ffc0cb",'plum',"#dda0dd",'powderblue',"#b0e0e6",'rosybrown',"#bc8f8f",'royalblue',"#4169e1",'saddlebrown',"#8b4513",'salmon',"#fa8072",'sandybrown',"#f4a460",'seagreen',"#2e8b57",'seashell',"#fff5ee",'sienna',"#a0522d",'skyblue',"#87ceeb",'slateblue',"#6a5acd",'slategray',"#708090",'slategrey',"#708090",'snow',"#fffafa",'springgreen',"#00ff7f",'steelblue',"#4682b4",'tan',"#d2b48c",'thistle',"#d8bfd8",'tomato',"#ff6347",'turquoise',"#40e0d0",'violet',"#ee82ee",'wheat',"#f5deb3",'whitesmoke',"#f5f5f5",'yellowgreen',"#9acd32");
+
+convertPaint = function {
+	args(@sourcePaint);
+	sourcePaint = trim(lower(sourcePaint));
+	if (wildmatch(sourcePaint, "#[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]")) {
+		( lower(sourcePaint) )
+	} else if (wildmatch(sourcePaint, "#{[0-9a-f]}{[0-9a-f]}{[0-9a-f]}", @r, @g, @b)) {
+		( lower('#' # r # r # g # g # b # b) )
+	} else if (exists(@::IVG_COLORS[sourcePaint])) {
+		( sourcePaint )
+	} else if (exists(@::SVG_COLORS[sourcePaint])) {
+		( ::SVG_COLORS[sourcePaint] )
+	} else {
+		throw("Unrecognized color: " # sourcePaint);
+	}
+};
+
+convertUnits = function {
+	args(@value);
+	// FIX : percentage etc
+	( +value{:parse(value, true)} )
+};
+
+convertOpacity = function {
+	args(@value);
+	percentage = (right(trim(value), 1) === "%");
+	value = +value{:parse(value, true)};
+	if (percentage) {
+		value /= 100;
+	};
+	if (value < 0 || value > 1) {
+		throw("Invalid opacity: " # value);
+	};
+	( value )
+};
+
+map(@LINEJOINS_TO_JOINTS, 'bevel','bevel' , 'round','curve' , 'miter','miter' , 'miter-clip','miter' , 'arcs','miter');
+set(@SUPPORTED_LINECAPS, 'butt', 'round', 'square');
+
+outputPresentationAttributes = function {
+	args(@attribs);
+	hasStroke = exists(@[attribs].stroke);
+	hasStrokeWidth = exists(@[attribs]["stroke-width"]);
+	hasStrokeLineJoin = exists(@[attribs]["stroke-linejoin"]);
+	hasStrokeLineCap = exists(@[attribs]["stroke-linecap"]);
+	hasStrokeMiterlimit = exists(@[attribs]["stroke-miterlimit"]);
+	baseOpacity = 1.0;
+	if (exists(@[attribs].opacity)) {
+		baseOpacity = convertOpacity([attribs].opacity);
+	};
+
+	if (hasStroke || hasStrokeWidth || hasStrokeLineJoin || hasStrokeMiterlimit /*|| hasStrokeOpacity || baseOpacity < 1.0*/) {
+		s = 'pen';
+		if (hasStroke) {
+			s #= ' ' # convertPaint([attribs].stroke); // FIX : all weird pen types
+		};
+		if (hasStrokeWidth) {
+			s #= ' width:' # convertUnits([attribs]["stroke-width"]);
+		};
+		if (hasStrokeLineJoin) {
+			lj = [attribs]["stroke-linejoin"];
+			if (!exists(@::LINEJOINS_TO_JOINTS[lj])) {
+				throw("Unrecognized stroke-linejoin: " # lj);
+			};
+			s #= ' joints:' # ::LINEJOINS_TO_JOINTS[lj];
+		};
+		if (hasStrokeLineCap) {
+			lc = [attribs]["stroke-linecap"];
+			if (!exists(@::SUPPORTED_LINECAPS[lc])) {
+				throw("Unrecognized stroke-linecap: " # lc);
+			};
+			s #= ' caps:' # lc;
+		};
+		if (hasStrokeMiterlimit) {
+			s #= ' miter-limit:' # [attribs]["stroke-miterlimit"];
+		};
+		output(s);
+	};
+	if (exists(@[attribs].fill)) {
+		output("fill " # convertPaint([attribs].fill)); // FIX : all weird fill types
+	};
+};
+
+gotKnownPresentationAttributes = function {
+	args(@attribs);
+	n = ::KNOWN_PRESENTATION_ATTRIBUTES.n;
+	for (i = 0; i < n && !exists(@[attribs][::KNOWN_PRESENTATION_ATTRIBUTES[i]]); ++i) ;
+	( i < n )
+};
+
+createContextMaybe = function {
+	args(@attribs);
+	if (needsContext = gotKnownPresentationAttributes(attribs)) {
+		output("context [");
+		outputPresentationAttributes(attribs);
+	};
+	( needsContext )
+};
+
+converters['g'] = function {
+	args(@element, @attribs);
+	output("context [");
+	outputPresentationAttributes(attribs);
+	convertSVGContainer(element);
+	output("]");
+};
+
+converters['path'] = function {
+	args(@element, @attribs);
+	separateContext = createContextMaybe(attribs);
+	if (exists(@[attribs].d)) {
+		output("path svg:[" # [attribs].d # "]");
+	} else {
+		warning("Missing 'd' attribute in 'path' element.");
+	};
+	if (separateContext) output("]");
+};
+
+converters['circle'] = function {
+	args(@element, @attribs);
+	separateContext = createContextMaybe(attribs);
+	checkRequiredAttributes(attribs, 'cx', 'cy', 'r'); // FIX : oh, these aren't required actually
+	output(bake("ellipse {convertUnits([attribs].cx)},{convertUnits([attribs].cy)},{convertUnits([attribs].r)}"));
+	if (separateContext) output("]");
+};
+
+converters['ellipse'] = function {
+	args(@element, @attribs);
+	separateContext = createContextMaybe(attribs);
+	checkRequiredAttributes(attribs, 'cx', 'cy', 'rx', 'ry'); // FIX : oh, these aren't required actually
+	output(bake("ellipse {convertUnits([attribs].cx)},{convertUnits([attribs].cy)},{convertUnits([attribs].rx)},{convertUnits([attribs].ry)}"));
+	if (separateContext) output("]");
+};
+
+converters['line'] = function {
+	args(@element, @attribs);
+	separateContext = createContextMaybe(attribs);
+	checkRequiredAttributes(attribs, 'x1', 'y1', 'x2', 'y2'); // FIX : oh, these aren't required actually
+	output(bake("path svg:[M{convertUnits([attribs].x1)},{convertUnits([attribs].y1)}L{convertUnits([attribs].x2)},{convertUnits([attribs].y2)}]"));
+	if (separateContext) output("]");
+};
+
+converters['rect'] = function {
+	args(@element, @attribs);
+	separateContext = createContextMaybe(attribs);
+	checkRequiredAttributes(attribs, 'x', 'y', 'width', 'height'); // FIX : oh, these aren't required actually
+	s = bake("rect {convertUnits([attribs].x)},{convertUnits([attribs].y)},{convertUnits([attribs].width)},{convertUnits([attribs].height)}");
+	hasRX = exists(@[attribs]['rx']);
+	hasRY = exists(@[attribs]['ry']);
+	if (hasRX && hasRY) {
+		s #= bake(' rounded:{convertUnits([attribs].rx)},{convertUnits([attribs].ry)}');
+	} else if (hasRX) {
+		s #= bake(' rounded:{convertUnits([attribs].rx)}');
+	} else if (hasRY) {
+		s #= bake(' rounded:{convertUnits([attribs].ry)}');
+	};
+	output(s);
+	if (separateContext) output("]");
+};
+
+convertSVGElement = function {
+	args(@element);
+	type = [element].type;
+	if (exists(@::converters[type])) {
+		::converters[type](element, @[element].attributes);
+	} else {
+		warning("Can't convert type: " # type);
+	};
+};
+
+convertSVGContainer = function {
+	args(@container);
+	iterate(@[container].contents, >{
+		if (exists(@[$0].element)) {
+			convertSVGElement([$0].element);
+		};
+	});
+};
+
+success = ppeg.compileFunction(src = load('xmlMini.ppeg'), @::xml.miniParseFunc, @offset);
+if (!success) {
+	throw("Could not compile XML parser");
+};
+
+vargs(@exe, @svgPath,, @ivgPath);
+
+svgSource = load(svgPath);
+success = xml.miniParseFunc(svgSource, @svg, @offset);
+if (!success) {
+	throw("Could not parse XML file (at " # offset # ")");
+};
+
+output('format IVG-1 requires:IMPD-1');
+convertSVGContainer(svg);
+if (exists(@ivgPath)) {
+	print("Converted " # svgPath # " to " # ivgPath);
+	save(ivgPath, outputString);
+} else {
+	print('------');
+	print(outputString);
+}
