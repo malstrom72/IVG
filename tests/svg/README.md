@@ -1,5 +1,22 @@
 # svg2ivg Test Cases
 
+## Running the Converter
+Build PikaScript via `timeout 180 ./build.sh` from the repository root, then run the converter from its folder so `xmlMini.ppeg` can be found:
+
+```
+cd tools/svg2ivg
+../../externals/PikaScript/output/PikaCmd svg2ivg.pika ../../tests/svg/supported/circle.svg
+```
+
+Process all samples in one go:
+
+```
+cd tools/svg2ivg
+for f in ../../tests/svg/*/*.svg; do
+	../../externals/PikaScript/output/PikaCmd svg2ivg.pika "$f" >/dev/null
+done
+```
+
 ## Supported SVGs
 - `circle.svg`: basic circle
 - `rect.svg`: rectangle outline
