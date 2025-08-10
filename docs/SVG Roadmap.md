@@ -1,0 +1,64 @@
+# SVG Feature Roadmap
+
+This document outlines a path for expanding `svg2ivg.js` to handle more of the SVG files under `tests/svg`.
+Each subsection describes the missing capability and proposes implementation steps.
+
+## Geometry Elements
+
+### `polygon`
+1. Parse the `points` attribute into coordinate pairs.
+2. Generate a closed path string and emit it via `path svg:[...]`.
+3. Reuse presentation attribute handling through `createContextMaybe`.
+
+### `polyline`
+1. Parse `points` like `polygon` but emit an open path without the trailing `Z` command.
+2. Support optional `fill` and `stroke` attributes.
+
+## Text and Images
+
+### `text`
+1. Read text content and attributes such as `x`, `y`, and `font-size`.
+2. Map characters to drawing commands (e.g. using built-in fonts or an external glyph source).
+3. Emit IVG text or converted paths positioned at the specified coordinates.
+
+### `image`
+1. Decode `href` data URIs or external references.
+2. Create an IVG image command that embeds raster data with `width` and `height` scaling.
+3. Handle positioning attributes (`x`, `y`) and clipping to the viewport.
+
+## Coordinate Systems and Units
+
+### `transform`
+1. Parse the `transform` string into translate/scale/rotate operations.
+2. Extend the context stack to apply transformations before drawing child elements.
+3. Support concatenated transforms and propagate them through `g` groups.
+
+### Non-pixel units
+1. Enhance `convertUnits` to recognize `cm`, `mm`, `in`, `pt`, and `pc`.
+2. Convert each unit to pixels using the standard 96 dpi conversion factors.
+3. Update `svg` element parsing to drop warnings and produce correct sizes.
+
+### Percentage values
+1. Allow `convertUnits` to detect `%` and compute absolute values relative to the current viewport.
+2. Track the current viewport dimensions so attributes such as `x`, `y`, `width`, and `height` can resolve percentages.
+
+## Definitions and Reuse
+
+### `defs` / `use`
+1. While parsing, store elements with `id` inside a definitions table.
+2. Implement a `use` converter that clones a referenced element, applies `x`/`y` offsets, and processes it normally.
+3. Support nested `use` instances and inherited presentation attributes.
+
+### Gradients
+1. Parse `<linearGradient>` and `<radialGradient>` definitions, recording their stops and coordinates.
+2. When a `fill` or `stroke` uses `url(#id)`, look up the gradient and emit the corresponding IVG gradient commands.
+3. Handle gradient units, spread methods, and transformation attributes.
+
+## Opacity and Color
+
+### Global and per-element opacity
+1. `outputPresentationAttributes` computes a `baseOpacity` but does not apply it; extend the code to output alpha values for `pen` and `fill`.
+2. Support `stroke-opacity` and `fill-opacity` to override the global value.
+3. Allow colors specified with `rgba()` or `hsla()` once alpha handling is in place.
+
+Implementing these features will move more SVGs from `tests/svg/unsupported` into the supported set and reduce warnings from `svg2ivg.js`.
