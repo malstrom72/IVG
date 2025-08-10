@@ -130,40 +130,66 @@ function parsePoints(str) {
 	return points;
 }
 function outputTransforms(str) {
-	const re = /(translate|scale|rotate)\(([^)]*)\)/g;
+	const re = /(translate|scale|rotate|skewX|skewY|matrix)\(([^)]*)\)/g;
 	let m;
 	while ((m = re.exec(str)) !== null) {
 		const type = m[1];
 		const params = m[2].trim().split(/[ ,]+/).filter(p => p.length);
 		switch (type) {
-		case 'translate': {
-			const tx = convertUnits(params[0] || '0');
-			const ty = params.length > 1 ? convertUnits(params[1]) : 0;
-			output(`offset ${tx},${ty}`);
-			break;
-		}
-		case 'scale': {
-			const sx = parseFloat(params[0] || '1');
-			const sy = params.length > 1 ? parseFloat(params[1]) : sx;
-			if (params.length > 1) {
-				output(`scale ${sx},${sy}`);
-			} else {
-				output(`scale ${sx}`);
+			case 'translate': {
+				const tx = convertUnits(params[0] || '0');
+				const ty = params.length > 1 ? convertUnits(params[1]) : 0;
+				output(`offset ${tx},${ty}`);
+				break;
 			}
-			break;
-		}
-		case 'rotate': {
-			const angle = parseFloat(params[0] || '0');
-			let cmd = `rotate ${angle}`;
-			if (params.length > 2) {
-				const cx = convertUnits(params[1]);
-				const cy = convertUnits(params[2]);
-				cmd += ` anchor:${cx},${cy}`;
+			case 'scale': {
+				const sx = parseFloat(params[0] || '1');
+				const sy = params.length > 1 ? parseFloat(params[1]) : sx;
+				if (params.length > 1) {
+					output(`scale ${sx},${sy}`);
+				} else {
+					output(`scale ${sx}`);
+				}
+				break;
 			}
-			output(cmd);
-			break;
-		}
-		default:
+			case 'rotate': {
+				const angle = parseFloat(params[0] || '0');
+				let cmd = `rotate ${angle}`;
+				if (params.length > 2) {
+					const cx = convertUnits(params[1]);
+					const cy = convertUnits(params[2]);
+					cmd += ` anchor:${cx},${cy}`;
+				}
+				output(cmd);
+				break;
+			}
+			case 'skewX': {
+				const angle = parseFloat(params[0] || '0');
+				const sx = Math.tan(angle * Math.PI / 180);
+				output(`shear ${sx},0`);
+				break;
+			}
+			case 'skewY': {
+				const angle = parseFloat(params[0] || '0');
+				const sy = Math.tan(angle * Math.PI / 180);
+				output(`shear 0,${sy}`);
+				break;
+			}
+			case 'matrix': {
+				if (params.length !== 6) {
+					warning('matrix requires 6 parameters');
+					break;
+				}
+				const a = parseFloat(params[0]);
+				const b = parseFloat(params[1]);
+				const c = parseFloat(params[2]);
+				const d = parseFloat(params[3]);
+				const e = convertUnits(params[4]);
+				const f = convertUnits(params[5]);
+				output(`matrix ${a},${b},${c},${d},${e},${f}`);
+				break;
+			}
+			default:
 			warning('Unsupported transform: ' + type);
 		}
 	}

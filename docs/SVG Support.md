@@ -16,7 +16,7 @@
 
 ### Transforms
 
--   `transform` attribute with `translate`, `scale`, and `rotate` operations.
+-   `transform` attribute with `translate`, `scale`, `rotate`, `skewX`, `skewY`, and `matrix` operations.
 
 ### Colors
 
@@ -27,7 +27,7 @@
 ## Unsupported or Partial Features
 
 -   Additional SVG elements (`text`, `defs`, `use`, `image`, `clipPath`, `mask`, `linearGradient`, etc.).
--   Additional transform types (`skewX`, `skewY`, `matrix`) and `preserveAspectRatio` handling.
+-   `preserveAspectRatio` handling.
 -   Percentage units (e.g. `width="50%"`).
 -   Presentation attributes such as `stroke-dasharray`, `stroke-dashoffset`, `stroke-opacity`, `fill-opacity`, or `style`/`class` based styling.
 -   Color functions like `rgb()`, `rgba()`, `hsl()`, or gradients/pattern fills.

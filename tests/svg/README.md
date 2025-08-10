@@ -48,6 +48,8 @@ done
 - `polyline.svg`: polyline element
 - `units.svg`: non-pixel units (`cm`, `mm`, `in`, `pt`, `pc`)
 - `transform.svg`: translate, scale, and rotate
+- `skew.svg`: skewX and skewY transforms
+- `matrix.svg`: matrix transform
 
 ## Unsupported or Problematic SVGs
 - `text.svg`: text element
