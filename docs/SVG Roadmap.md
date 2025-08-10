@@ -37,11 +37,3 @@ Each subsection describes the missing capability and proposes implementation ste
 2. When a `fill` or `stroke` uses `url(#id)`, look up the gradient and emit the corresponding IVG gradient commands.
 3. Handle gradient units, spread methods, and transformation attributes.
 
-## Opacity and Color
-
-### Global and per-element opacity
-1. `outputPresentationAttributes` computes a `baseOpacity` but does not apply it; extend the code to output alpha values for `pen` and `fill`.
-2. Support `stroke-opacity` and `fill-opacity` to override the global value.
-3. Allow colors specified with `rgba()` or `hsla()` once alpha handling is in place.
-
-Implementing these features will move more SVGs from `tests/svg/unsupported` into the supported set and reduce warnings from `svg2ivg.js`.

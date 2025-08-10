@@ -53,6 +53,7 @@ done
 - `gradient.svg`: simple linear gradient
 - `gradient-stops.svg`: linear gradient with many stops
 - `gradient-radial.svg`: radial gradient
+- `opacity.svg`: global and per-element opacity
 
 ## Unsupported or Problematic SVGs
 - `gradient-transform.svg`: gradientTransform attribute
@@ -60,4 +61,3 @@ done
 - `image.svg`: embedded image
 - `percentage.svg`: percentage units
 - `defs-use.svg`: defs/use elements
-- `opacity.svg`: opacity attribute

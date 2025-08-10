@@ -14,6 +14,7 @@
 -   `stroke`, `stroke-width`, `stroke-linejoin`, `stroke-linecap`, `stroke-miterlimit`, `fill`.
 -   `stroke-linejoin` values: `bevel`, `round`, `miter`, `miter-clip`, `arcs`.
 -   `stroke-linecap` values: `butt`, `round`, `square`.
+-   `opacity`, `stroke-opacity`, `fill-opacity`.
 
 ### Transforms
 
@@ -23,6 +24,7 @@
 
 -   Hex color literals `#rrggbb` or `#rgb`.
 -   Named colors from the CSS/SVG color list (e.g. `lightblue`, `darkgreen`).
+-   `rgba()` and `hsla()` color functions.
 -   `none` to disable stroke or fill.
 
 ## Unsupported or Partial Features
@@ -30,10 +32,9 @@
 -   Additional SVG elements (`text`, `defs`, `use`, `image`, `clipPath`, `mask`, etc.).
 -   `preserveAspectRatio` handling.
 -   Percentage units (e.g. `width="50%"`).
--   Presentation attributes such as `stroke-dasharray`, `stroke-dashoffset`, `stroke-opacity`, `fill-opacity`, or `style`/`class` based styling.
--   Color functions like `rgb()`, `rgba()`, `hsl()`, or pattern fills.
+-   Presentation attributes such as `stroke-dasharray`, `stroke-dashoffset`, or `style`/`class` based styling.
+-   Color functions like `rgb()` or pattern fills.
 -   Gradient transforms (`gradientTransform`).
--   Global or per-element `opacity`.
 -   Any `viewBox` behavior beyond a simple uniform scale and top-left offset.
 -   Error recovery for missing attributes—many attributes treated as required even though the SVG spec provides defaults.
 
