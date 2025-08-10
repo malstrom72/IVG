@@ -4,9 +4,9 @@
 
 ### Elements
 
--   `svg` root element with `width`, `height` (pixel units only) and `viewBox` for basic scaling/offset.
+-   `svg` root element with `width`, `height` (`px`, `cm`, `mm`, `in`, `pt`, `pc`) and `viewBox` for basic scaling/offset.
 -   `g` groups, emitted as `context` blocks to propagate presentation attributes.
--   Shapes: `path` (`d`), `circle` (`cx`, `cy`, `r`), `ellipse` (`cx`, `cy`, `rx`, `ry`), `line` (`x1`, `y1`, `x2`, `y2` as a path), and `rect` (`x`, `y`, `width`, `height`, optional `rx`/`ry` rounded corners).
+-   Shapes: `path` (`d`), `circle` (`cx`, `cy`, `r`), `ellipse` (`cx`, `cy`, `rx`, `ry`), `line` (`x1`, `y1`, `x2`, `y2` as a path), `rect` (`x`, `y`, `width`, `height`, optional `rx`/`ry` rounded corners), `polygon` (`points`), and `polyline` (`points`).
 
 ### Presentation Attributes
 
@@ -22,9 +22,9 @@
 
 ## Unsupported or Partial Features
 
--   Additional SVG elements (`polygon`, `polyline`, `text`, `defs`, `use`, `image`, `clipPath`, `mask`, `linearGradient`, etc.).
+-   Additional SVG elements (`text`, `defs`, `use`, `image`, `clipPath`, `mask`, `linearGradient`, etc.).
 -   Transform attributes (`transform` on any element) and `preserveAspectRatio` handling.
--   Units other than plain numbers or `px`; percentage values are not handled.
+-   Percentage units (e.g. `width="50%"`).
 -   Presentation attributes such as `stroke-dasharray`, `stroke-dashoffset`, `stroke-opacity`, `fill-opacity`, or `style`/`class` based styling.
 -   Color functions like `rgb()`, `rgba()`, `hsl()`, or gradients/pattern fills.
 -   Global or per-element `opacity`.

@@ -5,14 +5,6 @@ Each subsection describes the missing capability and proposes implementation ste
 
 ## Geometry Elements
 
-### `polygon`
-1. Parse the `points` attribute into coordinate pairs.
-2. Generate a closed path string and emit it via `path svg:[...]`.
-3. Reuse presentation attribute handling through `createContextMaybe`.
-
-### `polyline`
-1. Parse `points` like `polygon` but emit an open path without the trailing `Z` command.
-2. Support optional `fill` and `stroke` attributes.
 
 ## Text and Images
 
@@ -33,10 +25,6 @@ Each subsection describes the missing capability and proposes implementation ste
 2. Extend the context stack to apply transformations before drawing child elements.
 3. Support concatenated transforms and propagate them through `g` groups.
 
-### Non-pixel units
-1. Enhance `convertUnits` to recognize `cm`, `mm`, `in`, `pt`, and `pc`.
-2. Convert each unit to pixels using the standard 96 dpi conversion factors.
-3. Update `svg` element parsing to drop warnings and produce correct sizes.
 
 ### Percentage values
 1. Allow `convertUnits` to detect `%` and compute absolute values relative to the current viewport.

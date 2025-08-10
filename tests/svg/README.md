@@ -46,12 +46,12 @@ done
 - `multi-path.svg`: multiple horizontal segments
 - `polygon.svg`: polygon element
 - `polyline.svg`: polyline element
+- `units.svg`: non-pixel units (`cm`, `mm`, `in`, `pt`, `pc`)
 
 ## Unsupported or Problematic SVGs
 - `text.svg`: text element
 - `image.svg`: embedded image
 - `transform.svg`: transform attribute
-- `units-cm.svg`: non-pixel units
 - `percentage.svg`: percentage units
 - `defs-use.svg`: defs/use elements
 - `gradient.svg`: gradient fill

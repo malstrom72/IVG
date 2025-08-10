@@ -77,34 +77,57 @@ function convertPaint(sourcePaint) {
 }
 
 function convertUnits(value) {
-	return parseFloat(value);
+	const str = value.trim().toLowerCase();
+	const match = str.match(/^([+-]?\d*\.?\d+)([a-z%]*)$/);
+	if (!match) {
+		throw new Error('Invalid unit: ' + value);
+	}
+	const num = parseFloat(match[1]);
+	switch (match[2]) {
+	case '':
+	case 'px':
+		return num;
+	case 'cm':
+		return num * 96 / 2.54;
+	case 'mm':
+		return num * 96 / 25.4;
+	case 'in':
+		return num * 96;
+	case 'pt':
+		return num * 96 / 72;
+	case 'pc':
+		return num * 16;
+	default:
+		warning('Unsupported unit: ' + match[2]);
+		return num;
+	}
 }
 
 function convertOpacity(value) {
-const percentage = value.trim().endsWith('%');
-let num = parseFloat(value);
-if (percentage) {
-num /= 100;
-}
-if (num < 0 || num > 1) {
-throw new Error('Invalid opacity: ' + num);
-}
-return num;
+	const percentage = value.trim().endsWith('%');
+	let num = parseFloat(value);
+	if (percentage) {
+		num /= 100;
+	}
+	if (num < 0 || num > 1) {
+		throw new Error('Invalid opacity: ' + num);
+	}
+	return num;
 }
 
 function parsePoints(str) {
-const nums = str.trim().split(/[ ,]+/);
-if (nums.length < 2 || nums.length % 2 !== 0) {
-throw new Error('Invalid points: ' + str);
-}
-const points = [];
-for (let i = 0; i < nums.length; i += 2) {
-points.push([
-convertUnits(nums[i]),
-convertUnits(nums[i + 1])
-]);
-}
-return points;
+	const nums = str.trim().split(/[ ,]+/);
+	if (nums.length < 2 || nums.length % 2 !== 0) {
+		throw new Error('Invalid points: ' + str);
+	}
+	const points = [];
+	for (let i = 0; i < nums.length; i += 2) {
+		points.push([
+			convertUnits(nums[i]),
+			convertUnits(nums[i + 1])
+		]);
+	}
+	return points;
 }
 
 const LINEJOINS_TO_JOINTS = {
@@ -178,21 +201,13 @@ let firstSVG = true;
 converters.svg = function(element, attribs) {
 	let width, height;
 	if ('width' in attribs) {
-		const w = attribs.width.trim().toLowerCase();
-		if (!w.endsWith('px')) {
-			warning("'width' attribute not in pixels units.");
-		}
-		width = convertUnits(w);
+		width = convertUnits(attribs.width);
 	} else {
 		warning("Missing 'width' attribute. Assuming a width of 800.");
 		width = 800;
 	}
 	if ('height' in attribs) {
-		const h = attribs.height.trim().toLowerCase();
-		if (!h.endsWith('px')) {
-			warning("'height' attribute not in pixels units.");
-		}
-		height = convertUnits(h);
+		height = convertUnits(attribs.height);
 	} else {
 		warning("Missing 'height' attribute. Assuming a height of 800.");
 		height = 800;
@@ -270,36 +285,36 @@ if (separate) output(']');
 };
 
 converters.polygon = function(element, attribs) {
-const separate = createContextMaybe(attribs);
-checkRequiredAttributes(attribs, 'points');
-const pts = parsePoints(attribs.points);
-if (pts.length < 2) {
-warning("Not enough points in 'polygon'.");
-} else {
-let s = `M${pts[0][0]},${pts[0][1]}`;
-for (let i = 1; i < pts.length; i++) {
-s += `L${pts[i][0]},${pts[i][1]}`;
-}
-s += 'Z';
-output('path svg:[' + s + ']');
-}
-if (separate) output(']');
+	const separate = createContextMaybe(attribs);
+	checkRequiredAttributes(attribs, 'points');
+	const pts = parsePoints(attribs.points);
+	if (pts.length < 2) {
+		warning("Not enough points in 'polygon'.");
+	} else {
+		let s = `M${pts[0][0]},${pts[0][1]}`;
+		for (let i = 1; i < pts.length; i++) {
+			s += `L${pts[i][0]},${pts[i][1]}`;
+		}
+		s += 'Z';
+		output('path svg:[' + s + ']');
+	}
+	if (separate) output(']');
 };
 
 converters.polyline = function(element, attribs) {
-const separate = createContextMaybe(attribs);
-checkRequiredAttributes(attribs, 'points');
-const pts = parsePoints(attribs.points);
-if (pts.length < 2) {
-warning("Not enough points in 'polyline'.");
-} else {
-let s = `M${pts[0][0]},${pts[0][1]}`;
-for (let i = 1; i < pts.length; i++) {
-s += `L${pts[i][0]},${pts[i][1]}`;
-}
-output('path svg:[' + s + ']');
-}
-if (separate) output(']');
+	const separate = createContextMaybe(attribs);
+	checkRequiredAttributes(attribs, 'points');
+	const pts = parsePoints(attribs.points);
+	if (pts.length < 2) {
+		warning("Not enough points in 'polyline'.");
+	} else {
+		let s = `M${pts[0][0]},${pts[0][1]}`;
+		for (let i = 1; i < pts.length; i++) {
+			s += `L${pts[i][0]},${pts[i][1]}`;
+		}
+		output('path svg:[' + s + ']');
+	}
+	if (separate) output(']');
 };
 
 function convertSVGElement(element) {
