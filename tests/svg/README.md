@@ -50,9 +50,12 @@ done
 - `transform.svg`: translate, scale, and rotate
 - `skew.svg`: skewX and skewY transforms
 - `matrix.svg`: matrix transform
-- `gradient.svg`: linear and radial gradients
+- `gradient.svg`: simple linear gradient
+- `gradient-stops.svg`: linear gradient with many stops
+- `gradient-radial.svg`: radial gradient
 
 ## Unsupported or Problematic SVGs
+- `gradient-transform.svg`: gradientTransform attribute
 - `text.svg`: text element
 - `image.svg`: embedded image
 - `percentage.svg`: percentage units

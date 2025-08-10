@@ -31,7 +31,8 @@
 -   `preserveAspectRatio` handling.
 -   Percentage units (e.g. `width="50%"`).
 -   Presentation attributes such as `stroke-dasharray`, `stroke-dashoffset`, `stroke-opacity`, `fill-opacity`, or `style`/`class` based styling.
--   Color functions like `rgb()`, `rgba()`, `hsl()`, or gradients/pattern fills.
+-   Color functions like `rgb()`, `rgba()`, `hsl()`, or pattern fills.
+-   Gradient transforms (`gradientTransform`).
 -   Global or per-element `opacity`.
 -   Any `viewBox` behavior beyond a simple uniform scale and top-left offset.
 -   Error recovery for missing attributes—many attributes treated as required even though the SVG spec provides defaults.
