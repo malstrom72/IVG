@@ -81,15 +81,30 @@ function convertUnits(value) {
 }
 
 function convertOpacity(value) {
-	const percentage = value.trim().endsWith('%');
-	let num = parseFloat(value);
-	if (percentage) {
-		num /= 100;
-	}
-	if (num < 0 || num > 1) {
-		throw new Error('Invalid opacity: ' + num);
-	}
-	return num;
+const percentage = value.trim().endsWith('%');
+let num = parseFloat(value);
+if (percentage) {
+num /= 100;
+}
+if (num < 0 || num > 1) {
+throw new Error('Invalid opacity: ' + num);
+}
+return num;
+}
+
+function parsePoints(str) {
+const nums = str.trim().split(/[ ,]+/);
+if (nums.length < 2 || nums.length % 2 !== 0) {
+throw new Error('Invalid points: ' + str);
+}
+const points = [];
+for (let i = 0; i < nums.length; i += 2) {
+points.push([
+convertUnits(nums[i]),
+convertUnits(nums[i + 1])
+]);
+}
+return points;
 }
 
 const LINEJOINS_TO_JOINTS = {
@@ -238,20 +253,53 @@ converters.line = function(element, attribs) {
 };
 
 converters.rect = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'x', 'y', 'width', 'height');
-	let s = `rect ${convertUnits(attribs.x)},${convertUnits(attribs.y)},${convertUnits(attribs.width)},${convertUnits(attribs.height)}`;
-	const hasRX = 'rx' in attribs;
-	const hasRY = 'ry' in attribs;
-	if (hasRX && hasRY) {
-		s += ` rounded:${convertUnits(attribs.rx)},${convertUnits(attribs.ry)}`;
-	} else if (hasRX) {
-		s += ` rounded:${convertUnits(attribs.rx)}`;
-	} else if (hasRY) {
-		s += ` rounded:${convertUnits(attribs.ry)}`;
-	}
-	output(s);
-	if (separate) output(']');
+const separate = createContextMaybe(attribs);
+checkRequiredAttributes(attribs, 'x', 'y', 'width', 'height');
+let s = `rect ${convertUnits(attribs.x)},${convertUnits(attribs.y)},${convertUnits(attribs.width)},${convertUnits(attribs.height)}`;
+const hasRX = 'rx' in attribs;
+const hasRY = 'ry' in attribs;
+if (hasRX && hasRY) {
+s += ` rounded:${convertUnits(attribs.rx)},${convertUnits(attribs.ry)}`;
+} else if (hasRX) {
+s += ` rounded:${convertUnits(attribs.rx)}`;
+} else if (hasRY) {
+s += ` rounded:${convertUnits(attribs.ry)}`;
+}
+output(s);
+if (separate) output(']');
+};
+
+converters.polygon = function(element, attribs) {
+const separate = createContextMaybe(attribs);
+checkRequiredAttributes(attribs, 'points');
+const pts = parsePoints(attribs.points);
+if (pts.length < 2) {
+warning("Not enough points in 'polygon'.");
+} else {
+let s = `M${pts[0][0]},${pts[0][1]}`;
+for (let i = 1; i < pts.length; i++) {
+s += `L${pts[i][0]},${pts[i][1]}`;
+}
+s += 'Z';
+output('path svg:[' + s + ']');
+}
+if (separate) output(']');
+};
+
+converters.polyline = function(element, attribs) {
+const separate = createContextMaybe(attribs);
+checkRequiredAttributes(attribs, 'points');
+const pts = parsePoints(attribs.points);
+if (pts.length < 2) {
+warning("Not enough points in 'polyline'.");
+} else {
+let s = `M${pts[0][0]},${pts[0][1]}`;
+for (let i = 1; i < pts.length; i++) {
+s += `L${pts[i][0]},${pts[i][1]}`;
+}
+output('path svg:[' + s + ']');
+}
+if (separate) output(']');
 };
 
 function convertSVGElement(element) {

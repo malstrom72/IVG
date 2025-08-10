@@ -44,10 +44,10 @@ done
 - `stroke-fill.svg`: stroked quadratic curve
 - `viewbox.svg`: viewBox scaling
 - `multi-path.svg`: multiple horizontal segments
-
-## Unsupported or Problematic SVGs
 - `polygon.svg`: polygon element
 - `polyline.svg`: polyline element
+
+## Unsupported or Problematic SVGs
 - `text.svg`: text element
 - `image.svg`: embedded image
 - `transform.svg`: transform attribute
