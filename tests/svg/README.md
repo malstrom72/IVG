@@ -17,6 +17,22 @@ for f in ../../tests/svg/*/*.svg; do
 done
 ```
 
+Or use the Node.js port:
+
+```
+cd tools/svg2ivg
+node svg2ivg.js ../../tests/svg/supported/circle.svg
+```
+
+Process all samples with Node:
+
+```
+cd tools/svg2ivg
+for f in ../../tests/svg/*/*.svg; do
+	node svg2ivg.js "$f" >/dev/null
+done
+```
+
 ## Supported SVGs
 - `circle.svg`: basic circle
 - `rect.svg`: rectangle outline
