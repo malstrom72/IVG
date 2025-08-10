@@ -20,11 +20,6 @@ Each subsection describes the missing capability and proposes implementation ste
 
 ## Coordinate Systems and Units
 
-### `transform`
-1. Parse the `transform` string into translate/scale/rotate operations.
-2. Extend the context stack to apply transformations before drawing child elements.
-3. Support concatenated transforms and propagate them through `g` groups.
-
 
 ### Percentage values
 1. Allow `convertUnits` to detect `%` and compute absolute values relative to the current viewport.

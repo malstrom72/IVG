@@ -47,11 +47,11 @@ done
 - `polygon.svg`: polygon element
 - `polyline.svg`: polyline element
 - `units.svg`: non-pixel units (`cm`, `mm`, `in`, `pt`, `pc`)
+- `transform.svg`: translate, scale, and rotate
 
 ## Unsupported or Problematic SVGs
 - `text.svg`: text element
 - `image.svg`: embedded image
-- `transform.svg`: transform attribute
 - `percentage.svg`: percentage units
 - `defs-use.svg`: defs/use elements
 - `gradient.svg`: gradient fill

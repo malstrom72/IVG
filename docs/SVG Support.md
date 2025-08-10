@@ -14,6 +14,10 @@
 -   `stroke-linejoin` values: `bevel`, `round`, `miter`, `miter-clip`, `arcs`.
 -   `stroke-linecap` values: `butt`, `round`, `square`.
 
+### Transforms
+
+-   `transform` attribute with `translate`, `scale`, and `rotate` operations.
+
 ### Colors
 
 -   Hex color literals `#rrggbb` or `#rgb`.
@@ -23,7 +27,7 @@
 ## Unsupported or Partial Features
 
 -   Additional SVG elements (`text`, `defs`, `use`, `image`, `clipPath`, `mask`, `linearGradient`, etc.).
--   Transform attributes (`transform` on any element) and `preserveAspectRatio` handling.
+-   Additional transform types (`skewX`, `skewY`, `matrix`) and `preserveAspectRatio` handling.
 -   Percentage units (e.g. `width="50%"`).
 -   Presentation attributes such as `stroke-dasharray`, `stroke-dashoffset`, `stroke-opacity`, `fill-opacity`, or `style`/`class` based styling.
 -   Color functions like `rgb()`, `rgba()`, `hsl()`, or gradients/pattern fills.
