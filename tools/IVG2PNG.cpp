@@ -171,16 +171,12 @@ int main(int argc, const char* argv[]) {
 		IntRect bounds = raster->calcBounds();
 		if (bounds.width <= 0 || bounds.height <= 0) throw std::runtime_error("IVG image is empty");
 
+		if (haveBackground) {
+			(*raster) = Solid<ARGB32>(background) | (*raster);
+		}
 		std::vector<png_bytep> rowPointers(bounds.height);
 		int imageStride = raster->getStride();
 		ARGB32::Pixel* pixels = raster->getPixelPointer() + bounds.top * imageStride + bounds.left;
-		int bgA = 0, bgR = 0, bgG = 0, bgB = 0;
-		if (haveBackground) {
-			bgA = (background >> 24) & 0xFF;
-			bgR = (background >> 16) & 0xFF;
-			bgG = (background >> 8) & 0xFF;
-			bgB = background & 0xFF;
-		}
 		for (int i = 0; i < bounds.height; ++i) {
 			ARGB32::Pixel* p = pixels + i * imageStride;
 			rowPointers[i] = reinterpret_cast<png_bytep>(p);
@@ -189,21 +185,14 @@ int main(int argc, const char* argv[]) {
 				int r = (*p >> 16) & 0xFF;
 				int g = (*p >> 8) & 0xFF;
 				int b = (*p >> 0) & 0xFF;
-				if (haveBackground) {
-				int inv = 0xFF - a;
-				a = a + ((bgA * inv + 0x7F) >> 8);
-				r = r + ((bgR * inv + 0x7F) >> 8);
-				g = g + ((bgG * inv + 0x7F) >> 8);
-				b = b + ((bgB * inv + 0x7F) >> 8);
-				}
 				if (a != 0xFF && a != 0x00) {
-				int m = 0xFFFF / a;
-				r = (r * m) >> 8;
-				g = (g * m) >> 8;
-				b = (b * m) >> 8;
-				assert(0 <= r && r < 0x100);
-				assert(0 <= g && g < 0x100);
-				assert(0 <= b && b < 0x100);
+					int m = 0xFFFF / a;
+					r = (r * m) >> 8;
+					g = (g * m) >> 8;
+					b = (b * m) >> 8;
+					assert(0 <= r && r < 0x100);
+					assert(0 <= g && g < 0x100);
+					assert(0 <= b && b < 0x100);
 				}
 				*p = (a << 24) | (r << 16) | (g << 8) | b;
 				++p;
