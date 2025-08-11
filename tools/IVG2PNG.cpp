@@ -66,17 +66,17 @@ class IVGExecutorWithExternalFonts : public IVGExecutor {
 					if (insertResult.second) {
 						const std::string fontName8Bit(fontName.begin(), fontName.end());
 						String fontCode;
-                                                {
-                                                        std::string path = g_fontPath.empty() ? (fontName8Bit + ".ivgfont") : (g_fontPath + "/" + fontName8Bit + ".ivgfont");
-                                                        std::ifstream fileStream(path.c_str());
-                                                        if (!fileStream.good()) {
-                                                                return std::vector<const Font*>();
-                                                        }
-                                                        fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-                                                        const std::istreambuf_iterator<Char> it(fileStream);
-                                                        const std::istreambuf_iterator<Char> end;
-                                                        fontCode = std::string(it, end);
-                                                }
+				{
+				std::string path = g_fontPath.empty() ? (fontName8Bit + ".ivgfont") : (g_fontPath + "/" + fontName8Bit + ".ivgfont");
+				std::ifstream fileStream(path.c_str());
+				if (!fileStream.good()) {
+				return std::vector<const Font*>();
+				}
+				fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+				const std::istreambuf_iterator<Char> it(fileStream);
+				const std::istreambuf_iterator<Char> end;
+				fontCode = std::string(it, end);
+				}
 						std::wcerr << "parsing external font " << fontName << std::endl;
 						FontParser fontParser;
 						STLMapVariables vars;
@@ -116,39 +116,53 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 
 #ifndef LIBFUZZ
 int main(int argc, const char* argv[]) {
-        try {
-                const char* inputPath;
-                const char* outputPath;
-                if (argc == 5 && std::string(argv[1]) == "--fonts") {
-                        g_fontPath = argv[2];
-                        inputPath = argv[3];
-                        outputPath = argv[4];
-                } else if (argc == 3) {
-                        inputPath = argv[1];
-                        outputPath = argv[2];
-                } else {
-                        std::cerr << "Usage: IVG2PNG [--fonts <dir>] <input.ivg> <output.png>\n\nVery simple!\n\n";
-                        return 1;
-                }
+	try {
+		const char* usage = "Usage: IVG2PNG [--fonts <dir>] [--background <color>] <input.ivg> <output.png>\n\nVery simple!\n\n";
+		const char* inputPath = 0;
+		const char* outputPath = 0;
+		ARGB32::Pixel background = 0;
+		bool haveBackground = false;
+		for (int i = 1; i < argc; ++i) {
+			std::string arg(argv[i]);
+			if (arg == "--fonts") {
+				if (++i == argc) { std::cerr << usage; return 1; }
+				g_fontPath = argv[i];
+			} else if (arg == "--background") {
+				if (++i == argc) { std::cerr << usage; return 1; }
+				background = parseColor(argv[i]);
+				haveBackground = true;
+			} else if (inputPath == 0) {
+				inputPath = argv[i];
+			} else if (outputPath == 0) {
+				outputPath = argv[i];
+			} else {
+				std::cerr << usage;
+				return 1;
+			}
+		}
+		if (inputPath == 0 || outputPath == 0) {
+			std::cerr << usage;
+			return 1;
+		}
 
-                std::string ivgContents;
-                {
-                        std::ifstream inStream(inputPath);
-                        if (!inStream.good()) throw std::runtime_error("Could not open input IVG file");
-                        ivgContents.assign(std::istreambuf_iterator<char>(inStream), std::istreambuf_iterator<char>());
-                        if (!inStream.good()) throw std::runtime_error("Could not read input IVG file");
-                        inStream.close();
-                }
-                std::cerr << "Read source IVG..." << std::endl;
+		std::string ivgContents;
+		{
+			std::ifstream inStream(inputPath);
+			if (!inStream.good()) throw std::runtime_error("Could not open input IVG file");
+			ivgContents.assign(std::istreambuf_iterator<char>(inStream), std::istreambuf_iterator<char>());
+			if (!inStream.good()) throw std::runtime_error("Could not read input IVG file");
+			inStream.close();
+		}
+		std::cerr << "Read source IVG..." << std::endl;
 
-                SelfContainedARGB32Canvas canvas;
-                {
-                        STLMapVariables topVars;
-                        IVGExecutorWithExternalFonts ivgExecutor(canvas);
-                        Interpreter impd(ivgExecutor, topVars);
-                        impd.run(ivgContents);
-                }
-                std::cerr << "Rasterized image..." << std::endl;
+		SelfContainedARGB32Canvas canvas;
+		{
+			STLMapVariables topVars;
+			IVGExecutorWithExternalFonts ivgExecutor(canvas);
+			Interpreter impd(ivgExecutor, topVars);
+			impd.run(ivgContents);
+		}
+		std::cerr << "Rasterized image..." << std::endl;
 
 		SelfContainedRaster<ARGB32>* raster = canvas.accessRaster();
 		if (raster == 0) throw std::runtime_error("IVG image is empty");
@@ -158,21 +172,38 @@ int main(int argc, const char* argv[]) {
 		std::vector<png_bytep> rowPointers(bounds.height);
 		int imageStride = raster->getStride();
 		ARGB32::Pixel* pixels = raster->getPixelPointer() + bounds.top * imageStride + bounds.left;
+		int bgA = 0, bgR = 0, bgG = 0, bgB = 0;
+		if (haveBackground) {
+			bgA = (background >> 24) & 0xFF;
+			bgR = (background >> 16) & 0xFF;
+			bgG = (background >> 8) & 0xFF;
+			bgB = background & 0xFF;
+		}
 		for (int i = 0; i < bounds.height; ++i) {
 			ARGB32::Pixel* p = pixels + i * imageStride;
 			rowPointers[i] = reinterpret_cast<png_bytep>(p);
 			for (int x = 0; x < bounds.width; ++x) {
 				int a = (*p >> 24) & 0xFF;
-				if (a != 0xFF && a != 0x00) {
-					int m = 0xFFFF / a;
-					int r = (((*p >> 16) & 0xFF) * m) >> 8;
-					int g = (((*p >> 8) & 0xFF) * m) >> 8;
-					int b = (((*p >> 0) & 0xFF) * m) >> 8;
-					assert(0 <= r && r < 0x100);
-					assert(0 <= g && g < 0x100);
-					assert(0 <= b && b < 0x100);
-					*p = (a << 24) | (r << 16) | (g << 8) | (b << 0);
+				int r = (*p >> 16) & 0xFF;
+				int g = (*p >> 8) & 0xFF;
+				int b = (*p >> 0) & 0xFF;
+				if (haveBackground) {
+				int inv = 0xFF - a;
+				a = a + ((bgA * inv + 0x7F) >> 8);
+				r = r + ((bgR * inv + 0x7F) >> 8);
+				g = g + ((bgG * inv + 0x7F) >> 8);
+				b = b + ((bgB * inv + 0x7F) >> 8);
 				}
+				if (a != 0xFF && a != 0x00) {
+				int m = 0xFFFF / a;
+				r = (r * m) >> 8;
+				g = (g * m) >> 8;
+				b = (b * m) >> 8;
+				assert(0 <= r && r < 0x100);
+				assert(0 <= g && g < 0x100);
+				assert(0 <= b && b < 0x100);
+				}
+				*p = (a << 24) | (r << 16) | (g << 8) | b;
 				++p;
 			}
 		}
@@ -184,7 +215,7 @@ int main(int argc, const char* argv[]) {
 			png_infop info_ptr = 0;
 		
 			try {
-                                f = fopen(outputPath, "wb");
+				f = fopen(outputPath, "wb");
 				if (f == NULL) throw std::runtime_error("Could not open output PNG file");
 
 				png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, myPNGErrorFunction, 0);

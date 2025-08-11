@@ -582,10 +582,12 @@ class SelfContainedARGB32Canvas : public Canvas {
 	protected:	const double rescaleBounds;
 };
 
+NuXPixels::ARGB32::Pixel parseColor(const IMPD::String& color);
+
 bool buildPathFromSVG(const IMPD::String& svgSource, double curveQuality, NuXPixels::Path& path, const char*& errorString);
 bool buildPathForString(const IMPD::UniString& string, const std::vector<const Font*>& fonts, double size
-		, const NuXPixels::AffineTransformation& glyphTransform, double letterSpacing, double curveQuality
-		, NuXPixels::Path& path, double& advance, const char*& errorString, IMPD::UniChar lastCharacter = 0);
+                , const NuXPixels::AffineTransformation& glyphTransform, double letterSpacing, double curveQuality
+                , NuXPixels::Path& path, double& advance, const char*& errorString, IMPD::UniChar lastCharacter = 0);
 
 } // namespace IVG
 

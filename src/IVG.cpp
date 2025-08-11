@@ -477,7 +477,21 @@ template<> ARGB32::Pixel parseColor<ARGB32>(Interpreter& impd, const StringRange
 			impd.throwBadSyntax(String("Invalid color name: ") + String(r.b, r.e));
 		}
 		return STANDARD_COLORS[i];
-	}
+        }
+}
+
+ARGB32::Pixel parseColor(const String& color) {
+	class DummyExecutor : public Executor {
+		public:		virtual bool format(Interpreter&, const String&, const StringVector&, const StringVector&) { return true; }
+		public:		virtual bool execute(Interpreter&, const String&, const String&) { return true; }
+		public:		virtual bool progress(Interpreter&, int) { return true; }
+		public:		virtual bool load(Interpreter&, const WideString&, String&) { return false; }
+		public:		virtual void trace(Interpreter&, const WideString&) { }
+};
+	DummyExecutor executor;
+	STLMapVariables vars;
+	Interpreter impd(executor, vars);
+	return parseColor<ARGB32>(impd, color);
 }
 
 /* --- Transforms --- */
