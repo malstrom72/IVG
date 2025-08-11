@@ -18,13 +18,6 @@ Each subsection describes the missing capability and proposes implementation ste
 2. Create an IVG image command that embeds raster data with `width` and `height` scaling.
 3. Handle positioning attributes (`x`, `y`) and clipping to the viewport.
 
-## Coordinate Systems and Units
-
-
-### Percentage values
-1. Allow `convertUnits` to detect `%` and compute absolute values relative to the current viewport.
-2. Track the current viewport dimensions so attributes such as `x`, `y`, `width`, and `height` can resolve percentages.
-
 ## Definitions and Reuse
 
 ### `defs` / `use`

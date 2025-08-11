@@ -47,6 +47,7 @@ done
 - `polygon.svg`: polygon element
 - `polyline.svg`: polyline element
 - `units.svg`: non-pixel units (`cm`, `mm`, `in`, `pt`, `pc`)
+- `percentage.svg`: percentage units
 - `transform.svg`: translate, scale, and rotate
 - `skew.svg`: skewX and skewY transforms
 - `matrix.svg`: matrix transform
@@ -59,5 +60,4 @@ done
 - `gradient-transform.svg`: gradientTransform attribute
 - `text.svg`: text element
 - `image.svg`: embedded image
-- `percentage.svg`: percentage units
 - `defs-use.svg`: defs/use elements

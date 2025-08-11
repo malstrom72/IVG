@@ -147,31 +147,39 @@ function convertPaint(sourcePaint) {
 }
 
 
-function convertUnits(value) {
-	const str = value.trim().toLowerCase();
-	const match = str.match(/^([+-]?\d*\.?\d+)([a-z%]*)$/);
-	if (!match) {
-		throw new Error('Invalid unit: ' + value);
-	}
-	const num = parseFloat(match[1]);
-	switch (match[2]) {
-	case '':
-	case 'px':
-		return num;
-	case 'cm':
-		return num * 96 / 2.54;
-	case 'mm':
-		return num * 96 / 25.4;
-	case 'in':
-		return num * 96;
-	case 'pt':
-		return num * 96 / 72;
-	case 'pc':
-		return num * 16;
-	default:
-		warning('Unsupported unit: ' + match[2]);
-		return num;
-	}
+let viewportWidth = 100;
+let viewportHeight = 100;
+
+function convertUnits(value, axis) {
+        const str = value.trim().toLowerCase();
+        const match = str.match(/^([+-]?\d*\.?\d+)([a-z%]*)$/);
+        if (!match) {
+                throw new Error('Invalid unit: ' + value);
+        }
+        const num = parseFloat(match[1]);
+        switch (match[2]) {
+        case '':
+        case 'px':
+                return num;
+        case 'cm':
+                return num * 96 / 2.54;
+        case 'mm':
+                return num * 96 / 25.4;
+        case 'in':
+                return num * 96;
+        case 'pt':
+                return num * 96 / 72;
+        case 'pc':
+                return num * 16;
+        case '%':
+                if (axis === 'y') {
+                        return (viewportHeight || 100) * num / 100;
+                }
+                return (viewportWidth || 100) * num / 100;
+        default:
+                warning('Unsupported unit: ' + match[2]);
+                return num;
+        }
 }
 
 function convertOpacity(value) {
@@ -187,26 +195,26 @@ function convertOpacity(value) {
 }
 
 function parsePoints(str) {
-	const nums = str.trim().split(/[ ,]+/);
-	if (nums.length < 2 || nums.length % 2 !== 0) {
-		throw new Error('Invalid points: ' + str);
-	}
-	const points = [];
-	for (let i = 0; i < nums.length; i += 2) {
-		points.push([
-			convertUnits(nums[i]),
-			convertUnits(nums[i + 1])
-		]);
-	}
-	return points;
+        const nums = str.trim().split(/[ ,]+/);
+        if (nums.length < 2 || nums.length % 2 !== 0) {
+                throw new Error('Invalid points: ' + str);
+        }
+        const points = [];
+        for (let i = 0; i < nums.length; i += 2) {
+                points.push([
+                        convertUnits(nums[i], 'x'),
+                        convertUnits(nums[i + 1], 'y')
+                ]);
+        }
+        return points;
 }
 
-function parseGradientCoord(value) {
-	value = value.trim();
-	if (value.endsWith('%')) {
-		return parseFloat(value) / 100;
-	}
-	return convertUnits(value);
+function parseGradientCoord(value, axis) {
+        value = value.trim();
+        if (value.endsWith('%')) {
+                return parseFloat(value) / 100;
+        }
+        return convertUnits(value, axis);
 }
 
 function parseGradientStops(element) {
@@ -261,12 +269,12 @@ function outputTransforms(str) {
 		const type = m[1];
 		const params = m[2].trim().split(/[ ,]+/).filter(p => p.length);
 		switch (type) {
-			case 'translate': {
-				const tx = convertUnits(params[0] || '0');
-				const ty = params.length > 1 ? convertUnits(params[1]) : 0;
-				output(`offset ${tx},${ty}`);
-				break;
-			}
+                        case 'translate': {
+                                const tx = convertUnits(params[0] || '0', 'x');
+                                const ty = params.length > 1 ? convertUnits(params[1], 'y') : 0;
+                                output(`offset ${tx},${ty}`);
+                                break;
+                        }
 			case 'scale': {
 				const sx = parseFloat(params[0] || '1');
 				const sy = params.length > 1 ? parseFloat(params[1]) : sx;
@@ -280,14 +288,14 @@ function outputTransforms(str) {
 			case 'rotate': {
 				const angle = parseFloat(params[0] || '0');
 				let cmd = `rotate ${angle}`;
-				if (params.length > 2) {
-					const cx = convertUnits(params[1]);
-					const cy = convertUnits(params[2]);
-					cmd += ` anchor:${cx},${cy}`;
-				}
-				output(cmd);
-				break;
-			}
+                                if (params.length > 2) {
+                                        const cx = convertUnits(params[1], 'x');
+                                        const cy = convertUnits(params[2], 'y');
+                                        cmd += ` anchor:${cx},${cy}`;
+                                }
+                                output(cmd);
+                                break;
+                        }
 			case 'skewX': {
 				const angle = parseFloat(params[0] || '0');
 				const sx = Math.tan(angle * Math.PI / 180);
@@ -309,11 +317,11 @@ function outputTransforms(str) {
 				const b = parseFloat(params[1]);
 				const c = parseFloat(params[2]);
 				const d = parseFloat(params[3]);
-				const e = convertUnits(params[4]);
-				const f = convertUnits(params[5]);
-				output(`matrix ${a},${b},${c},${d},${e},${f}`);
-				break;
-			}
+                                const e = convertUnits(params[4], 'x');
+                                const f = convertUnits(params[5], 'y');
+                                output(`matrix ${a},${b},${c},${d},${e},${f}`);
+                                break;
+                        }
 			default:
 			warning('Unsupported transform: ' + type);
 		}
@@ -365,7 +373,7 @@ function outputPresentationAttributes(attribs) {
 			s += ' ' + strokePaint.paint;
 		}
 		if (hasStrokeWidth) {
-			s += ' width:' + convertUnits(attribs['stroke-width']);
+                        s += ' width:' + convertUnits(attribs['stroke-width'], 'x');
 		}
 		if (hasStrokeLineJoin) {
 			const lj = attribs['stroke-linejoin'];
@@ -421,19 +429,21 @@ const converters = {};
 let firstSVG = true;
 
 converters.svg = function(element, attribs) {
-	let width, height;
-	if ('width' in attribs) {
-		width = convertUnits(attribs.width);
-	} else {
-		warning("Missing 'width' attribute. Assuming a width of 800.");
-		width = 800;
-	}
-	if ('height' in attribs) {
-		height = convertUnits(attribs.height);
-	} else {
-		warning("Missing 'height' attribute. Assuming a height of 800.");
-		height = 800;
-	}
+        let width, height;
+        if ('width' in attribs) {
+                width = convertUnits(attribs.width, 'x');
+        } else {
+                warning("Missing 'width' attribute. Assuming a width of 800.");
+                width = 800;
+        }
+        if ('height' in attribs) {
+                height = convertUnits(attribs.height, 'y');
+        } else {
+                warning("Missing 'height' attribute. Assuming a height of 800.");
+                height = 800;
+        }
+        viewportWidth = width;
+        viewportHeight = height;
 	if (!firstSVG) {
 		output('reset');
 	}
@@ -475,41 +485,41 @@ converters.path = function(element, attribs) {
 };
 
 converters.circle = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'cx', 'cy', 'r');
-	output(`ellipse ${convertUnits(attribs.cx)},${convertUnits(attribs.cy)},${convertUnits(attribs.r)}`);
-	if (separate) output(']');
+        const separate = createContextMaybe(attribs);
+        checkRequiredAttributes(attribs, 'cx', 'cy', 'r');
+        output(`ellipse ${convertUnits(attribs.cx, 'x')},${convertUnits(attribs.cy, 'y')},${convertUnits(attribs.r, 'x')}`);
+        if (separate) output(']');
 };
 
 converters.ellipse = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'cx', 'cy', 'rx', 'ry');
-	output(`ellipse ${convertUnits(attribs.cx)},${convertUnits(attribs.cy)},${convertUnits(attribs.rx)},${convertUnits(attribs.ry)}`);
-	if (separate) output(']');
+        const separate = createContextMaybe(attribs);
+        checkRequiredAttributes(attribs, 'cx', 'cy', 'rx', 'ry');
+        output(`ellipse ${convertUnits(attribs.cx, 'x')},${convertUnits(attribs.cy, 'y')},${convertUnits(attribs.rx, 'x')},${convertUnits(attribs.ry, 'y')}`);
+        if (separate) output(']');
 };
 
 converters.line = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'x1', 'y1', 'x2', 'y2');
-	output(`path svg:[M${convertUnits(attribs.x1)},${convertUnits(attribs.y1)}L${convertUnits(attribs.x2)},${convertUnits(attribs.y2)}]`);
-	if (separate) output(']');
+        const separate = createContextMaybe(attribs);
+        checkRequiredAttributes(attribs, 'x1', 'y1', 'x2', 'y2');
+        output(`path svg:[M${convertUnits(attribs.x1, 'x')},${convertUnits(attribs.y1, 'y')}L${convertUnits(attribs.x2, 'x')},${convertUnits(attribs.y2, 'y')}]`);
+        if (separate) output(']');
 };
 
 converters.rect = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'x', 'y', 'width', 'height');
-	let s = `rect ${convertUnits(attribs.x)},${convertUnits(attribs.y)},${convertUnits(attribs.width)},${convertUnits(attribs.height)}`;
-	const hasRX = 'rx' in attribs;
-	const hasRY = 'ry' in attribs;
-	if (hasRX && hasRY) {
-		s += ` rounded:${convertUnits(attribs.rx)},${convertUnits(attribs.ry)}`;
-	} else if (hasRX) {
-		s += ` rounded:${convertUnits(attribs.rx)}`;
-	} else if (hasRY) {
-		s += ` rounded:${convertUnits(attribs.ry)}`;
-	}
-	output(s);
-	if (separate) output(']');
+        const separate = createContextMaybe(attribs);
+        checkRequiredAttributes(attribs, 'x', 'y', 'width', 'height');
+        let s = `rect ${convertUnits(attribs.x, 'x')},${convertUnits(attribs.y, 'y')},${convertUnits(attribs.width, 'x')},${convertUnits(attribs.height, 'y')}`;
+        const hasRX = 'rx' in attribs;
+        const hasRY = 'ry' in attribs;
+        if (hasRX && hasRY) {
+                s += ` rounded:${convertUnits(attribs.rx, 'x')},${convertUnits(attribs.ry, 'y')}`;
+        } else if (hasRX) {
+                s += ` rounded:${convertUnits(attribs.rx, 'x')}`;
+        } else if (hasRY) {
+                s += ` rounded:${convertUnits(attribs.ry, 'y')}`;
+        }
+        output(s);
+        if (separate) output(']');
 };
 
 converters.polygon = function(element, attribs) {
@@ -555,15 +565,15 @@ converters.linearGradient = function(element, attribs) {
 		warning("Missing 'id' in linearGradient");
 		return;
 	}
-	const g = {
-		type: 'linear',
-		x1: parseGradientCoord(attribs.x1 || '0%'),
-		y1: parseGradientCoord(attribs.y1 || '0%'),
-		x2: parseGradientCoord(attribs.x2 || '100%'),
-		y2: parseGradientCoord(attribs.y2 || '0%'),
-		stops: parseGradientStops(element),
-		relative: attribs.gradientUnits !== 'userSpaceOnUse'
-	};
+        const g = {
+                type: 'linear',
+                x1: parseGradientCoord(attribs.x1 || '0%', 'x'),
+                y1: parseGradientCoord(attribs.y1 || '0%', 'y'),
+                x2: parseGradientCoord(attribs.x2 || '100%', 'x'),
+                y2: parseGradientCoord(attribs.y2 || '0%', 'y'),
+                stops: parseGradientStops(element),
+                relative: attribs.gradientUnits !== 'userSpaceOnUse'
+        };
 	gradients[attribs.id] = g;
 };
 
@@ -572,14 +582,14 @@ converters.radialGradient = function(element, attribs) {
 		warning("Missing 'id' in radialGradient");
 		return;
 	}
-	const g = {
-		type: 'radial',
-		cx: parseGradientCoord(attribs.cx || '50%'),
-		cy: parseGradientCoord(attribs.cy || '50%'),
-		r: parseGradientCoord(attribs.r || '50%'),
-		stops: parseGradientStops(element),
-		relative: attribs.gradientUnits !== 'userSpaceOnUse'
-	};
+        const g = {
+                type: 'radial',
+                cx: parseGradientCoord(attribs.cx || '50%', 'x'),
+                cy: parseGradientCoord(attribs.cy || '50%', 'y'),
+                r: parseGradientCoord(attribs.r || '50%', 'x'),
+                stops: parseGradientStops(element),
+                relative: attribs.gradientUnits !== 'userSpaceOnUse'
+        };
 	gradients[attribs.id] = g;
 };
 
