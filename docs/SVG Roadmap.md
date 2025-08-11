@@ -8,11 +8,6 @@ Each subsection describes the missing capability and proposes implementation ste
 
 ## Text and Images
 
-### `text`
-1. Read text content and attributes such as `x`, `y`, and `font-size`.
-2. Map characters to drawing commands (e.g. using built-in fonts or an external glyph source).
-3. Emit IVG text or converted paths positioned at the specified coordinates.
-
 ### `image`
 1. Decode `href` data URIs or external references.
 2. Create an IVG image command that embeds raster data with `width` and `height` scaling.
