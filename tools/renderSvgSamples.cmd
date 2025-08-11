@@ -12,9 +12,9 @@ FOR %%c IN (supported unsupported) DO (
                 IF ERRORLEVEL 1 (
                         ECHO Failed to convert %%f
                 ) ELSE (
-                        output\IVG2PNG --fonts fonts "%outDir%\%%c\%%~nf.ivg" "%outDir%\%%c\%%~nf.png" || ECHO Failed to render %%f
+                        output\IVG2PNG --fonts fonts --background white "%outDir%\%%c\%%~nf.ivg" "%outDir%\%%c\%%~nf.png" || ECHO Failed to render %%f
                 )
-	)
+        )
 )
 
 EXIT /b 0

@@ -34,9 +34,6 @@ using namespace IVG;
 using namespace IMPD;
 using namespace NuXPixels;
 
-
-static std::string g_fontPath;
-
 // Important! Make sure to compile with exceptions enabled for C code. E.g. in GCC -fexceptions (GCC_ENABLE_EXCEPTIONS)
 
 static void PNGAPI myPNGErrorFunction(png_struct* png_ptr, png_const_charp error_msg) {
@@ -55,39 +52,43 @@ static bool isLittleEndian() {
 }
 
 class IVGExecutorWithExternalFonts : public IVGExecutor {
-	public:		IVGExecutorWithExternalFonts(Canvas& canvas, const AffineTransformation& xform = AffineTransformation())
-					: IVGExecutor(canvas, xform) {
-				}
-				virtual std::vector<const Font*> lookupFonts(IMPD::Interpreter& interpreter, const IMPD::WideString& fontName
-					, const IMPD::UniString& forString) {
-					(void)interpreter;
-					std::pair< FontMap::iterator, bool > insertResult
-							= loadedFonts.insert( std::make_pair(fontName, Font()) );
-					if (insertResult.second) {
-						const std::string fontName8Bit(fontName.begin(), fontName.end());
-						String fontCode;
-				{
-				std::string path = g_fontPath.empty() ? (fontName8Bit + ".ivgfont") : (g_fontPath + "/" + fontName8Bit + ".ivgfont");
-				std::ifstream fileStream(path.c_str());
-				if (!fileStream.good()) {
-				return std::vector<const Font*>();
-				}
-				fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-				const std::istreambuf_iterator<Char> it(fileStream);
-				const std::istreambuf_iterator<Char> end;
-				fontCode = std::string(it, end);
-				}
-						std::wcerr << "parsing external font " << fontName << std::endl;
-						FontParser fontParser;
-						STLMapVariables vars;
-						Interpreter impd(fontParser, vars);
-						impd.run(fontCode);
-						insertResult.first->second = fontParser.finalizeFont();
-					}
-					return std::vector<const Font*>(1, &insertResult.first->second);
-				}
-	protected:	FontMap loadedFonts;
+	public:
+		IVGExecutorWithExternalFonts(Canvas& canvas, const std::string& fontPath,
+			    const AffineTransformation& xform = AffineTransformation())
+			    : IVGExecutor(canvas, xform), fontPath(fontPath) {
+		}
+		virtual std::vector<const Font*> lookupFonts(IMPD::Interpreter& interpreter, const IMPD::WideString& fontName,
+			    const IMPD::UniString& forString) {
+			(void)interpreter;
+			std::pair< FontMap::iterator, bool > insertResult = loadedFonts.insert(std::make_pair(fontName, Font()));
+			if (insertResult.second) {
+			    const std::string fontName8Bit(fontName.begin(), fontName.end());
+			    String fontCode;
+			    {
+			        std::string path = fontPath.empty() ? (fontName8Bit + ".ivgfont") : (fontPath + "/" + fontName8Bit + ".ivgfont");
+			        std::ifstream fileStream(path.c_str());
+			        if (!fileStream.good()) {
+			            return std::vector<const Font*>();
+			        }
+			        fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+			        const std::istreambuf_iterator<Char> it(fileStream);
+			        const std::istreambuf_iterator<Char> end;
+			        fontCode = std::string(it, end);
+			    }
+			    std::wcerr << "parsing external font " << fontName << std::endl;
+			    FontParser fontParser;
+			    STLMapVariables vars;
+			    Interpreter impd(fontParser, vars);
+			    impd.run(fontCode);
+			    insertResult.first->second = fontParser.finalizeFont();
+			}
+			return std::vector<const Font*>(1, &insertResult.first->second);
+		}
+	protected:
+		FontMap loadedFonts;
+		std::string fontPath;
 };
+
 
 #ifdef LIBFUZZ
 struct FuzzerExecutor : public IVGExecutor {
@@ -119,14 +120,15 @@ int main(int argc, const char* argv[]) {
 	try {
 		const char* usage = "Usage: IVG2PNG [--fonts <dir>] [--background <color>] <input.ivg> <output.png>\n\nVery simple!\n\n";
 		const char* inputPath = 0;
-		const char* outputPath = 0;
-		ARGB32::Pixel background = 0;
-		bool haveBackground = false;
+                const char* outputPath = 0;
+                ARGB32::Pixel background = 0;
+                bool haveBackground = false;
+                std::string fontPath;
 		for (int i = 1; i < argc; ++i) {
 			std::string arg(argv[i]);
 			if (arg == "--fonts") {
-				if (++i == argc) { std::cerr << usage; return 1; }
-				g_fontPath = argv[i];
+                                if (++i == argc) { std::cerr << usage; return 1; }
+                                fontPath = argv[i];
 			} else if (arg == "--background") {
 				if (++i == argc) { std::cerr << usage; return 1; }
 				background = parseColor(argv[i]);
@@ -157,8 +159,8 @@ int main(int argc, const char* argv[]) {
 
 		SelfContainedARGB32Canvas canvas;
 		{
-			STLMapVariables topVars;
-			IVGExecutorWithExternalFonts ivgExecutor(canvas);
+                        STLMapVariables topVars;
+                        IVGExecutorWithExternalFonts ivgExecutor(canvas, fontPath);
 			Interpreter impd(ivgExecutor, topVars);
 			impd.run(ivgContents);
 		}
