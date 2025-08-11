@@ -56,6 +56,7 @@ done
 - `gradient-radial.svg`: radial gradient
 - `opacity.svg`: global and per-element opacity
 - `text.svg`: basic text element
+- `text-stroke.svg`: text with stroke outline
 
 ## Unsupported or Problematic SVGs
 - `gradient-transform.svg`: gradientTransform attribute

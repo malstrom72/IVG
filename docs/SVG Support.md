@@ -8,7 +8,7 @@
 -   `g` groups, emitted as `context` blocks to propagate presentation attributes.
 -   Shapes: `path` (`d`), `circle` (`cx`, `cy`, `r`), `ellipse` (`cx`, `cy`, `rx`, `ry`), `line` (`x1`, `y1`, `x2`, `y2` as a path), `rect` (`x`, `y`, `width`, `height`, optional `rx`/`ry` rounded corners), `polygon` (`points`), and `polyline` (`points`).
 -   Gradient fills and strokes via `linearGradient` and `radialGradient` definitions referenced with `url(#id)`.
--   Basic `text` elements (`x`, `y`, `font-size`, `font-family`, `text-anchor`, `fill`).
+-   Basic `text` elements (`x`, `y`, `font-size`, `font-family`, `text-anchor`, `fill`, `stroke`).
 
 ### Units
 

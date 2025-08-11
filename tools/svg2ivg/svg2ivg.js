@@ -569,19 +569,56 @@ converters.text = function(element, attribs) {
 	if ('font-size' in attribs) {
 	        size = convertUnits(attribs['font-size'], 'y');
 	}
-	let paint = convertPaint(attribs.fill || 'black');
-	let opacity = paint.opacity;
-	if ('opacity' in attribs) {
-	        opacity *= convertOpacity(attribs.opacity);
-	}
-	if ('fill-opacity' in attribs) {
-	        opacity *= convertOpacity(attribs['fill-opacity']);
-	}
-	let fontCmd = `font ${fontName} size:${size} color:${paint.paint}`;
-	if (opacity !== 1) {
-	        fontCmd += ` opacity:${opacity}`;
-	}
-	output(fontCmd);
+        let fillPaint = convertPaint(attribs.fill || 'black');
+        let fillOpacity = fillPaint.opacity;
+        if ('opacity' in attribs) {
+                fillOpacity *= convertOpacity(attribs.opacity);
+        }
+        if ('fill-opacity' in attribs) {
+                fillOpacity *= convertOpacity(attribs['fill-opacity']);
+        }
+        let fontCmd = `font ${fontName} size:${size} color:${fillPaint.paint}`;
+        if (fillOpacity !== 1) {
+                fontCmd += ` opacity:${fillOpacity}`;
+        }
+        if ('stroke' in attribs && attribs.stroke !== 'none') {
+                let strokePaint = convertPaint(attribs.stroke);
+                let strokeOpacity = strokePaint.opacity;
+                if ('opacity' in attribs) {
+                        strokeOpacity *= convertOpacity(attribs.opacity);
+                }
+                if ('stroke-opacity' in attribs) {
+                        strokeOpacity *= convertOpacity(attribs['stroke-opacity']);
+                }
+                let outline = strokePaint.paint;
+                let opts = '';
+                if ('stroke-width' in attribs) {
+                        opts += ` width:${convertUnits(attribs['stroke-width'], 'x')}`;
+                }
+                if ('stroke-linejoin' in attribs) {
+                        const lj = attribs['stroke-linejoin'];
+                        if (!(lj in LINEJOINS_TO_JOINTS)) {
+                                throw new Error('Unrecognized stroke-linejoin: ' + lj);
+                        }
+                        opts += ` joints:${LINEJOINS_TO_JOINTS[lj]}`;
+                }
+                if ('stroke-linecap' in attribs) {
+                        const lc = attribs['stroke-linecap'];
+                        if (!SUPPORTED_LINECAPS.has(lc)) {
+                                throw new Error('Unrecognized stroke-linecap: ' + lc);
+                        }
+                        opts += ` caps:${lc}`;
+                }
+                if (strokeOpacity !== 1) {
+                        opts += ` opacity:${strokeOpacity}`;
+                }
+                if (opts) {
+                        fontCmd += ` outline:[${outline}${opts}]`;
+                } else {
+                        fontCmd += ` outline:${outline}`;
+                }
+        }
+        output(fontCmd);
 	let x = 'x' in attribs ? convertUnits(attribs.x, 'x') : 0;
 	let y = 'y' in attribs ? convertUnits(attribs.y, 'y') : 0;
 	let anchor = '';

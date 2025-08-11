@@ -24,6 +24,7 @@
 #include <iostream>
 #include <fstream>
 #include <stdexcept>
+#include <string>
 #include "src/IVG.h"
 #include "png.h"
 #include "zlib.h"
@@ -33,6 +34,8 @@ using namespace IVG;
 using namespace IMPD;
 using namespace NuXPixels;
 
+
+static std::string g_fontPath;
 
 // Important! Make sure to compile with exceptions enabled for C code. E.g. in GCC -fexceptions (GCC_ENABLE_EXCEPTIONS)
 
@@ -63,16 +66,17 @@ class IVGExecutorWithExternalFonts : public IVGExecutor {
 					if (insertResult.second) {
 						const std::string fontName8Bit(fontName.begin(), fontName.end());
 						String fontCode;
-						{
-							std::ifstream fileStream((fontName8Bit + ".ivgfont").c_str());
-							if (!fileStream.good()) {
-								return std::vector<const Font*>();
-							}
-							fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-							const std::istreambuf_iterator<Char> it(fileStream);
-							const std::istreambuf_iterator<Char> end;
-							fontCode = std::string(it, end);
-						}
+                                                {
+                                                        std::string path = g_fontPath.empty() ? (fontName8Bit + ".ivgfont") : (g_fontPath + "/" + fontName8Bit + ".ivgfont");
+                                                        std::ifstream fileStream(path.c_str());
+                                                        if (!fileStream.good()) {
+                                                                return std::vector<const Font*>();
+                                                        }
+                                                        fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+                                                        const std::istreambuf_iterator<Char> it(fileStream);
+                                                        const std::istreambuf_iterator<Char> end;
+                                                        fontCode = std::string(it, end);
+                                                }
 						std::wcerr << "parsing external font " << fontName << std::endl;
 						FontParser fontParser;
 						STLMapVariables vars;
@@ -112,30 +116,39 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 
 #ifndef LIBFUZZ
 int main(int argc, const char* argv[]) {
-	try {
-		if (argc != 3) {
-			std::cerr << "IVG2PNG <input.ivg> <output.png>\n\nVery simple!\n\n";
-			return 1;
-		}
+        try {
+                const char* inputPath;
+                const char* outputPath;
+                if (argc == 5 && std::string(argv[1]) == "--fonts") {
+                        g_fontPath = argv[2];
+                        inputPath = argv[3];
+                        outputPath = argv[4];
+                } else if (argc == 3) {
+                        inputPath = argv[1];
+                        outputPath = argv[2];
+                } else {
+                        std::cerr << "Usage: IVG2PNG [--fonts <dir>] <input.ivg> <output.png>\n\nVery simple!\n\n";
+                        return 1;
+                }
 
-		std::string ivgContents;
-		{
-			std::ifstream inStream(argv[1]);
-			if (!inStream.good()) throw std::runtime_error("Could not open input IVG file");
-			ivgContents.assign(std::istreambuf_iterator<char>(inStream), std::istreambuf_iterator<char>());
-			if (!inStream.good()) throw std::runtime_error("Could not read input IVG file");
-			inStream.close();
-		}
-		std::cerr << "Read source IVG..." << std::endl;
+                std::string ivgContents;
+                {
+                        std::ifstream inStream(inputPath);
+                        if (!inStream.good()) throw std::runtime_error("Could not open input IVG file");
+                        ivgContents.assign(std::istreambuf_iterator<char>(inStream), std::istreambuf_iterator<char>());
+                        if (!inStream.good()) throw std::runtime_error("Could not read input IVG file");
+                        inStream.close();
+                }
+                std::cerr << "Read source IVG..." << std::endl;
 
-		SelfContainedARGB32Canvas canvas;
-		{
-			STLMapVariables topVars;
-			IVGExecutorWithExternalFonts ivgExecutor(canvas);
-			Interpreter impd(ivgExecutor, topVars);
-			impd.run(ivgContents);
-		}
-		std::cerr << "Rasterized image..." << std::endl;
+                SelfContainedARGB32Canvas canvas;
+                {
+                        STLMapVariables topVars;
+                        IVGExecutorWithExternalFonts ivgExecutor(canvas);
+                        Interpreter impd(ivgExecutor, topVars);
+                        impd.run(ivgContents);
+                }
+                std::cerr << "Rasterized image..." << std::endl;
 
 		SelfContainedRaster<ARGB32>* raster = canvas.accessRaster();
 		if (raster == 0) throw std::runtime_error("IVG image is empty");
@@ -171,7 +184,7 @@ int main(int argc, const char* argv[]) {
 			png_infop info_ptr = 0;
 		
 			try {
-				f = fopen(argv[2], "wb");
+                                f = fopen(outputPath, "wb");
 				if (f == NULL) throw std::runtime_error("Could not open output PNG file");
 
 				png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, myPNGErrorFunction, 0);

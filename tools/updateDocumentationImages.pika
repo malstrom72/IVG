@@ -16,7 +16,7 @@ tokenize(load($1), >{
 			sourcePath = bake('{tempDir}{DIR_SLASH}{name}.ivg');
 			save(sourcePath, ivgSource);
 			print("Rendering: " # name);
-			shell(bake("../output/IVG2PNG {sourcePath} {sourceDir}{DIR_SLASH}{filepath}"));
+                        shell(bake("../output/IVG2PNG --fonts ../fonts {sourcePath} {sourceDir}{DIR_SLASH}{filepath}"));
 		};
 		ivgSource = '';
 	}
