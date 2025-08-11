@@ -88,12 +88,15 @@ The repository includes several `.ivgfont` files converted from the following op
 
 These fonts are licensed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL).
 
+See [ivgfont Documentation](docs/ivgfont%20Documentation.md) for details on the font format and how to convert other fonts.
+
 ## Documentation
 
-- [IVG Documentation](docs/IVG%20Documentation.md)  
-- [ImpD Documentation](docs/ImpD%20Documentation.md)  
-- [NuXPixels Documentation](docs/NuXPixels%20Documentation.md)  
-- [Developer Guide](docs/Developer%20Guide.md)  
+- [IVG Documentation](docs/IVG%20Documentation.md)
+- [ImpD Documentation](docs/ImpD%20Documentation.md)
+- [NuXPixels Documentation](docs/NuXPixels%20Documentation.md)
+- [ivgfont Documentation](docs/ivgfont%20Documentation.md)
+- [Developer Guide](docs/Developer%20Guide.md)
 
 ## AI Usage
 
