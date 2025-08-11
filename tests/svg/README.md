@@ -54,11 +54,11 @@ done
 - `gradient.svg`: simple linear gradient
 - `gradient-stops.svg`: linear gradient with many stops
 - `gradient-radial.svg`: radial gradient
+- `gradient-transform.svg`: gradient with rotation and scaling
 - `defs-use.svg`: defs/use elements
 - `opacity.svg`: global and per-element opacity
 - `text.svg`: basic text element
 - `text-stroke.svg`: text with stroke outline
 
 ## Unsupported or Problematic SVGs
-- `gradient-transform.svg`: gradientTransform with rotation and scaling
 - `image.svg`: embedded image

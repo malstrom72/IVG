@@ -7,7 +7,7 @@
 -   `svg` root element with `width`, `height` (`px`, `%`, `cm`, `mm`, `in`, `pt`, `pc`) and `viewBox` for basic scaling/offset.
 -   `g` groups, emitted as `context` blocks to propagate presentation attributes.
 -   Shapes: `path` (`d`), `circle` (`cx`, `cy`, `r`), `ellipse` (`cx`, `cy`, `rx`, `ry`), `line` (`x1`, `y1`, `x2`, `y2` as a path), `rect` (`x`, `y`, `width`, `height`, optional `rx`/`ry` rounded corners), `polygon` (`points`), and `polyline` (`points`).
--   Gradient fills and strokes via `linearGradient` and `radialGradient` definitions referenced with `url(#id)`.
+-   Gradient fills and strokes via `linearGradient` and `radialGradient` definitions referenced with `url(#id)`, including `gradientTransform`.
 -   Basic `text` elements (`x`, `y`, `font-size`, `font-family`, `text-anchor`, `fill`, `stroke`).
 -   Reuse via `defs`/`use` elements.
 
@@ -39,7 +39,6 @@
 -   `preserveAspectRatio` handling.
 -   Presentation attributes such as `stroke-dasharray`, `stroke-dashoffset`, or `style`/`class` based styling.
 -   Color functions like `rgb()` or pattern fills.
--   Gradient transforms (`gradientTransform`).
 -   Any `viewBox` behavior beyond a simple uniform scale and top-left offset.
 -   Error recovery for missing attributes—many attributes treated as required even though the SVG spec provides defaults.
 

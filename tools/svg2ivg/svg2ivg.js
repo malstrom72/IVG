@@ -257,13 +257,18 @@ function buildGradient(g) {
 	} else if (g.stops.length) {
 		s += ' stops:[' + g.stops.map(st => `${st.offset},${st.color}`).join(',') + ']';
 	}
-	s += ']';
-	if (g.relative) s += ' relative:yes';
-	return s;
+		s += ']';
+		if (g.transform) {
+			s += ` transform:[${transformToCommandString(g.transform)}]`;
+		}
+		if (g.relative) s += ' relative:yes';
+		return s;
 }
 
-function outputTransforms(str) {
+
+function transformToCommands(str) {
 	const re = /(translate|scale|rotate|skewX|skewY|matrix)\(([^)]*)\)/g;
+	const cmds = [];
 	let m;
 	while ((m = re.exec(str)) !== null) {
 		const type = m[1];
@@ -272,16 +277,16 @@ function outputTransforms(str) {
 			case 'translate': {
 				const tx = convertUnits(params[0] || '0', 'x');
 				const ty = params.length > 1 ? convertUnits(params[1], 'y') : 0;
-				output(`offset ${tx},${ty}`);
+				cmds.push(`offset ${tx},${ty}`);
 				break;
 			}
 			case 'scale': {
 				const sx = parseFloat(params[0] || '1');
 				const sy = params.length > 1 ? parseFloat(params[1]) : sx;
 				if (params.length > 1) {
-					output(`scale ${sx},${sy}`);
+					cmds.push(`scale ${sx},${sy}`);
 				} else {
-					output(`scale ${sx}`);
+					cmds.push(`scale ${sx}`);
 				}
 				break;
 			}
@@ -293,19 +298,19 @@ function outputTransforms(str) {
 					const cy = convertUnits(params[2], 'y');
 					cmd += ` anchor:${cx},${cy}`;
 				}
-				output(cmd);
+				cmds.push(cmd);
 				break;
 			}
 			case 'skewX': {
 				const angle = parseFloat(params[0] || '0');
 				const sx = Math.tan(angle * Math.PI / 180);
-				output(`shear ${sx},0`);
+				cmds.push(`shear ${sx},0`);
 				break;
 			}
 			case 'skewY': {
 				const angle = parseFloat(params[0] || '0');
 				const sy = Math.tan(angle * Math.PI / 180);
-				output(`shear 0,${sy}`);
+				cmds.push(`shear 0,${sy}`);
 				break;
 			}
 			case 'matrix': {
@@ -319,12 +324,23 @@ function outputTransforms(str) {
 				const d = parseFloat(params[3]);
 				const e = convertUnits(params[4], 'x');
 				const f = convertUnits(params[5], 'y');
-				output(`matrix ${a},${b},${c},${d},${e},${f}`);
+				cmds.push(`matrix ${a},${b},${c},${d},${e},${f}`);
 				break;
 			}
 			default:
 			warning('Unsupported transform: ' + type);
 		}
+	}
+	return cmds;
+}
+
+function transformToCommandString(str) {
+	return transformToCommands(str).join('\n');
+}
+
+function outputTransforms(str) {
+	for (const cmd of transformToCommands(str)) {
+		output(cmd);
 	}
 }
 
@@ -713,6 +729,9 @@ converters.linearGradient = function(element, attribs) {
 		stops: parseGradientStops(element),
 		relative: attribs.gradientUnits !== 'userSpaceOnUse'
 	};
+	if ('gradientTransform' in attribs) {
+		g.transform = attribs.gradientTransform;
+	}
 	gradients[attribs.id] = g;
 };
 
@@ -729,6 +748,9 @@ converters.radialGradient = function(element, attribs) {
 		stops: parseGradientStops(element),
 		relative: attribs.gradientUnits !== 'userSpaceOnUse'
 	};
+	if ('gradientTransform' in attribs) {
+		g.transform = attribs.gradientTransform;
+	}
 	gradients[attribs.id] = g;
 };
 
