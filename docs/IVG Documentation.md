@@ -516,7 +516,8 @@ See [IMAGE](#image) for an example of how to use `define image`.
 #### define font
 
 You can use the `define font` directive to create and embed a font face within the _IVG_ document. The font is defined
-using _ivgfont_, a format describing glyphs using SVG paths. Like _IVG_, _ivgfont_ is also based on _ImpD_.
+using [_ivgfont_](ivgfont%20Documentation.md), a format describing glyphs using SVG paths. Like _IVG_, _ivgfont_ is also
+based on _ImpD_.
 
 Syntax:
 
