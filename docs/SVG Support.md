@@ -9,6 +9,7 @@
 -   Shapes: `path` (`d`), `circle` (`cx`, `cy`, `r`), `ellipse` (`cx`, `cy`, `rx`, `ry`), `line` (`x1`, `y1`, `x2`, `y2` as a path), `rect` (`x`, `y`, `width`, `height`, optional `rx`/`ry` rounded corners), `polygon` (`points`), and `polyline` (`points`).
 -   Gradient fills and strokes via `linearGradient` and `radialGradient` definitions referenced with `url(#id)`.
 -   Basic `text` elements (`x`, `y`, `font-size`, `font-family`, `text-anchor`, `fill`, `stroke`).
+-   Reuse via `defs`/`use` elements.
 
 ### Units
 
@@ -34,7 +35,7 @@
 
 ## Unsupported or Partial Features
 
--   Additional SVG elements (`defs`, `use`, `image`, `clipPath`, `mask`, etc.).
+-   Additional SVG elements (`image`, `clipPath`, `mask`, etc.).
 -   `preserveAspectRatio` handling.
 -   Presentation attributes such as `stroke-dasharray`, `stroke-dashoffset`, or `style`/`class` based styling.
 -   Color functions like `rgb()` or pattern fills.

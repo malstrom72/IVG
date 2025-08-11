@@ -146,7 +146,7 @@ function convertPaint(sourcePaint) {
 	throw new Error('Unrecognized color: ' + sourcePaint);
 }
 
-
+const definitions = {};
 let viewportWidth = 100;
 let viewportHeight = 100;
 
@@ -154,31 +154,31 @@ function convertUnits(value, axis) {
 	const str = value.trim().toLowerCase();
 	const match = str.match(/^([+-]?\d*\.?\d+)([a-z%]*)$/);
 	if (!match) {
-	        throw new Error('Invalid unit: ' + value);
+		throw new Error('Invalid unit: ' + value);
 	}
 	const num = parseFloat(match[1]);
 	switch (match[2]) {
 	case '':
 	case 'px':
-	        return num;
+		return num;
 	case 'cm':
-	        return num * 96 / 2.54;
+		return num * 96 / 2.54;
 	case 'mm':
-	        return num * 96 / 25.4;
+		return num * 96 / 25.4;
 	case 'in':
-	        return num * 96;
+		return num * 96;
 	case 'pt':
-	        return num * 96 / 72;
+		return num * 96 / 72;
 	case 'pc':
-	        return num * 16;
+		return num * 16;
 	case '%':
-	        if (axis === 'y') {
-	                return (viewportHeight || 100) * num / 100;
-	        }
-	        return (viewportWidth || 100) * num / 100;
+		if (axis === 'y') {
+			return (viewportHeight || 100) * num / 100;
+		}
+		return (viewportWidth || 100) * num / 100;
 	default:
-	        warning('Unsupported unit: ' + match[2]);
-	        return num;
+		warning('Unsupported unit: ' + match[2]);
+		return num;
 	}
 }
 
@@ -197,14 +197,14 @@ function convertOpacity(value) {
 function parsePoints(str) {
 	const nums = str.trim().split(/[ ,]+/);
 	if (nums.length < 2 || nums.length % 2 !== 0) {
-	        throw new Error('Invalid points: ' + str);
+		throw new Error('Invalid points: ' + str);
 	}
 	const points = [];
 	for (let i = 0; i < nums.length; i += 2) {
-	        points.push([
-	                convertUnits(nums[i], 'x'),
-	                convertUnits(nums[i + 1], 'y')
-	        ]);
+		points.push([
+			convertUnits(nums[i], 'x'),
+			convertUnits(nums[i + 1], 'y')
+		]);
 	}
 	return points;
 }
@@ -212,7 +212,7 @@ function parsePoints(str) {
 function parseGradientCoord(value, axis) {
 	value = value.trim();
 	if (value.endsWith('%')) {
-	        return parseFloat(value) / 100;
+		return parseFloat(value) / 100;
 	}
 	return convertUnits(value, axis);
 }
@@ -269,12 +269,12 @@ function outputTransforms(str) {
 		const type = m[1];
 		const params = m[2].trim().split(/[ ,]+/).filter(p => p.length);
 		switch (type) {
-	                case 'translate': {
-	                        const tx = convertUnits(params[0] || '0', 'x');
-	                        const ty = params.length > 1 ? convertUnits(params[1], 'y') : 0;
-	                        output(`offset ${tx},${ty}`);
-	                        break;
-	                }
+			case 'translate': {
+				const tx = convertUnits(params[0] || '0', 'x');
+				const ty = params.length > 1 ? convertUnits(params[1], 'y') : 0;
+				output(`offset ${tx},${ty}`);
+				break;
+			}
 			case 'scale': {
 				const sx = parseFloat(params[0] || '1');
 				const sy = params.length > 1 ? parseFloat(params[1]) : sx;
@@ -288,14 +288,14 @@ function outputTransforms(str) {
 			case 'rotate': {
 				const angle = parseFloat(params[0] || '0');
 				let cmd = `rotate ${angle}`;
-	                        if (params.length > 2) {
-	                                const cx = convertUnits(params[1], 'x');
-	                                const cy = convertUnits(params[2], 'y');
-	                                cmd += ` anchor:${cx},${cy}`;
-	                        }
-	                        output(cmd);
-	                        break;
-	                }
+				if (params.length > 2) {
+					const cx = convertUnits(params[1], 'x');
+					const cy = convertUnits(params[2], 'y');
+					cmd += ` anchor:${cx},${cy}`;
+				}
+				output(cmd);
+				break;
+			}
 			case 'skewX': {
 				const angle = parseFloat(params[0] || '0');
 				const sx = Math.tan(angle * Math.PI / 180);
@@ -317,11 +317,11 @@ function outputTransforms(str) {
 				const b = parseFloat(params[1]);
 				const c = parseFloat(params[2]);
 				const d = parseFloat(params[3]);
-	                        const e = convertUnits(params[4], 'x');
-	                        const f = convertUnits(params[5], 'y');
-	                        output(`matrix ${a},${b},${c},${d},${e},${f}`);
-	                        break;
-	                }
+				const e = convertUnits(params[4], 'x');
+				const f = convertUnits(params[5], 'y');
+				output(`matrix ${a},${b},${c},${d},${e},${f}`);
+				break;
+			}
 			default:
 			warning('Unsupported transform: ' + type);
 		}
@@ -373,7 +373,7 @@ function outputPresentationAttributes(attribs) {
 			s += ' ' + strokePaint.paint;
 		}
 		if (hasStrokeWidth) {
-	                s += ' width:' + convertUnits(attribs['stroke-width'], 'x');
+			s += ' width:' + convertUnits(attribs['stroke-width'], 'x');
 		}
 		if (hasStrokeLineJoin) {
 			const lj = attribs['stroke-linejoin'];
@@ -425,22 +425,28 @@ function createContextMaybe(attribs) {
 	return needs;
 }
 
+function registerDefinition(element) {
+	if (element.attributes && element.attributes.id) {
+		definitions[element.attributes.id] = JSON.parse(JSON.stringify(element));
+	}
+}
+
 const converters = {};
 let firstSVG = true;
 
 converters.svg = function(element, attribs) {
 	let width, height;
 	if ('width' in attribs) {
-	        width = convertUnits(attribs.width, 'x');
+		width = convertUnits(attribs.width, 'x');
 	} else {
-	        warning("Missing 'width' attribute. Assuming a width of 800.");
-	        width = 800;
+		warning("Missing 'width' attribute. Assuming a width of 800.");
+		width = 800;
 	}
 	if ('height' in attribs) {
-	        height = convertUnits(attribs.height, 'y');
+		height = convertUnits(attribs.height, 'y');
 	} else {
-	        warning("Missing 'height' attribute. Assuming a height of 800.");
-	        height = 800;
+		warning("Missing 'height' attribute. Assuming a height of 800.");
+		height = 800;
 	}
 	viewportWidth = width;
 	viewportHeight = height;
@@ -512,11 +518,11 @@ converters.rect = function(element, attribs) {
 	const hasRX = 'rx' in attribs;
 	const hasRY = 'ry' in attribs;
 	if (hasRX && hasRY) {
-	        s += ` rounded:${convertUnits(attribs.rx, 'x')},${convertUnits(attribs.ry, 'y')}`;
+		s += ` rounded:${convertUnits(attribs.rx, 'x')},${convertUnits(attribs.ry, 'y')}`;
 	} else if (hasRX) {
-	        s += ` rounded:${convertUnits(attribs.rx, 'x')}`;
+		s += ` rounded:${convertUnits(attribs.rx, 'x')}`;
 	} else if (hasRY) {
-	        s += ` rounded:${convertUnits(attribs.ry, 'y')}`;
+		s += ` rounded:${convertUnits(attribs.ry, 'y')}`;
 	}
 	output(s);
 	if (separate) output(']');
@@ -544,13 +550,13 @@ converters.polyline = function(element, attribs) {
 	checkRequiredAttributes(attribs, 'points');
 	const pts = parsePoints(attribs.points);
 	if (pts.length < 2) {
-	        warning("Not enough points in 'polyline'.");
+		warning("Not enough points in 'polyline'.");
 	} else {
-	        let s = `M${pts[0][0]},${pts[0][1]}`;
-	        for (let i = 1; i < pts.length; i++) {
-	                s += `L${pts[i][0]},${pts[i][1]}`;
-	        }
-	        output('path svg:[' + s + ']');
+		let s = `M${pts[0][0]},${pts[0][1]}`;
+		for (let i = 1; i < pts.length; i++) {
+			s += `L${pts[i][0]},${pts[i][1]}`;
+		}
+		output('path svg:[' + s + ']');
 	}
 	if (separate) output(']');
 };
@@ -558,83 +564,83 @@ converters.polyline = function(element, attribs) {
 converters.text = function(element, attribs) {
 	const separate = 'transform' in attribs;
 	if (separate) {
-	        output('context [');
-	        outputTransforms(attribs.transform);
+		output('context [');
+		outputTransforms(attribs.transform);
 	}
 	let fontName = 'serif';
 	if ('font-family' in attribs) {
-	        fontName = attribs['font-family'].split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+		fontName = attribs['font-family'].split(',')[0].trim().replace(/^['"]|['"]$/g, '');
 	}
 	let size = 16;
 	if ('font-size' in attribs) {
-	        size = convertUnits(attribs['font-size'], 'y');
+		size = convertUnits(attribs['font-size'], 'y');
 	}
-        let fillPaint = convertPaint(attribs.fill || 'black');
-        let fillOpacity = fillPaint.opacity;
-        if ('opacity' in attribs) {
-                fillOpacity *= convertOpacity(attribs.opacity);
-        }
-        if ('fill-opacity' in attribs) {
-                fillOpacity *= convertOpacity(attribs['fill-opacity']);
-        }
-        let fontCmd = `font ${fontName} size:${size} color:${fillPaint.paint}`;
-        if (fillOpacity !== 1) {
-                fontCmd += ` opacity:${fillOpacity}`;
-        }
-        if ('stroke' in attribs && attribs.stroke !== 'none') {
-                let strokePaint = convertPaint(attribs.stroke);
-                let strokeOpacity = strokePaint.opacity;
-                if ('opacity' in attribs) {
-                        strokeOpacity *= convertOpacity(attribs.opacity);
-                }
-                if ('stroke-opacity' in attribs) {
-                        strokeOpacity *= convertOpacity(attribs['stroke-opacity']);
-                }
-                let outline = strokePaint.paint;
-                let opts = '';
-                if ('stroke-width' in attribs) {
-                        opts += ` width:${convertUnits(attribs['stroke-width'], 'x')}`;
-                }
-                if ('stroke-linejoin' in attribs) {
-                        const lj = attribs['stroke-linejoin'];
-                        if (!(lj in LINEJOINS_TO_JOINTS)) {
-                                throw new Error('Unrecognized stroke-linejoin: ' + lj);
-                        }
-                        opts += ` joints:${LINEJOINS_TO_JOINTS[lj]}`;
-                }
-                if ('stroke-linecap' in attribs) {
-                        const lc = attribs['stroke-linecap'];
-                        if (!SUPPORTED_LINECAPS.has(lc)) {
-                                throw new Error('Unrecognized stroke-linecap: ' + lc);
-                        }
-                        opts += ` caps:${lc}`;
-                }
-                if (strokeOpacity !== 1) {
-                        opts += ` opacity:${strokeOpacity}`;
-                }
-                if (opts) {
-                        fontCmd += ` outline:[${outline}${opts}]`;
-                } else {
-                        fontCmd += ` outline:${outline}`;
-                }
-        }
-        output(fontCmd);
+	let fillPaint = convertPaint(attribs.fill || 'black');
+	let fillOpacity = fillPaint.opacity;
+	if ('opacity' in attribs) {
+		fillOpacity *= convertOpacity(attribs.opacity);
+	}
+	if ('fill-opacity' in attribs) {
+		fillOpacity *= convertOpacity(attribs['fill-opacity']);
+	}
+	let fontCmd = `font ${fontName} size:${size} color:${fillPaint.paint}`;
+	if (fillOpacity !== 1) {
+		fontCmd += ` opacity:${fillOpacity}`;
+	}
+	if ('stroke' in attribs && attribs.stroke !== 'none') {
+		let strokePaint = convertPaint(attribs.stroke);
+		let strokeOpacity = strokePaint.opacity;
+		if ('opacity' in attribs) {
+			strokeOpacity *= convertOpacity(attribs.opacity);
+		}
+		if ('stroke-opacity' in attribs) {
+			strokeOpacity *= convertOpacity(attribs['stroke-opacity']);
+		}
+		let outline = strokePaint.paint;
+		let opts = '';
+		if ('stroke-width' in attribs) {
+			opts += ` width:${convertUnits(attribs['stroke-width'], 'x')}`;
+		}
+		if ('stroke-linejoin' in attribs) {
+			const lj = attribs['stroke-linejoin'];
+			if (!(lj in LINEJOINS_TO_JOINTS)) {
+				throw new Error('Unrecognized stroke-linejoin: ' + lj);
+			}
+			opts += ` joints:${LINEJOINS_TO_JOINTS[lj]}`;
+		}
+		if ('stroke-linecap' in attribs) {
+			const lc = attribs['stroke-linecap'];
+			if (!SUPPORTED_LINECAPS.has(lc)) {
+				throw new Error('Unrecognized stroke-linecap: ' + lc);
+			}
+			opts += ` caps:${lc}`;
+		}
+		if (strokeOpacity !== 1) {
+			opts += ` opacity:${strokeOpacity}`;
+		}
+		if (opts) {
+			fontCmd += ` outline:[${outline}${opts}]`;
+		} else {
+			fontCmd += ` outline:${outline}`;
+		}
+	}
+	output(fontCmd);
 	let x = 'x' in attribs ? convertUnits(attribs.x, 'x') : 0;
 	let y = 'y' in attribs ? convertUnits(attribs.y, 'y') : 0;
 	let anchor = '';
 	if ('text-anchor' in attribs) {
-	        switch (attribs['text-anchor']) {
-	        case 'middle': anchor = ' anchor:center'; break;
-	        case 'end': anchor = ' anchor:right'; break;
-	        }
+		switch (attribs['text-anchor']) {
+		case 'middle': anchor = ' anchor:center'; break;
+		case 'end': anchor = ' anchor:right'; break;
+		}
 	}
 	let textContent = '';
 	for (const item of element.contents || []) {
-	        if (item.text) {
-	                textContent += item.text;
-	        } else if (item.element) {
-	                warning('Unsupported nested element in text');
-	        }
+		if (item.text) {
+			textContent += item.text;
+		} else if (item.element) {
+			warning('Unsupported nested element in text');
+		}
 	}
 	textContent = textContent.replace(/\s+/g, ' ').trim().replace(/"/g, '\\"');
 	output(`TEXT at:${x},${y}${anchor} "${textContent}"`);
@@ -643,7 +649,54 @@ converters.text = function(element, attribs) {
 
 
 converters.defs = function(element) {
-	convertSVGContainer(element);
+	for (const item of element.contents || []) {
+		if (!item.element) continue;
+		const child = item.element;
+		if (child.type === 'linearGradient' || child.type === 'radialGradient' || child.type === 'defs') {
+			convertSVGElement(child);
+		} else {
+			registerDefinition(child);
+		}
+	}
+};
+
+converters.use = function(element, attribs) {
+	let ref = attribs.href || attribs['xlink:href'];
+	if (!ref) {
+		warning("Missing 'href' in use");
+		return;
+	}
+	if (ref.startsWith('#')) {
+		ref = ref.slice(1);
+	}
+	if (!(ref in definitions)) {
+		warning('Unrecognized reference: ' + ref);
+		return;
+	}
+	const clone = JSON.parse(JSON.stringify(definitions[ref]));
+	for (const [k, v] of Object.entries(attribs)) {
+		if (k === 'href' || k === 'xlink:href' || k === 'x' || k === 'y' || k === 'transform') {
+			continue;
+		}
+		clone.attributes[k] = v;
+	}
+	const needsContext = 'x' in attribs || 'y' in attribs || 'transform' in attribs;
+	if (needsContext) {
+		output('context [');
+		if ('transform' in attribs) {
+			outputTransforms(attribs.transform);
+		}
+		const tx = 'x' in attribs ? convertUnits(attribs.x, 'x') : 0;
+		const ty = 'y' in attribs ? convertUnits(attribs.y, 'y') : 0;
+		if (tx !== 0 || ty !== 0) {
+			output(`offset ${tx},${ty}`);
+		}
+	}
+	delete clone.attributes.id;
+	convertSVGElement(clone);
+	if (needsContext) {
+		output(']');
+	}
 };
 
 converters.linearGradient = function(element, attribs) {
@@ -652,13 +705,13 @@ converters.linearGradient = function(element, attribs) {
 		return;
 	}
 	const g = {
-	        type: 'linear',
-	        x1: parseGradientCoord(attribs.x1 || '0%', 'x'),
-	        y1: parseGradientCoord(attribs.y1 || '0%', 'y'),
-	        x2: parseGradientCoord(attribs.x2 || '100%', 'x'),
-	        y2: parseGradientCoord(attribs.y2 || '0%', 'y'),
-	        stops: parseGradientStops(element),
-	        relative: attribs.gradientUnits !== 'userSpaceOnUse'
+		type: 'linear',
+		x1: parseGradientCoord(attribs.x1 || '0%', 'x'),
+		y1: parseGradientCoord(attribs.y1 || '0%', 'y'),
+		x2: parseGradientCoord(attribs.x2 || '100%', 'x'),
+		y2: parseGradientCoord(attribs.y2 || '0%', 'y'),
+		stops: parseGradientStops(element),
+		relative: attribs.gradientUnits !== 'userSpaceOnUse'
 	};
 	gradients[attribs.id] = g;
 };
@@ -669,17 +722,18 @@ converters.radialGradient = function(element, attribs) {
 		return;
 	}
 	const g = {
-	        type: 'radial',
-	        cx: parseGradientCoord(attribs.cx || '50%', 'x'),
-	        cy: parseGradientCoord(attribs.cy || '50%', 'y'),
-	        r: parseGradientCoord(attribs.r || '50%', 'x'),
-	        stops: parseGradientStops(element),
-	        relative: attribs.gradientUnits !== 'userSpaceOnUse'
+		type: 'radial',
+		cx: parseGradientCoord(attribs.cx || '50%', 'x'),
+		cy: parseGradientCoord(attribs.cy || '50%', 'y'),
+		r: parseGradientCoord(attribs.r || '50%', 'x'),
+		stops: parseGradientStops(element),
+		relative: attribs.gradientUnits !== 'userSpaceOnUse'
 	};
 	gradients[attribs.id] = g;
 };
 
 function convertSVGElement(element) {
+	registerDefinition(element);
 	const type = element.type;
 	if (converters[type]) {
 		converters[type](element, element.attributes);
@@ -687,6 +741,7 @@ function convertSVGElement(element) {
 		warning("Can't convert type: " + type);
 	}
 }
+
 
 function convertSVGContainer(container) {
 	for (const item of container.contents || []) {
