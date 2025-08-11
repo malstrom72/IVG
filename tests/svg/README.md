@@ -60,5 +60,5 @@ done
 - `text-stroke.svg`: text with stroke outline
 
 ## Unsupported or Problematic SVGs
-- `gradient-transform.svg`: gradientTransform attribute
+- `gradient-transform.svg`: gradientTransform with rotation and scaling
 - `image.svg`: embedded image
