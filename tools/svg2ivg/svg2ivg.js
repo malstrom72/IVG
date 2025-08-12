@@ -335,7 +335,7 @@ function transformToCommands(str) {
 }
 
 function transformToCommandString(str) {
-	return transformToCommands(str).join('\n');
+return transformToCommands(str).join('; ');
 }
 
 function outputTransforms(str) {
