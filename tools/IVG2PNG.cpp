@@ -24,6 +24,7 @@
 #include <iostream>
 #include <fstream>
 #include <stdexcept>
+#include <string>
 #include "src/IVG.h"
 #include "png.h"
 #include "zlib.h"
@@ -32,7 +33,6 @@ using namespace std;
 using namespace IVG;
 using namespace IMPD;
 using namespace NuXPixels;
-
 
 // Important! Make sure to compile with exceptions enabled for C code. E.g. in GCC -fexceptions (GCC_ENABLE_EXCEPTIONS)
 
@@ -52,38 +52,43 @@ static bool isLittleEndian() {
 }
 
 class IVGExecutorWithExternalFonts : public IVGExecutor {
-	public:		IVGExecutorWithExternalFonts(Canvas& canvas, const AffineTransformation& xform = AffineTransformation())
-					: IVGExecutor(canvas, xform) {
-				}
-				virtual std::vector<const Font*> lookupFonts(IMPD::Interpreter& interpreter, const IMPD::WideString& fontName
-					, const IMPD::UniString& forString) {
-					(void)interpreter;
-					std::pair< FontMap::iterator, bool > insertResult
-							= loadedFonts.insert( std::make_pair(fontName, Font()) );
-					if (insertResult.second) {
-						const std::string fontName8Bit(fontName.begin(), fontName.end());
-						String fontCode;
-						{
-							std::ifstream fileStream((fontName8Bit + ".ivgfont").c_str());
-							if (!fileStream.good()) {
-								return std::vector<const Font*>();
-							}
-							fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-							const std::istreambuf_iterator<Char> it(fileStream);
-							const std::istreambuf_iterator<Char> end;
-							fontCode = std::string(it, end);
-						}
-						std::wcerr << "parsing external font " << fontName << std::endl;
-						FontParser fontParser;
-						STLMapVariables vars;
-						Interpreter impd(fontParser, vars);
-						impd.run(fontCode);
-						insertResult.first->second = fontParser.finalizeFont();
-					}
-					return std::vector<const Font*>(1, &insertResult.first->second);
-				}
-	protected:	FontMap loadedFonts;
+	public:
+		IVGExecutorWithExternalFonts(Canvas& canvas, const std::string& fontPath,
+			    const AffineTransformation& xform = AffineTransformation())
+			    : IVGExecutor(canvas, xform), fontPath(fontPath) {
+		}
+		virtual std::vector<const Font*> lookupFonts(IMPD::Interpreter& interpreter, const IMPD::WideString& fontName,
+			    const IMPD::UniString& forString) {
+			(void)interpreter;
+			std::pair< FontMap::iterator, bool > insertResult = loadedFonts.insert(std::make_pair(fontName, Font()));
+			if (insertResult.second) {
+			    const std::string fontName8Bit(fontName.begin(), fontName.end());
+			    String fontCode;
+			    {
+			        std::string path = fontPath.empty() ? (fontName8Bit + ".ivgfont") : (fontPath + "/" + fontName8Bit + ".ivgfont");
+			        std::ifstream fileStream(path.c_str());
+			        if (!fileStream.good()) {
+			            return std::vector<const Font*>();
+			        }
+			        fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+			        const std::istreambuf_iterator<Char> it(fileStream);
+			        const std::istreambuf_iterator<Char> end;
+			        fontCode = std::string(it, end);
+			    }
+			    std::wcerr << "parsing external font " << fontName << std::endl;
+			    FontParser fontParser;
+			    STLMapVariables vars;
+			    Interpreter impd(fontParser, vars);
+			    impd.run(fontCode);
+			    insertResult.first->second = fontParser.finalizeFont();
+			}
+			return std::vector<const Font*>(1, &insertResult.first->second);
+		}
+	protected:
+		FontMap loadedFonts;
+		std::string fontPath;
 };
+
 
 #ifdef LIBFUZZ
 struct FuzzerExecutor : public IVGExecutor {
@@ -113,14 +118,38 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 #ifndef LIBFUZZ
 int main(int argc, const char* argv[]) {
 	try {
-		if (argc != 3) {
-			std::cerr << "IVG2PNG <input.ivg> <output.png>\n\nVery simple!\n\n";
+		const char* usage = "Usage: IVG2PNG [--fonts <dir>] [--background <color>] <input.ivg> <output.png>\n\nVery simple!\n\n";
+		const char* inputPath = 0;
+                const char* outputPath = 0;
+                ARGB32::Pixel background = 0;
+                bool haveBackground = false;
+                std::string fontPath;
+		for (int i = 1; i < argc; ++i) {
+			std::string arg(argv[i]);
+			if (arg == "--fonts") {
+                                if (++i == argc) { std::cerr << usage; return 1; }
+                                fontPath = argv[i];
+			} else if (arg == "--background") {
+				if (++i == argc) { std::cerr << usage; return 1; }
+				background = parseColor(argv[i]);
+				haveBackground = true;
+			} else if (inputPath == 0) {
+				inputPath = argv[i];
+			} else if (outputPath == 0) {
+				outputPath = argv[i];
+			} else {
+				std::cerr << usage;
+				return 1;
+			}
+		}
+		if (inputPath == 0 || outputPath == 0) {
+			std::cerr << usage;
 			return 1;
 		}
 
 		std::string ivgContents;
 		{
-			std::ifstream inStream(argv[1]);
+			std::ifstream inStream(inputPath);
 			if (!inStream.good()) throw std::runtime_error("Could not open input IVG file");
 			ivgContents.assign(std::istreambuf_iterator<char>(inStream), std::istreambuf_iterator<char>());
 			if (!inStream.good()) throw std::runtime_error("Could not read input IVG file");
@@ -130,8 +159,8 @@ int main(int argc, const char* argv[]) {
 
 		SelfContainedARGB32Canvas canvas;
 		{
-			STLMapVariables topVars;
-			IVGExecutorWithExternalFonts ivgExecutor(canvas);
+                        STLMapVariables topVars;
+                        IVGExecutorWithExternalFonts ivgExecutor(canvas, fontPath);
 			Interpreter impd(ivgExecutor, topVars);
 			impd.run(ivgContents);
 		}
@@ -142,6 +171,9 @@ int main(int argc, const char* argv[]) {
 		IntRect bounds = raster->calcBounds();
 		if (bounds.width <= 0 || bounds.height <= 0) throw std::runtime_error("IVG image is empty");
 
+		if (haveBackground) {
+			(*raster) = Solid<ARGB32>(background) | (*raster);
+		}
 		std::vector<png_bytep> rowPointers(bounds.height);
 		int imageStride = raster->getStride();
 		ARGB32::Pixel* pixels = raster->getPixelPointer() + bounds.top * imageStride + bounds.left;
@@ -150,16 +182,19 @@ int main(int argc, const char* argv[]) {
 			rowPointers[i] = reinterpret_cast<png_bytep>(p);
 			for (int x = 0; x < bounds.width; ++x) {
 				int a = (*p >> 24) & 0xFF;
+				int r = (*p >> 16) & 0xFF;
+				int g = (*p >> 8) & 0xFF;
+				int b = (*p >> 0) & 0xFF;
 				if (a != 0xFF && a != 0x00) {
 					int m = 0xFFFF / a;
-					int r = (((*p >> 16) & 0xFF) * m) >> 8;
-					int g = (((*p >> 8) & 0xFF) * m) >> 8;
-					int b = (((*p >> 0) & 0xFF) * m) >> 8;
+					r = (r * m) >> 8;
+					g = (g * m) >> 8;
+					b = (b * m) >> 8;
 					assert(0 <= r && r < 0x100);
 					assert(0 <= g && g < 0x100);
 					assert(0 <= b && b < 0x100);
-					*p = (a << 24) | (r << 16) | (g << 8) | (b << 0);
 				}
+				*p = (a << 24) | (r << 16) | (g << 8) | b;
 				++p;
 			}
 		}
@@ -171,7 +206,7 @@ int main(int argc, const char* argv[]) {
 			png_infop info_ptr = 0;
 		
 			try {
-				f = fopen(argv[2], "wb");
+				f = fopen(outputPath, "wb");
 				if (f == NULL) throw std::runtime_error("Could not open output PNG file");
 
 				png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, myPNGErrorFunction, 0);

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1in" height="1in">
+	<rect x="0" y="0" width="5mm" height="5mm" fill="red"/>
+	<rect x="5mm" y="0" width="0.2in" height="0.2in" fill="green"/>
+	<rect x="10mm" y="0" width="18pt" height="18pt" fill="blue"/>
+	<rect x="15mm" y="0" width="1pc" height="1pc" fill="yellow"/>
+	<rect x="20mm" y="0" width="0.5cm" height="0.5cm" fill="purple"/>
+</svg>

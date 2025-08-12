@@ -3,10 +3,11 @@ set -e -o pipefail -u
 cd "$(dirname "$0")"/../tests
 
 if [ -z "$1" ]; then
-	EXE="../output/IVG2PNG"
+        EXE="../output/IVG2PNG"
 else
-	EXE=$1
+        EXE=$1
 fi
+FONTS=../fonts
 
 tmp=$(mktemp -d)
 echo Using temporary dir: "$tmp"
@@ -16,7 +17,7 @@ for f in ./ivg/*.ivg; do
 	n=${n%.ivg}
 	echo Doing "$n"
 	echo
-       $EXE "$f" "$tmp/$n.png"
+       $EXE --fonts "$FONTS" "$f" "$tmp/$n.png"
        cmp "$tmp/$n.png" "./png/$n.png"
 	echo
 	echo

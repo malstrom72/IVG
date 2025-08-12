@@ -44,15 +44,21 @@ done
 - `stroke-fill.svg`: stroked quadratic curve
 - `viewbox.svg`: viewBox scaling
 - `multi-path.svg`: multiple horizontal segments
-
-## Unsupported or Problematic SVGs
 - `polygon.svg`: polygon element
 - `polyline.svg`: polyline element
-- `text.svg`: text element
-- `image.svg`: embedded image
-- `transform.svg`: transform attribute
-- `units-cm.svg`: non-pixel units
+- `units.svg`: non-pixel units (`cm`, `mm`, `in`, `pt`, `pc`)
 - `percentage.svg`: percentage units
+- `transform.svg`: translate, scale, and rotate
+- `skew.svg`: skewX and skewY transforms
+- `matrix.svg`: matrix transform
+- `gradient.svg`: simple linear gradient
+- `gradient-stops.svg`: linear gradient with many stops
+- `gradient-radial.svg`: radial gradient
+- `gradient-transform.svg`: gradient with rotation and scaling
 - `defs-use.svg`: defs/use elements
-- `gradient.svg`: gradient fill
-- `opacity.svg`: opacity attribute
+- `opacity.svg`: global and per-element opacity
+- `text.svg`: basic text element
+- `text-stroke.svg`: text with stroke outline
+
+## Unsupported or Problematic SVGs
+- `image.svg`: embedded image

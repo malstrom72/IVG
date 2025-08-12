@@ -7,11 +7,12 @@ IF "%~1"=="" (
 ) ELSE (
     SET exe=%~1
 )
+SET fonts=..\fonts
 
 FOR %%f IN (ivg\*.ivg) DO (
     ECHO Doing %%f
     ECHO.
-    %exe% "%%f" "png\%%~nf.png" || GOTO BAD
+    %exe% --fonts %fonts% "%%f" "png\%%~nf.png" || GOTO BAD
     ECHO.
     ECHO.
 )
