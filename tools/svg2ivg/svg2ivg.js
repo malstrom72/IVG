@@ -49,7 +49,8 @@ const KNOWN_PRESENTATION_ATTRIBUTES = [
 'fill',
 'opacity',
 'fill-opacity',
-'stroke-opacity'
+'stroke-opacity',
+'fill-rule'
 ];
 
 function rgbToHex(r, g, b) {
@@ -377,14 +378,23 @@ function outputPresentationAttributes(attribs) {
 	if ('stroke-opacity' in attribs) {
 		strokeOpacity *= convertOpacity(attribs['stroke-opacity']);
 	}
-	let fillPaint = null;
-	if ('fill' in attribs) {
-		fillPaint = convertPaint(attribs.fill);
-		fillOpacity *= fillPaint.opacity;
-	}
-	if ('fill-opacity' in attribs) {
-		fillOpacity *= convertOpacity(attribs['fill-opacity']);
-	}
+        let fillPaint = null;
+        if ('fill' in attribs) {
+                fillPaint = convertPaint(attribs.fill);
+                fillOpacity *= fillPaint.opacity;
+        }
+        if ('fill-opacity' in attribs) {
+                fillOpacity *= convertOpacity(attribs['fill-opacity']);
+        }
+        let fillRule = null;
+        if ('fill-rule' in attribs) {
+                const fr = attribs['fill-rule'].trim().toLowerCase();
+                if (fr === 'evenodd') {
+                        fillRule = 'even-odd';
+                } else if (fr !== 'nonzero') {
+                        throw new Error('Unrecognized fill-rule: ' + attribs['fill-rule']);
+                }
+        }
 	if (hasStroke || hasStrokeWidth || hasStrokeLineJoin || hasStrokeMiterlimit || strokeOpacity !== 1) {
 		let s = 'pen';
 		if (strokePaint) {
@@ -415,16 +425,19 @@ function outputPresentationAttributes(attribs) {
 		}
 		output(s);
 	}
-	if (fillPaint || fillOpacity !== 1) {
-		let s = 'fill';
-		if (fillPaint) {
-			s += ' ' + fillPaint.paint;
-		}
-		if (fillOpacity !== 1) {
-			s += ' opacity:' + fillOpacity;
-		}
-		output(s);
-	}
+        if (fillPaint || fillOpacity !== 1 || fillRule) {
+                let s = 'fill';
+                if (fillPaint) {
+                        s += ' ' + fillPaint.paint;
+                }
+                if (fillRule) {
+                        s += ' rule:' + fillRule;
+                }
+                if (fillOpacity !== 1) {
+                        s += ' opacity:' + fillOpacity;
+                }
+                output(s);
+        }
 }
 
 function gotKnownPresentationAttributes(attribs) {
