@@ -45,7 +45,9 @@ This document lists which `externals/resvgTests` files the `tools/svg2ivg/svg2iv
 - painting/stroke-linejoin/arcs.svg
 
 ## Might work
-- text/tspan/tspan-bbox-1.svg
+- text/tspan/tspan-bbox-1.svg – svg2ivg normalizes gradients for each `<tspan>` instead of the whole `<text>`
+      element, causing “long” to start white and end darker green. This deviates from the SVG spec; matching the
+      SVG would require measuring the full text bounds and emitting a user-space gradient.
 - structure/style-attribute/simple-case.svg
 - painting/stroke-miterlimit/valid-value.svg
 
