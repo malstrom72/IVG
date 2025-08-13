@@ -13,7 +13,7 @@ function output(line) {
 	if (line.endsWith('[')) {
 		indent++;
 	}
-}
+	}
 
 function warning(msg) {
 	console.error('Warning! ' + msg);
@@ -68,15 +68,15 @@ const m = l - c / 2;
 let r, g, b;
 if (h < 1 / 6) {
 r = c; g = x; b = 0;
-} else if (h < 2 / 6) {
+	} else if (h < 2 / 6) {
 r = x; g = c; b = 0;
-} else if (h < 3 / 6) {
+	} else if (h < 3 / 6) {
 r = 0; g = c; b = x;
-} else if (h < 4 / 6) {
+	} else if (h < 4 / 6) {
 r = 0; g = x; b = c;
-} else if (h < 5 / 6) {
+	} else if (h < 5 / 6) {
 r = x; g = 0; b = c;
-} else {
+		} else {
 r = c; g = 0; b = x;
 }
 return { r: (r + m) * 255, g: (g + m) * 255, b: (b + m) * 255 };
@@ -152,6 +152,8 @@ let viewportWidth = 100;
 let viewportHeight = 100;
 let defaultWidth = 800;
 let defaultHeight = 800;
+let defaultFontFamily = 'serif';
+let defaultFontSize = 16;
 
 function convertUnits(value, axis) {
 	const str = value.trim().toLowerCase();
@@ -252,7 +254,7 @@ function buildGradient(g) {
 	let s;
 	if (g.type === 'linear') {
 		s = `gradient:[linear ${g.x1},${g.y1},${g.x2},${g.y2}`;
-	} else {
+		} else {
 		s = `gradient:[radial ${g.cx},${g.cy},${g.r}`;
 	}
 	if (g.stops.length === 2 && g.stops[0].offset === 0 && g.stops[1].offset === 1) {
@@ -470,13 +472,13 @@ converters.svg = function(element, attribs) {
 	let width, height;
 	if ('width' in attribs) {
 		width = convertUnits(attribs.width, 'x');
-	} else {
+		} else {
 		warning(`Missing 'width' attribute. Assuming a width of ${defaultWidth}.`);
 		width = defaultWidth;
 	}
 	if ('height' in attribs) {
 		height = convertUnits(attribs.height, 'y');
-	} else {
+		} else {
 		warning(`Missing 'height' attribute. Assuming a height of ${defaultHeight}.`);
 		height = defaultHeight;
 	}
@@ -489,9 +491,17 @@ converters.svg = function(element, attribs) {
 	output(`bounds 0,0,${width},${height}`);
 	output('fill black');
 	output('pen miter-limit:4');
+	const oldFamily = defaultFontFamily;
+	const oldSize = defaultFontSize;
+	if ('font-family' in attribs) {
+		defaultFontFamily = attribs['font-family'].split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+}
+	if ('font-size' in attribs) {
+		defaultFontSize = convertUnits(attribs['font-size'], 'y');
+}
 	if ('transform' in attribs) {
 		outputTransforms(attribs.transform);
-	}
+}
 	if ('viewBox' in attribs) {
 		const vb = parseRect(attribs.viewBox);
 		if (vb.left !== 0 || vb.top !== 0) {
@@ -500,6 +510,8 @@ converters.svg = function(element, attribs) {
 		output(`scale ${Math.min(width / vb.width, height / vb.height)}`);
 	}
 	convertSVGContainer(element);
+	defaultFontFamily = oldFamily;
+	defaultFontSize = oldSize;
 };
 
 converters.g = function(element, attribs) {
@@ -516,7 +528,7 @@ converters.path = function(element, attribs) {
 	const separate = createContextMaybe(attribs);
 	if ('d' in attribs) {
 		output('path svg:[' + attribs.d + ']');
-	} else {
+		} else {
 		warning("Missing 'd' attribute in 'path' element.");
 	}
 	if (separate) output(']');
@@ -566,7 +578,7 @@ converters.polygon = function(element, attribs) {
 	const pts = parsePoints(attribs.points);
 	if (pts.length < 2) {
 		warning("Not enough points in 'polygon'.");
-	} else {
+		} else {
 		let s = `M${pts[0][0]},${pts[0][1]}`;
 		for (let i = 1; i < pts.length; i++) {
 			s += `L${pts[i][0]},${pts[i][1]}`;
@@ -583,7 +595,7 @@ converters.polyline = function(element, attribs) {
 	const pts = parsePoints(attribs.points);
 	if (pts.length < 2) {
 		warning("Not enough points in 'polyline'.");
-	} else {
+		} else {
 		let s = `M${pts[0][0]},${pts[0][1]}`;
 		for (let i = 1; i < pts.length; i++) {
 			s += `L${pts[i][0]},${pts[i][1]}`;
@@ -593,17 +605,40 @@ converters.polyline = function(element, attribs) {
 	if (separate) output(']');
 };
 
+function extractText(element) {
+	let s = '';
+	for (const item of element.contents || []) {
+		let part = '';
+		if (item.text) {
+			part = item.text;
+	} else if (item.element) {
+		if (item.element.type === 'tspan') {
+			part = extractText(item.element);
+		} else {
+			warning('Unsupported nested element in text');
+}
+}
+		if (part) {
+			if (s && !/\s$/.test(s) && !/^\s/.test(part)) {
+				s += ' ';
+}
+				s += part;
+}
+}
+return s;
+}
+
 converters.text = function(element, attribs) {
 	const separate = 'transform' in attribs;
 	if (separate) {
 		output('context [');
 		outputTransforms(attribs.transform);
 	}
-	let fontName = 'serif';
+	let fontName = defaultFontFamily;
 	if ('font-family' in attribs) {
 		fontName = attribs['font-family'].split(',')[0].trim().replace(/^['"]|['"]$/g, '');
 	}
-	let size = 16;
+	let size = defaultFontSize;
 	if ('font-size' in attribs) {
 		size = convertUnits(attribs['font-size'], 'y');
 	}
@@ -666,14 +701,7 @@ converters.text = function(element, attribs) {
 		case 'end': anchor = ' anchor:right'; break;
 		}
 	}
-	let textContent = '';
-	for (const item of element.contents || []) {
-		if (item.text) {
-			textContent += item.text;
-		} else if (item.element) {
-			warning('Unsupported nested element in text');
-		}
-	}
+	let textContent = extractText(element);
 	textContent = textContent.replace(/\s+/g, ' ').trim().replace(/"/g, '\\"');
 	output(`TEXT at:${x},${y}${anchor} "${textContent}"`);
 	if (separate) output(']');
@@ -927,7 +955,7 @@ convertSVGContainer(svg);
 if (ivgPath) {
 	fs.writeFileSync(ivgPath, outputString, 'utf8');
 	console.log('Converted ' + svgPath + ' to ' + ivgPath);
-} else {
+		} else {
 	console.log('------');
 	console.log(outputString);
 }
