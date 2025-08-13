@@ -183,6 +183,7 @@
 <h2 id="table-of-contents">Table of Contents</h2>
 <ul>
 <li><a href="#intro">Intro</a></li>
+<li><a href="#ivg-1-vs-ivg-2">IVG-1 vs IVG-2</a></li>
 <li><a href="#instructions">Instructions</a>
 <ul>
 <li><a href="#ellipse">ELLIPSE</a></li>
@@ -278,6 +279,12 @@ should be as follows:</p>
 <p>Notice that <em>ImpD</em> is case-insensitive, but in this document,
 we follow a convention where we have written “directives” (defining
 settings, etc.) in lowercase and drawing instructions in uppercase.</p>
+<h2 id="ivg-1-vs-ivg-2">IVG-1 vs IVG-2</h2>
+<p><code>IVG-1</code> covers core vector drawing, styling, text, and fonts.
+<code>IVG-2</code> extends the format with raster image support through
+<code>define image</code> and <code>IMAGE</code>.</p>
+<p>The interpreter processes both versions identically, but readers that only understand
+<code>IVG-1</code> will reject documents marked <code>IVG-2</code>.</p>
 <h2 id="instructions">Instructions</h2>
 <h3 id="ellipse">ELLIPSE</h3>
 <p>The <code>ELLIPSE</code> instruction draws an ellipse or circle shape
@@ -709,7 +716,7 @@ they can be referred to by name and set with the <a
 href="#font"><code>font</code></a> directive, just like embedded
 fonts.</p>
 <p>Example:</p>
-<pre><code>format IVG-1 requires:ImpD-1
+<pre><code>format IVG-2 requires:ImpD-1
 
 // Embed a font called &quot;myEmbeddedFont&quot; with only 3 defined glyphs.
 define font myEmbeddedFont [
@@ -747,7 +754,7 @@ and https://en.wikipedia.org/wiki/Even-odd_rule. The default value is
 <code>non-zero</code>.</p></li>
 </ul>
 <p>Fill rule demonstration:</p>
-<pre><code>format IVG-1 requires:ImpD-1
+<pre><code>format IVG-2 requires:ImpD-1
 bounds 0,0,350,230
 
 // Setup style.
@@ -847,7 +854,7 @@ transparency.</p>
 <p>Initially, the pen (and font outline) is set to <code>none</code>,
 and the fill (and font color) to <code>#FF</code> (fully opaque).</p>
 <p>Demonstration:</p>
-<pre><code>format IVG-1 requires:ImpD-1
+<pre><code>format IVG-2 requires:ImpD-1
 bounds 0,0,310,320
 
 // Make a rotated striped background.
@@ -1307,7 +1314,7 @@ transparency and 1 is full opacity. Alternatively, you can use
 hexadecimal values <code>#00</code> to <code>#FF</code>.</p></li>
 </ul>
 <p>Demonstration:</p>
-<pre><code>format IVG-1 requires:ImpD-1
+<pre><code>format IVG-2 requires:ImpD-1
 bounds 0,0,400,300
 
 // Light gray background.
@@ -1387,7 +1394,7 @@ the transformation. By default, the anchor point is the origin
 (0,0).</p></li>
 </ul>
 <p>Demonstration:</p>
-<pre><code>format IVG-1 requires:ImpD-1
+<pre><code>format IVG-2 requires:ImpD-1
 bounds 0,0,310,240
 
 wipe #403020
