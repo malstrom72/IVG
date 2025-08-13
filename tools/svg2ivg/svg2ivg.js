@@ -149,6 +149,8 @@ function convertPaint(sourcePaint) {
 const definitions = {};
 let viewportWidth = 100;
 let viewportHeight = 100;
+let defaultWidth = 800;
+let defaultHeight = 800;
 
 function convertUnits(value, axis) {
 	const str = value.trim().toLowerCase();
@@ -450,19 +452,20 @@ function registerDefinition(element) {
 const converters = {};
 let firstSVG = true;
 
+
 converters.svg = function(element, attribs) {
 	let width, height;
 	if ('width' in attribs) {
 		width = convertUnits(attribs.width, 'x');
 	} else {
-		warning("Missing 'width' attribute. Assuming a width of 800.");
-		width = 800;
+		warning(`Missing 'width' attribute. Assuming a width of ${defaultWidth}.`);
+		width = defaultWidth;
 	}
 	if ('height' in attribs) {
 		height = convertUnits(attribs.height, 'y');
 	} else {
-		warning("Missing 'height' attribute. Assuming a height of 800.");
-		height = 800;
+		warning(`Missing 'height' attribute. Assuming a height of ${defaultHeight}.`);
+		height = defaultHeight;
 	}
 	viewportWidth = width;
 	viewportHeight = height;
@@ -879,11 +882,30 @@ function parseXML(src) {
 
 const args = process.argv.slice(2);
 if (args.length < 1) {
-	console.error('Usage: node svg2ivg.js input.svg [output.ivg]');
+	console.error('Usage: node svg2ivg.js input.svg [output.ivg] [defaultWidth,defaultHeight]');
 	process.exit(1);
 }
 const svgPath = args[0];
-const ivgPath = args[1];
+let ivgPath;
+let defaultDimArg;
+if (args[1]) {
+	if (args[1].includes(',')) {
+		defaultDimArg = args[1];
+	} else {
+		ivgPath = args[1];
+		defaultDimArg = args[2];
+	}
+}
+if (defaultDimArg) {
+	const parts = defaultDimArg.split(',');
+	if (parts.length === 2) {
+		defaultWidth = parseFloat(parts[0]);
+		defaultHeight = parseFloat(parts[1]);
+	} else {
+		console.error('Invalid default dimensions: ' + defaultDimArg);
+		process.exit(1);
+	}
+}
 const svgSource = fs.readFileSync(svgPath, 'utf8');
 const svg = parseXML(svgSource);
 
