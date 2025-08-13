@@ -16,7 +16,7 @@ function output(line) {
 	}
 
 function warning(msg) {
-	console.error('Warning! ' + msg);
+console.error('Warning! ' + msg);
 }
 
 function parseRect(str) {
@@ -30,6 +30,10 @@ function parseRect(str) {
 		width: parseFloat(nums[2]),
 		height: parseFloat(nums[3])
 	};
+}
+
+function quoteIMPD(value) {
+	return /^[A-Za-z0-9_-]+$/.test(value) ? value : `[${value.replace(/]/g, '\\]')}]`;
 }
 
 function checkRequiredAttributes(attribs, ...names) {
@@ -650,7 +654,7 @@ converters.text = function(element, attribs) {
 	if ('fill-opacity' in attribs) {
 		fillOpacity *= convertOpacity(attribs['fill-opacity']);
 	}
-	let fontCmd = `font ${fontName} size:${size} color:${fillPaint.paint}`;
+	let fontCmd = `font ${quoteIMPD(fontName)} size:${size} color:${fillPaint.paint}`;
 	if (fillOpacity !== 1) {
 		fontCmd += ` opacity:${fillOpacity}`;
 	}
