@@ -36,35 +36,35 @@ using namespace IMPD;
 using namespace NuXPixels;
 
 class IVGExecutorWithExternalFonts : public IVGExecutor {
-	public:		IVGExecutorWithExternalFonts(Canvas& canvas, const AffineTransformation& xform)
+	public:	IVGExecutorWithExternalFonts(Canvas& canvas, const AffineTransformation& xform)
 					: IVGExecutor(canvas, xform) {
-				}
-				virtual const Font* lookupFont(Interpreter& interpreter
-						, const WideString& fontName) {
-					(void)interpreter;
-					std::pair< FontMap::iterator, bool > insertResult
-							= loadedFonts.insert( std::make_pair(fontName, Font()) );
-					if (insertResult.second) {
-						const std::string fontName8Bit(fontName.begin(), fontName.end());
-						String fontCode;
-						{
-							std::ifstream fileStream((fontName8Bit + ".ivgfont").c_str());
-							if (!fileStream.good()) {
-								return 0;
-							}
-							fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-							const std::istreambuf_iterator<Char> it(fileStream);
-							const std::istreambuf_iterator<Char> end;
-							fontCode = std::string(it, end);
+			}
+			virtual std::vector<const Font*> lookupFonts(Interpreter& interpreter, const WideString& fontName
+					, const UniString& forString) {
+				(void)interpreter;
+				(void)forString;
+				std::pair< FontMap::iterator, bool > insertResult = loadedFonts.insert(std::make_pair(fontName, Font()));
+				if (insertResult.second) {
+					const std::string fontName8Bit(fontName.begin(), fontName.end());
+					String fontCode;
+					{
+						std::ifstream fileStream((fontName8Bit + ".ivgfont").c_str());
+						if (!fileStream.good()) {
+							return std::vector<const Font*>();
 						}
-						FontParser fontParser;
-						STLMapVariables vars;
-						Interpreter impd(fontParser, vars);
-						impd.run(fontCode);
-						insertResult.first->second = fontParser.finalizeFont();
+						fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+						const std::istreambuf_iterator<Char> it(fileStream);
+						const std::istreambuf_iterator<Char> end;
+						fontCode = std::string(it, end);
 					}
-					return &insertResult.first->second;
+					FontParser fontParser;
+					STLMapVariables vars;
+					Interpreter impd(fontParser, vars);
+					impd.run(fontCode);
+					insertResult.first->second = fontParser.finalizeFont();
 				}
+				return std::vector<const Font*>(1, &insertResult.first->second);
+			}
 	protected:	FontMap loadedFonts;
 };
 
