@@ -171,9 +171,10 @@ int main(int argc, const char* argv[]) {
 		IntRect bounds = raster->calcBounds();
 		if (bounds.width <= 0 || bounds.height <= 0) throw std::runtime_error("IVG image is empty");
 
-		if (haveBackground) {
-			(*raster) = Solid<ARGB32>(background) | (*raster);
-		}
+               if (haveBackground) {
+                       SelfContainedRaster<ARGB32> copy(*raster);
+                       (*raster) = Solid<ARGB32>(background) | copy;
+               }
 		std::vector<png_bytep> rowPointers(bounds.height);
 		int imageStride = raster->getStride();
 		ARGB32::Pixel* pixels = raster->getPixelPointer() + bounds.top * imageStride + bounds.left;
