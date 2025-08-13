@@ -45,7 +45,7 @@ This document lists which `externals/resvgTests` files the `tools/svg2ivg/svg2iv
 - painting/stroke-linejoin/arcs.svg
 
 ## Might work
-- text/tspan/tspan-bbox-1.svg
+- text/tspan/tspan-bbox-1.svg – ivg2svg drops nested `tspan` text and falls back to a smaller default font size
 - structure/style-attribute/simple-case.svg
 - painting/stroke-miterlimit/valid-value.svg
 
