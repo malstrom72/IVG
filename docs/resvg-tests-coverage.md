@@ -45,7 +45,8 @@ This document lists which `externals/resvgTests` files the `tools/svg2ivg/svg2iv
 - painting/stroke-linejoin/arcs.svg
 
 ## Might work
-- text/tspan/tspan-bbox-1.svg – ivg2svg drops nested `tspan` text and falls back to a smaller default font size
+- text/tspan/tspan-bbox-1.svg – gradient resets per `<tspan>`, so “long” starts white and ends darker
+	green; matching the SVG requires measuring the full text bounds and using a user-space gradient
 - structure/style-attribute/simple-case.svg
 - painting/stroke-miterlimit/valid-value.svg
 
