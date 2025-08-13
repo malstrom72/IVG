@@ -139,7 +139,14 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 	StringIt e = svgSource.end();
 	Vertex quadraticReflectionPoint;
 	Vertex cubicReflectionPoint;
-	
+
+	p = eatSpace(p, e);
+	if (p == e) return true;
+	if (*p != 'M' && *p != 'm') {
+		errorString = "SVG path must begin with 'M'";
+		return false;
+	}
+
 	while (p != e) {
 		p = eatSpace(p, e);
 		if (p != e) {
