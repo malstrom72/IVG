@@ -3,6 +3,7 @@
 ## Table of Contents
 
 -   [Intro](#intro)
+-   [IVG-1 vs IVG-2](#ivg-1-vs-ivg-2)
 -   [Instructions](#instructions)
     -   [ELLIPSE](#ellipse)
     -   [IMAGE](#image)
@@ -85,6 +86,14 @@ The _ImpD format_ used in this documentation is `IVG-2`. Therefore, the `format`
 
 Notice that _ImpD_ is case-insensitive, but in this document, we follow a convention where we have written "directives"
 (defining settings, etc.) in lowercase and drawing instructions in uppercase.
+
+## IVG-1 vs IVG-2
+
+`IVG-1` covers core vector drawing, styling, text, and fonts.
+`IVG-2` extends the format with raster image support through `define image` and `IMAGE`.
+
+The interpreter processes both versions identically, but readers that only understand `IVG-1`
+will reject documents marked `IVG-2`.
 
 ## Instructions
 
@@ -533,7 +542,7 @@ application, as they can be referred to by name and set with the [`font`](#font)
 
 Example:
 
-    format IVG-1 requires:ImpD-1
+    format IVG-2 requires:ImpD-1
     
     // Embed a font called "myEmbeddedFont" with only 3 defined glyphs.
     define font myEmbeddedFont [
@@ -571,7 +580,7 @@ The fill directive sets the fill style for subsequent drawing operations in the 
 
 Fill rule demonstration:
 
-    format IVG-1 requires:ImpD-1
+    format IVG-2 requires:ImpD-1
     bounds 0,0,350,230
     
     // Setup style.
@@ -666,7 +675,7 @@ Initially, the pen (and font outline) is set to `none`, and the fill (and font c
 
 Demonstration:
 
-    format IVG-1 requires:ImpD-1
+    format IVG-2 requires:ImpD-1
     bounds 0,0,310,320
     
     // Make a rotated striped background.
@@ -1106,7 +1115,7 @@ look like. You can select a solid color, a gradient of colors, or a pattern.
 
 Demonstration:
 
-    format IVG-1 requires:ImpD-1
+    format IVG-2 requires:ImpD-1
     bounds 0,0,400,300
     
     // Light gray background.
@@ -1176,7 +1185,7 @@ The syntax for specifying a transformation is as follows:
 
 Demonstration:
 
-    format IVG-1 requires:ImpD-1
+    format IVG-2 requires:ImpD-1
     bounds 0,0,310,240
     
     wipe #403020
