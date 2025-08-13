@@ -717,43 +717,47 @@ converters.text = function(element, attribs) {
     switch (attribs['text-anchor']) {
     case 'middle': anchor = ' anchor:center'; break;
     case 'end': anchor = ' anchor:right'; break;
-    }
-  }
-  let needAt = true;
-  for (const seg of segments) {
-    const key = JSON.stringify(seg.attribs);
-    if (key !== fontKey) {
-      let fontCmd = `font ${quoteIMPD(seg.attribs.fontName)} size:${seg.attribs.size} color:${seg.attribs.fill}`;
-      if (seg.attribs.fillOpacity !== 1) {
-        fontCmd += ` opacity:${seg.attribs.fillOpacity}`;
-      }
-      if (seg.attribs.stroke) {
-        let outline = seg.attribs.stroke;
-        let opts = '';
-        if (seg.attribs.strokeWidth) {
-          opts += ` width:${seg.attribs.strokeWidth}`;
-        }
-        if (seg.attribs.strokeJoin) {
-          opts += ` joints:${seg.attribs.strokeJoin}`;
-        }
-        if (seg.attribs.strokeCap) {
-          opts += ` caps:${seg.attribs.strokeCap}`;
-        }
-        if (seg.attribs.strokeOpacity && seg.attribs.strokeOpacity !== 1) {
-          opts += ` opacity:${seg.attribs.strokeOpacity}`;
-        }
-        if (seg.attribs.strokeMiter) {
-          opts += ` miter:${seg.attribs.strokeMiter}`;
-        }
-        if (opts) {
-          fontCmd += ` outline:[${outline}${opts}]`;
-        } else {
-          fontCmd += ` outline:${outline}`;
-        }
-      }
-      output(fontCmd);
-      fontKey = key;
-    }
+		}
+	}
+	let needAt = true;
+	for (const seg of segments) {
+			const key = JSON.stringify(seg.attribs);
+			if (key !== fontKey) {
+				let color = seg.attribs.fill;
+				if (/[:\s]/.test(color) && color !== 'none') {
+					color = `[${color}]`;
+				}
+				let fontCmd = `font ${quoteIMPD(seg.attribs.fontName)} size:${seg.attribs.size} color:${color}`;
+				if (seg.attribs.fillOpacity !== 1) {
+					fontCmd += ` opacity:${seg.attribs.fillOpacity}`;
+				}
+				if (seg.attribs.stroke) {
+					let outline = seg.attribs.stroke;
+					let opts = '';
+					if (seg.attribs.strokeWidth) {
+						opts += ` width:${seg.attribs.strokeWidth}`;
+					}
+					if (seg.attribs.strokeJoin) {
+						opts += ` joints:${seg.attribs.strokeJoin}`;
+					}
+					if (seg.attribs.strokeCap) {
+						opts += ` caps:${seg.attribs.strokeCap}`;
+					}
+					if (seg.attribs.strokeOpacity && seg.attribs.strokeOpacity !== 1) {
+						opts += ` opacity:${seg.attribs.strokeOpacity}`;
+					}
+					if (seg.attribs.strokeMiter) {
+						opts += ` miter:${seg.attribs.strokeMiter}`;
+					}
+					if (opts || /[:\s]/.test(outline)) {
+						fontCmd += ` outline:[${outline}${opts}]`;
+					} else {
+						fontCmd += ` outline:${outline}`;
+					}
+				}
+				output(fontCmd);
+				fontKey = key;
+			}
     const t = seg.text.replace(/"/g, '\\"');
     if (needAt) {
       output(`TEXT at:${x},${y}${anchor} "${t}"`);
