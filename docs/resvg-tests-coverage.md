@@ -30,9 +30,9 @@ This document lists which `externals/resvgTests` files the `tools/svg2ivg/svg2iv
 - text/text-anchor/middle-on-text.svg
 - painting/visibility/hidden-on-shape.svg
 - masking/clipPath/clip-path-with-transform.svg
+- masking/mask/simple-case.svg
 
 ## Should not work
-- masking/mask/simple-case.svg
 - structure/a/on-shape.svg
 - structure/image/with-transform.svg
 - structure/style/type-selector.svg
@@ -52,7 +52,6 @@ This document lists which `externals/resvgTests` files the `tools/svg2ivg/svg2iv
 - painting/stroke-miterlimit/valid-value.svg
 
 ## Should work with fixes
-- mask elements
 - image elements
 - symbol definitions
 - link (`a`) elements treated as groups

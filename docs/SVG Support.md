@@ -10,6 +10,7 @@
 -   Gradient fills and strokes via `linearGradient` and `radialGradient` definitions referenced with `url(#id)`, including `gradientTransform`.
 -   Pattern fills and strokes via `pattern` definitions referenced with `url(#id)`.
 -   Clipping paths via `clipPath` definitions referenced with `clip-path`.
+-   Masking via `mask` definitions referenced with `mask`.
 -   Basic `text` elements (`x`, `y`, `font-size`, `font-family`, `text-anchor`, `fill`, `stroke`).
 -   Reuse via `defs`/`use` elements.
 
@@ -37,7 +38,7 @@
 
 ## Unsupported or Partial Features
 
--   Additional SVG elements (`image`, `mask`, etc.).
+-   Additional SVG elements (`image`, etc.).
 -   `preserveAspectRatio` handling.
 -   Presentation attributes such as `style`/`class` based styling.
 -   Color functions like `rgb()`.

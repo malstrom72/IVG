@@ -415,23 +415,23 @@ function buildGradient(g) {
 }
 
 function buildPattern(p) {
- 			let s = `pattern:[bounds 0,0,${p.width},${p.height}`;
- 			if (p.body) {
- 							s += '; ' + p.body;
- 			}
- 			s += ']';
- 			const transforms = [];
- 			if (p.x !== 0 || p.y !== 0) {
- 							transforms.push(`offset ${p.x},${p.y}`);
- 			}
- 			if (p.transform) {
- 							transforms.push(transformToCommandString(p.transform));
- 			}
- 			if (transforms.length) {
- 							s += ` transform:[${transforms.join('; ')}]`;
- 			}
- 			if (p.relative) s += ' relative:yes';
- 			return s;
+			let s = `pattern:[bounds 0,0,${p.width},${p.height}`;
+			if (p.body) {
+							s += '; ' + p.body;
+			}
+			s += ']';
+			const transforms = [];
+			if (p.x !== 0 || p.y !== 0) {
+							transforms.push(`offset ${p.x},${p.y}`);
+			}
+			if (p.transform) {
+							transforms.push(transformToCommandString(p.transform));
+			}
+			if (transforms.length) {
+							s += ` transform:[${transforms.join('; ')}]`;
+			}
+			if (p.relative) s += ' relative:yes';
+			return s;
 }
 
 
@@ -537,19 +537,29 @@ function outputPresentationAttributes(attribs) {
 	}
 	let strokeOpacity = baseOpacity;
 	let fillOpacity = baseOpacity;
-	let strokePaint = null;
-	if (hasStroke) {
-		strokePaint = convertPaint(attribs.stroke);
-		strokeOpacity *= strokePaint.opacity;
-	}
+		let strokePaint = null;
+		if (hasStroke) {
+				const s = attribs.stroke.trim();
+				if (s.startsWith('gradient:[') || /^[-+]?\d*\.?\d+(e[-+]?\d+)?$/i.test(s)) {
+						strokePaint = { paint: s, opacity: 1 };
+				} else {
+						strokePaint = convertPaint(s);
+						strokeOpacity *= strokePaint.opacity;
+				}
+		}
 	if ('stroke-opacity' in attribs) {
 		strokeOpacity *= convertOpacity(attribs['stroke-opacity']);
 	}
-	let fillPaint = null;
-	if ('fill' in attribs) {
-		fillPaint = convertPaint(attribs.fill);
-		fillOpacity *= fillPaint.opacity;
-	}
+		let fillPaint = null;
+		if ('fill' in attribs) {
+				const f = attribs.fill.trim();
+				if (f.startsWith('gradient:[') || /^[-+]?\d*\.?\d+(e[-+]?\d+)?$/i.test(f)) {
+						fillPaint = { paint: f, opacity: 1 };
+				} else {
+						fillPaint = convertPaint(f);
+						fillOpacity *= fillPaint.opacity;
+				}
+		}
 	if ('fill-opacity' in attribs) {
 		fillOpacity *= convertOpacity(attribs['fill-opacity']);
 	}
@@ -619,60 +629,153 @@ function gotKnownPresentationAttributes(attribs) {
 }
 
 function parseUrlRef(value) {
-        const m = /^url\(#([^\)]+)\)$/.exec(value.trim());
-        return m ? m[1] : null;
+		const m = /^url\(#([^\)]+)\)$/.exec(value.trim());
+		return m ? m[1] : null;
 }
 
 function outputClipPath(ref, bbox) {
-        const id = parseUrlRef(ref);
-        if (!id || !(id in definitions)) {
-                warning('Unrecognized clip-path reference: ' + ref);
-                return;
-        }
-        const clip = definitions[id];
-        const units = clip.attributes.clipPathUnits || 'userSpaceOnUse';
-        output('mask [');
-        const needsContext = units === 'objectBoundingBox' || 'transform' in clip.attributes;
-        if (needsContext) {
-                output('context [');
-                if (units === 'objectBoundingBox') {
-                        if (bbox) {
-                                output(`offset ${bbox.left},${bbox.top}`);
-                                output(`scale ${bbox.width},${bbox.height}`);
-                        } else {
-                                warning('clipPathUnits="objectBoundingBox" requires known bounds');
-                        }
-                }
-                if ('transform' in clip.attributes) {
-                        outputTransforms(clip.attributes.transform);
-                }
-        }
-        for (const item of clip.contents || []) {
-                if (!item.element) continue;
-                const child = JSON.parse(JSON.stringify(item.element));
-                child.attributes = child.attributes || {};
-                if (!('fill' in child.attributes)) child.attributes.fill = '#fff';
-                child.attributes.stroke = 'none';
-                delete child.attributes['clip-path'];
-                convertSVGElement(child);
-        }
-        if (needsContext) output(']');
-        output(']');
+		const id = parseUrlRef(ref);
+		if (!id || !(id in definitions)) {
+				warning('Unrecognized clip-path reference: ' + ref);
+				return;
+		}
+		const clip = definitions[id];
+		const units = clip.attributes.clipPathUnits || 'userSpaceOnUse';
+		output('mask [');
+		const needsContext = units === 'objectBoundingBox' || 'transform' in clip.attributes;
+		if (needsContext) {
+				output('context [');
+				if (units === 'objectBoundingBox') {
+						if (bbox) {
+								output(`offset ${bbox.left},${bbox.top}`);
+								output(`scale ${bbox.width},${bbox.height}`);
+						} else {
+								warning('clipPathUnits="objectBoundingBox" requires known bounds');
+						}
+				}
+				if ('transform' in clip.attributes) {
+						outputTransforms(clip.attributes.transform);
+				}
+		}
+		for (const item of clip.contents || []) {
+				if (!item.element) continue;
+				const child = JSON.parse(JSON.stringify(item.element));
+				child.attributes = child.attributes || {};
+				child.attributes.fill = '1';
+				child.attributes.stroke = '0';
+				delete child.attributes['clip-path'];
+				convertSVGElement(child);
+		}
+		if (needsContext) output(']');
+		output(']');
+}
+
+function colorToMask(color) {
+		color = color.toLowerCase();
+		if (color in BASIC_COLORS) color = BASIC_COLORS[color];
+		if (color in SVG_COLORS) color = SVG_COLORS[color];
+		let r = 0, g = 0, b = 0, a = 1;
+		if (color.startsWith('#')) {
+				if (color.length === 7) {
+						r = parseInt(color.slice(1, 3), 16) / 255;
+						g = parseInt(color.slice(3, 5), 16) / 255;
+						b = parseInt(color.slice(5, 7), 16) / 255;
+				} else if (color.length === 9) {
+						r = parseInt(color.slice(1, 3), 16) / 255;
+						g = parseInt(color.slice(3, 5), 16) / 255;
+						b = parseInt(color.slice(5, 7), 16) / 255;
+						a = parseInt(color.slice(7, 9), 16) / 255;
+				}
+		} else if (color.startsWith('rgb(')) {
+				const nums = color.slice(4, -1).split(',').map(parseFloat);
+				r = nums[0];
+				g = nums[1];
+				b = nums[2];
+				if (nums.length > 3) a = nums[3];
+		} else {
+				throw new Error('Unsupported mask color: ' + color);
+		}
+		const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+		return formatFloat(lum * a);
+}
+
+function buildGradientMask(g) {
+		const clone = JSON.parse(JSON.stringify(g));
+		const stops = clone.stops.map(st => ({ offset: st.offset, color: colorToMask(st.color) }));
+		clone.stops = stops;
+		return buildGradient(clone);
+}
+
+function convertMaskPaint(sourcePaint) {
+		sourcePaint = sourcePaint.trim();
+		if (sourcePaint.startsWith('url(')) {
+				const id = parseUrlRef(sourcePaint);
+				if (id && (id in gradients)) {
+						return buildGradientMask(gradients[id]);
+				}
+				throw new Error('Unrecognized mask paint reference: ' + sourcePaint);
+		}
+		const p = convertPaint(sourcePaint);
+		return formatFloat(parseFloat(colorToMask(p.paint)) * p.opacity);
+}
+
+function outputMask(ref, bbox) {
+		const id = parseUrlRef(ref);
+		if (!id || !(id in definitions)) {
+				warning('Unrecognized mask reference: ' + ref);
+				return;
+		}
+		const mask = definitions[id];
+		const units = mask.attributes.maskContentUnits || 'userSpaceOnUse';
+		output('mask [');
+		const needsContext = units === 'objectBoundingBox';
+		if (needsContext) {
+				if (bbox) {
+						output('context [');
+						output(`offset ${bbox.left},${bbox.top}`);
+						output(`scale ${bbox.width},${bbox.height}`);
+				} else {
+						warning('maskContentUnits="objectBoundingBox" requires known bounds');
+				}
+		}
+		for (const item of mask.contents || []) {
+				if (!item.element) continue;
+				const child = JSON.parse(JSON.stringify(item.element));
+				child.attributes = child.attributes || {};
+				if (!('fill' in child.attributes)) {
+						child.attributes.fill = '1';
+				} else {
+						child.attributes.fill = convertMaskPaint(child.attributes.fill);
+				}
+				if ('stroke' in child.attributes) {
+						child.attributes.stroke = convertMaskPaint(child.attributes.stroke);
+				} else {
+						child.attributes.stroke = '0';
+				}
+				delete child.attributes.mask;
+				delete child.attributes['clip-path'];
+				convertSVGElement(child);
+		}
+		if (needsContext) output(']');
+		output(']');
 }
 
 function createContextMaybe(attribs, bbox) {
-        const needs = gotKnownPresentationAttributes(attribs) || 'transform' in attribs || 'clip-path' in attribs;
-        if (needs) {
-                output('context [');
-                if ('transform' in attribs) {
-                        outputTransforms(attribs.transform);
-                }
-                outputPresentationAttributes(attribs);
-                if ('clip-path' in attribs) {
-                        outputClipPath(attribs['clip-path'], bbox);
-                }
-        }
-        return needs;
+		const needs = gotKnownPresentationAttributes(attribs) || 'transform' in attribs || 'clip-path' in attribs || 'mask' in attribs;
+		if (needs) {
+				output('context [');
+				if ('transform' in attribs) {
+						outputTransforms(attribs.transform);
+				}
+				outputPresentationAttributes(attribs);
+				if ('clip-path' in attribs) {
+						outputClipPath(attribs['clip-path'], bbox);
+				}
+				if ('mask' in attribs) {
+						outputMask(attribs.mask, bbox);
+				}
+		}
+		return needs;
 }
 
 function registerDefinition(element) {
@@ -751,126 +854,126 @@ converters.path = function(element, attribs) {
 };
 
 converters.circle = function(element, attribs) {
-        checkRequiredAttributes(attribs, 'cx', 'cy', 'r');
-        const cx = convertUnits(attribs.cx, 'x');
-        const cy = convertUnits(attribs.cy, 'y');
-        const r = convertUnits(attribs.r, 'x');
-        const bbox = { left: cx - r, top: cy - r, width: r * 2, height: r * 2 };
-        const separate = createContextMaybe(attribs, bbox);
-        output(`ellipse ${cx},${cy},${r}`);
-        if (separate) output(']');
+		checkRequiredAttributes(attribs, 'cx', 'cy', 'r');
+		const cx = convertUnits(attribs.cx, 'x');
+		const cy = convertUnits(attribs.cy, 'y');
+		const r = convertUnits(attribs.r, 'x');
+		const bbox = { left: cx - r, top: cy - r, width: r * 2, height: r * 2 };
+		const separate = createContextMaybe(attribs, bbox);
+		output(`ellipse ${cx},${cy},${r}`);
+		if (separate) output(']');
 };
 
 converters.ellipse = function(element, attribs) {
-        checkRequiredAttributes(attribs, 'cx', 'cy', 'rx', 'ry');
-        const cx = convertUnits(attribs.cx, 'x');
-        const cy = convertUnits(attribs.cy, 'y');
-        const rx = convertUnits(attribs.rx, 'x');
-        const ry = convertUnits(attribs.ry, 'y');
-        const bbox = { left: cx - rx, top: cy - ry, width: rx * 2, height: ry * 2 };
-        const separate = createContextMaybe(attribs, bbox);
-        output(`ellipse ${cx},${cy},${rx},${ry}`);
-        if (separate) output(']');
+		checkRequiredAttributes(attribs, 'cx', 'cy', 'rx', 'ry');
+		const cx = convertUnits(attribs.cx, 'x');
+		const cy = convertUnits(attribs.cy, 'y');
+		const rx = convertUnits(attribs.rx, 'x');
+		const ry = convertUnits(attribs.ry, 'y');
+		const bbox = { left: cx - rx, top: cy - ry, width: rx * 2, height: ry * 2 };
+		const separate = createContextMaybe(attribs, bbox);
+		output(`ellipse ${cx},${cy},${rx},${ry}`);
+		if (separate) output(']');
 };
 
 converters.line = function(element, attribs) {
-        checkRequiredAttributes(attribs, 'x1', 'y1', 'x2', 'y2');
-        const x1 = convertUnits(attribs.x1, 'x');
-        const y1 = convertUnits(attribs.y1, 'y');
-        const x2 = convertUnits(attribs.x2, 'x');
-        const y2 = convertUnits(attribs.y2, 'y');
-        const bbox = {
-                left: Math.min(x1, x2),
-                top: Math.min(y1, y2),
-                width: Math.abs(x2 - x1),
-                height: Math.abs(y2 - y1)
-        };
-        const separate = createContextMaybe(attribs, bbox);
-        output(`path svg:[M${x1},${y1}L${x2},${y2}]`);
-        if (separate) output(']');
+		checkRequiredAttributes(attribs, 'x1', 'y1', 'x2', 'y2');
+		const x1 = convertUnits(attribs.x1, 'x');
+		const y1 = convertUnits(attribs.y1, 'y');
+		const x2 = convertUnits(attribs.x2, 'x');
+		const y2 = convertUnits(attribs.y2, 'y');
+		const bbox = {
+				left: Math.min(x1, x2),
+				top: Math.min(y1, y2),
+				width: Math.abs(x2 - x1),
+				height: Math.abs(y2 - y1)
+		};
+		const separate = createContextMaybe(attribs, bbox);
+		output(`path svg:[M${x1},${y1}L${x2},${y2}]`);
+		if (separate) output(']');
 };
 
 converters.rect = function(element, attribs) {
-        checkRequiredAttributes(attribs, 'x', 'y', 'width', 'height');
-        const x = convertUnits(attribs.x, 'x');
-        const y = convertUnits(attribs.y, 'y');
-        const w = convertUnits(attribs.width, 'x');
-        const h = convertUnits(attribs.height, 'y');
-        const bbox = { left: x, top: y, width: w, height: h };
-        const separate = createContextMaybe(attribs, bbox);
-        let s = `rect ${x},${y},${w},${h}`;
-        const hasRX = 'rx' in attribs;
-        const hasRY = 'ry' in attribs;
-        if (hasRX && hasRY) {
-                s += ` rounded:${convertUnits(attribs.rx, 'x')},${convertUnits(attribs.ry, 'y')}`;
-        } else if (hasRX) {
-                s += ` rounded:${convertUnits(attribs.rx, 'x')}`;
-        } else if (hasRY) {
-                s += ` rounded:${convertUnits(attribs.ry, 'y')}`;
-        }
-        output(s);
-        if (separate) output(']');
+		checkRequiredAttributes(attribs, 'x', 'y', 'width', 'height');
+		const x = convertUnits(attribs.x, 'x');
+		const y = convertUnits(attribs.y, 'y');
+		const w = convertUnits(attribs.width, 'x');
+		const h = convertUnits(attribs.height, 'y');
+		const bbox = { left: x, top: y, width: w, height: h };
+		const separate = createContextMaybe(attribs, bbox);
+		let s = `rect ${x},${y},${w},${h}`;
+		const hasRX = 'rx' in attribs;
+		const hasRY = 'ry' in attribs;
+		if (hasRX && hasRY) {
+				s += ` rounded:${convertUnits(attribs.rx, 'x')},${convertUnits(attribs.ry, 'y')}`;
+		} else if (hasRX) {
+				s += ` rounded:${convertUnits(attribs.rx, 'x')}`;
+		} else if (hasRY) {
+				s += ` rounded:${convertUnits(attribs.ry, 'y')}`;
+		}
+		output(s);
+		if (separate) output(']');
 };
 
 converters.polygon = function(element, attribs) {
-        checkRequiredAttributes(attribs, 'points');
-        const pts = parsePoints(attribs.points);
-        let bbox = null;
-        if (pts.length >= 1) {
-                let minX = pts[0][0];
-                let minY = pts[0][1];
-                let maxX = pts[0][0];
-                let maxY = pts[0][1];
-                for (let i = 1; i < pts.length; i++) {
-                        minX = Math.min(minX, pts[i][0]);
-                        minY = Math.min(minY, pts[i][1]);
-                        maxX = Math.max(maxX, pts[i][0]);
-                        maxY = Math.max(maxY, pts[i][1]);
-                }
-                bbox = { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
-        }
-        const separate = createContextMaybe(attribs, bbox);
-        if (pts.length < 2) {
-                warning("Not enough points in 'polygon'.");
-        } else {
-                let s = `M${pts[0][0]},${pts[0][1]}`;
-                for (let i = 1; i < pts.length; i++) {
-                        s += `L${pts[i][0]},${pts[i][1]}`;
-                }
-                s += 'Z';
-                output('path svg:[' + s + ']');
-        }
-        if (separate) output(']');
+		checkRequiredAttributes(attribs, 'points');
+		const pts = parsePoints(attribs.points);
+		let bbox = null;
+		if (pts.length >= 1) {
+				let minX = pts[0][0];
+				let minY = pts[0][1];
+				let maxX = pts[0][0];
+				let maxY = pts[0][1];
+				for (let i = 1; i < pts.length; i++) {
+						minX = Math.min(minX, pts[i][0]);
+						minY = Math.min(minY, pts[i][1]);
+						maxX = Math.max(maxX, pts[i][0]);
+						maxY = Math.max(maxY, pts[i][1]);
+				}
+				bbox = { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
+		}
+		const separate = createContextMaybe(attribs, bbox);
+		if (pts.length < 2) {
+				warning("Not enough points in 'polygon'.");
+		} else {
+				let s = `M${pts[0][0]},${pts[0][1]}`;
+				for (let i = 1; i < pts.length; i++) {
+						s += `L${pts[i][0]},${pts[i][1]}`;
+				}
+				s += 'Z';
+				output('path svg:[' + s + ']');
+		}
+		if (separate) output(']');
 };
 
 converters.polyline = function(element, attribs) {
-        checkRequiredAttributes(attribs, 'points');
-        const pts = parsePoints(attribs.points);
-        let bbox = null;
-        if (pts.length >= 1) {
-                let minX = pts[0][0];
-                let minY = pts[0][1];
-                let maxX = pts[0][0];
-                let maxY = pts[0][1];
-                for (let i = 1; i < pts.length; i++) {
-                        minX = Math.min(minX, pts[i][0]);
-                        minY = Math.min(minY, pts[i][1]);
-                        maxX = Math.max(maxX, pts[i][0]);
-                        maxY = Math.max(maxY, pts[i][1]);
-                }
-                bbox = { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
-        }
-        const separate = createContextMaybe(attribs, bbox);
-        if (pts.length < 2) {
-                warning("Not enough points in 'polyline'.");
-        } else {
-                let s = `M${pts[0][0]},${pts[0][1]}`;
-                for (let i = 1; i < pts.length; i++) {
-                        s += `L${pts[i][0]},${pts[i][1]}`;
-                }
-                output('path svg:[' + s + ']');
-        }
-        if (separate) output(']');
+		checkRequiredAttributes(attribs, 'points');
+		const pts = parsePoints(attribs.points);
+		let bbox = null;
+		if (pts.length >= 1) {
+				let minX = pts[0][0];
+				let minY = pts[0][1];
+				let maxX = pts[0][0];
+				let maxY = pts[0][1];
+				for (let i = 1; i < pts.length; i++) {
+						minX = Math.min(minX, pts[i][0]);
+						minY = Math.min(minY, pts[i][1]);
+						maxX = Math.max(maxX, pts[i][0]);
+						maxY = Math.max(maxY, pts[i][1]);
+				}
+				bbox = { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
+		}
+		const separate = createContextMaybe(attribs, bbox);
+		if (pts.length < 2) {
+				warning("Not enough points in 'polyline'.");
+		} else {
+				let s = `M${pts[0][0]},${pts[0][1]}`;
+				for (let i = 1; i < pts.length; i++) {
+						s += `L${pts[i][0]},${pts[i][1]}`;
+				}
+				output('path svg:[' + s + ']');
+		}
+		if (separate) output(']');
 };
 
 function applyTextAttributes(base, attribs) {
@@ -1103,6 +1206,8 @@ converters.use = function(element, attribs) {
 
 converters.clipPath = function() { };
 
+converters.mask = function() { };
+
 converters.linearGradient = function(element, attribs) {
 	if (!('id' in attribs)) {
 		warning("Missing 'id' in linearGradient");
@@ -1143,35 +1248,35 @@ converters.radialGradient = function(element, attribs) {
 };
 
 converters.pattern = function(element, attribs) {
- 			if (!('id' in attribs)) {
- 							warning("Missing 'id' in pattern");
- 							return;
- 			}
- 			if (!('width' in attribs) || !('height' in attribs)) {
- 							warning("Missing 'width' or 'height' in pattern");
- 							return;
- 			}
- 			const p = {
- 							x: convertUnits(attribs.x || '0', 'x'),
- 							y: convertUnits(attribs.y || '0', 'y'),
- 							width: convertUnits(attribs.width, 'x'),
- 							height: convertUnits(attribs.height, 'y'),
- 							relative: attribs.patternUnits !== 'userSpaceOnUse'
- 			};
- 			if ('patternTransform' in attribs) {
- 							p.transform = attribs.patternTransform;
- 			}
- 			const savedOut = outputString;
- 			const savedIndent = indent;
- 			outputString = '';
- 			indent = 0;
- 			for (const item of element.contents || []) {
- 							if (item.element) convertSVGElement(item.element);
- 			}
- 			p.body = outputString.trim().split('\n').map(s => s.trim()).filter(Boolean).join('; ');
- 			outputString = savedOut;
- 			indent = savedIndent;
- 			patterns[attribs.id] = p;
+			if (!('id' in attribs)) {
+							warning("Missing 'id' in pattern");
+							return;
+			}
+			if (!('width' in attribs) || !('height' in attribs)) {
+							warning("Missing 'width' or 'height' in pattern");
+							return;
+			}
+			const p = {
+							x: convertUnits(attribs.x || '0', 'x'),
+							y: convertUnits(attribs.y || '0', 'y'),
+							width: convertUnits(attribs.width, 'x'),
+							height: convertUnits(attribs.height, 'y'),
+							relative: attribs.patternUnits !== 'userSpaceOnUse'
+			};
+			if ('patternTransform' in attribs) {
+							p.transform = attribs.patternTransform;
+			}
+			const savedOut = outputString;
+			const savedIndent = indent;
+			outputString = '';
+			indent = 0;
+			for (const item of element.contents || []) {
+							if (item.element) convertSVGElement(item.element);
+			}
+			p.body = outputString.trim().split('\n').map(s => s.trim()).filter(Boolean).join('; ');
+			outputString = savedOut;
+			indent = savedIndent;
+			patterns[attribs.id] = p;
 };
 
 function convertSVGElement(element) {
