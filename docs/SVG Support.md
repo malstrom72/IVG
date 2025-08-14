@@ -8,6 +8,9 @@
 -   `g` groups, emitted as `context` blocks to propagate presentation attributes.
 -   Shapes: `path` (`d`), `circle` (`cx`, `cy`, `r`), `ellipse` (`cx`, `cy`, `rx`, `ry`), `line` (`x1`, `y1`, `x2`, `y2` as a path), `rect` (`x`, `y`, `width`, `height`, optional `rx`/`ry` rounded corners), `polygon` (`points`), and `polyline` (`points`).
 -   Gradient fills and strokes via `linearGradient` and `radialGradient` definitions referenced with `url(#id)`, including `gradientTransform`.
+-   Pattern fills and strokes via `pattern` definitions referenced with `url(#id)`.
+-   Clipping paths via `clipPath` definitions referenced with `clip-path`.
+-   Masking via `mask` definitions referenced with `mask`.
 -   Basic `text` elements (`x`, `y`, `font-size`, `font-family`, `text-anchor`, `fill`, `stroke`).
 -   Reuse via `defs`/`use` elements.
 
@@ -17,10 +20,10 @@
 
 ### Presentation Attributes
 
--   `stroke`, `stroke-width`, `stroke-linejoin`, `stroke-linecap`, `stroke-miterlimit`, `fill`.
--   `stroke-linejoin` values: `bevel`, `round`, `miter`, `miter-clip`, `arcs`.
+    -   `stroke`, `stroke-width`, `stroke-linejoin`, `stroke-linecap`, `stroke-miterlimit`, `stroke-dasharray`, `stroke-dashoffset`, `fill`.
+-   `stroke-linejoin` values: `bevel`, `round`, `miter`, `miter-clip`.
 -   `stroke-linecap` values: `butt`, `round`, `square`.
--   `opacity`, `stroke-opacity`, `fill-opacity`.
+-   `opacity`, `stroke-opacity`, `fill-opacity`, `visibility`.
 
 ### Transforms
 
@@ -35,10 +38,11 @@
 
 ## Unsupported or Partial Features
 
--   Additional SVG elements (`image`, `clipPath`, `mask`, etc.).
+-   Additional SVG elements (`image`, etc.).
 -   `preserveAspectRatio` handling.
--   Presentation attributes such as `stroke-dasharray`, `stroke-dashoffset`, or `style`/`class` based styling.
--   Color functions like `rgb()` or pattern fills.
+-   Presentation attributes such as `style`/`class` based styling.
+-   Color functions like `rgb()`.
+-   `stroke-linejoin="arcs"` (undefined in SVG 1.x).
 -   Any `viewBox` behavior beyond a simple uniform scale and top-left offset.
 -   Error recovery for missing attributes—many attributes treated as required even though the SVG spec provides defaults.
 

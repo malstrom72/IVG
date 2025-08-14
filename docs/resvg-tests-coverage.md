@@ -15,23 +15,24 @@ This document lists which `externals/resvgTests` files the `tools/svg2ivg/svg2iv
 - painting/stroke-linecap/round.svg
 - painting/stroke-opacity/50percent.svg
 - painting/fill-opacity/50percent.svg
+- painting/stroke-dasharray/ws-separator.svg
+- painting/stroke-dashoffset/default.svg
+- painting/stroke/pattern.svg
 - paint-servers/linearGradient/default-attributes.svg
 - paint-servers/radialGradient/default-attributes.svg
 - paint-servers/stop/hsla-color.svg
 - paint-servers/stop-opacity/simple-case.svg
+- paint-servers/pattern/simple-case.svg
 - structure/defs/simple-case.svg
 - structure/g/deeply-nested-groups.svg
 - structure/use/simple-case.svg
 - text/font-size/simple-case.svg
 - text/text-anchor/middle-on-text.svg
-
-## Should not work
-- paint-servers/pattern/simple-case.svg
-- painting/stroke/pattern.svg
-- painting/stroke-dasharray/ws-separator.svg
-- painting/stroke-dashoffset/default.svg
+- painting/visibility/hidden-on-shape.svg
 - masking/clipPath/clip-path-with-transform.svg
 - masking/mask/simple-case.svg
+
+## Should not work
 - structure/a/on-shape.svg
 - structure/image/with-transform.svg
 - structure/style/type-selector.svg
@@ -41,7 +42,6 @@ This document lists which `externals/resvgTests` files the `tools/svg2ivg/svg2iv
 - text/textPath/startOffset=30.svg
 - filters/feGaussianBlur/simple-case.svg
 - filters/feDropShadow/with-offset.svg
-- painting/visibility/hidden-on-shape.svg
 - painting/stroke-linejoin/arcs.svg
 
 ## Might work
@@ -52,15 +52,11 @@ This document lists which `externals/resvgTests` files the `tools/svg2ivg/svg2iv
 - painting/stroke-miterlimit/valid-value.svg
 
 ## Should work with fixes
-- pattern fills and strokes
-- clipping paths via masks
-- mask elements
 - image elements
 - symbol definitions
 - link (`a`) elements treated as groups
 - CSS style elements and style attributes
 - tspan and nested text nodes
-- stroke dash arrays and dash offsets
 
 ## IVG capabilities relevant to unsupported tests
 - Patterns: IVG has a `pattern` paint type
