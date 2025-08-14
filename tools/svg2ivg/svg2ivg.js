@@ -618,16 +618,61 @@ function gotKnownPresentationAttributes(attribs) {
 	return KNOWN_PRESENTATION_ATTRIBUTES.some(attr => attr in attribs);
 }
 
-function createContextMaybe(attribs) {
-	const needs = gotKnownPresentationAttributes(attribs) || 'transform' in attribs;
-	if (needs) {
-		output('context [');
-		if ('transform' in attribs) {
-			outputTransforms(attribs.transform);
-		}
-		outputPresentationAttributes(attribs);
-	}
-	return needs;
+function parseUrlRef(value) {
+        const m = /^url\(#([^\)]+)\)$/.exec(value.trim());
+        return m ? m[1] : null;
+}
+
+function outputClipPath(ref, bbox) {
+        const id = parseUrlRef(ref);
+        if (!id || !(id in definitions)) {
+                warning('Unrecognized clip-path reference: ' + ref);
+                return;
+        }
+        const clip = definitions[id];
+        const units = clip.attributes.clipPathUnits || 'userSpaceOnUse';
+        output('mask [');
+        const needsContext = units === 'objectBoundingBox' || 'transform' in clip.attributes;
+        if (needsContext) {
+                output('context [');
+                if (units === 'objectBoundingBox') {
+                        if (bbox) {
+                                output(`offset ${bbox.left},${bbox.top}`);
+                                output(`scale ${bbox.width},${bbox.height}`);
+                        } else {
+                                warning('clipPathUnits="objectBoundingBox" requires known bounds');
+                        }
+                }
+                if ('transform' in clip.attributes) {
+                        outputTransforms(clip.attributes.transform);
+                }
+        }
+        for (const item of clip.contents || []) {
+                if (!item.element) continue;
+                const child = JSON.parse(JSON.stringify(item.element));
+                child.attributes = child.attributes || {};
+                if (!('fill' in child.attributes)) child.attributes.fill = '#fff';
+                child.attributes.stroke = 'none';
+                delete child.attributes['clip-path'];
+                convertSVGElement(child);
+        }
+        if (needsContext) output(']');
+        output(']');
+}
+
+function createContextMaybe(attribs, bbox) {
+        const needs = gotKnownPresentationAttributes(attribs) || 'transform' in attribs || 'clip-path' in attribs;
+        if (needs) {
+                output('context [');
+                if ('transform' in attribs) {
+                        outputTransforms(attribs.transform);
+                }
+                outputPresentationAttributes(attribs);
+                if ('clip-path' in attribs) {
+                        outputClipPath(attribs['clip-path'], bbox);
+                }
+        }
+        return needs;
 }
 
 function registerDefinition(element) {
@@ -706,74 +751,126 @@ converters.path = function(element, attribs) {
 };
 
 converters.circle = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'cx', 'cy', 'r');
-	output(`ellipse ${convertUnits(attribs.cx, 'x')},${convertUnits(attribs.cy, 'y')},${convertUnits(attribs.r, 'x')}`);
-	if (separate) output(']');
+        checkRequiredAttributes(attribs, 'cx', 'cy', 'r');
+        const cx = convertUnits(attribs.cx, 'x');
+        const cy = convertUnits(attribs.cy, 'y');
+        const r = convertUnits(attribs.r, 'x');
+        const bbox = { left: cx - r, top: cy - r, width: r * 2, height: r * 2 };
+        const separate = createContextMaybe(attribs, bbox);
+        output(`ellipse ${cx},${cy},${r}`);
+        if (separate) output(']');
 };
 
 converters.ellipse = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'cx', 'cy', 'rx', 'ry');
-	output(`ellipse ${convertUnits(attribs.cx, 'x')},${convertUnits(attribs.cy, 'y')},${convertUnits(attribs.rx, 'x')},${convertUnits(attribs.ry, 'y')}`);
-	if (separate) output(']');
+        checkRequiredAttributes(attribs, 'cx', 'cy', 'rx', 'ry');
+        const cx = convertUnits(attribs.cx, 'x');
+        const cy = convertUnits(attribs.cy, 'y');
+        const rx = convertUnits(attribs.rx, 'x');
+        const ry = convertUnits(attribs.ry, 'y');
+        const bbox = { left: cx - rx, top: cy - ry, width: rx * 2, height: ry * 2 };
+        const separate = createContextMaybe(attribs, bbox);
+        output(`ellipse ${cx},${cy},${rx},${ry}`);
+        if (separate) output(']');
 };
 
 converters.line = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'x1', 'y1', 'x2', 'y2');
-	output(`path svg:[M${convertUnits(attribs.x1, 'x')},${convertUnits(attribs.y1, 'y')}L${convertUnits(attribs.x2, 'x')},${convertUnits(attribs.y2, 'y')}]`);
-	if (separate) output(']');
+        checkRequiredAttributes(attribs, 'x1', 'y1', 'x2', 'y2');
+        const x1 = convertUnits(attribs.x1, 'x');
+        const y1 = convertUnits(attribs.y1, 'y');
+        const x2 = convertUnits(attribs.x2, 'x');
+        const y2 = convertUnits(attribs.y2, 'y');
+        const bbox = {
+                left: Math.min(x1, x2),
+                top: Math.min(y1, y2),
+                width: Math.abs(x2 - x1),
+                height: Math.abs(y2 - y1)
+        };
+        const separate = createContextMaybe(attribs, bbox);
+        output(`path svg:[M${x1},${y1}L${x2},${y2}]`);
+        if (separate) output(']');
 };
 
 converters.rect = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'x', 'y', 'width', 'height');
-	let s = `rect ${convertUnits(attribs.x, 'x')},${convertUnits(attribs.y, 'y')},${convertUnits(attribs.width, 'x')},${convertUnits(attribs.height, 'y')}`;
-	const hasRX = 'rx' in attribs;
-	const hasRY = 'ry' in attribs;
-	if (hasRX && hasRY) {
-		s += ` rounded:${convertUnits(attribs.rx, 'x')},${convertUnits(attribs.ry, 'y')}`;
-	} else if (hasRX) {
-		s += ` rounded:${convertUnits(attribs.rx, 'x')}`;
-	} else if (hasRY) {
-		s += ` rounded:${convertUnits(attribs.ry, 'y')}`;
-	}
-	output(s);
-	if (separate) output(']');
+        checkRequiredAttributes(attribs, 'x', 'y', 'width', 'height');
+        const x = convertUnits(attribs.x, 'x');
+        const y = convertUnits(attribs.y, 'y');
+        const w = convertUnits(attribs.width, 'x');
+        const h = convertUnits(attribs.height, 'y');
+        const bbox = { left: x, top: y, width: w, height: h };
+        const separate = createContextMaybe(attribs, bbox);
+        let s = `rect ${x},${y},${w},${h}`;
+        const hasRX = 'rx' in attribs;
+        const hasRY = 'ry' in attribs;
+        if (hasRX && hasRY) {
+                s += ` rounded:${convertUnits(attribs.rx, 'x')},${convertUnits(attribs.ry, 'y')}`;
+        } else if (hasRX) {
+                s += ` rounded:${convertUnits(attribs.rx, 'x')}`;
+        } else if (hasRY) {
+                s += ` rounded:${convertUnits(attribs.ry, 'y')}`;
+        }
+        output(s);
+        if (separate) output(']');
 };
 
 converters.polygon = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'points');
-	const pts = parsePoints(attribs.points);
-	if (pts.length < 2) {
-		warning("Not enough points in 'polygon'.");
-		} else {
-		let s = `M${pts[0][0]},${pts[0][1]}`;
-		for (let i = 1; i < pts.length; i++) {
-			s += `L${pts[i][0]},${pts[i][1]}`;
-		}
-		s += 'Z';
-		output('path svg:[' + s + ']');
-	}
-	if (separate) output(']');
+        checkRequiredAttributes(attribs, 'points');
+        const pts = parsePoints(attribs.points);
+        let bbox = null;
+        if (pts.length >= 1) {
+                let minX = pts[0][0];
+                let minY = pts[0][1];
+                let maxX = pts[0][0];
+                let maxY = pts[0][1];
+                for (let i = 1; i < pts.length; i++) {
+                        minX = Math.min(minX, pts[i][0]);
+                        minY = Math.min(minY, pts[i][1]);
+                        maxX = Math.max(maxX, pts[i][0]);
+                        maxY = Math.max(maxY, pts[i][1]);
+                }
+                bbox = { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
+        }
+        const separate = createContextMaybe(attribs, bbox);
+        if (pts.length < 2) {
+                warning("Not enough points in 'polygon'.");
+        } else {
+                let s = `M${pts[0][0]},${pts[0][1]}`;
+                for (let i = 1; i < pts.length; i++) {
+                        s += `L${pts[i][0]},${pts[i][1]}`;
+                }
+                s += 'Z';
+                output('path svg:[' + s + ']');
+        }
+        if (separate) output(']');
 };
 
 converters.polyline = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'points');
-	const pts = parsePoints(attribs.points);
-	if (pts.length < 2) {
-		warning("Not enough points in 'polyline'.");
-		} else {
-		let s = `M${pts[0][0]},${pts[0][1]}`;
-		for (let i = 1; i < pts.length; i++) {
-			s += `L${pts[i][0]},${pts[i][1]}`;
-		}
-		output('path svg:[' + s + ']');
-	}
-	if (separate) output(']');
+        checkRequiredAttributes(attribs, 'points');
+        const pts = parsePoints(attribs.points);
+        let bbox = null;
+        if (pts.length >= 1) {
+                let minX = pts[0][0];
+                let minY = pts[0][1];
+                let maxX = pts[0][0];
+                let maxY = pts[0][1];
+                for (let i = 1; i < pts.length; i++) {
+                        minX = Math.min(minX, pts[i][0]);
+                        minY = Math.min(minY, pts[i][1]);
+                        maxX = Math.max(maxX, pts[i][0]);
+                        maxY = Math.max(maxY, pts[i][1]);
+                }
+                bbox = { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
+        }
+        const separate = createContextMaybe(attribs, bbox);
+        if (pts.length < 2) {
+                warning("Not enough points in 'polyline'.");
+        } else {
+                let s = `M${pts[0][0]},${pts[0][1]}`;
+                for (let i = 1; i < pts.length; i++) {
+                        s += `L${pts[i][0]},${pts[i][1]}`;
+                }
+                output('path svg:[' + s + ']');
+        }
+        if (separate) output(']');
 };
 
 function applyTextAttributes(base, attribs) {
@@ -1003,6 +1100,8 @@ converters.use = function(element, attribs) {
 		output(']');
 	}
 };
+
+converters.clipPath = function() { };
 
 converters.linearGradient = function(element, attribs) {
 	if (!('id' in attribs)) {
