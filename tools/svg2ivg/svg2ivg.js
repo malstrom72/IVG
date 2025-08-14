@@ -50,6 +50,8 @@ const KNOWN_PRESENTATION_ATTRIBUTES = [
 'stroke-linejoin',
 'stroke-linecap',
 'stroke-miterlimit',
+'stroke-dasharray',
+'stroke-dashoffset',
 'fill',
 'opacity',
 'fill-opacity',
@@ -138,20 +140,24 @@ const SVG_COLORS = {
 };
 
 const BASIC_COLORS = {aqua:'#00ffff', black:'#000000', blue:'#0000ff', fuchsia:'#ff00ff', gray:'#808080', green:'#008000', lime:'#00ff00', maroon:'#800000', navy:'#000080', olive:'#808000', purple:'#800080', red:'#ff0000', silver:'#c0c0c0', teal:'#008080', white:'#ffffff', yellow:'#ffff00'};
-const gradients = {};
+let gradients = {};
+let patterns = {};
 
 function convertPaint(sourcePaint) {
 		sourcePaint = sourcePaint.trim().toLowerCase();
-		if (sourcePaint.startsWith('url(')) {
-				let id = sourcePaint.slice(4, -1).trim();
-				if (id.startsWith('#')) {
-						id = id.slice(1);
-				}
-				if (!(id in gradients)) {
-						throw new Error('Unrecognized paint reference: ' + sourcePaint);
-				}
-				return { paint: buildGradient(gradients[id]), opacity: 1 };
-		}
+								if (sourcePaint.startsWith('url(')) {
+																let id = sourcePaint.slice(4, -1).trim();
+																if (id.startsWith('#')) {
+																								id = id.slice(1);
+																}
+																if (id in gradients) {
+																								return { paint: buildGradient(gradients[id]), opacity: 1 };
+																}
+																if (id in patterns) {
+																								return { paint: buildPattern(patterns[id]), opacity: 1 };
+																}
+																throw new Error('Unrecognized paint reference: ' + sourcePaint);
+								}
 		if (sourcePaint === 'none') {
 				return { paint: 'none', opacity: 1 };
 		}
@@ -244,13 +250,29 @@ function convertPaint(sourcePaint) {
 		throw new Error('Unrecognized color: ' + sourcePaint);
 }
 
-const definitions = {};
+let definitions = {};
 let viewportWidth = 100;
 let viewportHeight = 100;
 let defaultWidth = 800;
 let defaultHeight = 800;
 let defaultFontFamily = 'serif';
 let defaultFontSize = 16;
+let firstSVG = true;
+
+function resetState() {
+	outputString = '';
+	indent = 0;
+	gradients = {};
+	patterns = {};
+	definitions = {};
+	viewportWidth = 100;
+	viewportHeight = 100;
+	defaultWidth = 800;
+	defaultHeight = 800;
+	defaultFontFamily = 'serif';
+	defaultFontSize = 16;
+	firstSVG = true;
+}
 
 function convertUnits(value, axis) {
 	const str = value.trim().toLowerCase();
@@ -294,6 +316,22 @@ function convertOpacity(value) {
 		throw new Error('Invalid opacity: ' + num);
 	}
 	return num;
+}
+
+function parseDashArray(value) {
+	value = value.trim();
+	if (value === '' || value === 'none') {
+		return 'none';
+	}
+	const parts = value.split(/[ ,]+/).filter(p => p.length);
+	if (parts.length === 0) {
+		return 'none';
+	}
+	const nums = parts.map(p => formatFloat(convertUnits(p, 'x')));
+	if (nums.length > 2) {
+		warning('Too many dash values; using first two');
+	}
+	return nums.slice(0, 2).join(',');
 }
 
 function parsePoints(str) {
@@ -372,8 +410,28 @@ function buildGradient(g) {
 		if (g.transform) {
 			s += ` transform:[${transformToCommandString(g.transform)}]`;
 		}
-		if (g.relative) s += ' relative:yes';
-		return s;
+								if (g.relative) s += ' relative:yes';
+								return s;
+}
+
+function buildPattern(p) {
+ 			let s = `pattern:[bounds 0,0,${p.width},${p.height}`;
+ 			if (p.body) {
+ 							s += '; ' + p.body;
+ 			}
+ 			s += ']';
+ 			const transforms = [];
+ 			if (p.x !== 0 || p.y !== 0) {
+ 							transforms.push(`offset ${p.x},${p.y}`);
+ 			}
+ 			if (p.transform) {
+ 							transforms.push(transformToCommandString(p.transform));
+ 			}
+ 			if (transforms.length) {
+ 							s += ` transform:[${transforms.join('; ')}]`;
+ 			}
+ 			if (p.relative) s += ' relative:yes';
+ 			return s;
 }
 
 
@@ -457,11 +515,10 @@ function outputTransforms(str) {
 
 
 const LINEJOINS_TO_JOINTS = {
-	bevel: 'bevel',
-	round: 'curve',
-	miter: 'miter',
-	'miter-clip': 'miter',
-	arcs: 'miter'
+bevel: 'bevel',
+round: 'curve',
+miter: 'miter',
+'miter-clip': 'miter'
 };
 
 const SUPPORTED_LINECAPS = new Set(['butt', 'round', 'square']);
@@ -472,6 +529,8 @@ function outputPresentationAttributes(attribs) {
 	const hasStrokeLineJoin = 'stroke-linejoin' in attribs;
 	const hasStrokeLineCap = 'stroke-linecap' in attribs;
 	const hasStrokeMiterlimit = 'stroke-miterlimit' in attribs;
+	const hasStrokeDasharray = 'stroke-dasharray' in attribs;
+	const hasStrokeDashoffset = 'stroke-dashoffset' in attribs;
 	let baseOpacity = 1.0;
 	if ('opacity' in attribs) {
 		baseOpacity = convertOpacity(attribs.opacity);
@@ -486,24 +545,24 @@ function outputPresentationAttributes(attribs) {
 	if ('stroke-opacity' in attribs) {
 		strokeOpacity *= convertOpacity(attribs['stroke-opacity']);
 	}
-        let fillPaint = null;
-        if ('fill' in attribs) {
-                fillPaint = convertPaint(attribs.fill);
-                fillOpacity *= fillPaint.opacity;
-        }
-        if ('fill-opacity' in attribs) {
-                fillOpacity *= convertOpacity(attribs['fill-opacity']);
-        }
-        let fillRule = null;
-        if ('fill-rule' in attribs) {
-                const fr = attribs['fill-rule'].trim().toLowerCase();
-                if (fr === 'evenodd') {
-                        fillRule = 'even-odd';
-                } else if (fr !== 'nonzero') {
-                        throw new Error('Unrecognized fill-rule: ' + attribs['fill-rule']);
-                }
-        }
-	if (hasStroke || hasStrokeWidth || hasStrokeLineJoin || hasStrokeMiterlimit || strokeOpacity !== 1) {
+	let fillPaint = null;
+	if ('fill' in attribs) {
+		fillPaint = convertPaint(attribs.fill);
+		fillOpacity *= fillPaint.opacity;
+	}
+	if ('fill-opacity' in attribs) {
+		fillOpacity *= convertOpacity(attribs['fill-opacity']);
+	}
+	let fillRule = null;
+	if ('fill-rule' in attribs) {
+		const fr = attribs['fill-rule'].trim().toLowerCase();
+		if (fr === 'evenodd') {
+			fillRule = 'even-odd';
+		} else if (fr !== 'nonzero') {
+			throw new Error('Unrecognized fill-rule: ' + attribs['fill-rule']);
+		}
+	}
+	if (hasStroke || hasStrokeWidth || hasStrokeLineJoin || hasStrokeMiterlimit || strokeOpacity !== 1 || hasStrokeDasharray || hasStrokeDashoffset) {
 		let s = 'pen';
 		if (strokePaint) {
 			s += ' ' + strokePaint.paint;
@@ -528,24 +587,31 @@ function outputPresentationAttributes(attribs) {
 		if (hasStrokeMiterlimit) {
 			s += ' miter-limit:' + attribs['stroke-miterlimit'];
 		}
+		if (hasStrokeDasharray) {
+			const dash = parseDashArray(attribs['stroke-dasharray']);
+			s += ' dash:' + dash;
+		}
+		if (hasStrokeDashoffset) {
+			s += ' dash-offset:' + convertUnits(attribs['stroke-dashoffset'], 'x');
+		}
 		if (strokeOpacity !== 1) {
 			s += ' opacity:' + strokeOpacity;
 		}
 		output(s);
 	}
-        if (fillPaint || fillOpacity !== 1 || fillRule) {
-                let s = 'fill';
-                if (fillPaint) {
-                        s += ' ' + fillPaint.paint;
-                }
-                if (fillRule) {
-                        s += ' rule:' + fillRule;
-                }
-                if (fillOpacity !== 1) {
-                        s += ' opacity:' + fillOpacity;
-                }
-                output(s);
-        }
+	if (fillPaint || fillOpacity !== 1 || fillRule) {
+		let s = 'fill';
+		if (fillPaint) {
+			s += ' ' + fillPaint.paint;
+		}
+		if (fillRule) {
+			s += ' rule:' + fillRule;
+		}
+		if (fillOpacity !== 1) {
+			s += ' opacity:' + fillOpacity;
+		}
+		output(s);
+	}
 }
 
 function gotKnownPresentationAttributes(attribs) {
@@ -571,7 +637,6 @@ function registerDefinition(element) {
 }
 
 const converters = {};
-let firstSVG = true;
 
 
 converters.svg = function(element, attribs) {
@@ -712,113 +777,119 @@ converters.polyline = function(element, attribs) {
 };
 
 function applyTextAttributes(base, attribs) {
-  const out = Object.assign({}, base);
-  if ('font-family' in attribs) {
-    out.fontName = attribs['font-family'].split(',')[0].trim().replace(/^['"]|['"]$/g, '');
-  }
-  if ('font-size' in attribs) {
-    out.size = convertUnits(attribs['font-size'], 'y');
-  }
-  if ('fill' in attribs) {
-    const fillPaint = convertPaint(attribs.fill);
-    out.fill = fillPaint.paint;
-    out.fillOpacity = fillPaint.opacity;
-  }
-  if ('opacity' in attribs) {
-    out.fillOpacity *= convertOpacity(attribs.opacity);
-  }
-  if ('fill-opacity' in attribs) {
-    out.fillOpacity *= convertOpacity(attribs['fill-opacity']);
-  }
-  if ('stroke' in attribs && attribs.stroke !== 'none') {
-    const strokePaint = convertPaint(attribs.stroke);
-    out.stroke = strokePaint.paint;
-    out.strokeOpacity = strokePaint.opacity;
-  }
-  if ('stroke-opacity' in attribs && out.stroke) {
-    out.strokeOpacity *= convertOpacity(attribs['stroke-opacity']);
-  }
-  if ('stroke-width' in attribs && out.stroke) {
-    out.strokeWidth = convertUnits(attribs['stroke-width'], 'x');
-  }
-  if ('stroke-linejoin' in attribs && out.stroke) {
-    const lj = attribs['stroke-linejoin'];
-    if (!(lj in LINEJOINS_TO_JOINTS)) {
-      throw new Error('Unrecognized stroke-linejoin: ' + lj);
-    }
-    out.strokeJoin = LINEJOINS_TO_JOINTS[lj];
-  }
-  if ('stroke-linecap' in attribs && out.stroke) {
-    const lc = attribs['stroke-linecap'];
-    if (!SUPPORTED_LINECAPS.has(lc)) {
-      throw new Error('Unrecognized stroke-linecap: ' + lc);
-    }
-    out.strokeCap = lc;
-  }
-  if ('stroke-miterlimit' in attribs && out.stroke) {
-    out.strokeMiter = parseFloat(attribs['stroke-miterlimit']);
-  }
-  return out;
+	const out = Object.assign({}, base);
+	if ('font-family' in attribs) {
+		out.fontName = attribs['font-family'].split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+	}
+	if ('font-size' in attribs) {
+		out.size = convertUnits(attribs['font-size'], 'y');
+	}
+	if ('fill' in attribs) {
+		const fillPaint = convertPaint(attribs.fill);
+		out.fill = fillPaint.paint;
+		out.fillOpacity = fillPaint.opacity;
+	}
+	if ('opacity' in attribs) {
+		out.fillOpacity *= convertOpacity(attribs.opacity);
+	}
+	if ('fill-opacity' in attribs) {
+		out.fillOpacity *= convertOpacity(attribs['fill-opacity']);
+	}
+	if ('stroke' in attribs && attribs.stroke !== 'none') {
+		const strokePaint = convertPaint(attribs.stroke);
+		out.stroke = strokePaint.paint;
+		out.strokeOpacity = strokePaint.opacity;
+	}
+	if ('stroke-opacity' in attribs && out.stroke) {
+		out.strokeOpacity *= convertOpacity(attribs['stroke-opacity']);
+	}
+	if ('stroke-width' in attribs && out.stroke) {
+		out.strokeWidth = convertUnits(attribs['stroke-width'], 'x');
+	}
+	if ('stroke-linejoin' in attribs && out.stroke) {
+		const lj = attribs['stroke-linejoin'];
+		if (!(lj in LINEJOINS_TO_JOINTS)) {
+			throw new Error('Unrecognized stroke-linejoin: ' + lj);
+		}
+		out.strokeJoin = LINEJOINS_TO_JOINTS[lj];
+	}
+	if ('stroke-linecap' in attribs && out.stroke) {
+		const lc = attribs['stroke-linecap'];
+		if (!SUPPORTED_LINECAPS.has(lc)) {
+			throw new Error('Unrecognized stroke-linecap: ' + lc);
+		}
+		out.strokeCap = lc;
+	}
+	if ('stroke-miterlimit' in attribs && out.stroke) {
+		out.strokeMiter = parseFloat(attribs['stroke-miterlimit']);
+	}
+	if ('stroke-dasharray' in attribs && out.stroke) {
+		out.strokeDash = parseDashArray(attribs['stroke-dasharray']);
+	}
+	if ('stroke-dashoffset' in attribs && out.stroke) {
+		out.strokeDashOffset = convertUnits(attribs['stroke-dashoffset'], 'x');
+	}
+	return out;
 }
 
 function collectTextSegments(element, baseAttribs) {
-  const segments = [];
-  const attribs = applyTextAttributes(baseAttribs, element.attributes || {});
-  let prevEndsWithSpace = false;
-  for (const item of element.contents || []) {
-    if (item.text) {
-      let text = item.text.replace(/\s+/g, ' ');
-      if (!text) continue;
-      if (segments.length && !prevEndsWithSpace && !/^\s/.test(text)) {
-        text = ' ' + text;
-      }
-      prevEndsWithSpace = /\s$/.test(text);
-      segments.push({ text, attribs });
-    } else if (item.element && item.element.type === 'tspan') {
-      const childSegs = collectTextSegments(item.element, attribs);
-      if (childSegs.length) {
-        if (segments.length && !prevEndsWithSpace && !childSegs[0].text.startsWith(' ')) {
-          childSegs[0].text = ' ' + childSegs[0].text;
-        }
-        prevEndsWithSpace = childSegs[childSegs.length - 1].text.endsWith(' ');
-        segments.push(...childSegs);
-      }
-    } else if (item.element) {
-      warning('Unsupported nested element in text');
-    }
-  }
-  if (segments.length) {
-    segments[0].text = segments[0].text.replace(/^\s+/, '');
-    segments[segments.length - 1].text = segments[segments.length - 1].text.replace(/\s+$/, '');
-  }
-  return segments.filter(s => s.text !== '');
+	const segments = [];
+	const attribs = applyTextAttributes(baseAttribs, element.attributes || {});
+	let prevEndsWithSpace = false;
+	for (const item of element.contents || []) {
+		if (item.text) {
+			let text = item.text.replace(/\s+/g, ' ');
+			if (!text) continue;
+			if (segments.length && !prevEndsWithSpace && !/^\s/.test(text)) {
+	text = ' ' + text;
+			}
+			prevEndsWithSpace = /\s$/.test(text);
+			segments.push({ text, attribs });
+		} else if (item.element && item.element.type === 'tspan') {
+			const childSegs = collectTextSegments(item.element, attribs);
+			if (childSegs.length) {
+	if (segments.length && !prevEndsWithSpace && !childSegs[0].text.startsWith(' ')) {
+		childSegs[0].text = ' ' + childSegs[0].text;
+	}
+	prevEndsWithSpace = childSegs[childSegs.length - 1].text.endsWith(' ');
+	segments.push(...childSegs);
+			}
+		} else if (item.element) {
+			warning('Unsupported nested element in text');
+		}
+	}
+	if (segments.length) {
+		segments[0].text = segments[0].text.replace(/^\s+/, '');
+		segments[segments.length - 1].text = segments[segments.length - 1].text.replace(/\s+$/, '');
+	}
+	return segments.filter(s => s.text !== '');
 }
 
 converters.text = function(element, attribs) {
-  const separate = 'transform' in attribs;
-  if (separate) {
-    output('context [');
-    outputTransforms(attribs.transform);
-  }
-  const baseAttribs = applyTextAttributes({
-    fontName: defaultFontFamily,
-    size: defaultFontSize,
-    fill: 'black',
-    fillOpacity: 1
-  }, attribs);
-  const segments = collectTextSegments(element, baseAttribs);
-  if (!segments.length) {
-    if (separate) output(']');
-    return;
-  }
-  let fontKey = '';
-  let x = 'x' in attribs ? convertUnits(attribs.x, 'x') : 0;
-  let y = 'y' in attribs ? convertUnits(attribs.y, 'y') : 0;
-  let anchor = '';
-  if ('text-anchor' in attribs) {
-    switch (attribs['text-anchor']) {
-    case 'middle': anchor = ' anchor:center'; break;
-    case 'end': anchor = ' anchor:right'; break;
+	const separate = 'transform' in attribs;
+	if (separate) {
+		output('context [');
+		outputTransforms(attribs.transform);
+	}
+	const baseAttribs = applyTextAttributes({
+		fontName: defaultFontFamily,
+		size: defaultFontSize,
+		fill: 'black',
+		fillOpacity: 1
+	}, attribs);
+	const segments = collectTextSegments(element, baseAttribs);
+	if (!segments.length) {
+		if (separate) output(']');
+		return;
+	}
+	let fontKey = '';
+	let x = 'x' in attribs ? convertUnits(attribs.x, 'x') : 0;
+	let y = 'y' in attribs ? convertUnits(attribs.y, 'y') : 0;
+	let anchor = '';
+	if ('text-anchor' in attribs) {
+		switch (attribs['text-anchor']) {
+		case 'middle': anchor = ' anchor:center'; break;
+		case 'end': anchor = ' anchor:right'; break;
 		}
 	}
 	let needAt = true;
@@ -848,27 +919,37 @@ converters.text = function(element, attribs) {
 					if (seg.attribs.strokeOpacity && seg.attribs.strokeOpacity !== 1) {
 						opts += ` opacity:${seg.attribs.strokeOpacity}`;
 					}
-					if (seg.attribs.strokeMiter) {
-						opts += ` miter:${seg.attribs.strokeMiter}`;
-					}
-					if (opts || /[:\s]/.test(outline)) {
-						fontCmd += ` outline:[${outline}${opts}]`;
-					} else {
-						fontCmd += ` outline:${outline}`;
-					}
+											if (seg.attribs.strokeMiter) {
+															opts += ` miter:${seg.attribs.strokeMiter}`;
+											}
+											if (seg.attribs.strokeDash) {
+															if (seg.attribs.strokeDash === 'none') {
+																			opts += ' dash:none';
+															} else {
+																			opts += ` dash:${seg.attribs.strokeDash}`;
+															}
+											}
+											if (seg.attribs.strokeDashOffset) {
+															opts += ` dash-offset:${seg.attribs.strokeDashOffset}`;
+											}
+											if (opts || /[:\s]/.test(outline)) {
+															fontCmd += ` outline:[${outline}${opts}]`;
+											} else {
+															fontCmd += ` outline:${outline}`;
+											}
 				}
 				output(fontCmd);
 				fontKey = key;
 			}
-    const t = seg.text.replace(/"/g, '\\"');
-    if (needAt) {
-      output(`TEXT at:${x},${y}${anchor} "${t}"`);
-      needAt = false;
-    } else {
-      output(`TEXT "${t}"`);
-    }
-  }
-  if (separate) output(']');
+		const t = seg.text.replace(/"/g, '\\"');
+		if (needAt) {
+			output(`TEXT at:${x},${y}${anchor} "${t}"`);
+			needAt = false;
+		} else {
+			output(`TEXT "${t}"`);
+		}
+	}
+	if (separate) output(']');
 };
 
 
@@ -876,11 +957,11 @@ converters.defs = function(element) {
 	for (const item of element.contents || []) {
 		if (!item.element) continue;
 		const child = item.element;
-		if (child.type === 'linearGradient' || child.type === 'radialGradient' || child.type === 'defs') {
-			convertSVGElement(child);
-		} else {
-			registerDefinition(child);
-		}
+								if (child.type === 'linearGradient' || child.type === 'radialGradient' || child.type === 'pattern' || child.type === 'defs') {
+												convertSVGElement(child);
+								} else {
+												registerDefinition(child);
+								}
 	}
 };
 
@@ -959,11 +1040,46 @@ converters.radialGradient = function(element, attribs) {
 	if ('gradientTransform' in attribs) {
 		g.transform = attribs.gradientTransform;
 	}
-	gradients[attribs.id] = g;
+				gradients[attribs.id] = g;
+};
+
+converters.pattern = function(element, attribs) {
+ 			if (!('id' in attribs)) {
+ 							warning("Missing 'id' in pattern");
+ 							return;
+ 			}
+ 			if (!('width' in attribs) || !('height' in attribs)) {
+ 							warning("Missing 'width' or 'height' in pattern");
+ 							return;
+ 			}
+ 			const p = {
+ 							x: convertUnits(attribs.x || '0', 'x'),
+ 							y: convertUnits(attribs.y || '0', 'y'),
+ 							width: convertUnits(attribs.width, 'x'),
+ 							height: convertUnits(attribs.height, 'y'),
+ 							relative: attribs.patternUnits !== 'userSpaceOnUse'
+ 			};
+ 			if ('patternTransform' in attribs) {
+ 							p.transform = attribs.patternTransform;
+ 			}
+ 			const savedOut = outputString;
+ 			const savedIndent = indent;
+ 			outputString = '';
+ 			indent = 0;
+ 			for (const item of element.contents || []) {
+ 							if (item.element) convertSVGElement(item.element);
+ 			}
+ 			p.body = outputString.trim().split('\n').map(s => s.trim()).filter(Boolean).join('; ');
+ 			outputString = savedOut;
+ 			indent = savedIndent;
+ 			patterns[attribs.id] = p;
 };
 
 function convertSVGElement(element) {
 	registerDefinition(element);
+	if (element.attributes && element.attributes.visibility === 'hidden') {
+		return;
+	}
 	const type = element.type;
 	if (converters[type]) {
 		converters[type](element, element.attributes);
@@ -1085,12 +1201,36 @@ function parseXML(src) {
 	return {contents};
 }
 
+function convertFile(svgPath, ivgPath, defaultDimArg) {
+	resetState();
+	if (defaultDimArg) {
+		const parts = defaultDimArg.split(',');
+		if (parts.length === 2) {
+			defaultWidth = parseFloat(parts[0]);
+			defaultHeight = parseFloat(parts[1]);
+		} else {
+			console.error('Invalid default dimensions: ' + defaultDimArg);
+			process.exit(1);
+		}
+	}
+	const svgSource = fs.readFileSync(svgPath, 'utf8');
+	const svg = parseXML(svgSource);
+	output('format IVG-1 requires:IMPD-1');
+	convertSVGContainer(svg);
+	if (ivgPath) {
+		fs.writeFileSync(ivgPath, outputString, 'utf8');
+		console.log('Converted ' + svgPath + ' to ' + ivgPath);
+	} else {
+		console.log('------');
+		console.log(outputString);
+	}
+}
+
 const args = process.argv.slice(2);
 if (args.length < 1) {
 	console.error('Usage: node svg2ivg.js input.svg [output.ivg] [defaultWidth,defaultHeight]');
 	process.exit(1);
 }
-const svgPath = args[0];
 let ivgPath;
 let defaultDimArg;
 if (args[1]) {
@@ -1101,26 +1241,5 @@ if (args[1]) {
 		defaultDimArg = args[2];
 	}
 }
-if (defaultDimArg) {
-	const parts = defaultDimArg.split(',');
-	if (parts.length === 2) {
-		defaultWidth = parseFloat(parts[0]);
-		defaultHeight = parseFloat(parts[1]);
-	} else {
-		console.error('Invalid default dimensions: ' + defaultDimArg);
-		process.exit(1);
-	}
-}
-const svgSource = fs.readFileSync(svgPath, 'utf8');
-const svg = parseXML(svgSource);
-
-output('format IVG-1 requires:IMPD-1');
-convertSVGContainer(svg);
-if (ivgPath) {
-	fs.writeFileSync(ivgPath, outputString, 'utf8');
-	console.log('Converted ' + svgPath + ' to ' + ivgPath);
-		} else {
-	console.log('------');
-	console.log(outputString);
-}
+convertFile(args[0], ivgPath, defaultDimArg);
 
