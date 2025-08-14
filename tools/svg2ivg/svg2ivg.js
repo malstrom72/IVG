@@ -358,14 +358,15 @@ function parseGradientCoord(value, axis) {
 }
 
 function parseGradientStops(element) {
-		const stops = [];
-		for (const item of element.contents || []) {
-				if (item.element && item.element.type === 'stop') {
-						const a = item.element.attributes;
-						if (!('offset' in a) || !('stop-color' in a)) continue;
-						let o = a.offset.trim();
-						o = o.endsWith('%') ? parseFloat(o) / 100 : parseFloat(o);
-						const p = convertPaint(a['stop-color']);
+                const stops = [];
+                for (const item of element.contents || []) {
+                                if (item.element && item.element.type === 'stop') {
+                                                const a = item.element.attributes;
+                                                expandStyle(a);
+                                                if (!('offset' in a) || !('stop-color' in a)) continue;
+                                                let o = a.offset.trim();
+                                                o = o.endsWith('%') ? parseFloat(o) / 100 : parseFloat(o);
+                                                const p = convertPaint(a['stop-color']);
 						let op = p.opacity;
 						if ('stop-opacity' in a) {
 								op *= convertOpacity(a['stop-opacity']);
@@ -625,12 +626,26 @@ function outputPresentationAttributes(attribs) {
 }
 
 function gotKnownPresentationAttributes(attribs) {
-	return KNOWN_PRESENTATION_ATTRIBUTES.some(attr => attr in attribs);
+        return KNOWN_PRESENTATION_ATTRIBUTES.some(attr => attr in attribs);
+}
+
+function expandStyle(attribs) {
+        if (!('style' in attribs)) return;
+        const decls = attribs.style.split(';');
+        for (const decl of decls) {
+                if (!decl.trim()) continue;
+                const parts = decl.split(':');
+                if (parts.length < 2) continue;
+                const name = parts.shift().trim().toLowerCase();
+                const value = parts.join(':').trim().replace(/\s*!important\s*$/i, '');
+                if (name) attribs[name] = value;
+        }
+        delete attribs.style;
 }
 
 function parseUrlRef(value) {
-		const m = /^url\(#([^\)]+)\)$/.exec(value.trim());
-		return m ? m[1] : null;
+                const m = /^url\(#([^\)]+)\)$/.exec(value.trim());
+                return m ? m[1] : null;
 }
 
 function outputClipPath(ref, bbox) {
@@ -1322,16 +1337,17 @@ converters.pattern = function(element, attribs) {
 };
 
 function convertSVGElement(element) {
-	registerDefinition(element);
-	if (element.attributes && element.attributes.visibility === 'hidden') {
-		return;
-	}
-	const type = element.type;
-	if (converters[type]) {
-		converters[type](element, element.attributes);
-	} else {
-		warning("Can't convert type: " + type);
-	}
+        if (element.attributes) expandStyle(element.attributes);
+        registerDefinition(element);
+        if (element.attributes && element.attributes.visibility === 'hidden') {
+                return;
+        }
+        const type = element.type;
+        if (converters[type]) {
+                converters[type](element, element.attributes);
+        } else {
+                warning("Can't convert type: " + type);
+        }
 }
 
 

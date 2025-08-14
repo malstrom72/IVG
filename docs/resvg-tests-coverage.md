@@ -26,6 +26,7 @@ This document lists which `externals/resvgTests` files the `tools/svg2ivg/svg2iv
 - structure/defs/simple-case.svg
 - structure/g/deeply-nested-groups.svg
 - structure/use/simple-case.svg
+- structure/style-attribute/simple-case.svg
 - text/font-size/simple-case.svg
 - text/text-anchor/middle-on-text.svg
 - painting/visibility/hidden-on-shape.svg
@@ -48,14 +49,13 @@ This document lists which `externals/resvgTests` files the `tools/svg2ivg/svg2iv
 - text/tspan/tspan-bbox-1.svg – svg2ivg normalizes gradients for each `<tspan>` instead of the whole `<text>`
       element, causing “long” to start white and end darker green. This deviates from the SVG spec; matching the
       SVG would require measuring the full text bounds and emitting a user-space gradient.
-- structure/style-attribute/simple-case.svg
 - painting/stroke-miterlimit/valid-value.svg
 
 ## Should work with fixes
 - image elements
 - symbol definitions
 - link (`a`) elements treated as groups
-- CSS style elements and style attributes
+- CSS style elements and class-based styling
 - tspan and nested text nodes
 
 ## IVG capabilities relevant to unsupported tests

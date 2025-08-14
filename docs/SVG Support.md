@@ -20,10 +20,11 @@
 
 ### Presentation Attributes
 
-    -   `stroke`, `stroke-width`, `stroke-linejoin`, `stroke-linecap`, `stroke-miterlimit`, `stroke-dasharray`, `stroke-dashoffset`, `fill`.
+-   `stroke`, `stroke-width`, `stroke-linejoin`, `stroke-linecap`, `stroke-miterlimit`, `stroke-dasharray`, `stroke-dashoffset`, `fill`.
 -   `stroke-linejoin` values: `bevel`, `round`, `miter`, `miter-clip`.
 -   `stroke-linecap` values: `butt`, `round`, `square`.
 -   `opacity`, `stroke-opacity`, `fill-opacity`, `visibility`.
+-   Inline `style` attribute for presentation properties.
 
 ### Transforms
 
@@ -40,7 +41,7 @@
 
 -   Additional SVG elements (`image`, etc.).
 -   `preserveAspectRatio` handling.
--   Presentation attributes such as `style`/`class` based styling.
+-   CSS class selectors and `<style>` elements for styling.
 -   Color functions like `rgb()`.
 -   `stroke-linejoin="arcs"` (undefined in SVG 1.x).
 -   Any `viewBox` behavior beyond a simple uniform scale and top-left offset.
