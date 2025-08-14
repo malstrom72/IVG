@@ -674,36 +674,44 @@ function colorToMask(color) {
 		color = color.toLowerCase();
 		if (color in BASIC_COLORS) color = BASIC_COLORS[color];
 		if (color in SVG_COLORS) color = SVG_COLORS[color];
-		let r = 0, g = 0, b = 0, a = 1;
+               let r = 0, g = 0, b = 0;
 		if (color.startsWith('#')) {
 				if (color.length === 7) {
 						r = parseInt(color.slice(1, 3), 16) / 255;
 						g = parseInt(color.slice(3, 5), 16) / 255;
 						b = parseInt(color.slice(5, 7), 16) / 255;
-				} else if (color.length === 9) {
-						r = parseInt(color.slice(1, 3), 16) / 255;
-						g = parseInt(color.slice(3, 5), 16) / 255;
-						b = parseInt(color.slice(5, 7), 16) / 255;
-						a = parseInt(color.slice(7, 9), 16) / 255;
-				}
+                               } else if (color.length === 9) {
+                                               r = parseInt(color.slice(1, 3), 16) / 255;
+                                               g = parseInt(color.slice(3, 5), 16) / 255;
+                                               b = parseInt(color.slice(5, 7), 16) / 255;
+                               }
 		} else if (color.startsWith('rgb(')) {
 				const nums = color.slice(4, -1).split(',').map(parseFloat);
 				r = nums[0];
 				g = nums[1];
 				b = nums[2];
-				if (nums.length > 3) a = nums[3];
 		} else {
 				throw new Error('Unsupported mask color: ' + color);
 		}
-		const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-		return formatFloat(lum * a);
+               const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+               return formatFloat(lum);
 }
 
 function buildGradientMask(g) {
-		const clone = JSON.parse(JSON.stringify(g));
-		const stops = clone.stops.map(st => ({ offset: st.offset, color: colorToMask(st.color) }));
-		clone.stops = stops;
-		return buildGradient(clone);
+               function extractAlpha(color) {
+                               if (color.startsWith('#') && color.length === 9) {
+                                               return parseInt(color.slice(7, 9), 16) / 255;
+                               }
+                               if (color.startsWith('rgb(')) {
+                                               const parts = color.slice(4, -1).split(',');
+                                               if (parts.length === 4) return parseFloat(parts[3]);
+                               }
+                               return 1;
+               }
+               const clone = JSON.parse(JSON.stringify(g));
+               const stops = clone.stops.map(st => ({ offset: st.offset, color: formatFloat(extractAlpha(st.color)) }));
+               clone.stops = stops;
+               return buildGradient(clone);
 }
 
 function convertMaskPaint(sourcePaint) {
