@@ -50,6 +50,8 @@ const KNOWN_PRESENTATION_ATTRIBUTES = [
 'stroke-linejoin',
 'stroke-linecap',
 'stroke-miterlimit',
+'stroke-dasharray',
+'stroke-dashoffset',
 'fill',
 'opacity',
 'fill-opacity',
@@ -138,20 +140,24 @@ const SVG_COLORS = {
 };
 
 const BASIC_COLORS = {aqua:'#00ffff', black:'#000000', blue:'#0000ff', fuchsia:'#ff00ff', gray:'#808080', green:'#008000', lime:'#00ff00', maroon:'#800000', navy:'#000080', olive:'#808000', purple:'#800080', red:'#ff0000', silver:'#c0c0c0', teal:'#008080', white:'#ffffff', yellow:'#ffff00'};
-const gradients = {};
+let gradients = {};
+let patterns = {};
 
 function convertPaint(sourcePaint) {
 		sourcePaint = sourcePaint.trim().toLowerCase();
-		if (sourcePaint.startsWith('url(')) {
-				let id = sourcePaint.slice(4, -1).trim();
-				if (id.startsWith('#')) {
-						id = id.slice(1);
-				}
-				if (!(id in gradients)) {
-						throw new Error('Unrecognized paint reference: ' + sourcePaint);
-				}
-				return { paint: buildGradient(gradients[id]), opacity: 1 };
-		}
+								if (sourcePaint.startsWith('url(')) {
+																let id = sourcePaint.slice(4, -1).trim();
+																if (id.startsWith('#')) {
+																								id = id.slice(1);
+																}
+																if (id in gradients) {
+																								return { paint: buildGradient(gradients[id]), opacity: 1 };
+																}
+																if (id in patterns) {
+																								return { paint: buildPattern(patterns[id]), opacity: 1 };
+																}
+																throw new Error('Unrecognized paint reference: ' + sourcePaint);
+								}
 		if (sourcePaint === 'none') {
 				return { paint: 'none', opacity: 1 };
 		}
@@ -244,13 +250,29 @@ function convertPaint(sourcePaint) {
 		throw new Error('Unrecognized color: ' + sourcePaint);
 }
 
-const definitions = {};
+let definitions = {};
 let viewportWidth = 100;
 let viewportHeight = 100;
 let defaultWidth = 800;
 let defaultHeight = 800;
 let defaultFontFamily = 'serif';
 let defaultFontSize = 16;
+let firstSVG = true;
+
+function resetState() {
+	outputString = '';
+	indent = 0;
+	gradients = {};
+	patterns = {};
+	definitions = {};
+	viewportWidth = 100;
+	viewportHeight = 100;
+	defaultWidth = 800;
+	defaultHeight = 800;
+	defaultFontFamily = 'serif';
+	defaultFontSize = 16;
+	firstSVG = true;
+}
 
 function convertUnits(value, axis) {
 	const str = value.trim().toLowerCase();
@@ -296,6 +318,22 @@ function convertOpacity(value) {
 	return num;
 }
 
+function parseDashArray(value) {
+	value = value.trim();
+	if (value === '' || value === 'none') {
+		return 'none';
+	}
+	const parts = value.split(/[ ,]+/).filter(p => p.length);
+	if (parts.length === 0) {
+		return 'none';
+	}
+	const nums = parts.map(p => formatFloat(convertUnits(p, 'x')));
+	if (nums.length > 2) {
+		warning('Too many dash values; using first two');
+	}
+	return nums.slice(0, 2).join(',');
+}
+
 function parsePoints(str) {
 	const nums = str.trim().split(/[ ,]+/);
 	if (nums.length < 2 || nums.length % 2 !== 0) {
@@ -320,14 +358,15 @@ function parseGradientCoord(value, axis) {
 }
 
 function parseGradientStops(element) {
-		const stops = [];
-		for (const item of element.contents || []) {
-				if (item.element && item.element.type === 'stop') {
-						const a = item.element.attributes;
-						if (!('offset' in a) || !('stop-color' in a)) continue;
-						let o = a.offset.trim();
-						o = o.endsWith('%') ? parseFloat(o) / 100 : parseFloat(o);
-						const p = convertPaint(a['stop-color']);
+                const stops = [];
+                for (const item of element.contents || []) {
+                                if (item.element && item.element.type === 'stop') {
+                                                const a = item.element.attributes;
+                                                expandStyle(a);
+                                                if (!('offset' in a) || !('stop-color' in a)) continue;
+                                                let o = a.offset.trim();
+                                                o = o.endsWith('%') ? parseFloat(o) / 100 : parseFloat(o);
+                                                const p = convertPaint(a['stop-color']);
 						let op = p.opacity;
 						if ('stop-opacity' in a) {
 								op *= convertOpacity(a['stop-opacity']);
@@ -372,8 +411,28 @@ function buildGradient(g) {
 		if (g.transform) {
 			s += ` transform:[${transformToCommandString(g.transform)}]`;
 		}
-		if (g.relative) s += ' relative:yes';
-		return s;
+								if (g.relative) s += ' relative:yes';
+								return s;
+}
+
+function buildPattern(p) {
+			let s = `pattern:[bounds 0,0,${p.width},${p.height}`;
+			if (p.body) {
+							s += '; ' + p.body;
+			}
+			s += ']';
+			const transforms = [];
+			if (p.x !== 0 || p.y !== 0) {
+							transforms.push(`offset ${p.x},${p.y}`);
+			}
+			if (p.transform) {
+							transforms.push(transformToCommandString(p.transform));
+			}
+			if (transforms.length) {
+							s += ` transform:[${transforms.join('; ')}]`;
+			}
+			if (p.relative) s += ' relative:yes';
+			return s;
 }
 
 
@@ -457,11 +516,10 @@ function outputTransforms(str) {
 
 
 const LINEJOINS_TO_JOINTS = {
-	bevel: 'bevel',
-	round: 'curve',
-	miter: 'miter',
-	'miter-clip': 'miter',
-	arcs: 'miter'
+bevel: 'bevel',
+round: 'curve',
+miter: 'miter',
+'miter-clip': 'miter'
 };
 
 const SUPPORTED_LINECAPS = new Set(['butt', 'round', 'square']);
@@ -472,38 +530,50 @@ function outputPresentationAttributes(attribs) {
 	const hasStrokeLineJoin = 'stroke-linejoin' in attribs;
 	const hasStrokeLineCap = 'stroke-linecap' in attribs;
 	const hasStrokeMiterlimit = 'stroke-miterlimit' in attribs;
+	const hasStrokeDasharray = 'stroke-dasharray' in attribs;
+	const hasStrokeDashoffset = 'stroke-dashoffset' in attribs;
 	let baseOpacity = 1.0;
 	if ('opacity' in attribs) {
 		baseOpacity = convertOpacity(attribs.opacity);
 	}
 	let strokeOpacity = baseOpacity;
 	let fillOpacity = baseOpacity;
-	let strokePaint = null;
-	if (hasStroke) {
-		strokePaint = convertPaint(attribs.stroke);
-		strokeOpacity *= strokePaint.opacity;
-	}
+		let strokePaint = null;
+		if (hasStroke) {
+				const s = attribs.stroke.trim();
+				if (s.startsWith('gradient:[') || /^[-+]?\d*\.?\d+(e[-+]?\d+)?$/i.test(s)) {
+						strokePaint = { paint: s, opacity: 1 };
+				} else {
+						strokePaint = convertPaint(s);
+						strokeOpacity *= strokePaint.opacity;
+				}
+		}
 	if ('stroke-opacity' in attribs) {
 		strokeOpacity *= convertOpacity(attribs['stroke-opacity']);
 	}
-        let fillPaint = null;
-        if ('fill' in attribs) {
-                fillPaint = convertPaint(attribs.fill);
-                fillOpacity *= fillPaint.opacity;
-        }
-        if ('fill-opacity' in attribs) {
-                fillOpacity *= convertOpacity(attribs['fill-opacity']);
-        }
-        let fillRule = null;
-        if ('fill-rule' in attribs) {
-                const fr = attribs['fill-rule'].trim().toLowerCase();
-                if (fr === 'evenodd') {
-                        fillRule = 'even-odd';
-                } else if (fr !== 'nonzero') {
-                        throw new Error('Unrecognized fill-rule: ' + attribs['fill-rule']);
-                }
-        }
-	if (hasStroke || hasStrokeWidth || hasStrokeLineJoin || hasStrokeMiterlimit || strokeOpacity !== 1) {
+		let fillPaint = null;
+		if ('fill' in attribs) {
+				const f = attribs.fill.trim();
+				if (f.startsWith('gradient:[') || /^[-+]?\d*\.?\d+(e[-+]?\d+)?$/i.test(f)) {
+						fillPaint = { paint: f, opacity: 1 };
+				} else {
+						fillPaint = convertPaint(f);
+						fillOpacity *= fillPaint.opacity;
+				}
+		}
+	if ('fill-opacity' in attribs) {
+		fillOpacity *= convertOpacity(attribs['fill-opacity']);
+	}
+	let fillRule = null;
+	if ('fill-rule' in attribs) {
+		const fr = attribs['fill-rule'].trim().toLowerCase();
+		if (fr === 'evenodd') {
+			fillRule = 'even-odd';
+		} else if (fr !== 'nonzero') {
+			throw new Error('Unrecognized fill-rule: ' + attribs['fill-rule']);
+		}
+	}
+	if (hasStroke || hasStrokeWidth || hasStrokeLineJoin || hasStrokeMiterlimit || strokeOpacity !== 1 || hasStrokeDasharray || hasStrokeDashoffset) {
 		let s = 'pen';
 		if (strokePaint) {
 			s += ' ' + strokePaint.paint;
@@ -528,40 +598,241 @@ function outputPresentationAttributes(attribs) {
 		if (hasStrokeMiterlimit) {
 			s += ' miter-limit:' + attribs['stroke-miterlimit'];
 		}
+		if (hasStrokeDasharray) {
+			const dash = parseDashArray(attribs['stroke-dasharray']);
+			s += ' dash:' + dash;
+		}
+		if (hasStrokeDashoffset) {
+			s += ' dash-offset:' + convertUnits(attribs['stroke-dashoffset'], 'x');
+		}
 		if (strokeOpacity !== 1) {
 			s += ' opacity:' + strokeOpacity;
 		}
 		output(s);
 	}
-        if (fillPaint || fillOpacity !== 1 || fillRule) {
-                let s = 'fill';
-                if (fillPaint) {
-                        s += ' ' + fillPaint.paint;
-                }
-                if (fillRule) {
-                        s += ' rule:' + fillRule;
-                }
-                if (fillOpacity !== 1) {
-                        s += ' opacity:' + fillOpacity;
-                }
-                output(s);
-        }
+	if (fillPaint || fillOpacity !== 1 || fillRule) {
+		let s = 'fill';
+		if (fillPaint) {
+			s += ' ' + fillPaint.paint;
+		}
+		if (fillRule) {
+			s += ' rule:' + fillRule;
+		}
+		if (fillOpacity !== 1) {
+			s += ' opacity:' + fillOpacity;
+		}
+		output(s);
+	}
 }
 
 function gotKnownPresentationAttributes(attribs) {
-	return KNOWN_PRESENTATION_ATTRIBUTES.some(attr => attr in attribs);
+        return KNOWN_PRESENTATION_ATTRIBUTES.some(attr => attr in attribs);
 }
 
-function createContextMaybe(attribs) {
-	const needs = gotKnownPresentationAttributes(attribs) || 'transform' in attribs;
-	if (needs) {
-		output('context [');
-		if ('transform' in attribs) {
-			outputTransforms(attribs.transform);
+function expandStyle(attribs) {
+        if (!('style' in attribs)) return;
+        const decls = attribs.style.split(';');
+        for (const decl of decls) {
+                if (!decl.trim()) continue;
+                const parts = decl.split(':');
+                if (parts.length < 2) continue;
+                const name = parts.shift().trim().toLowerCase();
+                const value = parts.join(':').trim().replace(/\s*!important\s*$/i, '');
+                if (name) attribs[name] = value;
+        }
+        delete attribs.style;
+}
+
+function parseUrlRef(value) {
+                const m = /^url\(#([^\)]+)\)$/.exec(value.trim());
+                return m ? m[1] : null;
+}
+
+function outputClipPath(ref, bbox) {
+		const id = parseUrlRef(ref);
+		if (!id || !(id in definitions)) {
+				warning('Unrecognized clip-path reference: ' + ref);
+				return;
 		}
-		outputPresentationAttributes(attribs);
-	}
-	return needs;
+		const clip = definitions[id];
+		const units = clip.attributes.clipPathUnits || 'userSpaceOnUse';
+		output('mask [');
+		const needsContext = units === 'objectBoundingBox' || 'transform' in clip.attributes;
+		if (needsContext) {
+				output('context [');
+				if (units === 'objectBoundingBox') {
+						if (bbox) {
+								output(`offset ${bbox.left},${bbox.top}`);
+								output(`scale ${bbox.width},${bbox.height}`);
+						} else {
+								warning('clipPathUnits="objectBoundingBox" requires known bounds');
+						}
+				}
+				if ('transform' in clip.attributes) {
+						outputTransforms(clip.attributes.transform);
+				}
+		}
+		for (const item of clip.contents || []) {
+				if (!item.element) continue;
+				const child = JSON.parse(JSON.stringify(item.element));
+				child.attributes = child.attributes || {};
+				child.attributes.fill = '1';
+				child.attributes.stroke = '0';
+				delete child.attributes['clip-path'];
+				convertSVGElement(child);
+		}
+		if (needsContext) output(']');
+		output(']');
+}
+
+function colorToMask(color) {
+		color = color.toLowerCase();
+		if (color in BASIC_COLORS) color = BASIC_COLORS[color];
+		if (color in SVG_COLORS) color = SVG_COLORS[color];
+               let r = 0, g = 0, b = 0;
+		if (color.startsWith('#')) {
+				if (color.length === 7) {
+						r = parseInt(color.slice(1, 3), 16) / 255;
+						g = parseInt(color.slice(3, 5), 16) / 255;
+						b = parseInt(color.slice(5, 7), 16) / 255;
+                               } else if (color.length === 9) {
+                                               r = parseInt(color.slice(1, 3), 16) / 255;
+                                               g = parseInt(color.slice(3, 5), 16) / 255;
+                                               b = parseInt(color.slice(5, 7), 16) / 255;
+                               }
+		} else if (color.startsWith('rgb(')) {
+				const nums = color.slice(4, -1).split(',').map(parseFloat);
+				r = nums[0];
+				g = nums[1];
+				b = nums[2];
+		} else {
+				throw new Error('Unsupported mask color: ' + color);
+		}
+               const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+               return formatFloat(lum);
+}
+
+function buildGradientMask(g) {
+	function extractAlpha(color) {
+	if (color.startsWith('#') && color.length === 9) {
+	return parseInt(color.slice(7, 9), 16) / 255;
+}
+if (color.startsWith('rgb(')) {
+const parts = color.slice(4, -1).split(',');
+if (parts.length === 4) return parseFloat(parts[3]);
+}
+return 1;
+}
+function extract(color) {
+return {
+lum: parseFloat(colorToMask(color)),
+alpha: extractAlpha(color)
+};
+}
+const src = g.stops.map(st => ({ offset: st.offset, ...extract(st.color) }));
+const stops = [];
+function addStop(o, lum, alpha) {
+stops.push({ offset: o, color: formatFloat(lum * alpha) });
+}
+function subdivide(a, b, depth) {
+const v0 = a.lum * a.alpha;
+const v1 = b.lum * b.alpha;
+const mid = {
+offset: (a.offset + b.offset) / 2,
+lum: (a.lum + b.lum) / 2,
+alpha: (a.alpha + b.alpha) / 2
+};
+const vMid = mid.lum * mid.alpha;
+const linearMid = (v0 + v1) / 2;
+if (depth < 6 && Math.abs(vMid - linearMid) > 0.02) {
+subdivide(a, mid, depth + 1);
+addStop(mid.offset, mid.lum, mid.alpha);
+subdivide(mid, b, depth + 1);
+}
+}
+addStop(src[0].offset, src[0].lum, src[0].alpha);
+for (let i = 0; i < src.length - 1; i++) {
+const a = src[i];
+const b = src[i + 1];
+subdivide(a, b, 0);
+addStop(b.offset, b.lum, b.alpha);
+}
+const clone = JSON.parse(JSON.stringify(g));
+clone.stops = stops;
+return buildGradient(clone);
+}
+
+
+function convertMaskPaint(sourcePaint) {
+		sourcePaint = sourcePaint.trim();
+		if (sourcePaint.startsWith('url(')) {
+				const id = parseUrlRef(sourcePaint);
+				if (id && (id in gradients)) {
+						return buildGradientMask(gradients[id]);
+				}
+				throw new Error('Unrecognized mask paint reference: ' + sourcePaint);
+		}
+		const p = convertPaint(sourcePaint);
+		return formatFloat(parseFloat(colorToMask(p.paint)) * p.opacity);
+}
+
+function outputMask(ref, bbox) {
+		const id = parseUrlRef(ref);
+		if (!id || !(id in definitions)) {
+				warning('Unrecognized mask reference: ' + ref);
+				return;
+		}
+		const mask = definitions[id];
+		const units = mask.attributes.maskContentUnits || 'userSpaceOnUse';
+		output('mask [');
+		const needsContext = units === 'objectBoundingBox';
+		if (needsContext) {
+				if (bbox) {
+						output('context [');
+						output(`offset ${bbox.left},${bbox.top}`);
+						output(`scale ${bbox.width},${bbox.height}`);
+				} else {
+						warning('maskContentUnits="objectBoundingBox" requires known bounds');
+				}
+		}
+		for (const item of mask.contents || []) {
+				if (!item.element) continue;
+				const child = JSON.parse(JSON.stringify(item.element));
+				child.attributes = child.attributes || {};
+				if (!('fill' in child.attributes)) {
+						child.attributes.fill = '1';
+				} else {
+						child.attributes.fill = convertMaskPaint(child.attributes.fill);
+				}
+				if ('stroke' in child.attributes) {
+						child.attributes.stroke = convertMaskPaint(child.attributes.stroke);
+				} else {
+						child.attributes.stroke = '0';
+				}
+				delete child.attributes.mask;
+				delete child.attributes['clip-path'];
+				convertSVGElement(child);
+		}
+		if (needsContext) output(']');
+		output(']');
+}
+
+function createContextMaybe(attribs, bbox) {
+		const needs = gotKnownPresentationAttributes(attribs) || 'transform' in attribs || 'clip-path' in attribs || 'mask' in attribs;
+		if (needs) {
+				output('context [');
+				if ('transform' in attribs) {
+						outputTransforms(attribs.transform);
+				}
+				outputPresentationAttributes(attribs);
+				if ('clip-path' in attribs) {
+						outputClipPath(attribs['clip-path'], bbox);
+				}
+				if ('mask' in attribs) {
+						outputMask(attribs.mask, bbox);
+				}
+		}
+		return needs;
 }
 
 function registerDefinition(element) {
@@ -571,7 +842,6 @@ function registerDefinition(element) {
 }
 
 const converters = {};
-let firstSVG = true;
 
 
 converters.svg = function(element, attribs) {
@@ -641,184 +911,242 @@ converters.path = function(element, attribs) {
 };
 
 converters.circle = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'cx', 'cy', 'r');
-	output(`ellipse ${convertUnits(attribs.cx, 'x')},${convertUnits(attribs.cy, 'y')},${convertUnits(attribs.r, 'x')}`);
-	if (separate) output(']');
+		checkRequiredAttributes(attribs, 'cx', 'cy', 'r');
+		const cx = convertUnits(attribs.cx, 'x');
+		const cy = convertUnits(attribs.cy, 'y');
+		const r = convertUnits(attribs.r, 'x');
+		const bbox = { left: cx - r, top: cy - r, width: r * 2, height: r * 2 };
+		const separate = createContextMaybe(attribs, bbox);
+		output(`ellipse ${cx},${cy},${r}`);
+		if (separate) output(']');
 };
 
 converters.ellipse = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'cx', 'cy', 'rx', 'ry');
-	output(`ellipse ${convertUnits(attribs.cx, 'x')},${convertUnits(attribs.cy, 'y')},${convertUnits(attribs.rx, 'x')},${convertUnits(attribs.ry, 'y')}`);
-	if (separate) output(']');
+		checkRequiredAttributes(attribs, 'cx', 'cy', 'rx', 'ry');
+		const cx = convertUnits(attribs.cx, 'x');
+		const cy = convertUnits(attribs.cy, 'y');
+		const rx = convertUnits(attribs.rx, 'x');
+		const ry = convertUnits(attribs.ry, 'y');
+		const bbox = { left: cx - rx, top: cy - ry, width: rx * 2, height: ry * 2 };
+		const separate = createContextMaybe(attribs, bbox);
+		output(`ellipse ${cx},${cy},${rx},${ry}`);
+		if (separate) output(']');
 };
 
 converters.line = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'x1', 'y1', 'x2', 'y2');
-	output(`path svg:[M${convertUnits(attribs.x1, 'x')},${convertUnits(attribs.y1, 'y')}L${convertUnits(attribs.x2, 'x')},${convertUnits(attribs.y2, 'y')}]`);
-	if (separate) output(']');
+		checkRequiredAttributes(attribs, 'x1', 'y1', 'x2', 'y2');
+		const x1 = convertUnits(attribs.x1, 'x');
+		const y1 = convertUnits(attribs.y1, 'y');
+		const x2 = convertUnits(attribs.x2, 'x');
+		const y2 = convertUnits(attribs.y2, 'y');
+		const bbox = {
+				left: Math.min(x1, x2),
+				top: Math.min(y1, y2),
+				width: Math.abs(x2 - x1),
+				height: Math.abs(y2 - y1)
+		};
+		const separate = createContextMaybe(attribs, bbox);
+		output(`path svg:[M${x1},${y1}L${x2},${y2}]`);
+		if (separate) output(']');
 };
 
 converters.rect = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'x', 'y', 'width', 'height');
-	let s = `rect ${convertUnits(attribs.x, 'x')},${convertUnits(attribs.y, 'y')},${convertUnits(attribs.width, 'x')},${convertUnits(attribs.height, 'y')}`;
-	const hasRX = 'rx' in attribs;
-	const hasRY = 'ry' in attribs;
-	if (hasRX && hasRY) {
-		s += ` rounded:${convertUnits(attribs.rx, 'x')},${convertUnits(attribs.ry, 'y')}`;
-	} else if (hasRX) {
-		s += ` rounded:${convertUnits(attribs.rx, 'x')}`;
-	} else if (hasRY) {
-		s += ` rounded:${convertUnits(attribs.ry, 'y')}`;
-	}
-	output(s);
-	if (separate) output(']');
+		checkRequiredAttributes(attribs, 'x', 'y', 'width', 'height');
+		const x = convertUnits(attribs.x, 'x');
+		const y = convertUnits(attribs.y, 'y');
+		const w = convertUnits(attribs.width, 'x');
+		const h = convertUnits(attribs.height, 'y');
+		const bbox = { left: x, top: y, width: w, height: h };
+		const separate = createContextMaybe(attribs, bbox);
+		let s = `rect ${x},${y},${w},${h}`;
+		const hasRX = 'rx' in attribs;
+		const hasRY = 'ry' in attribs;
+		if (hasRX && hasRY) {
+				s += ` rounded:${convertUnits(attribs.rx, 'x')},${convertUnits(attribs.ry, 'y')}`;
+		} else if (hasRX) {
+				s += ` rounded:${convertUnits(attribs.rx, 'x')}`;
+		} else if (hasRY) {
+				s += ` rounded:${convertUnits(attribs.ry, 'y')}`;
+		}
+		output(s);
+		if (separate) output(']');
 };
 
 converters.polygon = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'points');
-	const pts = parsePoints(attribs.points);
-	if (pts.length < 2) {
-		warning("Not enough points in 'polygon'.");
-		} else {
-		let s = `M${pts[0][0]},${pts[0][1]}`;
-		for (let i = 1; i < pts.length; i++) {
-			s += `L${pts[i][0]},${pts[i][1]}`;
+		checkRequiredAttributes(attribs, 'points');
+		const pts = parsePoints(attribs.points);
+		let bbox = null;
+		if (pts.length >= 1) {
+				let minX = pts[0][0];
+				let minY = pts[0][1];
+				let maxX = pts[0][0];
+				let maxY = pts[0][1];
+				for (let i = 1; i < pts.length; i++) {
+						minX = Math.min(minX, pts[i][0]);
+						minY = Math.min(minY, pts[i][1]);
+						maxX = Math.max(maxX, pts[i][0]);
+						maxY = Math.max(maxY, pts[i][1]);
+				}
+				bbox = { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
 		}
-		s += 'Z';
-		output('path svg:[' + s + ']');
-	}
-	if (separate) output(']');
+		const separate = createContextMaybe(attribs, bbox);
+		if (pts.length < 2) {
+				warning("Not enough points in 'polygon'.");
+		} else {
+				let s = `M${pts[0][0]},${pts[0][1]}`;
+				for (let i = 1; i < pts.length; i++) {
+						s += `L${pts[i][0]},${pts[i][1]}`;
+				}
+				s += 'Z';
+				output('path svg:[' + s + ']');
+		}
+		if (separate) output(']');
 };
 
 converters.polyline = function(element, attribs) {
-	const separate = createContextMaybe(attribs);
-	checkRequiredAttributes(attribs, 'points');
-	const pts = parsePoints(attribs.points);
-	if (pts.length < 2) {
-		warning("Not enough points in 'polyline'.");
-		} else {
-		let s = `M${pts[0][0]},${pts[0][1]}`;
-		for (let i = 1; i < pts.length; i++) {
-			s += `L${pts[i][0]},${pts[i][1]}`;
+		checkRequiredAttributes(attribs, 'points');
+		const pts = parsePoints(attribs.points);
+		let bbox = null;
+		if (pts.length >= 1) {
+				let minX = pts[0][0];
+				let minY = pts[0][1];
+				let maxX = pts[0][0];
+				let maxY = pts[0][1];
+				for (let i = 1; i < pts.length; i++) {
+						minX = Math.min(minX, pts[i][0]);
+						minY = Math.min(minY, pts[i][1]);
+						maxX = Math.max(maxX, pts[i][0]);
+						maxY = Math.max(maxY, pts[i][1]);
+				}
+				bbox = { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
 		}
-		output('path svg:[' + s + ']');
-	}
-	if (separate) output(']');
+		const separate = createContextMaybe(attribs, bbox);
+		if (pts.length < 2) {
+				warning("Not enough points in 'polyline'.");
+		} else {
+				let s = `M${pts[0][0]},${pts[0][1]}`;
+				for (let i = 1; i < pts.length; i++) {
+						s += `L${pts[i][0]},${pts[i][1]}`;
+				}
+				output('path svg:[' + s + ']');
+		}
+		if (separate) output(']');
 };
 
 function applyTextAttributes(base, attribs) {
-  const out = Object.assign({}, base);
-  if ('font-family' in attribs) {
-    out.fontName = attribs['font-family'].split(',')[0].trim().replace(/^['"]|['"]$/g, '');
-  }
-  if ('font-size' in attribs) {
-    out.size = convertUnits(attribs['font-size'], 'y');
-  }
-  if ('fill' in attribs) {
-    const fillPaint = convertPaint(attribs.fill);
-    out.fill = fillPaint.paint;
-    out.fillOpacity = fillPaint.opacity;
-  }
-  if ('opacity' in attribs) {
-    out.fillOpacity *= convertOpacity(attribs.opacity);
-  }
-  if ('fill-opacity' in attribs) {
-    out.fillOpacity *= convertOpacity(attribs['fill-opacity']);
-  }
-  if ('stroke' in attribs && attribs.stroke !== 'none') {
-    const strokePaint = convertPaint(attribs.stroke);
-    out.stroke = strokePaint.paint;
-    out.strokeOpacity = strokePaint.opacity;
-  }
-  if ('stroke-opacity' in attribs && out.stroke) {
-    out.strokeOpacity *= convertOpacity(attribs['stroke-opacity']);
-  }
-  if ('stroke-width' in attribs && out.stroke) {
-    out.strokeWidth = convertUnits(attribs['stroke-width'], 'x');
-  }
-  if ('stroke-linejoin' in attribs && out.stroke) {
-    const lj = attribs['stroke-linejoin'];
-    if (!(lj in LINEJOINS_TO_JOINTS)) {
-      throw new Error('Unrecognized stroke-linejoin: ' + lj);
-    }
-    out.strokeJoin = LINEJOINS_TO_JOINTS[lj];
-  }
-  if ('stroke-linecap' in attribs && out.stroke) {
-    const lc = attribs['stroke-linecap'];
-    if (!SUPPORTED_LINECAPS.has(lc)) {
-      throw new Error('Unrecognized stroke-linecap: ' + lc);
-    }
-    out.strokeCap = lc;
-  }
-  if ('stroke-miterlimit' in attribs && out.stroke) {
-    out.strokeMiter = parseFloat(attribs['stroke-miterlimit']);
-  }
-  return out;
+	const out = Object.assign({}, base);
+	if ('font-family' in attribs) {
+		out.fontName = attribs['font-family'].split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+	}
+	if ('font-size' in attribs) {
+		out.size = convertUnits(attribs['font-size'], 'y');
+	}
+	if ('fill' in attribs) {
+		const fillPaint = convertPaint(attribs.fill);
+		out.fill = fillPaint.paint;
+		out.fillOpacity = fillPaint.opacity;
+	}
+	if ('opacity' in attribs) {
+		out.fillOpacity *= convertOpacity(attribs.opacity);
+	}
+	if ('fill-opacity' in attribs) {
+		out.fillOpacity *= convertOpacity(attribs['fill-opacity']);
+	}
+	if ('stroke' in attribs && attribs.stroke !== 'none') {
+		const strokePaint = convertPaint(attribs.stroke);
+		out.stroke = strokePaint.paint;
+		out.strokeOpacity = strokePaint.opacity;
+	}
+	if ('stroke-opacity' in attribs && out.stroke) {
+		out.strokeOpacity *= convertOpacity(attribs['stroke-opacity']);
+	}
+	if ('stroke-width' in attribs && out.stroke) {
+		out.strokeWidth = convertUnits(attribs['stroke-width'], 'x');
+	}
+	if ('stroke-linejoin' in attribs && out.stroke) {
+		const lj = attribs['stroke-linejoin'];
+		if (!(lj in LINEJOINS_TO_JOINTS)) {
+			throw new Error('Unrecognized stroke-linejoin: ' + lj);
+		}
+		out.strokeJoin = LINEJOINS_TO_JOINTS[lj];
+	}
+	if ('stroke-linecap' in attribs && out.stroke) {
+		const lc = attribs['stroke-linecap'];
+		if (!SUPPORTED_LINECAPS.has(lc)) {
+			throw new Error('Unrecognized stroke-linecap: ' + lc);
+		}
+		out.strokeCap = lc;
+	}
+	if ('stroke-miterlimit' in attribs && out.stroke) {
+		out.strokeMiter = parseFloat(attribs['stroke-miterlimit']);
+	}
+	if ('stroke-dasharray' in attribs && out.stroke) {
+		out.strokeDash = parseDashArray(attribs['stroke-dasharray']);
+	}
+	if ('stroke-dashoffset' in attribs && out.stroke) {
+		out.strokeDashOffset = convertUnits(attribs['stroke-dashoffset'], 'x');
+	}
+	return out;
 }
 
 function collectTextSegments(element, baseAttribs) {
-  const segments = [];
-  const attribs = applyTextAttributes(baseAttribs, element.attributes || {});
-  let prevEndsWithSpace = false;
-  for (const item of element.contents || []) {
-    if (item.text) {
-      let text = item.text.replace(/\s+/g, ' ');
-      if (!text) continue;
-      if (segments.length && !prevEndsWithSpace && !/^\s/.test(text)) {
-        text = ' ' + text;
-      }
-      prevEndsWithSpace = /\s$/.test(text);
-      segments.push({ text, attribs });
-    } else if (item.element && item.element.type === 'tspan') {
-      const childSegs = collectTextSegments(item.element, attribs);
-      if (childSegs.length) {
-        if (segments.length && !prevEndsWithSpace && !childSegs[0].text.startsWith(' ')) {
-          childSegs[0].text = ' ' + childSegs[0].text;
-        }
-        prevEndsWithSpace = childSegs[childSegs.length - 1].text.endsWith(' ');
-        segments.push(...childSegs);
-      }
-    } else if (item.element) {
-      warning('Unsupported nested element in text');
-    }
-  }
-  if (segments.length) {
-    segments[0].text = segments[0].text.replace(/^\s+/, '');
-    segments[segments.length - 1].text = segments[segments.length - 1].text.replace(/\s+$/, '');
-  }
-  return segments.filter(s => s.text !== '');
+	const segments = [];
+	const attribs = applyTextAttributes(baseAttribs, element.attributes || {});
+	let prevEndsWithSpace = false;
+	for (const item of element.contents || []) {
+		if (item.text) {
+			let text = item.text.replace(/\s+/g, ' ');
+			if (!text) continue;
+			if (segments.length && !prevEndsWithSpace && !/^\s/.test(text)) {
+	text = ' ' + text;
+			}
+			prevEndsWithSpace = /\s$/.test(text);
+			segments.push({ text, attribs });
+		} else if (item.element && item.element.type === 'tspan') {
+			const childSegs = collectTextSegments(item.element, attribs);
+			if (childSegs.length) {
+	if (segments.length && !prevEndsWithSpace && !childSegs[0].text.startsWith(' ')) {
+		childSegs[0].text = ' ' + childSegs[0].text;
+	}
+	prevEndsWithSpace = childSegs[childSegs.length - 1].text.endsWith(' ');
+	segments.push(...childSegs);
+			}
+		} else if (item.element) {
+			warning('Unsupported nested element in text');
+		}
+	}
+	if (segments.length) {
+		segments[0].text = segments[0].text.replace(/^\s+/, '');
+		segments[segments.length - 1].text = segments[segments.length - 1].text.replace(/\s+$/, '');
+	}
+	return segments.filter(s => s.text !== '');
 }
 
 converters.text = function(element, attribs) {
-  const separate = 'transform' in attribs;
-  if (separate) {
-    output('context [');
-    outputTransforms(attribs.transform);
-  }
-  const baseAttribs = applyTextAttributes({
-    fontName: defaultFontFamily,
-    size: defaultFontSize,
-    fill: 'black',
-    fillOpacity: 1
-  }, attribs);
-  const segments = collectTextSegments(element, baseAttribs);
-  if (!segments.length) {
-    if (separate) output(']');
-    return;
-  }
-  let fontKey = '';
-  let x = 'x' in attribs ? convertUnits(attribs.x, 'x') : 0;
-  let y = 'y' in attribs ? convertUnits(attribs.y, 'y') : 0;
-  let anchor = '';
-  if ('text-anchor' in attribs) {
-    switch (attribs['text-anchor']) {
-    case 'middle': anchor = ' anchor:center'; break;
-    case 'end': anchor = ' anchor:right'; break;
+	const separate = 'transform' in attribs;
+	if (separate) {
+		output('context [');
+		outputTransforms(attribs.transform);
+	}
+	const baseAttribs = applyTextAttributes({
+		fontName: defaultFontFamily,
+		size: defaultFontSize,
+		fill: 'black',
+		fillOpacity: 1
+	}, attribs);
+	const segments = collectTextSegments(element, baseAttribs);
+	if (!segments.length) {
+		if (separate) output(']');
+		return;
+	}
+	let fontKey = '';
+	let x = 'x' in attribs ? convertUnits(attribs.x, 'x') : 0;
+	let y = 'y' in attribs ? convertUnits(attribs.y, 'y') : 0;
+	let anchor = '';
+	if ('text-anchor' in attribs) {
+		switch (attribs['text-anchor']) {
+		case 'middle': anchor = ' anchor:center'; break;
+		case 'end': anchor = ' anchor:right'; break;
 		}
 	}
 	let needAt = true;
@@ -848,27 +1176,37 @@ converters.text = function(element, attribs) {
 					if (seg.attribs.strokeOpacity && seg.attribs.strokeOpacity !== 1) {
 						opts += ` opacity:${seg.attribs.strokeOpacity}`;
 					}
-					if (seg.attribs.strokeMiter) {
-						opts += ` miter:${seg.attribs.strokeMiter}`;
-					}
-					if (opts || /[:\s]/.test(outline)) {
-						fontCmd += ` outline:[${outline}${opts}]`;
-					} else {
-						fontCmd += ` outline:${outline}`;
-					}
+											if (seg.attribs.strokeMiter) {
+															opts += ` miter:${seg.attribs.strokeMiter}`;
+											}
+											if (seg.attribs.strokeDash) {
+															if (seg.attribs.strokeDash === 'none') {
+																			opts += ' dash:none';
+															} else {
+																			opts += ` dash:${seg.attribs.strokeDash}`;
+															}
+											}
+											if (seg.attribs.strokeDashOffset) {
+															opts += ` dash-offset:${seg.attribs.strokeDashOffset}`;
+											}
+											if (opts || /[:\s]/.test(outline)) {
+															fontCmd += ` outline:[${outline}${opts}]`;
+											} else {
+															fontCmd += ` outline:${outline}`;
+											}
 				}
 				output(fontCmd);
 				fontKey = key;
 			}
-    const t = seg.text.replace(/"/g, '\\"');
-    if (needAt) {
-      output(`TEXT at:${x},${y}${anchor} "${t}"`);
-      needAt = false;
-    } else {
-      output(`TEXT "${t}"`);
-    }
-  }
-  if (separate) output(']');
+		const t = seg.text.replace(/"/g, '\\"');
+		if (needAt) {
+			output(`TEXT at:${x},${y}${anchor} "${t}"`);
+			needAt = false;
+		} else {
+			output(`TEXT "${t}"`);
+		}
+	}
+	if (separate) output(']');
 };
 
 
@@ -876,11 +1214,11 @@ converters.defs = function(element) {
 	for (const item of element.contents || []) {
 		if (!item.element) continue;
 		const child = item.element;
-		if (child.type === 'linearGradient' || child.type === 'radialGradient' || child.type === 'defs') {
-			convertSVGElement(child);
-		} else {
-			registerDefinition(child);
-		}
+								if (child.type === 'linearGradient' || child.type === 'radialGradient' || child.type === 'pattern' || child.type === 'defs') {
+												convertSVGElement(child);
+								} else {
+												registerDefinition(child);
+								}
 	}
 };
 
@@ -923,6 +1261,10 @@ converters.use = function(element, attribs) {
 	}
 };
 
+converters.clipPath = function() { };
+
+converters.mask = function() { };
+
 converters.linearGradient = function(element, attribs) {
 	if (!('id' in attribs)) {
 		warning("Missing 'id' in linearGradient");
@@ -959,17 +1301,53 @@ converters.radialGradient = function(element, attribs) {
 	if ('gradientTransform' in attribs) {
 		g.transform = attribs.gradientTransform;
 	}
-	gradients[attribs.id] = g;
+				gradients[attribs.id] = g;
+};
+
+converters.pattern = function(element, attribs) {
+			if (!('id' in attribs)) {
+							warning("Missing 'id' in pattern");
+							return;
+			}
+			if (!('width' in attribs) || !('height' in attribs)) {
+							warning("Missing 'width' or 'height' in pattern");
+							return;
+			}
+			const p = {
+							x: convertUnits(attribs.x || '0', 'x'),
+							y: convertUnits(attribs.y || '0', 'y'),
+							width: convertUnits(attribs.width, 'x'),
+							height: convertUnits(attribs.height, 'y'),
+							relative: attribs.patternUnits !== 'userSpaceOnUse'
+			};
+			if ('patternTransform' in attribs) {
+							p.transform = attribs.patternTransform;
+			}
+			const savedOut = outputString;
+			const savedIndent = indent;
+			outputString = '';
+			indent = 0;
+			for (const item of element.contents || []) {
+							if (item.element) convertSVGElement(item.element);
+			}
+			p.body = outputString.trim().split('\n').map(s => s.trim()).filter(Boolean).join('; ');
+			outputString = savedOut;
+			indent = savedIndent;
+			patterns[attribs.id] = p;
 };
 
 function convertSVGElement(element) {
-	registerDefinition(element);
-	const type = element.type;
-	if (converters[type]) {
-		converters[type](element, element.attributes);
-	} else {
-		warning("Can't convert type: " + type);
-	}
+        if (element.attributes) expandStyle(element.attributes);
+        registerDefinition(element);
+        if (element.attributes && element.attributes.visibility === 'hidden') {
+                return;
+        }
+        const type = element.type;
+        if (converters[type]) {
+                converters[type](element, element.attributes);
+        } else {
+                warning("Can't convert type: " + type);
+        }
 }
 
 
@@ -1085,12 +1463,36 @@ function parseXML(src) {
 	return {contents};
 }
 
+function convertFile(svgPath, ivgPath, defaultDimArg) {
+	resetState();
+	if (defaultDimArg) {
+		const parts = defaultDimArg.split(',');
+		if (parts.length === 2) {
+			defaultWidth = parseFloat(parts[0]);
+			defaultHeight = parseFloat(parts[1]);
+		} else {
+			console.error('Invalid default dimensions: ' + defaultDimArg);
+			process.exit(1);
+		}
+	}
+	const svgSource = fs.readFileSync(svgPath, 'utf8');
+	const svg = parseXML(svgSource);
+	output('format IVG-1 requires:IMPD-1');
+	convertSVGContainer(svg);
+	if (ivgPath) {
+		fs.writeFileSync(ivgPath, outputString, 'utf8');
+		console.log('Converted ' + svgPath + ' to ' + ivgPath);
+	} else {
+		console.log('------');
+		console.log(outputString);
+	}
+}
+
 const args = process.argv.slice(2);
 if (args.length < 1) {
 	console.error('Usage: node svg2ivg.js input.svg [output.ivg] [defaultWidth,defaultHeight]');
 	process.exit(1);
 }
-const svgPath = args[0];
 let ivgPath;
 let defaultDimArg;
 if (args[1]) {
@@ -1101,26 +1503,5 @@ if (args[1]) {
 		defaultDimArg = args[2];
 	}
 }
-if (defaultDimArg) {
-	const parts = defaultDimArg.split(',');
-	if (parts.length === 2) {
-		defaultWidth = parseFloat(parts[0]);
-		defaultHeight = parseFloat(parts[1]);
-	} else {
-		console.error('Invalid default dimensions: ' + defaultDimArg);
-		process.exit(1);
-	}
-}
-const svgSource = fs.readFileSync(svgPath, 'utf8');
-const svg = parseXML(svgSource);
-
-output('format IVG-1 requires:IMPD-1');
-convertSVGContainer(svg);
-if (ivgPath) {
-	fs.writeFileSync(ivgPath, outputString, 'utf8');
-	console.log('Converted ' + svgPath + ' to ' + ivgPath);
-		} else {
-	console.log('------');
-	console.log(outputString);
-}
+convertFile(args[0], ivgPath, defaultDimArg);
 
