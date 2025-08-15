@@ -984,23 +984,29 @@ function outputMask(ref, bbox) {
 			warning('maskContentUnits="objectBoundingBox" requires known bounds');
 		}
 	}
-	for (const item of mask.contents || []) {
-		if (!item.element) continue;
-		const child = JSON.parse(JSON.stringify(item.element));
-		child.attributes = child.attributes || {};
-		if (!("fill" in child.attributes)) {
-			child.attributes.fill = "1";
-		} else {
-			child.attributes.fill = convertMaskPaint(child.attributes.fill);
+	if (mask.body) {
+		for (const line of mask.body) {
+			output(line);
 		}
-		if ("stroke" in child.attributes) {
-			child.attributes.stroke = convertMaskPaint(child.attributes.stroke);
-		} else {
-			child.attributes.stroke = "0";
+	} else {
+		for (const item of mask.contents || []) {
+			if (!item.element) continue;
+			const child = JSON.parse(JSON.stringify(item.element));
+			child.attributes = child.attributes || {};
+			if (!("fill" in child.attributes)) {
+				child.attributes.fill = "1";
+			} else {
+				child.attributes.fill = convertMaskPaint(child.attributes.fill);
+			}
+			if ("stroke" in child.attributes) {
+				child.attributes.stroke = convertMaskPaint(child.attributes.stroke);
+			} else {
+				child.attributes.stroke = "0";
+			}
+			delete child.attributes.mask;
+			delete child.attributes["clip-path"];
+			convertSVGElement(child);
 		}
-		delete child.attributes.mask;
-		delete child.attributes["clip-path"];
-		convertSVGElement(child);
 	}
 	if (needsContext) output("]");
 	output("]");
@@ -1415,17 +1421,18 @@ converters.defs = function (element) {
 	for (const item of element.contents || []) {
 		if (!item.element) continue;
 		const child = item.element;
-		if (
-			child.type === "linearGradient" ||
-			child.type === "radialGradient" ||
-			child.type === "pattern" ||
-			child.type === "defs"
-		) {
-			convertSVGElement(child);
-		} else {
-			registerDefinition(child);
-		}
-	}
+	       if (
+		       child.type === "linearGradient" ||
+		       child.type === "radialGradient" ||
+		       child.type === "pattern" ||
+		       child.type === "defs" ||
+		       child.type === "mask"
+	       ) {
+		       convertSVGElement(child);
+	       } else {
+		       registerDefinition(child);
+	       }
+       }
 };
 
 converters.use = function (element, attribs) {
@@ -1469,7 +1476,42 @@ converters.use = function (element, attribs) {
 
 converters.clipPath = function () {};
 
-converters.mask = function () {};
+converters.mask = function (element, attribs) {
+	if (!("id" in attribs)) {
+		warning("Missing 'id' in mask");
+		return;
+	}
+	const savedOut = outputString;
+	const savedIndent = indent;
+	outputString = "";
+	indent = 0;
+	for (const item of element.contents || []) {
+		if (!item.element) continue;
+		const child = JSON.parse(JSON.stringify(item.element));
+		child.attributes = child.attributes || {};
+		if (!("fill" in child.attributes)) {
+			child.attributes.fill = "1";
+		} else {
+			child.attributes.fill = convertMaskPaint(child.attributes.fill);
+		}
+		if ("stroke" in child.attributes) {
+			child.attributes.stroke = convertMaskPaint(child.attributes.stroke);
+		} else {
+			child.attributes.stroke = "0";
+		}
+		delete child.attributes.mask;
+		delete child.attributes["clip-path"];
+		convertSVGElement(child);
+	}
+	const body = outputString
+		.trim()
+		.split("\n")
+		.map((s) => s.trim())
+		.filter(Boolean);
+	outputString = savedOut;
+	indent = savedIndent;
+	definitions[attribs.id] = { attributes: attribs, body };
+};
 
 converters.linearGradient = function (element, attribs) {
 	if (!("id" in attribs)) {
@@ -1681,49 +1723,49 @@ function convertFile(svgPath, ivgPath, defaultDimArg) {
 	resetState();
 	if (defaultDimArg) {
 		const parts = defaultDimArg.split(",");
-               if (parts.length === 2) {
-                       defaultWidth = parseFloat(parts[0]);
-                       defaultHeight = parseFloat(parts[1]);
-               } else {
-                       throw new Error("Invalid default dimensions: " + defaultDimArg);
-               }
+	       if (parts.length === 2) {
+		       defaultWidth = parseFloat(parts[0]);
+		       defaultHeight = parseFloat(parts[1]);
+	       } else {
+		       throw new Error("Invalid default dimensions: " + defaultDimArg);
+	       }
        }
        let svgSource;
        try {
-               svgSource = fs.readFileSync(svgPath, "utf8");
+	       svgSource = fs.readFileSync(svgPath, "utf8");
        } catch (err) {
-               throw new Error("Failed to read " + svgPath + ": " + err.message);
+	       throw new Error("Failed to read " + svgPath + ": " + err.message);
        }
        const svg = parseXML(svgSource);
        output("format IVG-1 requires:IMPD-1");
        convertSVGContainer(svg);
        if (ivgPath) {
-               try {
-                       fs.writeFileSync(ivgPath, outputString, "utf8");
-               } catch (err) {
-                       throw new Error("Failed to write " + ivgPath + ": " + err.message);
-               }
-               console.log("Converted " + svgPath + " to " + ivgPath);
+	       try {
+		       fs.writeFileSync(ivgPath, outputString, "utf8");
+	       } catch (err) {
+		       throw new Error("Failed to write " + ivgPath + ": " + err.message);
+	       }
+	       console.log("Converted " + svgPath + " to " + ivgPath);
        } else {
-               console.log("------");
-               console.log(outputString);
+	       console.log("------");
+	       console.log(outputString);
        }
 }
 
 try {
        const args = process.argv.slice(2);
        if (args.length < 1) {
-               throw new Error("Usage: node svg2ivg.js input.svg [output.ivg] [defaultWidth,defaultHeight]");
+	       throw new Error("Usage: node svg2ivg.js input.svg [output.ivg] [defaultWidth,defaultHeight]");
        }
        let ivgPath;
        let defaultDimArg;
        if (args[1]) {
-               if (args[1].includes(",")) {
-                       defaultDimArg = args[1];
-               } else {
-                       ivgPath = args[1];
-                       defaultDimArg = args[2];
-               }
+	       if (args[1].includes(",")) {
+		       defaultDimArg = args[1];
+	       } else {
+		       ivgPath = args[1];
+		       defaultDimArg = args[2];
+	       }
        }
        convertFile(args[0], ivgPath, defaultDimArg);
 } catch (err) {
