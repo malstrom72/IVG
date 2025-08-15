@@ -1681,51 +1681,52 @@ function convertFile(svgPath, ivgPath, defaultDimArg) {
 	resetState();
 	if (defaultDimArg) {
 		const parts = defaultDimArg.split(",");
-		if (parts.length === 2) {
-			defaultWidth = parseFloat(parts[0]);
-			defaultHeight = parseFloat(parts[1]);
-		} else {
-			console.error("Invalid default dimensions: " + defaultDimArg);
-			process.exit(1);
-		}
-	}
-	let svgSource;
-	try {
-		svgSource = fs.readFileSync(svgPath, "utf8");
-	} catch (err) {
-		console.error("Failed to read " + svgPath + ": " + err.message);
-		process.exit(1);
-	}
-	const svg = parseXML(svgSource);
-	output("format IVG-1 requires:IMPD-1");
-	convertSVGContainer(svg);
-	if (ivgPath) {
-		try {
-			fs.writeFileSync(ivgPath, outputString, "utf8");
-		} catch (err) {
-			console.error("Failed to write " + ivgPath + ": " + err.message);
-			process.exit(1);
-		}
-		console.log("Converted " + svgPath + " to " + ivgPath);
-	} else {
-		console.log("------");
-		console.log(outputString);
-	}
+               if (parts.length === 2) {
+                       defaultWidth = parseFloat(parts[0]);
+                       defaultHeight = parseFloat(parts[1]);
+               } else {
+                       throw new Error("Invalid default dimensions: " + defaultDimArg);
+               }
+       }
+       let svgSource;
+       try {
+               svgSource = fs.readFileSync(svgPath, "utf8");
+       } catch (err) {
+               throw new Error("Failed to read " + svgPath + ": " + err.message);
+       }
+       const svg = parseXML(svgSource);
+       output("format IVG-1 requires:IMPD-1");
+       convertSVGContainer(svg);
+       if (ivgPath) {
+               try {
+                       fs.writeFileSync(ivgPath, outputString, "utf8");
+               } catch (err) {
+                       throw new Error("Failed to write " + ivgPath + ": " + err.message);
+               }
+               console.log("Converted " + svgPath + " to " + ivgPath);
+       } else {
+               console.log("------");
+               console.log(outputString);
+       }
 }
 
-const args = process.argv.slice(2);
-if (args.length < 1) {
-	console.error("Usage: node svg2ivg.js input.svg [output.ivg] [defaultWidth,defaultHeight]");
-	process.exit(1);
+try {
+       const args = process.argv.slice(2);
+       if (args.length < 1) {
+               throw new Error("Usage: node svg2ivg.js input.svg [output.ivg] [defaultWidth,defaultHeight]");
+       }
+       let ivgPath;
+       let defaultDimArg;
+       if (args[1]) {
+               if (args[1].includes(",")) {
+                       defaultDimArg = args[1];
+               } else {
+                       ivgPath = args[1];
+                       defaultDimArg = args[2];
+               }
+       }
+       convertFile(args[0], ivgPath, defaultDimArg);
+} catch (err) {
+       console.error(err.message);
+       process.exitCode = 1;
 }
-let ivgPath;
-let defaultDimArg;
-if (args[1]) {
-	if (args[1].includes(",")) {
-		defaultDimArg = args[1];
-	} else {
-		ivgPath = args[1];
-		defaultDimArg = args[2];
-	}
-}
-convertFile(args[0], ivgPath, defaultDimArg);
