@@ -1,0 +1,7 @@
+format IVG-1 requires:IMPD-1
+bounds 0,0,100,40
+fill black
+pen miter-limit:4
+font serif size:20 color:blue
+TEXT at:50,25 anchor:center "Hi"
+

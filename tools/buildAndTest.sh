@@ -35,6 +35,7 @@ cd ..
 
 echo Testing...
 cd tests
-../tools/testIVG.sh ../output/IVG2PNG
+bash ../tools/testIVG.sh ../output/IVG2PNG
+bash ../tools/testSVG.sh
 cd ..
 exit 0

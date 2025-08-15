@@ -1,0 +1,30 @@
+format IVG-1 requires:IMPD-1
+bounds 0,0,120,60
+fill black
+pen miter-limit:4
+context [
+	pen opacity:0.5
+	fill opacity:0.5
+	context [
+		fill red
+		rect 0,0,40,60
+	]
+	context [
+		fill green opacity:0.25
+		rect 40,0,40,60
+	]
+	context [
+		pen blue width:10 opacity:0.3
+		fill none
+		rect 80,0,40,60
+	]
+]
+context [
+	fill rgb(1,0,0) opacity:0.5
+	ellipse 20,30,10
+]
+context [
+	fill rgb(0,1,0) opacity:0.25
+	ellipse 60,30,10
+]
+

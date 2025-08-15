@@ -1,0 +1,15 @@
+format IVG-1 requires:IMPD-1
+bounds 0,0,100,100
+fill black
+pen miter-limit:4
+context [
+	shear 0.5773502691896257,0
+	fill green
+	rect 10,10,30,60
+]
+context [
+	shear 0,0.5773502691896257
+	fill blue
+	rect 60,10,30,60
+]
+
