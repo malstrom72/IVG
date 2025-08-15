@@ -1,0 +1,25 @@
+format IVG-1 requires:IMPD-1
+bounds 0,0,96,96
+fill black
+pen miter-limit:4
+context [
+	fill red
+	rect 0,0,18.897637795275593,18.897637795275593
+]
+context [
+	fill green
+	rect 18.897637795275593,0,19.200000000000003,19.200000000000003
+]
+context [
+	fill blue
+	rect 37.795275590551185,0,24,24
+]
+context [
+	fill yellow
+	rect 56.69291338582678,0,16,16
+]
+context [
+	fill purple
+	rect 75.59055118110237,0,18.89763779527559,18.89763779527559
+]
+
