@@ -7,6 +7,7 @@ context [
 	pen green
 	path svg:[M40,40L160,160]
 	context [
+		pen none
 		offset 40,40
 		offset -10,-10
 		context [
@@ -15,6 +16,7 @@ context [
 		]
 	]
 	context [
+		pen none
 		offset 160,160
 		offset -10,-10
 		context [

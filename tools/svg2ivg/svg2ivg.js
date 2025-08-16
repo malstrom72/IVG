@@ -566,8 +566,9 @@ function outputMarker(ref, x, y, angle, kind) {
       } else {
               rotateAngle = parseFloat(orient);
       }
-      output("context [");
-      output(`offset ${x},${y}`);
+	output("context [");
+	output("pen none");
+	output(`offset ${x},${y}`);
       if (!isNaN(rotateAngle) && rotateAngle !== 0) {
               output(`rotate ${formatFloat(rotateAngle)}`);
       }
