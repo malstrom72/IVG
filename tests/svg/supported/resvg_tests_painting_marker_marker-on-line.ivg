@@ -7,9 +7,9 @@ context [
 	pen green
 	path svg:[M40,40L160,160]
 	context [
-		offset -10,-10
-		rotate 45
 		offset 40,40
+		rotate 45
+		offset -10,-10
 		context [
 			pen opacity:0.75
 			fill blue opacity:0.75
@@ -17,9 +17,9 @@ context [
 		]
 	]
 	context [
-		offset -10,-10
-		rotate 45
 		offset 100,100
+		rotate 45
+		offset -10,-10
 		context [
 			pen opacity:0.75
 			fill blue opacity:0.75
@@ -27,9 +27,9 @@ context [
 		]
 	]
 	context [
-		offset -10,-10
-		rotate 45
 		offset 160,160
+		rotate 45
+		offset -10,-10
 		context [
 			pen opacity:0.75
 			fill blue opacity:0.75
@@ -42,3 +42,4 @@ context [
 	fill none
 	rect 1,1,198,198
 ]
+

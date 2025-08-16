@@ -553,26 +553,26 @@ function outputMarker(ref, x, y, angle) {
        const height = convertUnits(attrs.markerHeight || "3", "y");
        let scaleX = 1;
        let scaleY = 1;
-       if (attrs.viewBox) {
-               const vb = parseRect(attrs.viewBox);
-               scaleX = width / vb.width;
-               scaleY = height / vb.height;
-       }
-       output("context [");
-       if (refX || refY) {
-               output(`offset -${refX},-${refY}`);
-       }
-       if (scaleX !== 1 || scaleY !== 1) {
-               output(`scale ${scaleX},${scaleY}`);
-       }
-       if (!isNaN(angle)) {
-               output(`rotate ${angle}`);
-       }
-       output(`offset ${x},${y}`);
-       for (const item of marker.contents || []) {
-               if (item.element) convertSVGElement(item.element);
-       }
-       output("]");
+      if (attrs.viewBox) {
+              const vb = parseRect(attrs.viewBox);
+              scaleX = width / vb.width;
+              scaleY = height / vb.height;
+      }
+      output("context [");
+      output(`offset ${x},${y}`);
+      if (!isNaN(angle)) {
+              output(`rotate ${angle}`);
+      }
+      if (scaleX !== 1 || scaleY !== 1) {
+              output(`scale ${scaleX},${scaleY}`);
+      }
+      if (refX || refY) {
+              output(`offset -${refX},-${refY}`);
+      }
+      for (const item of marker.contents || []) {
+              if (item.element) convertSVGElement(item.element);
+      }
+      output("]");
 }
 
 function processMarkers(attribs, pts) {
