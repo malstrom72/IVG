@@ -566,7 +566,7 @@ function outputMarker(ref, x, y, angle) {
                output(`scale ${scaleX},${scaleY}`);
        }
        if (!isNaN(angle)) {
-               output(`rotate ${angle + 90}`);
+               output(`rotate ${angle}`);
        }
        output(`offset ${x},${y}`);
        for (const item of marker.contents || []) {
@@ -580,9 +580,15 @@ function processMarkers(attribs, pts) {
        if ("marker-start" in attribs && pts.length >= 2) {
                outputMarker(attribs["marker-start"], pts[0][0], pts[0][1], getAngle(pts[0], pts[1]));
        }
-       if ("marker-mid" in attribs && pts.length >= 3) {
-               for (let i = 1; i < pts.length - 1; i++) {
-                       outputMarker(attribs["marker-mid"], pts[i][0], pts[i][1], getAngle(pts[i - 1], pts[i + 1]));
+       if ("marker-mid" in attribs) {
+               if (pts.length >= 3) {
+                       for (let i = 1; i < pts.length - 1; i++) {
+                               outputMarker(attribs["marker-mid"], pts[i][0], pts[i][1], getAngle(pts[i - 1], pts[i + 1]));
+                       }
+               } else if (pts.length === 2) {
+                       const midX = (pts[0][0] + pts[1][0]) / 2;
+                       const midY = (pts[0][1] + pts[1][1]) / 2;
+                       outputMarker(attribs["marker-mid"], midX, midY, getAngle(pts[0], pts[1]));
                }
        }
        if ("marker-end" in attribs && pts.length >= 2) {
