@@ -72,5 +72,6 @@ IVG only references external images via `IMAGE`; it cannot embed raster data. `s
 convert SVG `<image>` tags that use data URIs or inline content.
 
 ### Stroke Dash Arrays
-IVG lacks dashed stroke support, so `stroke-dasharray` attributes cannot be represented in the output.
+IVG supports only a single dash-gap pair, so `stroke-dasharray` lists with more than two values
+cannot be represented in the output.
 
