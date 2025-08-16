@@ -1,0 +1,33 @@
+format IVG-1 requires:IMPD-1
+bounds 0,0,500,500
+fill black
+pen miter-limit:4
+scale 2.5
+context [
+	pen green
+	path svg:[M40,40L160,160]
+	context [
+		offset 30,30
+		rotate 45
+		context [
+			pen opacity:0.75
+			fill blue opacity:0.75
+			path svg:[M 10 0 16 20 H 4 Z]
+		]
+	]
+	context [
+		offset 150,150
+		rotate 45
+		context [
+			pen opacity:0.75
+			fill blue opacity:0.75
+			path svg:[M 10 0 16 20 H 4 Z]
+		]
+	]
+]
+context [
+	pen black
+	fill none
+	rect 1,1,198,198
+]
+
