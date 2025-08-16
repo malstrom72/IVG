@@ -10,25 +10,13 @@ The lists below prioritize upcoming tasks for `svg2ivg.js`.
 
 ### Importance (highest first)
 1. CSS Styles and Classes
-2. Additional Unit Types
-3. `currentColor` and `inherit`
-4. Marker Elements
-5. `clipPathUnits="objectBoundingBox"`
+2. Mask Elements
 
 ### Difficulty (easiest first)
-1. Additional Unit Types
-2. `currentColor` and `inherit`
-3. `clipPathUnits="objectBoundingBox"`
-4. Marker Elements
-5. CSS Styles and Classes
+1. Mask Elements
+2. CSS Styles and Classes
 
 ## Styling and Paint
-
-### Marker Elements
-1. Parse `<marker>` definitions and apply `marker-start`, `marker-mid`, and `marker-end` attributes.
-2. Honor `markerUnits`, `viewBox`, and `orient`.
-
-Sample: `externals/resvgTests/painting/marker/marker-on-line.svg`
 
 ### CSS Styles and Classes
 1. Parse `<style>` elements and build a style map.
@@ -36,30 +24,13 @@ Sample: `externals/resvgTests/painting/marker/marker-on-line.svg`
 
 Sample: `externals/resvgTests/structure/style/class-selector.svg`
 
-## Units and Colors
+## Masking
 
-### Additional Unit Types
-1. Support `em`, `rem`, `vh`, `vw`, and `ex` in `convertUnits`.
+### Mask Elements
+1. Parse `<mask>` definitions and record them in a lookup table.
+2. Apply masks when elements reference the `mask` attribute.
 
-Samples:
-- `externals/resvgTests/shapes/rect/em-values.svg`
-- `externals/resvgTests/shapes/rect/rem-values.svg`
-- `externals/resvgTests/shapes/rect/vw-and-vh-values.svg`
-
-### `currentColor` and `inherit`
-1. Resolve `currentColor` and `inherit` in `convertPaint` based on computed color.
-
-Samples:
-- `externals/resvgTests/painting/fill/currentColor.svg`
-- `externals/resvgTests/painting/color/inherit.svg`
-
-## Clipping
-
-### `clipPathUnits="objectBoundingBox"`
-1. Compute bounding boxes for geometry before applying `clip-path`.
-2. Scale and offset clip-path contents when `clipPathUnits="objectBoundingBox"` is used.
-
-Sample: `externals/resvgTests/masking/clipPath/clip-path-with-transform.svg`
+Sample: `externals/resvgTests/masking/mask/mask-on-group.svg`
 
 ## Out of Scope
 
@@ -74,4 +45,11 @@ convert SVG `<image>` tags that use data URIs or inline content.
 ### Stroke Dash Arrays
 IVG supports only a single dash-gap pair, so `stroke-dasharray` lists with more than two values
 cannot be represented in the output.
+
+## Completed Features
+
+- Additional Unit Types (`em`, `rem`, `vh`, `vw`, `vmin`, `vmax`, `ex`)
+- `currentColor` and `inherit`
+- `clipPathUnits="objectBoundingBox"`
+- Marker Elements
 
