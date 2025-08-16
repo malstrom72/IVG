@@ -1146,7 +1146,7 @@ class PolygonMask::Segment {
 };
 
 PolygonMask::PolygonMask(const Path& path, const IntRect& area, const FillRule& fillRule)
-	: segments(new PolygonMask::Segment[path.size() + 1])
+	: segments()
 	, area(area)
 	, fillRule(fillRule)
 	, row(area.top)
@@ -1157,7 +1157,8 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& area, const FillRule& 
 	assert(0 <= area.width && 0 <= area.height);
 	
 	std::fill(coverageDelta.begin(), coverageDelta.end(), 0);
-	
+
+	segments.reserve(path.size() + 1);
 int minY = 0x3FFFFFFF;
 int minX = 0x3FFFFFFF;
 int maxY = -0x3FFFFFFF;
@@ -1167,8 +1168,7 @@ int maxX = -0x3FFFFFFF;
 	int bottom = area.calcBottom() << FRACT_BITS;
 	int lx = 0;
 	int ly = 0;
-	Segment* seg = segments;
-	
+
 	for (Path::const_iterator it = path.begin(), e = path.end(); it != e;) {
 		while (it != path.end() && it->first == Path::MOVE) {
 			lx = roundToInt(it->second.x * FRACT_ONE);
@@ -1189,31 +1189,32 @@ int maxX = -0x3FFFFFFF;
 				reversed = true;
 			}
 			if (y0 != y1 && y1 > top && y0 < bottom && minValue(x0, x1) < right) {
-				seg->topY = y0;
-				seg->bottomY = y1;
-				seg->x = toFixed32_32(x0, 0);
-				seg->leftEdge = (x0 >> FRACT_BITS);
-				seg->dx = toFixed32_32(0, 0);
+				segments.emplace_back();
+				Segment& seg = segments.back();
+				seg.topY = y0;
+				seg.bottomY = y1;
+				seg.x = toFixed32_32(x0, 0);
+				seg.leftEdge = (x0 >> FRACT_BITS);
+				seg.dx = toFixed32_32(0, 0);
 				int coverageByX = 1 << ((COVERAGE_BITS + FRACT_BITS) - 1);
 				int dx = x1 - x0;
 				if (dx != 0) {
 					int dy = y1 - y0;
-					seg->dx = divide(dx, dy);
+					seg.dx = divide(dx, dy);
 					Fixed32_32 dyByDx = divide(dy, abs(dx));
 					if (high32(dyByDx) < (1 << ((COVERAGE_BITS + FRACT_BITS) - 1))) {
 						coverageByX = high32(shiftLeft(dyByDx, COVERAGE_BITS + FRACT_BITS));
-					}
-				}
-				seg->coverageByX = (reversed ? -coverageByX : coverageByX);
-				if (top > seg->topY) { // Oops, we've passed the first y segment, catch-up!
-				seg->x = add(seg->x, multiply(static_cast<UInt32>(top - seg->topY), seg->dx));
-					seg->topY = top;
-					seg->leftEdge = (high32(seg->x) >> FRACT_BITS);
-				}
-				seg->currentY = seg->topY;
-				seg->rightEdge = seg->leftEdge;
-				++seg;
-			}
+}
+}
+				seg.coverageByX = (reversed ? -coverageByX : coverageByX);
+				if (top > seg.topY) { // Oops, we've passed the first y segment, catch-up!
+					seg.x = add(seg.x, multiply(static_cast<UInt32>(top - seg.topY), seg.dx));
+					seg.topY = top;
+					seg.leftEdge = (high32(seg.x) >> FRACT_BITS);
+}
+				seg.currentY = seg.topY;
+				seg.rightEdge = seg.leftEdge;
+}
 minY = minValue(minY, y0);
 maxY = maxValue(maxY, y1);
 sort(x0, x1);
@@ -1222,13 +1223,13 @@ maxX = maxValue(maxX, x1);
 			++it;
 		}
 	}
-	seg->topY = 0x7FFFFFFF; // "Sentinel" value, so we don't have to check the count.
-	seg->currentY = seg->topY;
-	++seg;
-	
+	segments.emplace_back();
+	segments.back().topY = 0x7FFFFFFF; // "Sentinel" value, so we don't have to check the count.
+	segments.back().currentY = segments.back().topY;
+
 	// Sort vertical list by topY (and x if same topY). Copy to horizontal list.
 
-	segsVertically.resize(seg - segments);
+	segsVertically.resize(segments.size());
 	{ for (size_t segIndex = 0; segIndex < segsVertically.size(); ++segIndex) {
 		segsVertically[segIndex] = &segments[segIndex];
 	} }
@@ -1445,10 +1446,7 @@ assert(y >= row);
 	coverageDelta[length] = 0; // Need to clear the extra margin element. 
 }
 
-PolygonMask::~PolygonMask()
-{
-	delete [] segments;
-}
+PolygonMask::~PolygonMask() = default;
 
 NonZeroFillRule PolygonMask::nonZeroFillRule;
 EvenOddFillRule PolygonMask::evenOddFillRule;

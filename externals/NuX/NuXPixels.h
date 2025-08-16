@@ -950,7 +950,7 @@ class PolygonMask : public Renderer<Mask8> {
 	public:		virtual ~PolygonMask();
 	
 	protected:	class Segment;
-	protected:	Segment* segments;
+	protected:	std::vector<Segment> segments;
 	protected:	IntRect area;
 protected:	IntRect bounds; // FIX : shouldn't need both area and bounds
 	protected:	const FillRule& fillRule;
