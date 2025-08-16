@@ -547,45 +547,48 @@ function outputMarker(ref, x, y, angle) {
 	}
 	const marker = definitions[id];
 	const attrs = marker.attributes || {};
-	const refX = convertUnits(attrs.refX || "0", "x");
-	const refY = convertUnits(attrs.refY || "0", "y");
-	const width = convertUnits(attrs.markerWidth || "3", "x");
-	const height = convertUnits(attrs.markerHeight || "3", "y");
-	let scaleX = 1;
-	let scaleY = 1;
-	if (attrs.viewBox) {
-		const vb = parseRect(attrs.viewBox);
-		scaleX = width / vb.width;
-		scaleY = height / vb.height;
-		x -= refX * scaleX;
-		y -= refY * scaleY;
-	} else {
-		x -= refX;
-		y -= refY;
-	}
-	output("context [");
-	output(`offset ${x},${y}`);
-	if (!isNaN(angle) && angle !== 0) {
-		output(`rotate ${angle}`);
-	}
-	if (scaleX !== 1 || scaleY !== 1) {
-		output(`scale ${scaleX},${scaleY}`);
-	}
-	for (const item of marker.contents || []) {
-		if (item.element) convertSVGElement(item.element);
-	}
-	output("]");
+       const refX = convertUnits(attrs.refX || "0", "x");
+       const refY = convertUnits(attrs.refY || "0", "y");
+       const width = convertUnits(attrs.markerWidth || "3", "x");
+       const height = convertUnits(attrs.markerHeight || "3", "y");
+       let scaleX = 1;
+       let scaleY = 1;
+       if (attrs.viewBox) {
+               const vb = parseRect(attrs.viewBox);
+               scaleX = width / vb.width;
+               scaleY = height / vb.height;
+       }
+       output("context [");
+       if (refX || refY) {
+               output(`offset -${refX},-${refY}`);
+       }
+       if (scaleX !== 1 || scaleY !== 1) {
+               output(`scale ${scaleX},${scaleY}`);
+       }
+       if (!isNaN(angle)) {
+               output(`rotate ${angle + 90}`);
+       }
+       output(`offset ${x},${y}`);
+       for (const item of marker.contents || []) {
+               if (item.element) convertSVGElement(item.element);
+       }
+       output("]");
 }
 
 function processMarkers(attribs, pts) {
-	const getAngle = (p1, p2) => (Math.atan2(p2[1] - p1[1], p2[0] - p1[0]) * 180) / Math.PI;
-	if ("marker-start" in attribs && pts.length >= 2) {
-		outputMarker(attribs["marker-start"], pts[0][0], pts[0][1], getAngle(pts[0], pts[1]));
-	}
-	if ("marker-end" in attribs && pts.length >= 2) {
-		const n = pts.length - 1;
-		outputMarker(attribs["marker-end"], pts[n][0], pts[n][1], getAngle(pts[n - 1], pts[n]));
-	}
+       const getAngle = (p1, p2) => (Math.atan2(p2[1] - p1[1], p2[0] - p1[0]) * 180) / Math.PI;
+       if ("marker-start" in attribs && pts.length >= 2) {
+               outputMarker(attribs["marker-start"], pts[0][0], pts[0][1], getAngle(pts[0], pts[1]));
+       }
+       if ("marker-mid" in attribs && pts.length >= 3) {
+               for (let i = 1; i < pts.length - 1; i++) {
+                       outputMarker(attribs["marker-mid"], pts[i][0], pts[i][1], getAngle(pts[i - 1], pts[i + 1]));
+               }
+       }
+       if ("marker-end" in attribs && pts.length >= 2) {
+               const n = pts.length - 1;
+               outputMarker(attribs["marker-end"], pts[n][0], pts[n][1], getAngle(pts[n - 1], pts[n]));
+       }
 }
 
 function parseGradientCoord(value, axis) {
@@ -1092,14 +1095,26 @@ function createContextMaybe(attribs, bbox) {
 		"transform" in attribs ||
 		"clip-path" in attribs ||
 		"mask" in attribs;
-	const hasColor = "color" in attribs;
-	const oldColor = currentColor;
-	if (hasColor) {
-		const c = attribs.color.trim().toLowerCase();
-		if (c !== "inherit" && c !== "currentcolor") {
-			currentColor = convertPaint(c).paint;
-		}
-	}
+       const hasColor = "color" in attribs;
+       const oldColor = currentColor;
+       if (hasColor) {
+               const c = attribs.color.trim().toLowerCase();
+               if (c !== "inherit" && c !== "currentcolor") {
+                       currentColor = convertPaint(c).paint;
+               }
+       }
+       const hasFont = "font-size" in attribs || "font-family" in attribs;
+       const oldFontSize = defaultFontSize;
+       const oldFontFamily = defaultFontFamily;
+       if ("font-size" in attribs) {
+               defaultFontSize = convertUnits(attribs["font-size"], "y");
+       }
+       if ("font-family" in attribs) {
+               defaultFontFamily = attribs["font-family"]
+                       .split(",")[0]
+                       .trim()
+                       .replace(/^['"]|['"]$/g, "");
+       }
 	if (needs) {
 		output("context [");
 		if ("transform" in attribs) {
@@ -1113,7 +1128,7 @@ function createContextMaybe(attribs, bbox) {
 			outputMask(attribs.mask, bbox);
 		}
 	}
-	return { needs, oldColor, hasColor };
+       return { needs, oldColor, hasColor, hasFont, oldFontSize, oldFontFamily };
 }
 
 function registerDefinition(element) {
@@ -1187,21 +1202,29 @@ converters.svg = function (element, attribs) {
 };
 
 converters.g = function (element, attribs) {
-	const ctx = createContextMaybe(attribs);
-	convertSVGContainer(element);
-	if (ctx.needs) output("]");
-	if (ctx.hasColor) currentColor = ctx.oldColor;
+       const ctx = createContextMaybe(attribs);
+       convertSVGContainer(element);
+       if (ctx.needs) output("]");
+       if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.hasFont) {
+               defaultFontSize = ctx.oldFontSize;
+               defaultFontFamily = ctx.oldFontFamily;
+       }
 };
 
 converters.path = function (element, attribs) {
-	const ctx = createContextMaybe(attribs);
-	if ("d" in attribs) {
-		output("path svg:[" + attribs.d + "]");
-	} else {
-		warning("Missing 'd' attribute in 'path' element.");
-	}
-	if (ctx.needs) output("]");
-	if (ctx.hasColor) currentColor = ctx.oldColor;
+       const ctx = createContextMaybe(attribs);
+       if ("d" in attribs) {
+               output("path svg:[" + attribs.d + "]");
+       } else {
+               warning("Missing 'd' attribute in 'path' element.");
+       }
+       if (ctx.needs) output("]");
+       if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.hasFont) {
+               defaultFontSize = ctx.oldFontSize;
+               defaultFontFamily = ctx.oldFontFamily;
+       }
 };
 
 converters.circle = function (element, attribs) {
@@ -1212,8 +1235,12 @@ converters.circle = function (element, attribs) {
 	const bbox = { left: cx - r, top: cy - r, width: r * 2, height: r * 2 };
 	const ctx = createContextMaybe(attribs, bbox);
 	output(`ellipse ${cx},${cy},${r}`);
-	if (ctx.needs) output("]");
-	if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.needs) output("]");
+       if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.hasFont) {
+               defaultFontSize = ctx.oldFontSize;
+               defaultFontFamily = ctx.oldFontFamily;
+       }
 };
 
 converters.ellipse = function (element, attribs) {
@@ -1225,8 +1252,12 @@ converters.ellipse = function (element, attribs) {
 	const bbox = { left: cx - rx, top: cy - ry, width: rx * 2, height: ry * 2 };
 	const ctx = createContextMaybe(attribs, bbox);
 	output(`ellipse ${cx},${cy},${rx},${ry}`);
-	if (ctx.needs) output("]");
-	if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.needs) output("]");
+       if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.hasFont) {
+               defaultFontSize = ctx.oldFontSize;
+               defaultFontFamily = ctx.oldFontFamily;
+       }
 };
 
 converters.line = function (element, attribs) {
@@ -1247,8 +1278,12 @@ converters.line = function (element, attribs) {
 		[x1, y1],
 		[x2, y2],
 	]);
-	if (ctx.needs) output("]");
-	if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.needs) output("]");
+       if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.hasFont) {
+               defaultFontSize = ctx.oldFontSize;
+               defaultFontFamily = ctx.oldFontFamily;
+       }
 };
 
 converters.rect = function (element, attribs) {
@@ -1274,8 +1309,12 @@ converters.rect = function (element, attribs) {
 		[x, y],
 		[x + w, y + h],
 	]);
-	if (ctx.needs) output("]");
-	if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.needs) output("]");
+       if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.hasFont) {
+               defaultFontSize = ctx.oldFontSize;
+               defaultFontFamily = ctx.oldFontFamily;
+       }
 };
 
 converters.polygon = function (element, attribs) {
@@ -1307,8 +1346,12 @@ converters.polygon = function (element, attribs) {
 		output("path svg:[" + s + "]");
 	}
 	processMarkers(attribs, pts);
-	if (ctx.needs) output("]");
-	if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.needs) output("]");
+       if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.hasFont) {
+               defaultFontSize = ctx.oldFontSize;
+               defaultFontFamily = ctx.oldFontFamily;
+       }
 };
 
 converters.polyline = function (element, attribs) {
@@ -1339,8 +1382,12 @@ converters.polyline = function (element, attribs) {
 		output("path svg:[" + s + "]");
 	}
 	processMarkers(attribs, pts);
-	if (ctx.needs) output("]");
-	if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.needs) output("]");
+       if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.hasFont) {
+               defaultFontSize = ctx.oldFontSize;
+               defaultFontFamily = ctx.oldFontFamily;
+       }
 };
 
 function applyTextAttributes(base, attribs) {

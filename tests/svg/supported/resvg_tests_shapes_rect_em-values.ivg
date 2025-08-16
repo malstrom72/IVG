@@ -5,7 +5,7 @@ pen miter-limit:4
 scale 2.5
 context [
 	fill green
-	rect 16,16,128,128 rounded:32
+	rect 20,20,160,160 rounded:40
 ]
 context [
 	pen black
