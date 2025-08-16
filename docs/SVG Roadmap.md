@@ -4,6 +4,28 @@ This document outlines a path for expanding `svg2ivg.js` to handle more of the S
 Each subsection describes the missing capability, implementation notes, and sample tests from
 `externals/resvgTests`.
 
+## Feature Rankings
+
+The lists below prioritize upcoming tasks for `svg2ivg.js`.
+
+### Importance (highest first)
+1. CSS Styles and Classes
+2. Additional Unit Types
+3. `currentColor` and `inherit`
+4. `image`
+5. Marker Elements
+6. Stroke Dash Arrays
+7. `clipPathUnits="objectBoundingBox"`
+
+### Difficulty (easiest first)
+1. Stroke Dash Arrays
+2. Additional Unit Types
+3. `currentColor` and `inherit`
+4. `image`
+5. `clipPathUnits="objectBoundingBox"`
+6. Marker Elements
+7. CSS Styles and Classes
+
 ## Text and Images
 
 ### `image`
