@@ -832,15 +832,15 @@ function outputPresentationAttributes(attribs) {
 			throw new Error("Unrecognized fill-rule: " + attribs["fill-rule"]);
 		}
 	}
-	if (
+	const hasStrokeAttrs =
 		hasStroke ||
 		hasStrokeWidth ||
 		hasStrokeLineJoin ||
+		hasStrokeLineCap ||
 		hasStrokeMiterlimit ||
-		strokeOpacity !== 1 ||
 		hasStrokeDasharray ||
-		hasStrokeDashoffset
-	) {
+		hasStrokeDashoffset;
+	if (hasStrokeAttrs) {
 		let s = "pen";
 		if (strokePaint) {
 			s += " " + strokePaint.paint;

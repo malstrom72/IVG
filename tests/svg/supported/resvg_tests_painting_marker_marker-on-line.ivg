@@ -10,7 +10,6 @@ context [
 		offset 40,40
 		offset -10,-10
 		context [
-			pen opacity:0.75
 			fill blue opacity:0.75
 			path svg:[M 10 0 16 20 H 4 Z]
 		]
@@ -19,7 +18,6 @@ context [
 		offset 160,160
 		offset -10,-10
 		context [
-			pen opacity:0.75
 			fill blue opacity:0.75
 			path svg:[M 10 0 16 20 H 4 Z]
 		]
