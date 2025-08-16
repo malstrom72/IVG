@@ -1129,7 +1129,7 @@ void EvenOddFillRule::processCoverage(int count, const Int32* source, Mask8::Pix
 class PolygonMask::Segment {
 	public:		int topY;			//< Starting y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
 	public:		int bottomY;		//< Ending y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
-public:		Fixed32_32 sx;
+	public:		int currentY;		//< Current y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
 	public:		Fixed32_32 x;		//< Current x in fixed super-fractional format (fraction precision = POLYGON_FRACTION_BITS + 32).
 	public:		Fixed32_32 dx;		//< Delta x for each row (fraction precision = POLYGON_FRACTION_BITS + 32).
 	public:		int coverageByX;	//< Absolute coverage delta for each column (precision = renderCoverFractionBits).
@@ -1192,7 +1192,6 @@ int maxX = -0x3FFFFFFF;
 				seg->topY = y0;
 				seg->bottomY = y1;
 				seg->x = toFixed32_32(x0, 0);
-seg->sx = seg->x;
 				seg->leftEdge = (x0 >> FRACT_BITS);
 				seg->dx = toFixed32_32(0, 0);
 				int coverageByX = 1 << ((COVERAGE_BITS + FRACT_BITS) - 1);
@@ -1207,11 +1206,11 @@ seg->sx = seg->x;
 				}
 				seg->coverageByX = (reversed ? -coverageByX : coverageByX);
 				if (top > seg->topY) { // Oops, we've passed the first y segment, catch-up!
-					seg->x = add(seg->x, multiply(static_cast<UInt32>(top - seg->topY), seg->dx));
-seg->sx = seg->x;
+				seg->x = add(seg->x, multiply(static_cast<UInt32>(top - seg->topY), seg->dx));
 					seg->topY = top;
 					seg->leftEdge = (high32(seg->x) >> FRACT_BITS);
 				}
+				seg->currentY = seg->topY;
 				seg->rightEdge = seg->leftEdge;
 				++seg;
 			}
@@ -1224,6 +1223,7 @@ maxX = maxValue(maxX, x1);
 		}
 	}
 	seg->topY = 0x7FFFFFFF; // "Sentinel" value, so we don't have to check the count.
+	seg->currentY = seg->topY;
 	++seg;
 	
 	// Sort vertical list by topY (and x if same topY). Copy to horizontal list.
@@ -1256,22 +1256,23 @@ assert(y >= row);
 
 	if (y > row) {
 		/*
-			FIX : comment no longer relevant
-			
 			Adjust x for all engaged and newly introduced segments. Already engaged: just jump by
 			rowCount, to be engaged: adjust from topY. Notice that this routine may leave the
 			horizontal list scrambled which can reduce performance (= may require heavier insertion
 			sorting at next rasterizeRows if the merge sort fails).
 		*/
-
-		row = y;
-		int YYY = row << FRACT_BITS;
+		int YYY = y << FRACT_BITS;
 		int segIndex = engagedStart;
 		while (segsVertically[segIndex]->topY < YYY) {
 			Segment* seg = segsVertically[segIndex];
-seg->x = add(seg->sx, multiply(static_cast<UInt32>(YYY - seg->topY), seg->dx));
+			int dy = YYY - seg->currentY;
+			if (dy > 0) {
+				seg->x = add(seg->x, multiply(static_cast<UInt32>(dy), seg->dx));
+				seg->currentY = YYY;
+			}
 			++segIndex;
 		}
+		row = y;
 	}
 	
 	int YYY = row << FRACT_BITS;
