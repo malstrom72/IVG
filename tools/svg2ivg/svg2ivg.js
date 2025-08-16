@@ -539,7 +539,7 @@ function parsePoints(str) {
 	return points;
 }
 
-function outputMarker(ref, x, y, angle) {
+function outputMarker(ref, x, y, angle, kind) {
 	const id = parseUrlRef(ref);
 	if (!id || !(id in definitions)) {
 		warning("Unrecognized marker reference: " + ref);
@@ -558,10 +558,18 @@ function outputMarker(ref, x, y, angle) {
               scaleX = width / vb.width;
               scaleY = height / vb.height;
       }
+      let rotateAngle = NaN;
+      const orient = attrs.orient || "0";
+      if (orient === "auto" || orient === "auto-start-reverse") {
+              rotateAngle = angle;
+              if (orient === "auto-start-reverse" && kind === "start") rotateAngle += 180;
+      } else {
+              rotateAngle = parseFloat(orient);
+      }
       output("context [");
       output(`offset ${x},${y}`);
-      if (!isNaN(angle)) {
-              output(`rotate ${angle}`);
+      if (!isNaN(rotateAngle) && rotateAngle !== 0) {
+              output(`rotate ${formatFloat(rotateAngle)}`);
       }
       if (scaleX !== 1 || scaleY !== 1) {
               output(`scale ${scaleX},${scaleY}`);
@@ -578,22 +586,16 @@ function outputMarker(ref, x, y, angle) {
 function processMarkers(attribs, pts) {
        const getAngle = (p1, p2) => (Math.atan2(p2[1] - p1[1], p2[0] - p1[0]) * 180) / Math.PI;
        if ("marker-start" in attribs && pts.length >= 2) {
-               outputMarker(attribs["marker-start"], pts[0][0], pts[0][1], getAngle(pts[0], pts[1]));
+               outputMarker(attribs["marker-start"], pts[0][0], pts[0][1], getAngle(pts[0], pts[1]), "start");
        }
-       if ("marker-mid" in attribs) {
-               if (pts.length >= 3) {
-                       for (let i = 1; i < pts.length - 1; i++) {
-                               outputMarker(attribs["marker-mid"], pts[i][0], pts[i][1], getAngle(pts[i - 1], pts[i + 1]));
-                       }
-               } else if (pts.length === 2) {
-                       const midX = (pts[0][0] + pts[1][0]) / 2;
-                       const midY = (pts[0][1] + pts[1][1]) / 2;
-                       outputMarker(attribs["marker-mid"], midX, midY, getAngle(pts[0], pts[1]));
+       if ("marker-mid" in attribs && pts.length >= 3) {
+               for (let i = 1; i < pts.length - 1; i++) {
+                       outputMarker(attribs["marker-mid"], pts[i][0], pts[i][1], getAngle(pts[i - 1], pts[i + 1]), "mid");
                }
        }
        if ("marker-end" in attribs && pts.length >= 2) {
                const n = pts.length - 1;
-               outputMarker(attribs["marker-end"], pts[n][0], pts[n][1], getAngle(pts[n - 1], pts[n]));
+               outputMarker(attribs["marker-end"], pts[n][0], pts[n][1], getAngle(pts[n - 1], pts[n]), "end");
        }
 }
 
