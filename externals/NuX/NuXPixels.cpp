@@ -1189,7 +1189,7 @@ int maxX = -0x3FFFFFFF;
 				reversed = true;
 			}
 			if (y0 != y1 && y1 > top && y0 < bottom && minValue(x0, x1) < right) {
-				segments.emplace_back();
+				segments.push_back(Segment());
 				Segment& seg = segments.back();
 				seg.topY = y0;
 				seg.bottomY = y1;
@@ -1223,9 +1223,10 @@ maxX = maxValue(maxX, x1);
 			++it;
 		}
 	}
-	segments.emplace_back();
-	segments.back().topY = 0x7FFFFFFF; // "Sentinel" value, so we don't have to check the count.
-	segments.back().currentY = segments.back().topY;
+	segments.push_back(Segment());
+	Segment& segSentinel = segments.back();
+	segSentinel.topY = 0x7FFFFFFF; // "Sentinel" value, so we don't have to check the count.
+	segSentinel.currentY = segSentinel.topY;
 
 	// Sort vertical list by topY (and x if same topY). Copy to horizontal list.
 
@@ -1446,7 +1447,9 @@ assert(y >= row);
 	coverageDelta[length] = 0; // Need to clear the extra margin element. 
 }
 
-PolygonMask::~PolygonMask() = default;
+PolygonMask::~PolygonMask()
+{
+}
 
 NonZeroFillRule PolygonMask::nonZeroFillRule;
 EvenOddFillRule PolygonMask::evenOddFillRule;
