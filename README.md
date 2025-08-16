@@ -100,7 +100,7 @@ See [ivgfont Documentation](docs/ivgfont%20Documentation.md) for details on the 
 
 ## AI Usage
 
-AI tools (such as OpenAI Codex) have occasionally been used to assist with documentation, code comments, test generation, and repetitive edits. All core source code has been written and refined by hand over many years.
+AI tools (such as OpenAI Codex) have been used to assist with documentation, code comments, test generation, and repetitive edits. All core source code, except svg2ivg.js, has been written and refined by hand over many years. AI was used extensively to complete svg2ivg.js (which began as a "PikaScript").
 
 ## License
 
