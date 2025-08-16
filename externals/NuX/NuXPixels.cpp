@@ -92,7 +92,7 @@ const IntRect FULL_RECT(-0x40000000, -0x40000000, 0x7FFFFFFF, 0x7FFFFFFF);
 	Number of divisions of a circle for rounded joints etc. Notice that going beyond 200 divisions
 	doesn't make much difference, even if the end-result is magnified considerably. This is
 	because the angle between the segments is independent of the scaling of the circle.
-*/
+**/
 const double MAX_CIRCLE_DIVISIONS = 200.0;
 const double MIN_CIRCLE_DIVISIONS = 8.0;	// smallest circle-like shape: octagon
 
@@ -432,7 +432,13 @@ Path& Path::cubicTo(double cpBeginX, double cpBeginY, double cpEndX, double cpEn
 	double c3x = 6.0 * (x - px + 3.0 * (cpBeginX - cpEndX));
 	double c3y = 6.0 * (y - py + 3.0 * (cpBeginY - cpEndY));
 
-	double k2x = 6.0 * (cpBeginX - 2.0 * cpEndX + x);	// Norm of second derivative is a measure of how direction (=first derivative) twist. For a cubic (where second derivative also twists) we use the maximum which happens to be either at the very beginning or very end of the curve. We use this info to decide the segment count.
+	/**
+		Norm of second derivative is a measure of how direction (=first derivative) twist.
+		For a cubic (where second derivative also twists) we use the maximum which happens
+		to be either at the very beginning or very end of the curve. We use this info to
+		decide the segment count.
+	**/
+	double k2x = 6.0 * (cpBeginX - 2.0 * cpEndX + x);
 	double k2y = 6.0 * (cpBeginY - 2.0 * cpEndY + y);
 	double d = sqrt(maxValue(c2x * c2x + c2y * c2y, k2x * k2x + k2y * k2y));
 	int n = minValue(static_cast<int>(sqrt(d * 0.707 * curveQuality) + 0.5) + 1, MAX_SPLINE_SEGMENTS);
@@ -474,7 +480,7 @@ Path& Path::addRect(double left, double top, double width, double height) {
 
 /**
 	Makes an arc by rotating a point around the center of the arc.
-*/
+**/
 Path& Path::arcSweep(double centerX, double centerY, double sweepRadians, double aspectRatio, double curveQuality) {
 	assert(-PI2 <= sweepRadians && sweepRadians <= PI2);
 	assert(0.0 < aspectRatio && aspectRatio < 10000000000.0);
@@ -581,9 +587,6 @@ Path& Path::addStar(double centerX, double centerY, int points, double radius1, 
 	return *this;
 }
 
-/**
-StrokeSegment is an internal helper for path stroking.
-**/
 class StrokeSegment {
 	public:		StrokeSegment(const Vertex& v = Vertex(), const Vertex& d = Vertex(), double l = 0.0)
 						: v(v), d(d), l(l) { }
@@ -596,7 +599,7 @@ class StrokeSegment {
 	Makes an arc by rotating a point around the center of the arc.
 	The end-point is rotated to the horizontal plane so that we can easily check when we reach it.
 	(This trick works since the arc is always less than 180 degrees.)
-*/
+**/
 static void strokeRounded(Path& stroked, double ax1, double ay1, double bx0, double by0, double bdx, double bdy
 		, double rx, double ry) {
 	double px = ax1 - bx0 + bdy;
@@ -637,48 +640,53 @@ static void strokeEnd(Path& stroked, double direction, const StrokeSegment* seg,
 	`direction` is +1 for the left side and -1 for the right side when following the path.
 	The segments are offset by their perpendiculars; inner joins collapse while outer
 	joins are expanded according to `joints`, with miters clipped by `miterLimitW`.
-*/
+**/
 static void strokeOneSide(Path& stroked, double direction, const StrokeSegment* segA, const StrokeSegment* segB
 		, Path::JointStyle joints, double miterLimitW, double rx, double ry) {
 	int o = (direction >= 0) ? 0 : 1;		// select start/end index depending on traversal direction
 	
-	double al = segA[0].l;		// length of A measured in stroke widths
+	double al = segA[0].l;					// length of A measured in stroke widths
 	double adx = segA[0].d.x * direction;	// normalized delta for segment A
 	double ady = segA[0].d.y * direction;
-	double ax0 = segA[o].v.x + ady;	// offset point A at start of join
+	double ax0 = segA[o].v.x + ady;			// offset point A at start of join
 	double ay0 = segA[o].v.y - adx;
-	double ax1 = segA[1 - o].v.x + ady;	// offset point A at end of join
+	double ax1 = segA[1 - o].v.x + ady;		// offset point A at end of join
 	double ay1 = segA[1 - o].v.y - adx;
-	double bl = segB[0].l;		// length of B in stroke widths
+	double bl = segB[0].l;					// length of B in stroke widths
 	double bdx = segB[0].d.x * direction;	// normalized delta for segment B
 	double bdy = segB[0].d.y * direction;
-	double bx0 = segB[o].v.x + bdy;	// offset point B at start of join
+	double bx0 = segB[o].v.x + bdy;			// offset point B at start of join
 	double by0 = segB[o].v.y - bdx;
 
-	if ((bx0 - ax1) * bdx + EPSILON * 2 <= (ay1 - by0) * bdy) { // Inner joint? B inside half-plane of A
-		double d = (bdx * ady - adx * bdy);	// determinant of direction matrix
-		double v = 0.0;		// param along segment A
-		double w = 0.0;		// param along segment B
+	/*
+		Inner joint if B is inside half-plane of A (or if A and B are virtually
+		collinear, which is checked by adding EPSILON * 2).
+	*/
+	if ((bx0 - ax1) * bdx < (ay1 - by0) * bdy + EPSILON * 2) {
+		// --- Inner joint ---
+		double d = (bdx * ady - adx * bdy);					// determinant of direction matrix
+		double v = 0.0;										// param along segment A
+		double w = 0.0;										// param along segment B
 		if (fabs(d) >= EPSILON) {
 			v = (bdy * (ax0 - bx0) - bdx * (ay0 - by0)) / d;
 			w = (ady * (ax0 - bx0) - adx * (ay0 - by0)) / d;
 		}
-		if (v >= 0.0 && v <= al && w >= 0.0 && w <= bl) { // Do the offset lines cross before segment ends?
+		if (v >= 0.0 && v <= al && w >= 0.0 && w <= bl) {	// Do the offset lines cross before segment ends?
 			stroked.lineTo(ax0 + adx * v, ay0 + ady * v);
-		} else { // If lines do not cross, resort to a safe romb that fills correctly
+		} else {											// If lines do not cross, resort to a safe romb that fills correctly
 			stroked.lineTo(ax1, ay1);
-		// stroked.lineTo(bx0 - bdy, by0 + bdx); // would produce a slimmer join
+			// stroked.lineTo(bx0 - bdy, by0 + bdx); 		// would produce a slimmer join
 			stroked.lineTo(bx0, by0);
 		}	
-	} else { // Outer joint
+	} else {
+		// --- Outer joint ---
 		switch (joints) {
 			case Path::MITER: {
-				double d = (bdx * ady - adx * bdy);	// same determinant as above
+				double d = (bdx * ady - adx * bdy);			// same determinant as above
 				double w = (fabs(d) >= EPSILON) ? (ady * (ax0 - bx0) - adx * (ay0 - by0)) / d : 0.0;	// param along B
-				if (w > 0.0) w = -w;	// w should be negative for outer joins; clamp so miter limit applies
-				if (w > miterLimitW) {	// Intersection within miter limit?
+				if (w > miterLimitW) {						// Intersection within miter limit?
 					stroked.lineTo(bx0 + bdx * w, by0 + bdy * w);
-				} else { // Clip to miter limit
+				} else { 									// Clip to miter limit
 					stroked.lineTo(ax1 - adx * miterLimitW, ay1 - ady * miterLimitW);
 					stroked.lineTo(bx0 + bdx * miterLimitW, by0 + bdy * miterLimitW);
 				}
@@ -1118,9 +1126,6 @@ void EvenOddFillRule::processCoverage(int count, const Int32* source, Mask8::Pix
 
 /* --- PolygonMask --- */
 
-/**
-PolygonMask::Segment holds a polygon edge while generating a mask.
-**/
 class PolygonMask::Segment {
 	public:		int topY;			//< Starting y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
 	public:		int bottomY;		//< Ending y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
