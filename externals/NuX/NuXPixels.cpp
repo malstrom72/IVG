@@ -1148,9 +1148,8 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 	cb.top = maxValue(-limit, minValue(cb.top, limit));
 	int rightBound = maxValue(-limit, minValue(cb.calcRight(), limit));
 	int bottomBound = maxValue(-limit, minValue(cb.calcBottom(), limit));
-	cb.width = maxValue(0, rightBound - cb.left);
-	cb.height = maxValue(0, bottomBound - cb.top);
-	row = cb.top;
+        cb.width = maxValue(0, rightBound - cb.left);
+        cb.height = maxValue(0, bottomBound - cb.top);
 
 	segments.reserve(path.size() + 1);
 	int minY = 0x3FFFFFFF;
@@ -1222,25 +1221,14 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 	segSentinel.topY = 0x7FFFFFFF; // "Sentinel" value, so we don't have to check the count.
 	segSentinel.currentY = segSentinel.topY;
 
-	// Sort vertical list by topY (and x if same topY). Copy to horizontal list.
+       bounds.left = minX >> FRACT_BITS;
+       bounds.top = minY >> FRACT_BITS;
+       bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
+       bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
+       bounds = bounds.calcIntersection(cb);
+       coverageDelta.assign(bounds.width + 1, 0);
 
-	segsVertically.resize(segments.size());
-	{ for (size_t segIndex = 0; segIndex < segsVertically.size(); ++segIndex) {
-		segsVertically[segIndex] = &segments[segIndex];
-	} }
-	std::sort(segsVertically.begin(), segsVertically.end(), Segment::Order());
-	segsHorizontally = segsVertically;
-	
-	bounds.left = minX >> FRACT_BITS;
-	bounds.top = minY >> FRACT_BITS;
-	bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
-	bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
-	bounds = bounds.calcIntersection(cb);
-	coverageDelta.assign(bounds.width + 1, 0);
-	row = bounds.top;
-#if !defined(NDEBUG)
-	paintedBounds = EMPTY_RECT;
-#endif
+       rewind();
 }
 
 void PolygonMask::rewind() const {
