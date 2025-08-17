@@ -18,9 +18,7 @@ for f in ./ivg/*.ivg; do
 	echo Doing "$n"
 	echo
 	$EXE --fonts "$FONTS" "$f" "$tmp/$n.png"
-	if [ -f "./png/$n.png" ]; then
-		cmp "$tmp/$n.png" "./png/$n.png"
-	fi
+	cmp "$tmp/$n.png" "./png/$n.png"
 	echo
 	echo
 done
