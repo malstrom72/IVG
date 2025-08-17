@@ -34,12 +34,11 @@ namespace NuXPixels {
 using namespace NuXSIMD;
 #endif
 
-const int POLYGON_FRACTION_BITS = 8; // FIX : where?
-// FIX : abbrevs, somewhere else?
-const int FRACT_BITS = POLYGON_FRACTION_BITS;
-const int FRACT_MASK = ((1 << FRACT_BITS) - 1);
-const int FRACT_ONE = (1 << FRACT_BITS);
-const int COVERAGE_BITS = 8; // FIX : where, or IF?
+static const int POLYGON_FRACTION_BITS = 8;
+static const int FRACT_BITS = POLYGON_FRACTION_BITS;
+static const int FRACT_MASK = ((1 << FRACT_BITS) - 1);
+static const int FRACT_ONE = (1 << FRACT_BITS);
+static const int COVERAGE_BITS = 8;
 
 template class Point<int>;
 template class Point<double>;
@@ -1126,12 +1125,13 @@ void EvenOddFillRule::processCoverage(int count, const Int32* source, Mask8::Pix
 
 /* --- PolygonMask --- */
 
-bool PolygonMask::Segment::operator<(const PolygonMask::Segment& b) const
-{
-	return ((topY >> FRACT_BITS) < (b.topY >> FRACT_BITS)
-			|| ((topY >> FRACT_BITS) == (b.topY >> FRACT_BITS)
-			&& leftEdge < b.leftEdge));
-}
+// Notice: this compares through pointers, so we can't implement this as operator< for Segment.
+struct PolygonMask::Segment::Order {
+	bool operator()(const PolygonMask::Segment* a, const PolygonMask::Segment* b) {
+		return ((a->topY >> FRACT_BITS) < (b->topY >> FRACT_BITS)
+				|| ((a->topY >> FRACT_BITS) == (b->topY >> FRACT_BITS) && a->leftEdge < b->leftEdge));
+	}
+};
 
 PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule)
 	: segments()
@@ -1219,7 +1219,7 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 	{ for (size_t segIndex = 0; segIndex < segsVertically.size(); ++segIndex) {
 		segsVertically[segIndex] = &segments[segIndex];
 	} }
-	std::sort(segsVertically.begin(), segsVertically.end(), [](const Segment* a, const Segment* b) { return *a < *b; });
+	std::sort(segsVertically.begin(), segsVertically.end(), Segment::Order());
 	segsHorizontally = segsVertically;
 	
 	bounds.left = minX >> FRACT_BITS;

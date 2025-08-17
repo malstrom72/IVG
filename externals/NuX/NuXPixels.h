@@ -932,16 +932,16 @@ class EvenOddFillRule : public FillRule {
 // Also: this is (I believe) the only renderer that doesn't allow random access coordinates. It needs to render from top to bottom, left to right. Once only.
 /**
 	PolygonMask rasterizes a path into a coverage mask using a fill rule.
-    
+
 	It works by:
 
-       1. Converting each path edge into a vertical segment and sorting them by their top Y.
-       2. Scanning rows from top to bottom while maintaining an active list of segments ordered by X.
-       3. For each row, accumulating edge coverage per column to build a span buffer.
-       4. Applying the selected fill rule to turn accumulated coverage into mask pixels.
-
-	Renders must request rows in ascending order; calling `render` with a `y` lower than any previously
-	rendered row returns transparent coverage.
+		1. Converting each path edge into a vertical segment and sorting them by their top Y.
+		2. Scanning rows from top to bottom while maintaining an active list of segments ordered by X.
+		3. For each row, accumulating edge coverage per column to build a span buffer.
+		4. Applying the selected fill rule to turn accumulated coverage into mask pixels.
+	
+	Renders must request rows in ascending order; calling `render` with a `y` lower than any previously rendered row returns
+	transparent coverage.
 **/
 class PolygonMask : public Renderer<Mask8> {
 	public:		static NonZeroFillRule nonZeroFillRule;
@@ -960,8 +960,9 @@ class PolygonMask : public Renderer<Mask8> {
 					int coverageByX;	/// Absolute coverage delta for each column (precision = renderCoverFractionBits).
 					int leftEdge;		/// Last left edge pixel.
 					int rightEdge;		/// Last right edge pixel.
-					bool operator<(const Segment& other) const;
+					struct Order;
 				};
+
 	protected:	std::vector<Segment> segments;
 	protected:	IntRect bounds;
 	protected:	const FillRule& fillRule;
