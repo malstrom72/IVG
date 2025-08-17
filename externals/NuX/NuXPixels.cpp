@@ -1145,27 +1145,25 @@ class PolygonMask::Segment {
 				};
 };
 
-PolygonMask::PolygonMask(const Path& path, const IntRect& area, const FillRule& fillRule)
+
+PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule)
 	: segments()
-	, area(area)
 	, fillRule(fillRule)
-	, row(area.top)
+	, row(clipBounds.top)
 	, engagedStart(0)
 	, engagedEnd(0)
-	, coverageDelta(area.width + 1) // 1 extra margin element so that we can always write in pairs.
+	, coverageDelta()
 {
-	assert(0 <= area.width && 0 <= area.height);
-	
-	std::fill(coverageDelta.begin(), coverageDelta.end(), 0);
+	assert(0 <= clipBounds.width && 0 <= clipBounds.height);
 
 	segments.reserve(path.size() + 1);
 int minY = 0x3FFFFFFF;
 int minX = 0x3FFFFFFF;
 int maxY = -0x3FFFFFFF;
 int maxX = -0x3FFFFFFF;
-	int top = area.top << FRACT_BITS;
-	int right = area.calcRight() << FRACT_BITS;
-	int bottom = area.calcBottom() << FRACT_BITS;
+int top = clipBounds.top << FRACT_BITS;
+int right = clipBounds.calcRight() << FRACT_BITS;
+int bottom = clipBounds.calcBottom() << FRACT_BITS;
 	int lx = 0;
 	int ly = 0;
 
@@ -1241,7 +1239,9 @@ bounds.left = minX >> FRACT_BITS;
 bounds.top = minY >> FRACT_BITS;
 bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
 bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
-bounds = bounds.calcIntersection(area);
+bounds = bounds.calcIntersection(clipBounds);
+coverageDelta.assign(bounds.width + 1, 0);
+row = bounds.top;
 }
 
 IntRect PolygonMask::calcBounds() const
@@ -1252,7 +1252,23 @@ IntRect PolygonMask::calcBounds() const
 void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) const
 {
 	assert(0 < length && length <= MAX_RENDER_LENGTH);
-	assert(area.left <= x && x + length <= area.calcRight());
+	int clipLeft = bounds.left;
+	int clipRight = bounds.calcRight();
+	if (x + length <= clipLeft || x >= clipRight) {
+		output.addTransparent(length);
+		return;
+	}
+	int rightClip = 0;
+	if (x < clipLeft) {
+		int leftClip = clipLeft - x;
+		output.addTransparent(leftClip);
+		x = clipLeft;
+		length -= leftClip;
+	}
+	if (x + length > clipRight) {
+		rightClip = x + length - clipRight;
+		length -= rightClip;
+	}
 
 assert(y >= row);
 
@@ -1444,7 +1460,10 @@ assert(y >= row);
 		}
 	}
 
-	coverageDelta[length] = 0; // Need to clear the extra margin element. 
+coverageDelta[length] = 0; // Need to clear the extra margin element.
+	if (rightClip > 0) {
+		output.addTransparent(rightClip);
+	}
 }
 
 PolygonMask::~PolygonMask()

@@ -938,21 +938,20 @@ class EvenOddFillRule : public FillRule {
 	3. For each row, accumulating edge coverage per column to build a span buffer.
 	4. Applying the selected fill rule to turn accumulated coverage into mask pixels.
 	example:
-	PolygonMask mask(path, bounds, PolygonMask::nonZeroFillRule);
+PolygonMask mask(path, clipBounds, PolygonMask::nonZeroFillRule);
 **/
 class PolygonMask : public Renderer<Mask8> {
 	public:		static NonZeroFillRule nonZeroFillRule;
 	public:		static EvenOddFillRule evenOddFillRule;
 
-	public:		PolygonMask(const Path& path, const IntRect& bounds, const FillRule& fillRule = nonZeroFillRule); // Important: bounds need to be the full bounds for (or larger than) the "pulling" renderer (e.g. the output raster).
+	public:		PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule = nonZeroFillRule); // Important: clipBounds need to be the full bounds for (or larger than) the "pulling" renderer (e.g. the output raster).
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<Mask8>& output) const;
 	public:		virtual ~PolygonMask();
 	
 	protected:	class Segment;
 	protected:	std::vector<Segment> segments;
-	protected:	IntRect area;
-protected:	IntRect bounds; // FIX : shouldn't need both area and bounds
+	protected:	IntRect bounds;
 	protected:	const FillRule& fillRule;
 	protected:	mutable int row;
 	protected:	mutable int engagedStart;
