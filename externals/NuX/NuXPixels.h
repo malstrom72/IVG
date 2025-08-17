@@ -951,6 +951,7 @@ class PolygonMask : public Renderer<Mask8> {
 			const FillRule& fillRule = nonZeroFillRule);   ///< `clipBounds` is clamped; must cover destination raster.
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<Mask8>& output) const;
+		public:		void rewind() const;
 	
 	protected:	struct Segment {
 					int topY;			/// Starting y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
