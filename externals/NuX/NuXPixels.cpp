@@ -1135,14 +1135,11 @@ class PolygonMask::Segment {
 	public:		int coverageByX;	//< Absolute coverage delta for each column (precision = renderCoverFractionBits).
 	public:		int leftEdge;		//< Last left edge pixel.
 	public:		int rightEdge;		//< Last right edge pixel.
-	public:		class Order {
-					public:		bool operator()(const PolygonMask::Segment* a, const PolygonMask::Segment* b)
-								{
-									return ((a->topY >> FRACT_BITS) < (b->topY >> FRACT_BITS)
-													|| ((a->topY >> FRACT_BITS) == (b->topY >> FRACT_BITS)
-													&& a->leftEdge < b->leftEdge));
-								}
-				};
+	public:		bool operator<(const Segment& other) const {
+					return ((topY >> FRACT_BITS) < (other.topY >> FRACT_BITS)
+							|| ((topY >> FRACT_BITS) == (other.topY >> FRACT_BITS)
+							&& leftEdge < other.leftEdge));
+				}
 };
 
 
@@ -1202,22 +1199,22 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 					Fixed32_32 dyByDx = divide(dy, abs(dx));
 					if (high32(dyByDx) < (1 << ((COVERAGE_BITS + FRACT_BITS) - 1))) {
 						coverageByX = high32(shiftLeft(dyByDx, COVERAGE_BITS + FRACT_BITS));
-}
-}
+					}
+				}
 				seg.coverageByX = (reversed ? -coverageByX : coverageByX);
 				if (top > seg.topY) { // Oops, we've passed the first y segment, catch-up!
 					seg.x = add(seg.x, multiply(static_cast<UInt32>(top - seg.topY), seg.dx));
 					seg.topY = top;
 					seg.leftEdge = (high32(seg.x) >> FRACT_BITS);
-}
+				}
 				seg.currentY = seg.topY;
 				seg.rightEdge = seg.leftEdge;
-}
-minY = minValue(minY, y0);
-maxY = maxValue(maxY, y1);
-sort(x0, x1);
-minX = minValue(minX, x0);
-maxX = maxValue(maxX, x1);
+			}
+			minY = minValue(minY, y0);
+			maxY = maxValue(maxY, y1);
+			sort(x0, x1);
+			minX = minValue(minX, x0);
+			maxX = maxValue(maxX, x1);
 			++it;
 		}
 	}
@@ -1232,16 +1229,16 @@ maxX = maxValue(maxX, x1);
 	{ for (size_t segIndex = 0; segIndex < segsVertically.size(); ++segIndex) {
 		segsVertically[segIndex] = &segments[segIndex];
 	} }
-	std::sort(segsVertically.begin(), segsVertically.end(), Segment::Order());
+	std::sort(segsVertically.begin(), segsVertically.end());
 	segsHorizontally = segsVertically;
 	
-bounds.left = minX >> FRACT_BITS;
-bounds.top = minY >> FRACT_BITS;
-       bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
-       bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
-       bounds = bounds.calcIntersection(clipBounds);
-       coverageDelta.assign(bounds.width + 1, 0);
-       row = bounds.top;
+	bounds.left = minX >> FRACT_BITS;
+	bounds.top = minY >> FRACT_BITS;
+	bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
+	bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
+	bounds = bounds.calcIntersection(clipBounds);
+	coverageDelta.assign(bounds.width + 1, 0);
+	row = bounds.top;
 #if !defined(NDEBUG)
 	paintedBounds = EMPTY_RECT;
 #endif
@@ -1261,27 +1258,27 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 		output.addTransparent(length);
 		return;
 	}
-       int rightClip = 0;
-       if (x < clipLeft) {
-               int leftClip = clipLeft - x;
-               output.addTransparent(leftClip);
-               x = clipLeft;
-               length -= leftClip;
-       }
-       if (x + length > clipRight) {
-               rightClip = x + length - clipRight;
-               length -= rightClip;
-       }
+	int rightClip = 0;
+	if (x < clipLeft) {
+		int leftClip = clipLeft - x;
+		output.addTransparent(leftClip);
+		x = clipLeft;
+		length -= leftClip;
+	}
+	if (x + length > clipRight) {
+		rightClip = x + length - clipRight;
+		length -= rightClip;
+	}
 
-       if (y < row) {
-               output.addTransparent(length);
-               if (rightClip > 0) {
-                       output.addTransparent(rightClip);
-               }
-               return;
-       }
+	if (y < row) {
+		output.addTransparent(length);
+		if (rightClip > 0) {
+			output.addTransparent(rightClip);
+		}
+		return;
+	}
 
-       if (y > row) {
+    if (y > row) {
 		/*
 			Adjust x for all engaged and newly introduced segments. Already engaged: just jump by
 			rowCount, to be engaged: adjust from topY. Notice that this routine may leave the
@@ -1426,30 +1423,30 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 
 	// Integrate and perform rendering.
 	
-       bool rowUsed = false;
-       int rowMin = length;
-       int rowMax = 0;
-       int coverageAcc = 0;
-       int col = 0;
-       while (col < length) {
+	bool rowUsed = false;
+	int rowMin = length;
+	int rowMax = 0;
+	int coverageAcc = 0;
+	int col = 0;
+	while (col < length) {
 
 		// Go to the next left-edge (first round this may be 0 if first left-edge < 0)
 
 		int nx = ((integrateIndex < engagedEnd) ? segsHorizontally[integrateIndex]->leftEdge : length);
-               if (nx > col) {
-                       coverageAcc += coverageDelta[col];
-                       const Int32 sourceCoverage[1] = { coverageAcc };
-                       Mask8::Pixel pixel;
-                       fillRule.processCoverage(1, sourceCoverage, &pixel);
-                       coverageDelta[col] = 0;
-                       output.addSolid(nx - col, pixel);
-                       if (!Mask8::isTransparent(pixel)) {
-                               rowUsed = true;
-                               rowMin = minValue(rowMin, col);
-                               rowMax = maxValue(rowMax, nx);
-                       }
-                       col = nx;
-               }
+		if (nx > col) {
+			coverageAcc += coverageDelta[col];
+			const Int32 sourceCoverage[1] = { coverageAcc };
+			Mask8::Pixel pixel;
+			fillRule.processCoverage(1, sourceCoverage, &pixel);
+			coverageDelta[col] = 0;
+			output.addSolid(nx - col, pixel);
+			if (!Mask8::isTransparent(pixel)) {
+				rowUsed = true;
+				rowMin = minValue(rowMin, col);
+				rowMax = maxValue(rowMax, nx);
+			}
+			col = nx;
+		}
 
 		// Find the end of this span by extending as long as right-edge overlaps next left-edge (with 4 pixels margin).
 
@@ -1461,27 +1458,27 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 			}
 			++integrateIndex;
 		}
-		
-               if (nx > col) {
-                       int spanLength = nx - col;
-                       { for (int i = 0; i < spanLength; ++i) {
-                               coverageAcc += coverageDelta[col + i];
-                               coverageDelta[col + i] = coverageAcc;
-                       } }
-                       Mask8::Pixel* pixels = output.addVariable(spanLength, false);
-                       fillRule.processCoverage(spanLength, &coverageDelta[col], pixels);
-                       for (int i = 0; i < spanLength; ++i) {
-                               if (!Mask8::isTransparent(pixels[i])) {
-                                       rowUsed = true;
-                                       rowMin = minValue(rowMin, col + i);
-                                       rowMax = maxValue(rowMax, col + i + 1);
-                               }
-                       }
-                       { for (int i = 0; i < spanLength; ++i) {
-                               coverageDelta[col + i] = 0;
-                       } }
-                       col = nx;
-               }
+			
+		if (nx > col) {
+			int spanLength = nx - col;
+			{ for (int i = 0; i < spanLength; ++i) {
+					coverageAcc += coverageDelta[col + i];
+					coverageDelta[col + i] = coverageAcc;
+			} }
+			Mask8::Pixel* pixels = output.addVariable(spanLength, false);
+			fillRule.processCoverage(spanLength, &coverageDelta[col], pixels);
+			for (int i = 0; i < spanLength; ++i) {
+					if (!Mask8::isTransparent(pixels[i])) {
+							rowUsed = true;
+							rowMin = minValue(rowMin, col + i);
+							rowMax = maxValue(rowMax, col + i + 1);
+					}
+			}
+			{ for (int i = 0; i < spanLength; ++i) {
+					coverageDelta[col + i] = 0;
+			} }
+			col = nx;
+		}
 	}
 
 #if !defined(NDEBUG)
@@ -1495,14 +1492,10 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 #else
 	(void)rowUsed; (void)rowMin; (void)rowMax;
 #endif
-       coverageDelta[length] = 0; // Need to clear the extra margin element.
-       if (rightClip > 0) {
-               output.addTransparent(rightClip);
-       }
-}
-
-PolygonMask::~PolygonMask()
-{
+	coverageDelta[length] = 0; // Need to clear the extra margin element.
+	if (rightClip > 0) {
+		output.addTransparent(rightClip);
+	}
 }
 
 NonZeroFillRule PolygonMask::nonZeroFillRule;
