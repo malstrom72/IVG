@@ -943,6 +943,12 @@ class EvenOddFillRule : public FillRule {
 	Renders must request rows in ascending order; calling `render` with a `y` lower than any previously rendered row returns
 	transparent coverage.
 **/
+const int POLYGON_FRACTION_BITS = 8;
+const int FRACT_BITS = POLYGON_FRACTION_BITS;
+const int FRACT_MASK = ((1 << FRACT_BITS) - 1);
+const int FRACT_ONE = (1 << FRACT_BITS);
+const int COVERAGE_BITS = 8;
+
 class PolygonMask : public Renderer<Mask8> {
 	public:		static NonZeroFillRule nonZeroFillRule;
 	public:		static EvenOddFillRule evenOddFillRule;
@@ -951,7 +957,22 @@ class PolygonMask : public Renderer<Mask8> {
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<Mask8>& output) const;
 	
-	protected:	class Segment;
+	protected:	class Segment {
+					public:		int topY;			//< Starting y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
+					public:		int bottomY;		//< Ending y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
+					public:		int currentY;		//< Current y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
+					public:		Fixed32_32 x;		//< Current x in fixed super-fractional format (fraction precision = POLYGON_FRACTION_BITS + 32).
+					public:		Fixed32_32 dx;		//< Delta x for each row (fraction precision = POLYGON_FRACTION_BITS + 32).
+					public:		int coverageByX;	//< Absolute coverage delta for each column (precision = renderCoverFractionBits).
+					public:		int leftEdge;		//< Last left edge pixel.
+					public:		int rightEdge;		//< Last right edge pixel.
+					public:		bool operator<(const Segment& other) const {
+									return ((topY >> FRACT_BITS) < (other.topY >> FRACT_BITS)
+											|| ((topY >> FRACT_BITS) == (other.topY >> FRACT_BITS)
+											&& leftEdge < other.leftEdge));
+								}
+				};
+
 	protected:	std::vector<Segment> segments;
 	protected:	IntRect bounds;
 	protected:	const FillRule& fillRule;

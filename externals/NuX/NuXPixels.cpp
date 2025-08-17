@@ -34,13 +34,6 @@ namespace NuXPixels {
 using namespace NuXSIMD;
 #endif
 
-const int POLYGON_FRACTION_BITS = 8; // FIX : where?
-// FIX : abbrevs, somewhere else?
-const int FRACT_BITS = POLYGON_FRACTION_BITS;
-const int FRACT_MASK = ((1 << FRACT_BITS) - 1);
-const int FRACT_ONE = (1 << FRACT_BITS);
-const int COVERAGE_BITS = 8; // FIX : where, or IF?
-
 template class Point<int>;
 template class Point<double>;
 template class Rect<int>;
@@ -1125,23 +1118,6 @@ void EvenOddFillRule::processCoverage(int count, const Int32* source, Mask8::Pix
 }
 
 /* --- PolygonMask --- */
-
-class PolygonMask::Segment {
-	public:		int topY;			//< Starting y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
-	public:		int bottomY;		//< Ending y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
-	public:		int currentY;		//< Current y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
-	public:		Fixed32_32 x;		//< Current x in fixed super-fractional format (fraction precision = POLYGON_FRACTION_BITS + 32).
-	public:		Fixed32_32 dx;		//< Delta x for each row (fraction precision = POLYGON_FRACTION_BITS + 32).
-	public:		int coverageByX;	//< Absolute coverage delta for each column (precision = renderCoverFractionBits).
-	public:		int leftEdge;		//< Last left edge pixel.
-	public:		int rightEdge;		//< Last right edge pixel.
-	public:		bool operator<(const Segment& other) const {
-					return ((topY >> FRACT_BITS) < (other.topY >> FRACT_BITS)
-							|| ((topY >> FRACT_BITS) == (other.topY >> FRACT_BITS)
-							&& leftEdge < other.leftEdge));
-				}
-};
-
 
 PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule)
 	: segments()
