@@ -5,7 +5,15 @@ pen miter-limit:4
 context [
 	pen black
 	fill green
-	rect 10,10,30,30
-	ellipse 70,70,20
+	context [
+		pen black
+		fill green
+		rect 10,10,30,30
+	]
+	context [
+		pen black
+		fill green
+		ellipse 70,70,20
+	]
 ]
 
