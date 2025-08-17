@@ -1134,12 +1134,7 @@ struct PolygonMask::Segment::Order {
 };
 
 PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule)
-	 : segments()
-	 , fillRule(fillRule)
-	, row(0)
-	 , engagedStart(0)
-	 , engagedEnd(0)
-	 , coverageDelta()
+	: segments(), fillRule(fillRule), row(0), engagedStart(0), engagedEnd(0), coverageDelta()
 {
 	IntRect cb = clipBounds;
 	assert(0 <= cb.width && 0 <= cb.height);
@@ -1148,8 +1143,8 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 	cb.top = maxValue(-limit, minValue(cb.top, limit));
 	int rightBound = maxValue(-limit, minValue(cb.calcRight(), limit));
 	int bottomBound = maxValue(-limit, minValue(cb.calcBottom(), limit));
-        cb.width = maxValue(0, rightBound - cb.left);
-        cb.height = maxValue(0, bottomBound - cb.top);
+	cb.width = maxValue(0, rightBound - cb.left);
+	cb.height = maxValue(0, bottomBound - cb.top);
 
 	segments.reserve(path.size() + 1);
 	int minY = 0x3FFFFFFF;
@@ -1221,14 +1216,14 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 	segSentinel.topY = 0x7FFFFFFF; // "Sentinel" value, so we don't have to check the count.
 	segSentinel.currentY = segSentinel.topY;
 
-       bounds.left = minX >> FRACT_BITS;
-       bounds.top = minY >> FRACT_BITS;
-       bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
-       bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
-       bounds = bounds.calcIntersection(cb);
-       coverageDelta.assign(bounds.width + 1, 0);
+	bounds.left = minX >> FRACT_BITS;
+	bounds.top = minY >> FRACT_BITS;
+	bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
+	bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
+	bounds = bounds.calcIntersection(cb);
+	coverageDelta.assign(bounds.width + 1, 0);
 
-       rewind();
+	rewind();
 }
 
 void PolygonMask::rewind() const {
@@ -1255,8 +1250,6 @@ void PolygonMask::rewind() const {
 	paintedBounds = EMPTY_RECT;
 #endif
 }
-
-
 
 IntRect PolygonMask::calcBounds() const { return bounds; }
 
