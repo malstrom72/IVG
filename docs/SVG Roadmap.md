@@ -19,8 +19,11 @@ The lists below prioritize upcoming tasks for `svg2ivg.js`.
 ## Styling and Paint
 
 ### CSS Styles and Classes
-1. Parse `<style>` elements and build a style map.
-2. Merge rules referenced by `class` attributes before conversion.
+- [x] Collect `class` and `id` selectors and associate them with elements.
+- [x] Apply cascade and specificity to combine all matching declarations.
+- [x] Inherit properties from parent elements where allowed.
+- [x] Merge computed styles into each element before conversion.
+- [x] Add regression tests for class selectors, inline styles, and inheritance.
 
 Sample: `externals/resvgTests/structure/style/class-selector.svg`
 
@@ -52,4 +55,6 @@ cannot be represented in the output.
 - `currentColor` and `inherit`
 - `clipPathUnits="objectBoundingBox"`
 - Marker Elements
+- Parsed `<style>` blocks and inline `style` attributes
+- CSS cascade, specificity, and inheritance
 
