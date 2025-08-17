@@ -13,7 +13,9 @@ echo Using temporary dir: "$TMP"
 
 for NAME in circle rect ellipse line path group color-names stroke-fill viewbox multi-path polygon polyline units \
 		percentage transform skew matrix gradient gradient-stops gradient-radial gradient-transform defs-use opacity \
-		text text-stroke; do
+		text text-stroke resvg_tests_shapes_rect_em-values resvg_tests_shapes_rect_vw-and-vh-values \
+		resvg_tests_painting_color_inherit resvg_tests_masking_clipPath_clipPathUnits=objectBoundingBox \
+		resvg_tests_painting_marker_marker-on-line; do
 echo Testing "$NAME"
 node ../../tools/svg2ivg/svg2ivg.js "supported/$NAME.svg" 500,500 | tail -n +2 > "$TMP/$NAME.ivg"
 cmp "$TMP/$NAME.ivg" "supported/$NAME.ivg"

@@ -1,0 +1,15 @@
+format IVG-1 requires:IMPD-1
+bounds 0,0,500,500
+fill black
+pen miter-limit:4
+scale 2.5
+context [
+	fill green
+	rect 20,20,160,160 rounded:40
+]
+context [
+	pen black
+	fill none
+	rect 1,1,198,198
+]
+
