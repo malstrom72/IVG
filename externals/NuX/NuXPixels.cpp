@@ -1134,23 +1134,26 @@ struct PolygonMask::Segment::Order {
 };
 
 PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule)
-	: segments()
-	, fillRule(fillRule)
-	, row(clipBounds.top)
-	, engagedStart(0)
-	, engagedEnd(0)
-	, coverageDelta()
+	: segments(), fillRule(fillRule), row(0), engagedStart(0), engagedEnd(0), coverageDelta()
 {
-	assert(0 <= clipBounds.width && 0 <= clipBounds.height);
+	IntRect cb = clipBounds;
+	assert(0 <= cb.width && 0 <= cb.height);
+	const int limit = (0x7FFFFFFF >> FRACT_BITS);
+	cb.left = maxValue(-limit, minValue(cb.left, limit));
+	cb.top = maxValue(-limit, minValue(cb.top, limit));
+	int rightBound = maxValue(-limit, minValue(cb.calcRight(), limit));
+	int bottomBound = maxValue(-limit, minValue(cb.calcBottom(), limit));
+	cb.width = maxValue(0, rightBound - cb.left);
+	cb.height = maxValue(0, bottomBound - cb.top);
 
 	segments.reserve(path.size() + 1);
 	int minY = 0x3FFFFFFF;
 	int minX = 0x3FFFFFFF;
 	int maxY = -0x3FFFFFFF;
 	int maxX = -0x3FFFFFFF;
-	int top = clipBounds.top << FRACT_BITS;
-	int right = clipBounds.calcRight() << FRACT_BITS;
-	int bottom = clipBounds.calcBottom() << FRACT_BITS;
+	int top = cb.top << FRACT_BITS;
+	int right = rightBound << FRACT_BITS;
+	int bottom = bottomBound << FRACT_BITS;
 	int lx = 0;
 	int ly = 0;
 
@@ -1213,22 +1216,36 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 	segSentinel.topY = 0x7FFFFFFF; // "Sentinel" value, so we don't have to check the count.
 	segSentinel.currentY = segSentinel.topY;
 
-	// Sort vertical list by topY (and x if same topY). Copy to horizontal list.
-
-	segsVertically.resize(segments.size());
-	{ for (size_t segIndex = 0; segIndex < segsVertically.size(); ++segIndex) {
-		segsVertically[segIndex] = &segments[segIndex];
-	} }
-	std::sort(segsVertically.begin(), segsVertically.end(), Segment::Order());
-	segsHorizontally = segsVertically;
-	
 	bounds.left = minX >> FRACT_BITS;
 	bounds.top = minY >> FRACT_BITS;
 	bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
 	bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
-	bounds = bounds.calcIntersection(clipBounds);
+	bounds = bounds.calcIntersection(cb);
 	coverageDelta.assign(bounds.width + 1, 0);
+
+	rewind();
+}
+
+void PolygonMask::rewind() const {
 	row = bounds.top;
+	engagedStart = 0;
+	engagedEnd = 0;
+	std::fill(coverageDelta.begin(), coverageDelta.end(), 0);
+	for (size_t i = 0, n = segments.size(); i < n; ++i) {
+		Segment* seg = const_cast<Segment*>(&segments[i]);
+		if (seg->currentY != seg->topY) {
+			int dy = seg->currentY - seg->topY;
+			seg->x = add(seg->x, multiply(-dy, seg->dx));
+			seg->currentY = seg->topY;
+		}
+		seg->leftEdge = seg->rightEdge = high32(seg->x) >> FRACT_BITS;
+	}
+	segsVertically.resize(segments.size());
+	for (size_t segIndex = 0; segIndex < segments.size(); ++segIndex) {
+		segsVertically[segIndex] = const_cast<Segment*>(&segments[segIndex]);
+	}
+	std::sort(segsVertically.begin(), segsVertically.end(), Segment::Order());
+	segsHorizontally = segsVertically;
 #if !defined(NDEBUG)
 	paintedBounds = EMPTY_RECT;
 #endif
@@ -1255,13 +1272,18 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 		rightClip = x + length - clipRight;
 		length -= rightClip;
 	}
-
-	if (y < row) {
+	int clipTop = bounds.top;
+	int clipBottom = clipTop + bounds.height;
+	if (y < clipTop || y >= clipBottom) {
 		output.addTransparent(length);
 		if (rightClip > 0) {
 			output.addTransparent(rightClip);
 		}
 		return;
+	}
+
+	if (y < row) {
+		rewind();
 	}
 
 	if (y > row) {
