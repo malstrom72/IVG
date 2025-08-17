@@ -932,27 +932,38 @@ class EvenOddFillRule : public FillRule {
 // Also: this is (I believe) the only renderer that doesn't allow random access coordinates. It needs to render from top to bottom, left to right. Once only.
 /**
 	PolygonMask rasterizes a path into a coverage mask using a fill rule.
-	It works by:
-	1. Converting each path edge into a vertical segment and sorting them by their top Y.
-	2. Scanning rows from top to bottom while maintaining an active list of segments ordered by X.
-	3. For each row, accumulating edge coverage per column to build a span buffer.
-	4. Applying the selected fill rule to turn accumulated coverage into mask pixels.
-	example:
-	PolygonMask mask(path, bounds, PolygonMask::nonZeroFillRule);
+       It works by:
+       1. Converting each path edge into a vertical segment and sorting them by their top Y.
+       2. Scanning rows from top to bottom while maintaining an active list of segments ordered by X.
+       3. For each row, accumulating edge coverage per column to build a span buffer.
+       4. Applying the selected fill rule to turn accumulated coverage into mask pixels.
+       Renders must request rows in ascending order; calling `render` with a `y`
+       lower than any previously rendered row returns transparent coverage.
+       example:
+PolygonMask mask(path, clipBounds, PolygonMask::nonZeroFillRule);
 **/
 class PolygonMask : public Renderer<Mask8> {
 	public:		static NonZeroFillRule nonZeroFillRule;
 	public:		static EvenOddFillRule evenOddFillRule;
 
-	public:		PolygonMask(const Path& path, const IntRect& bounds, const FillRule& fillRule = nonZeroFillRule); // Important: bounds need to be the full bounds for (or larger than) the "pulling" renderer (e.g. the output raster).
+	public:		PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule = nonZeroFillRule); // Important: clipBounds need to be the full bounds for (or larger than) the "pulling" renderer (e.g. the output raster).
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<Mask8>& output) const;
 	public:		virtual ~PolygonMask();
 	
-	protected:	class Segment;
-	protected:	Segment* segments;
-	protected:	IntRect area;
-protected:	IntRect bounds; // FIX : shouldn't need both area and bounds
+	protected:	struct Segment {
+		int topY;				///< Starting y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
+		int bottomY;		///< Ending y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
+		int currentY;		///< Current y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
+		Fixed32_32 x;		///< Current x in fixed super-fractional format (fraction precision = POLYGON_FRACTION_BITS + 32).
+		Fixed32_32 dx;	///< Delta x for each row (fraction precision = POLYGON_FRACTION_BITS + 32).
+		int coverageByX;	///< Absolute coverage delta for each column (precision = renderCoverFractionBits).
+		int leftEdge;	///< Last left edge pixel.
+		int rightEdge;	///< Last right edge pixel.
+			bool operator<(const Segment& other) const;
+	};
+	protected:	std::vector<Segment> segments;
+	protected:	IntRect bounds;
 	protected:	const FillRule& fillRule;
 	protected:	mutable int row;
 	protected:	mutable int engagedStart;
@@ -960,6 +971,9 @@ protected:	IntRect bounds; // FIX : shouldn't need both area and bounds
 	protected:	mutable std::vector<Int32> coverageDelta;
 	protected:	mutable std::vector<Segment*> segsVertically;
 	protected:	mutable std::vector<Segment*> segsHorizontally;
+#if !defined(NDEBUG)
+	protected:	mutable IntRect paintedBounds;
+#endif
 /* FIX : doesn't compile with gcc, although they are actually never called, we should implement correct versions (i.e. copying all data).
 	private:	PolygonMask(const PolygonMask& copy); // N / A
 	private:	PolygonMask& operator=(const PolygonMask& copy); // N / A

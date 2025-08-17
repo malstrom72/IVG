@@ -1,0 +1,7 @@
+FORMAT IVG-1 requires:IMPD-1
+BOUNDS 0,0,4,4
+
+reset
+wipe black
+fill white
+rect 1,0,0.5,4
