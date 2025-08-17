@@ -1129,7 +1129,7 @@ void EvenOddFillRule::processCoverage(int count, const Int32* source, Mask8::Pix
 class PolygonMask::Segment {
 	public:		int topY;			//< Starting y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
 	public:		int bottomY;		//< Ending y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
-public:		Fixed32_32 sx;
+	public:		int currentY;		//< Current y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
 	public:		Fixed32_32 x;		//< Current x in fixed super-fractional format (fraction precision = POLYGON_FRACTION_BITS + 32).
 	public:		Fixed32_32 dx;		//< Delta x for each row (fraction precision = POLYGON_FRACTION_BITS + 32).
 	public:		int coverageByX;	//< Absolute coverage delta for each column (precision = renderCoverFractionBits).
@@ -1145,30 +1145,28 @@ public:		Fixed32_32 sx;
 				};
 };
 
-PolygonMask::PolygonMask(const Path& path, const IntRect& area, const FillRule& fillRule)
-	: segments(new PolygonMask::Segment[path.size() + 1])
-	, area(area)
+
+PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule)
+	: segments()
 	, fillRule(fillRule)
-	, row(area.top)
+	, row(clipBounds.top)
 	, engagedStart(0)
 	, engagedEnd(0)
-	, coverageDelta(area.width + 1) // 1 extra margin element so that we can always write in pairs.
+	, coverageDelta()
 {
-	assert(0 <= area.width && 0 <= area.height);
-	
-	std::fill(coverageDelta.begin(), coverageDelta.end(), 0);
-	
-int minY = 0x3FFFFFFF;
-int minX = 0x3FFFFFFF;
-int maxY = -0x3FFFFFFF;
-int maxX = -0x3FFFFFFF;
-	int top = area.top << FRACT_BITS;
-	int right = area.calcRight() << FRACT_BITS;
-	int bottom = area.calcBottom() << FRACT_BITS;
+	assert(0 <= clipBounds.width && 0 <= clipBounds.height);
+
+	segments.reserve(path.size() + 1);
+	int minY = 0x3FFFFFFF;
+	int minX = 0x3FFFFFFF;
+	int maxY = -0x3FFFFFFF;
+	int maxX = -0x3FFFFFFF;
+	int top = clipBounds.top << FRACT_BITS;
+	int right = clipBounds.calcRight() << FRACT_BITS;
+	int bottom = clipBounds.calcBottom() << FRACT_BITS;
 	int lx = 0;
 	int ly = 0;
-	Segment* seg = segments;
-	
+
 	for (Path::const_iterator it = path.begin(), e = path.end(); it != e;) {
 		while (it != path.end() && it->first == Path::MOVE) {
 			lx = roundToInt(it->second.x * FRACT_ONE);
@@ -1189,32 +1187,32 @@ int maxX = -0x3FFFFFFF;
 				reversed = true;
 			}
 			if (y0 != y1 && y1 > top && y0 < bottom && minValue(x0, x1) < right) {
-				seg->topY = y0;
-				seg->bottomY = y1;
-				seg->x = toFixed32_32(x0, 0);
-seg->sx = seg->x;
-				seg->leftEdge = (x0 >> FRACT_BITS);
-				seg->dx = toFixed32_32(0, 0);
+				segments.push_back(Segment());
+				Segment& seg = segments.back();
+				seg.topY = y0;
+				seg.bottomY = y1;
+				seg.x = toFixed32_32(x0, 0);
+				seg.leftEdge = (x0 >> FRACT_BITS);
+				seg.dx = toFixed32_32(0, 0);
 				int coverageByX = 1 << ((COVERAGE_BITS + FRACT_BITS) - 1);
 				int dx = x1 - x0;
 				if (dx != 0) {
 					int dy = y1 - y0;
-					seg->dx = divide(dx, dy);
+					seg.dx = divide(dx, dy);
 					Fixed32_32 dyByDx = divide(dy, abs(dx));
 					if (high32(dyByDx) < (1 << ((COVERAGE_BITS + FRACT_BITS) - 1))) {
 						coverageByX = high32(shiftLeft(dyByDx, COVERAGE_BITS + FRACT_BITS));
-					}
-				}
-				seg->coverageByX = (reversed ? -coverageByX : coverageByX);
-				if (top > seg->topY) { // Oops, we've passed the first y segment, catch-up!
-					seg->x = add(seg->x, multiply(static_cast<UInt32>(top - seg->topY), seg->dx));
-seg->sx = seg->x;
-					seg->topY = top;
-					seg->leftEdge = (high32(seg->x) >> FRACT_BITS);
-				}
-				seg->rightEdge = seg->leftEdge;
-				++seg;
-			}
+}
+}
+				seg.coverageByX = (reversed ? -coverageByX : coverageByX);
+				if (top > seg.topY) { // Oops, we've passed the first y segment, catch-up!
+					seg.x = add(seg.x, multiply(static_cast<UInt32>(top - seg.topY), seg.dx));
+					seg.topY = top;
+					seg.leftEdge = (high32(seg.x) >> FRACT_BITS);
+}
+				seg.currentY = seg.topY;
+				seg.rightEdge = seg.leftEdge;
+}
 minY = minValue(minY, y0);
 maxY = maxValue(maxY, y1);
 sort(x0, x1);
@@ -1223,12 +1221,14 @@ maxX = maxValue(maxX, x1);
 			++it;
 		}
 	}
-	seg->topY = 0x7FFFFFFF; // "Sentinel" value, so we don't have to check the count.
-	++seg;
-	
+	segments.push_back(Segment());
+	Segment& segSentinel = segments.back();
+	segSentinel.topY = 0x7FFFFFFF; // "Sentinel" value, so we don't have to check the count.
+	segSentinel.currentY = segSentinel.topY;
+
 	// Sort vertical list by topY (and x if same topY). Copy to horizontal list.
 
-	segsVertically.resize(seg - segments);
+	segsVertically.resize(segments.size());
 	{ for (size_t segIndex = 0; segIndex < segsVertically.size(); ++segIndex) {
 		segsVertically[segIndex] = &segments[segIndex];
 	} }
@@ -1237,41 +1237,69 @@ maxX = maxValue(maxX, x1);
 	
 bounds.left = minX >> FRACT_BITS;
 bounds.top = minY >> FRACT_BITS;
-bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
-bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
-bounds = bounds.calcIntersection(area);
+       bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
+       bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
+       bounds = bounds.calcIntersection(clipBounds);
+       coverageDelta.assign(bounds.width + 1, 0);
+       row = bounds.top;
+#if !defined(NDEBUG)
+	paintedBounds = EMPTY_RECT;
+#endif
 }
 
 IntRect PolygonMask::calcBounds() const
 {
-	return bounds; // FIX : should optimize and return actual area used
+	return bounds;
 }
 
 void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) const
 {
 	assert(0 < length && length <= MAX_RENDER_LENGTH);
-	assert(area.left <= x && x + length <= area.calcRight());
+	int clipLeft = bounds.left;
+	int clipRight = bounds.calcRight();
+	if (x + length <= clipLeft || x >= clipRight) {
+		output.addTransparent(length);
+		return;
+	}
+       int rightClip = 0;
+       if (x < clipLeft) {
+               int leftClip = clipLeft - x;
+               output.addTransparent(leftClip);
+               x = clipLeft;
+               length -= leftClip;
+       }
+       if (x + length > clipRight) {
+               rightClip = x + length - clipRight;
+               length -= rightClip;
+       }
 
-assert(y >= row);
+       if (y < row) {
+               output.addTransparent(length);
+               if (rightClip > 0) {
+                       output.addTransparent(rightClip);
+               }
+               return;
+       }
 
-	if (y > row) {
+       if (y > row) {
 		/*
-			FIX : comment no longer relevant
-			
 			Adjust x for all engaged and newly introduced segments. Already engaged: just jump by
 			rowCount, to be engaged: adjust from topY. Notice that this routine may leave the
 			horizontal list scrambled which can reduce performance (= may require heavier insertion
 			sorting at next rasterizeRows if the merge sort fails).
 		*/
-
-		row = y;
-		int YYY = row << FRACT_BITS;
+		int YYY = y << FRACT_BITS;
 		int segIndex = engagedStart;
 		while (segsVertically[segIndex]->topY < YYY) {
 			Segment* seg = segsVertically[segIndex];
-seg->x = add(seg->sx, multiply(static_cast<UInt32>(YYY - seg->topY), seg->dx));
+			int dy = YYY - seg->currentY;
+			if (dy > 0) {
+				seg->x = add(seg->x, multiply(static_cast<UInt32>(dy), seg->dx));
+				seg->currentY = YYY;
+			}
 			++segIndex;
 		}
+		row = y;
 	}
 	
 	int YYY = row << FRACT_BITS;
@@ -1340,7 +1368,7 @@ seg->x = add(seg->sx, multiply(static_cast<UInt32>(YYY - seg->topY), seg->dx));
 				int coverage = (2 * FRACT_ONE - leftSub - rightSub) * remaining >> (FRACT_BITS + 1);
 				coverageDelta[leftCol + 0] += coverage;
 				coverageDelta[leftCol + 1] += remaining - coverage;
-				seg->rightEdge = leftCol + 1; // FIX : drop, why? + (remaining - coverage != 0);
+				seg->rightEdge = leftCol + 1; // record one-past-the-rightmost column
 			} else {
 				int covered;
 				if (leftCol < 0) {
@@ -1367,9 +1395,9 @@ seg->x = add(seg->sx, multiply(static_cast<UInt32>(YYY - seg->topY), seg->dx));
 				if (rightCol < length) {
 					remaining -= covered + colCount * coverageByX;
 					int coverage = (2 * FRACT_ONE - rightSub) * remaining >> (FRACT_BITS + 1);
-					coverageDelta[rightCol + 0] += coverage;
-					coverageDelta[rightCol + 1] += remaining - coverage;
-					seg->rightEdge = rightCol + 1; // FIX : drop, why? + (remaining - coverage != 0);
+				coverageDelta[rightCol + 0] += coverage;
+				coverageDelta[rightCol + 1] += remaining - coverage;
+				seg->rightEdge = rightCol + 1; // record one-past-the-rightmost column
 				} else {
 					seg->rightEdge = length;
 				}
@@ -1398,22 +1426,30 @@ seg->x = add(seg->sx, multiply(static_cast<UInt32>(YYY - seg->topY), seg->dx));
 
 	// Integrate and perform rendering.
 	
-	int coverageAcc = 0;
-	int col = 0;
-	while (col < length) {
+       bool rowUsed = false;
+       int rowMin = length;
+       int rowMax = 0;
+       int coverageAcc = 0;
+       int col = 0;
+       while (col < length) {
 
 		// Go to the next left-edge (first round this may be 0 if first left-edge < 0)
 
 		int nx = ((integrateIndex < engagedEnd) ? segsHorizontally[integrateIndex]->leftEdge : length);
-		if (nx > col) {
-			coverageAcc += coverageDelta[col];
-			const Int32 sourceCoverage[1] = { coverageAcc };
-			Mask8::Pixel pixel;
-			fillRule.processCoverage(1, sourceCoverage, &pixel);
-			coverageDelta[col] = 0;
-			output.addSolid(nx - col, pixel);
-			col = nx;
-		}
+               if (nx > col) {
+                       coverageAcc += coverageDelta[col];
+                       const Int32 sourceCoverage[1] = { coverageAcc };
+                       Mask8::Pixel pixel;
+                       fillRule.processCoverage(1, sourceCoverage, &pixel);
+                       coverageDelta[col] = 0;
+                       output.addSolid(nx - col, pixel);
+                       if (!Mask8::isTransparent(pixel)) {
+                               rowUsed = true;
+                               rowMin = minValue(rowMin, col);
+                               rowMax = maxValue(rowMax, nx);
+                       }
+                       col = nx;
+               }
 
 		// Find the end of this span by extending as long as right-edge overlaps next left-edge (with 4 pixels margin).
 
@@ -1426,27 +1462,47 @@ seg->x = add(seg->sx, multiply(static_cast<UInt32>(YYY - seg->topY), seg->dx));
 			++integrateIndex;
 		}
 		
-		if (nx > col) {
-			int spanLength = nx - col;
-			{ for (int i = 0; i < spanLength; ++i) {
-				coverageAcc += coverageDelta[col + i];
-				coverageDelta[col + i] = coverageAcc;
-			} }
-			Mask8::Pixel* pixels = output.addVariable(spanLength, false);
-			fillRule.processCoverage(spanLength, &coverageDelta[col], pixels);
-			{ for (int i = 0; i < spanLength; ++i) {
-				coverageDelta[col + i] = 0;
-			} }
-			col = nx;
-		}
+               if (nx > col) {
+                       int spanLength = nx - col;
+                       { for (int i = 0; i < spanLength; ++i) {
+                               coverageAcc += coverageDelta[col + i];
+                               coverageDelta[col + i] = coverageAcc;
+                       } }
+                       Mask8::Pixel* pixels = output.addVariable(spanLength, false);
+                       fillRule.processCoverage(spanLength, &coverageDelta[col], pixels);
+                       for (int i = 0; i < spanLength; ++i) {
+                               if (!Mask8::isTransparent(pixels[i])) {
+                                       rowUsed = true;
+                                       rowMin = minValue(rowMin, col + i);
+                                       rowMax = maxValue(rowMax, col + i + 1);
+                               }
+                       }
+                       { for (int i = 0; i < spanLength; ++i) {
+                               coverageDelta[col + i] = 0;
+                       } }
+                       col = nx;
+               }
 	}
 
-	coverageDelta[length] = 0; // Need to clear the extra margin element. 
+#if !defined(NDEBUG)
+	if (rowUsed) {
+		IntRect rowRect(x + rowMin, y, rowMax - rowMin, 1);
+		paintedBounds = paintedBounds.isEmpty() ? rowRect : paintedBounds.calcUnion(rowRect);
+	}
+	if (y + 1 == bounds.calcBottom()) {
+		assert(bounds.calcIntersection(paintedBounds) == paintedBounds);
+	}
+#else
+	(void)rowUsed; (void)rowMin; (void)rowMax;
+#endif
+       coverageDelta[length] = 0; // Need to clear the extra margin element.
+       if (rightClip > 0) {
+               output.addTransparent(rightClip);
+       }
 }
 
 PolygonMask::~PolygonMask()
 {
-	delete [] segments;
 }
 
 NonZeroFillRule PolygonMask::nonZeroFillRule;
