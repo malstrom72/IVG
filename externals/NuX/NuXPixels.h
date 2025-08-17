@@ -946,8 +946,9 @@ class EvenOddFillRule : public FillRule {
 class PolygonMask : public Renderer<Mask8> {
 	public:		static NonZeroFillRule nonZeroFillRule;
 	public:		static EvenOddFillRule evenOddFillRule;
-
-	public:		PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule = nonZeroFillRule); // Important: clipBounds need to be the full bounds for (or larger than) the "pulling" renderer (e.g. the output raster).
+	public:		PolygonMask(const Path& path,
+			const IntRect& clipBounds = FULL_RECT,
+			const FillRule& fillRule = nonZeroFillRule);   ///< `clipBounds` is clamped; must cover destination raster.
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<Mask8>& output) const;
 	

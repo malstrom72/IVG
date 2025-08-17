@@ -1134,25 +1134,34 @@ struct PolygonMask::Segment::Order {
 };
 
 PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule)
-	: segments()
-	, fillRule(fillRule)
-	, row(clipBounds.top)
-	, engagedStart(0)
-	, engagedEnd(0)
-	, coverageDelta()
+        : segments()
+        , fillRule(fillRule)
+       , row(0)
+        , engagedStart(0)
+        , engagedEnd(0)
+        , coverageDelta()
 {
-	assert(0 <= clipBounds.width && 0 <= clipBounds.height);
+       IntRect cb = clipBounds;
+       assert(0 <= cb.width && 0 <= cb.height);
+       const int limit = (0x7FFFFFFF >> FRACT_BITS);
+       cb.left = maxValue(-limit, minValue(cb.left, limit));
+       cb.top = maxValue(-limit, minValue(cb.top, limit));
+       int rightBound = maxValue(-limit, minValue(cb.calcRight(), limit));
+       int bottomBound = maxValue(-limit, minValue(cb.calcBottom(), limit));
+       cb.width = maxValue(0, rightBound - cb.left);
+       cb.height = maxValue(0, bottomBound - cb.top);
+       row = cb.top;
 
-	segments.reserve(path.size() + 1);
-	int minY = 0x3FFFFFFF;
-	int minX = 0x3FFFFFFF;
-	int maxY = -0x3FFFFFFF;
-	int maxX = -0x3FFFFFFF;
-	int top = clipBounds.top << FRACT_BITS;
-	int right = clipBounds.calcRight() << FRACT_BITS;
-	int bottom = clipBounds.calcBottom() << FRACT_BITS;
-	int lx = 0;
-	int ly = 0;
+       segments.reserve(path.size() + 1);
+       int minY = 0x3FFFFFFF;
+       int minX = 0x3FFFFFFF;
+       int maxY = -0x3FFFFFFF;
+       int maxX = -0x3FFFFFFF;
+       int top = cb.top << FRACT_BITS;
+       int right = rightBound << FRACT_BITS;
+       int bottom = bottomBound << FRACT_BITS;
+       int lx = 0;
+       int ly = 0;
 
 	for (Path::const_iterator it = path.begin(), e = path.end(); it != e;) {
 		while (it != path.end() && it->first == Path::MOVE) {
@@ -1226,7 +1235,7 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 	bounds.top = minY >> FRACT_BITS;
 	bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
 	bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
-	bounds = bounds.calcIntersection(clipBounds);
+       bounds = bounds.calcIntersection(cb);
 	coverageDelta.assign(bounds.width + 1, 0);
 	row = bounds.top;
 #if !defined(NDEBUG)

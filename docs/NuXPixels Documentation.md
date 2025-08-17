@@ -72,7 +72,7 @@ Raster<ARGB32> view(pixels, 256, IntRect(0, 0, 256, 256), false);
 ```
 
 ### PolygonMask
-`PolygonMask` is the workhorse renderer for filling shapes. Given a vector `Path` and an optional fill rule, it converts the geometry into a scanline coverage mask (`Renderer<Mask8>`). Paint sources such as solid colors or gradients are then blended through this mask onto the destination raster. Most higher level drawing operations in NuXPixels build a `PolygonMask` internally and render it row by row from top to bottom. Both even‑odd and non‑zero winding rules are supported.
+`PolygonMask` is the workhorse renderer for filling shapes. Given a vector `Path` and an optional fill rule, it converts the geometry into a scanline coverage mask (`Renderer<Mask8>`). Paint sources such as solid colors or gradients are then blended through this mask onto the destination raster. Most higher level drawing operations in NuXPixels build a `PolygonMask` internally and render it row by row from top to bottom. Both even‑odd and non‑zero winding rules are supported. The constructor also accepts an optional clip rectangle (defaulting to `FULL_RECT`); the rectangle is clamped to the maximum coordinate range supported by the rasterizer.
 
 ### Gradients
 A `Gradient` lookup table produces color values for linear or radial fills.
