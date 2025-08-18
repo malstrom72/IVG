@@ -1371,10 +1371,16 @@ rewind();
 			int leftX = high32(seg->x);
 			int rightX = high32(add(seg->x, dx));
 			sort(leftX, rightX);
-			int leftCol = (leftX >> FRACT_BITS) - x;
-			int rightCol = (rightX >> FRACT_BITS) - x;
-			int leftSub = leftX & FRACT_MASK;
-			int rightSub = rightX & FRACT_MASK;				
+                       int leftCol = (leftX >> FRACT_BITS) - x;
+                       int rightCol = (rightX >> FRACT_BITS) - x;
+                       int leftSub = leftX & FRACT_MASK;
+                       int rightSub = rightX & FRACT_MASK;
+#if !defined(NDEBUG)
+                       if (leftCol < 0 || rightCol >= length) {
+                               std::cerr << "span clip at y " << y << " x=" << x
+                                       << " leftCol=" << leftCol << " rightCol=" << rightCol << "\n";
+                       }
+#endif
 			
 			if (leftCol >= length) {
 				seg->leftEdge = length;
