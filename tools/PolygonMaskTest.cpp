@@ -31,10 +31,7 @@ using namespace NuXPixels;
 
 static void renderRect(const PolygonMask& mask, const IntRect& rect, SelfContainedRaster<Mask8>& dest)
 {
-	if (rect.width > MAX_RENDER_LENGTH) {
-		std::cerr << "renderRect: width " << rect.width << " exceeds MAX_RENDER_LENGTH " << MAX_RENDER_LENGTH << '\n';
-	}
-	Mask8::Pixel* pixels = dest.getPixelPointer();
+Mask8::Pixel* pixels = dest.getPixelPointer();
 	int stride = dest.getStride();
 	int right = rect.calcRight();
 	for (int y = rect.top; y < rect.calcBottom(); ++y) {
