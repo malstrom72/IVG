@@ -1515,7 +1515,13 @@ rewind();
 #else
 	(void)rowUsed; (void)rowMin; (void)rowMax;
 #endif
-	coverageDelta[length] = 0; // Need to clear the extra margin element.
+
+#if !defined(NDEBUG)
+if (coverageAcc != 0) {
+std::cerr << "coverage carryover at y " << y << " x=" << x << " len=" << length << " coverageAcc=" << coverageAcc << "\n";
+}
+#endif
+coverageDelta[length] = 0; // Need to clear the extra margin element.
 	if (rightClip > 0) {
 		output.addTransparent(rightClip);
 	}
