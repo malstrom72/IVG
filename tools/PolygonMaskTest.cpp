@@ -100,32 +100,22 @@ std::cerr << "calcBounds render mismatch\n";
 return 1;
 }
 
-	IntRect clip(150, 75, 200, 100);
-	PolygonMask clipped(path, clip);
-	SelfContainedRaster<Mask8> clippedRaster(clip);
-	renderRect(clipped, clip, clippedRaster);
+IntRect clip(150, 75, 200, 100);
+PolygonMask clipped(path, clip);
+SelfContainedRaster<Mask8> clippedRaster(clip);
+renderRect(clipped, clip, clippedRaster);
 if (!equals(baseline, clippedRaster, clip, "clip")) {
 std::cerr << "clip render mismatch\n";
 return 1;
 }
 
-SelfContainedRaster<Mask8> silly(bounds);
 int midX = bounds.left + bounds.width / 2;
 int midY = bounds.top + bounds.height / 2;
 std::cerr << "midX=" << midX << " midY=" << midY << "\n";
-	IntRect bottomRight(midX, midY, bounds.calcRight() - midX, bounds.calcBottom() - midY);
-	IntRect topLeft(bounds.left, bounds.top, midX - bounds.left, midY - bounds.top);
-	IntRect bottomLeft(bounds.left, midY, midX - bounds.left, bounds.calcBottom() - midY);
-	IntRect topRight(midX, bounds.top, bounds.calcRight() - midX, midY - bounds.top);
-
-	renderRect(mask, bottomRight, silly);
-	renderRect(mask, topLeft, silly);
-renderRect(mask, bottomLeft, silly);
-renderRect(mask, topRight, silly);
-if (!equals(baseline, silly, bounds, "random order")) {
-std::cerr << "random order render mismatch\n";
-return 1;
-}
+IntRect bottomRight(midX, midY, bounds.calcRight() - midX, bounds.calcBottom() - midY);
+IntRect topLeft(bounds.left, bounds.top, midX - bounds.left, midY - bounds.top);
+IntRect bottomLeft(bounds.left, midY, midX - bounds.left, bounds.calcBottom() - midY);
+IntRect topRight(midX, bounds.top, bounds.calcRight() - midX, midY - bounds.top);
 
 SelfContainedRaster<Mask8> separate(bounds);
 {
@@ -146,6 +136,16 @@ renderRect(m, topRight, separate);
 }
 if (!equals(baseline, separate, bounds, "multi rasterizer")) {
 std::cerr << "multi rasterizer render mismatch\n";
+return 1;
+}
+
+SelfContainedRaster<Mask8> silly(bounds);
+renderRect(mask, bottomRight, silly);
+renderRect(mask, topLeft, silly);
+renderRect(mask, bottomLeft, silly);
+renderRect(mask, topRight, silly);
+if (!equals(baseline, silly, bounds, "random order")) {
+std::cerr << "random order render mismatch\n";
 return 1;
 }
 
