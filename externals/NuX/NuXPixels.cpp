@@ -952,7 +952,7 @@ void LinearAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 				edge = minValue(i + 1 + (ki - (1 << 16)) / -dk, length);
 			}
 			assert(i < edge);
-		output.addSolid(edge - i, minValue(maxValue(ki >> 8, 0), 256 - 1));
+			output.addSolid(edge - i, minValue(maxValue(ki >> 8, 0), 256 - 1));
 			ki += dk * (edge - i);
 			i = edge;
 		} else {
@@ -1135,14 +1135,12 @@ struct PolygonMask::Segment::Order {
 };
 
 PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule)
-	: segments()
-	, fillRule(fillRule)
+	 : segments()
+	 , fillRule(fillRule)
 	, row(0)
-	, engagedStart(0)
-	, engagedEnd(0)
-	, coverageDelta()
-	, lastX(0)
-	, coverageCarry(0)
+	 , engagedStart(0)
+	 , engagedEnd(0)
+	 , coverageDelta()
 {
 	IntRect cb = clipBounds;
 	assert(0 <= cb.width && 0 <= cb.height);
@@ -1151,8 +1149,8 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 	cb.top = maxValue(-limit, minValue(cb.top, limit));
 	int rightBound = maxValue(-limit, minValue(cb.calcRight(), limit));
 	int bottomBound = maxValue(-limit, minValue(cb.calcBottom(), limit));
-	cb.width = maxValue(0, rightBound - cb.left);
-	cb.height = maxValue(0, bottomBound - cb.top);
+        cb.width = maxValue(0, rightBound - cb.left);
+        cb.height = maxValue(0, bottomBound - cb.top);
 
 	segments.reserve(path.size() + 1);
 	int minY = 0x3FFFFFFF;
@@ -1235,12 +1233,10 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 }
 
 void PolygonMask::rewind() const {
-row = bounds.top;
-engagedStart = 0;
-engagedEnd = 0;
-lastX = bounds.left;
-coverageCarry = 0;
-std::fill(coverageDelta.begin(), coverageDelta.end(), 0);
+	row = bounds.top;
+	engagedStart = 0;
+	engagedEnd = 0;
+	std::fill(coverageDelta.begin(), coverageDelta.end(), 0);
 	for (size_t i = 0, n = segments.size(); i < n; ++i) {
 		Segment* seg = const_cast<Segment*>(&segments[i]);
 		if (seg->currentY != seg->topY) {
@@ -1284,24 +1280,28 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 		rightClip = x + length - clipRight;
 		length -= rightClip;
 	}
-	int clipTop = bounds.top;
-	int clipBottom = clipTop + bounds.height;
-	if (y < clipTop || y >= clipBottom) {
-	output.addTransparent(length);
-	if (rightClip > 0) {
-	output.addTransparent(rightClip);
-	}
-	return;
-	}
+int clipTop = bounds.top;
+int clipBottom = clipTop + bounds.height;
+if (y < clipTop || y >= clipBottom) {
+output.addTransparent(length);
+if (rightClip > 0) {
+output.addTransparent(rightClip);
+}
+return;
+}
 
-	if (y < row) {
-	rewind();
-	}
-	if (y != row || x != lastX) {
-	coverageCarry = 0;
-	}
-	
-if (y > row) {
+#if !defined(NDEBUG)
+if (y < row) {
+std::cerr << "rewind from row " << row << " to y " << y << " x=" << x << " len=" << length << "\n";
+} else if (y > row + 1) {
+std::cerr << "jump from row " << row << " to y " << y << " x=" << x << " len=" << length << "\n";
+}
+#endif
+if (y < row) {
+rewind();
+}
+
+	if (y > row) {
 		/*
 			Adjust x for all engaged and newly introduced segments. Already engaged: just jump by
 			rowCount, to be engaged: adjust from topY. Notice that this routine may leave the
@@ -1371,12 +1371,18 @@ if (y > row) {
 			int leftX = high32(seg->x);
 			int rightX = high32(add(seg->x, dx));
 			sort(leftX, rightX);
-int leftCol = (leftX >> FRACT_BITS) - x;
-int rightCol = (rightX >> FRACT_BITS) - x;
-int leftSub = leftX & FRACT_MASK;
-int rightSub = rightX & FRACT_MASK;
-
-if (leftCol >= length) {
+                       int leftCol = (leftX >> FRACT_BITS) - x;
+                       int rightCol = (rightX >> FRACT_BITS) - x;
+                       int leftSub = leftX & FRACT_MASK;
+                       int rightSub = rightX & FRACT_MASK;
+#if !defined(NDEBUG)
+                       if (leftCol < 0 || rightCol >= length) {
+                               std::cerr << "span clip at y " << y << " x=" << x
+                                       << " leftCol=" << leftCol << " rightCol=" << rightCol << "\n";
+                       }
+#endif
+			
+			if (leftCol >= length) {
 				seg->leftEdge = length;
 				seg->rightEdge = length;
 			} else if (rightCol < 0) {
@@ -1446,10 +1452,10 @@ if (leftCol >= length) {
 
 	// Integrate and perform rendering.
 	
-bool rowUsed = false;
-int rowMin = length;
-int rowMax = 0;
-int coverageAcc = coverageCarry;
+	bool rowUsed = false;
+	int rowMin = length;
+	int rowMax = 0;
+	int coverageAcc = 0;
 	int col = 0;
 	while (col < length) {
 
@@ -1516,13 +1522,16 @@ int coverageAcc = coverageCarry;
 	(void)rowUsed; (void)rowMin; (void)rowMax;
 #endif
 
-	coverageCarry = coverageAcc;
-	coverageDelta[length] = 0; // Need to clear the extra margin element.
-		if (rightClip > 0) {
+#if !defined(NDEBUG)
+if (coverageAcc != 0) {
+std::cerr << "coverage carryover at y " << y << " x=" << x << " len=" << length << " coverageAcc=" << coverageAcc << "\n";
+}
+#endif
+coverageDelta[length] = 0; // Need to clear the extra margin element.
+	if (rightClip > 0) {
 		output.addTransparent(rightClip);
-		}
-		lastX = x + length + rightClip;
 	}
+}
 
 NonZeroFillRule PolygonMask::nonZeroFillRule;
 EvenOddFillRule PolygonMask::evenOddFillRule;
