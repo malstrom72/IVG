@@ -4,7 +4,9 @@
 format IVG-1 requires:IMPD-1;
 
 // standard Permut8 firmware sticker bounds
-bounds 0,0,100,40
+bounds 0,0,400,160
+
+scale 4
 
 // position the graphics
 offset 15,2

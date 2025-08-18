@@ -1,7 +1,9 @@
 //
 //  Bitbox Logo - Created by Fredrik Lidström on 2013-07-04.
 //
-format IVG-1 requires:IMPD-1; bounds 0,0,100,40
+format IVG-1 requires:IMPD-1; bounds 0,0,400,160
+
+scale 4
 
 bit=[
   [ . . . . . . . . . . . . . . . . . . . . . . ]
@@ -146,7 +148,7 @@ voxeltext=CALL [
 
 
 /***** DRAW INSTRUCTIONS *****/
-reset
+
 options aa-gamma:2.5
 scale 0.84
 offset 30,4.8

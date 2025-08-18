@@ -1,4 +1,4 @@
-format IVG-2 requires:IMPD-1
+format IVG-1 requires:IMPD-1
 bounds 0,0,400,300
 
 define font "sans" [

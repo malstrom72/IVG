@@ -3,7 +3,9 @@
 //
 format IVG-1 requires:IMPD-1;
 
-bounds 0,0,100,40
+bounds 0,0,400,160
+
+scale 4
 
 options aa-gamma:0.8
 
