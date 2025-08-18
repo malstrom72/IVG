@@ -120,13 +120,35 @@ std::cerr << "midX=" << midX << " midY=" << midY << "\n";
 
 	renderRect(mask, bottomRight, silly);
 	renderRect(mask, topLeft, silly);
-	renderRect(mask, bottomLeft, silly);
-	renderRect(mask, topRight, silly);
+renderRect(mask, bottomLeft, silly);
+renderRect(mask, topRight, silly);
 if (!equals(baseline, silly, bounds, "random order")) {
 std::cerr << "random order render mismatch\n";
 return 1;
 }
 
-	return 0;
+SelfContainedRaster<Mask8> separate(bounds);
+{
+PolygonMask m(path);
+renderRect(m, bottomRight, separate);
+}
+{
+PolygonMask m(path);
+renderRect(m, topLeft, separate);
+}
+{
+PolygonMask m(path);
+renderRect(m, bottomLeft, separate);
+}
+{
+PolygonMask m(path);
+renderRect(m, topRight, separate);
+}
+if (!equals(baseline, separate, bounds, "multi rasterizer")) {
+std::cerr << "multi rasterizer render mismatch\n";
+return 1;
+}
+
+return 0;
 }
 
