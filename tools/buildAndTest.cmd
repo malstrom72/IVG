@@ -39,10 +39,14 @@ CD ..
 
 CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVG2PNG "-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" /I"externals\libpng" /I"externals\zlib" .\tools\IVG2PNG.cpp .\src\IVG.cpp .\src\IMPD.cpp .\externals\NuX\NuXPixels.cpp .\externals\libpng\*.c .\externals\zlib\*.c || EXIT /B 1
 
+CALL .\tools\BuildCpp.cmd %1 %2 .\output\PolygonMaskTest "-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" .\tools\PolygonMaskTest.cpp .\externals\NuX\NuXPixels.cpp || EXIT /B 1
+
 ECHO Testing...
 CD tests
 CALL ..\tools\testIVG.cmd ..\output\IVG2PNG || GOTO error
 CALL ..\tools\testSVG.cmd || GOTO error
+CD ..
+CALL .\output\PolygonMaskTest || GOTO error
 
 GOTO :eof
 
