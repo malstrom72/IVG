@@ -971,7 +971,7 @@ class PolygonMask : public Renderer<Mask8> {
 	protected:	mutable int row;
 	protected:	mutable int engagedStart;
 	protected:	mutable int engagedEnd;
-	protected:	mutable std::vector<Int32> coverageDelta;
+	protected:	mutable std::vector<Int32> coverageDelta;	/// per-column coverage deltas integrated each row
 	protected:	mutable std::vector<Segment*> segsVertically;
 	protected:	mutable std::vector<Segment*> segsHorizontally;
 #if !defined(NDEBUG)
