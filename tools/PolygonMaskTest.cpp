@@ -56,20 +56,24 @@ Mask8::Pixel* pixels = dest.getPixelPointer();
 	}
 }
 
-static bool equals(const SelfContainedRaster<Mask8>& a, const SelfContainedRaster<Mask8>& b, const IntRect& rect)
+static bool equals(const SelfContainedRaster<Mask8>& a, const SelfContainedRaster<Mask8>& b, const IntRect& rect, const char* label)
 {
-	int strideA = a.getStride();
-	int strideB = b.getStride();
-	const Mask8::Pixel* pixelsA = a.getPixelPointer();
-	const Mask8::Pixel* pixelsB = b.getPixelPointer();
-	for (int y = rect.top; y < rect.calcBottom(); ++y) {
-		const Mask8::Pixel* rowA = pixelsA + y * strideA + rect.left;
-		const Mask8::Pixel* rowB = pixelsB + y * strideB + rect.left;
-		if (!std::equal(rowA, rowA + rect.width, rowB)) {
-			return false;
-		}
-	}
-	return true;
+int strideA = a.getStride();
+int strideB = b.getStride();
+const Mask8::Pixel* pixelsA = a.getPixelPointer();
+const Mask8::Pixel* pixelsB = b.getPixelPointer();
+for (int y = rect.top; y < rect.calcBottom(); ++y) {
+const Mask8::Pixel* rowA = pixelsA + y * strideA + rect.left;
+const Mask8::Pixel* rowB = pixelsB + y * strideB + rect.left;
+for (int x = 0; x < rect.width; ++x) {
+if (rowA[x] != rowB[x]) {
+std::cerr << label << " mismatch at (" << rect.left + x << "," << y << ") baseline="
+<< int(rowA[x]) << " test=" << int(rowB[x]) << "\n";
+return false;
+}
+}
+}
+return true;
 }
 
 int main()
@@ -80,8 +84,10 @@ int main()
 	path.addCircle(400, 300, 200);
 	path.closeAll();
 
-	PolygonMask mask(path);
-	IntRect bounds = mask.calcBounds();
+PolygonMask mask(path);
+IntRect bounds = mask.calcBounds();
+std::cerr << "bounds left=" << bounds.left << " top=" << bounds.top << " width=" << bounds.width
+<< " height=" << bounds.height << "\n";
 
 	SelfContainedRaster<Mask8> baseline(bounds);
 	renderRect(mask, bounds, baseline);
@@ -89,23 +95,24 @@ int main()
 	PolygonMask bounded(path, bounds);
 	SelfContainedRaster<Mask8> boundedRaster(bounds);
 	renderRect(bounded, bounds, boundedRaster);
-	if (!equals(baseline, boundedRaster, bounds)) {
-		std::cerr << "calcBounds render mismatch\n";
-		return 1;
-	}
+if (!equals(baseline, boundedRaster, bounds, "calcBounds")) {
+std::cerr << "calcBounds render mismatch\n";
+return 1;
+}
 
 	IntRect clip(150, 75, 200, 100);
 	PolygonMask clipped(path, clip);
 	SelfContainedRaster<Mask8> clippedRaster(clip);
 	renderRect(clipped, clip, clippedRaster);
-	if (!equals(baseline, clippedRaster, clip)) {
-		std::cerr << "clip render mismatch\n";
-		return 1;
-	}
+if (!equals(baseline, clippedRaster, clip, "clip")) {
+std::cerr << "clip render mismatch\n";
+return 1;
+}
 
-	SelfContainedRaster<Mask8> silly(bounds);
-	int midX = bounds.left + bounds.width / 2;
-	int midY = bounds.top + bounds.height / 2;
+SelfContainedRaster<Mask8> silly(bounds);
+int midX = bounds.left + bounds.width / 2;
+int midY = bounds.top + bounds.height / 2;
+std::cerr << "midX=" << midX << " midY=" << midY << "\n";
 	IntRect bottomRight(midX, midY, bounds.calcRight() - midX, bounds.calcBottom() - midY);
 	IntRect topLeft(bounds.left, bounds.top, midX - bounds.left, midY - bounds.top);
 	IntRect bottomLeft(bounds.left, midY, midX - bounds.left, bounds.calcBottom() - midY);
@@ -115,10 +122,10 @@ int main()
 	renderRect(mask, topLeft, silly);
 	renderRect(mask, bottomLeft, silly);
 	renderRect(mask, topRight, silly);
-	if (!equals(baseline, silly, bounds)) {
-		std::cerr << "random order render mismatch\n";
-		return 1;
-	}
+if (!equals(baseline, silly, bounds, "random order")) {
+std::cerr << "random order render mismatch\n";
+return 1;
+}
 
 	return 0;
 }

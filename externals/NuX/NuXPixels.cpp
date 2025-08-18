@@ -22,6 +22,7 @@
 **/
 #include <math.h>
 #include <algorithm>
+#include <iostream>
 #include "NuXPixels.h"
 #include "NuXPixelsImpl.h"
 #if (NUXPIXELS_SIMD)
@@ -1279,19 +1280,26 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 		rightClip = x + length - clipRight;
 		length -= rightClip;
 	}
-	int clipTop = bounds.top;
-	int clipBottom = clipTop + bounds.height;
-	if (y < clipTop || y >= clipBottom) {
-		output.addTransparent(length);
-		if (rightClip > 0) {
-			output.addTransparent(rightClip);
-		}
-		return;
-	}
+int clipTop = bounds.top;
+int clipBottom = clipTop + bounds.height;
+if (y < clipTop || y >= clipBottom) {
+output.addTransparent(length);
+if (rightClip > 0) {
+output.addTransparent(rightClip);
+}
+return;
+}
 
-	if (y < row) {
-		rewind();
-	}
+#if !defined(NDEBUG)
+if (y < row) {
+std::cerr << "rewind from row " << row << " to y " << y << " x=" << x << " len=" << length << "\n";
+} else if (y > row + 1) {
+std::cerr << "jump from row " << row << " to y " << y << " x=" << x << " len=" << length << "\n";
+}
+#endif
+if (y < row) {
+rewind();
+}
 
 	if (y > row) {
 		/*
