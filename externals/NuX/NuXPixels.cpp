@@ -100,15 +100,15 @@ const int MAX_SPLINE_SEGMENTS = 200;
 /* --- Utility routines --- */
 
 static inline void sort(int& a, int& b) {
-	int x = a;
-	int y = b - a;
-	int z = (y >> 31);
+	const int x = a;
+	const int y = b - a;
+	const int z = (y >> 31);
 	a = x + (y & z);
 	b = x + (y & ~z);
 }
 
 static double calcCircleRotationVector(double curveQuality, double diameter, double& rx, double& ry) {
-	double t = (diameter < EPSILON ? PI2
+	const double t = (diameter < EPSILON ? PI2
 			: minValue(maxValue(1.0 / sqrt(curveQuality * diameter), PI2 / MAX_CIRCLE_DIVISIONS)
 			, PI2 / MIN_CIRCLE_DIVISIONS));
 	rx = cos(t);
@@ -120,8 +120,8 @@ static double calcCircleRotationVector(double curveQuality, double diameter, dou
 
 inline Fixed32_32 divide(Int32 v1, Int32 v2) throw()
 {
-	UInt32 av1 = std::abs(v1);
-	UInt32 av2 = std::abs(v2);
+	const UInt32 av1 = std::abs(v1);
+	const UInt32 av2 = std::abs(v2);
 	UInt32 i = 0;
 	UInt32 f = 0;
 	UInt32 r = av1;
@@ -142,7 +142,7 @@ inline Fixed32_32 divide(Int32 v1, Int32 v2) throw()
 			--c;
 		}
 		r <<= c;
-		UInt32 x = r / av2;
+		const UInt32 x = r / av2;
 		r -= x * av2;
 		f = (f << c) | x;
 		l -= c;
@@ -153,7 +153,7 @@ inline Fixed32_32 divide(Int32 v1, Int32 v2) throw()
 
 	while (l > 0) {
 		r += r - av2;
-		int x = (static_cast<int>(r) >> 31); // x is now -1 if r is < 0 and 0 if r is >= 0
+		const int x = (static_cast<int>(r) >> 31); // x is now -1 if r is < 0 and 0 if r is >= 0
 		f += f + 1 + x; // Shift f one bit left and add 1 if x r is >= 0.
 		r += av2 & x; // Restore previous r if r < 0 by adding av2.
 		--l;
@@ -182,7 +182,7 @@ ARGB32::Pixel ARGB32::fromFloatRGB(double r, double g, double b, double a) {
 	assert(0.0 <= b && b <= 1.0);
 	assert(0.0 <= a && a <= 1.0);
 
-	UInt32 rgb
+	const UInt32 rgb
 			= (static_cast<UInt32>(r * 255.99999999) << 16)
 			| (static_cast<UInt32>(g * 255.99999999) << 8)
 			| (static_cast<UInt32>(b * 255.99999999) << 0);
@@ -203,13 +203,13 @@ ARGB32::Pixel ARGB32::fromFloatHSV(double h, double s, double v, double a) {
 		c = static_cast<int>(v * 255.99999999);
 		c |= (c << 16) | (c << 8);
 	} else {
-		double h6 = ((h == 1.0) ? 0.0 : (h * 6.0));
-		int i = static_cast<int>(h6);
-		double f = h6 - i;
-		UInt32 w = static_cast<UInt32>(v * 255.99999999);
-		UInt32 p = static_cast<UInt32>(v * (1.0 - s) * 255.99999999);
-		UInt32 q = static_cast<UInt32>(v * (1.0 - s * f) * 255.99999999);
-		UInt32 t = static_cast<UInt32>(v * (1.0 - s * (1.0 - f)) * 255.99999999);
+		const double h6 = ((h == 1.0) ? 0.0 : (h * 6.0));
+		const int i = static_cast<int>(h6);
+		const double f = h6 - i;
+		const UInt32 w = static_cast<UInt32>(v * 255.99999999);
+		const UInt32 p = static_cast<UInt32>(v * (1.0 - s) * 255.99999999);
+		const UInt32 q = static_cast<UInt32>(v * (1.0 - s * f) * 255.99999999);
+		const UInt32 t = static_cast<UInt32>(v * (1.0 - s * (1.0 - f)) * 255.99999999);
 		switch (i) {
 			case 0: c = ((w << 16) | (t << 8)) | p; break;
 			case 1: c = ((q << 16) | (w << 8)) | p; break;
@@ -347,7 +347,7 @@ Vertex AffineTransformation::transform(const Vertex& xy) const
 Rect<double> Path::calcFloatBounds() const {
 	Rect<double> r;
 	const_iterator it = instructions.begin();
-	const_iterator e = instructions.end();
+	const const_iterator e = instructions.end();
 	if (it != e) {
 		r.left = it->second.x;
 		r.top = it->second.y;
@@ -368,7 +368,7 @@ Rect<double> Path::calcFloatBounds() const {
 }
 
 IntRect Path::calcIntBounds() const {
-	Rect<double> b = calcFloatBounds();
+	const Rect<double> b = calcFloatBounds();
 	IntRect r;
 	r.left = static_cast<int>(floor(b.left));
 	r.top = static_cast<int>(floor(b.top));
@@ -420,16 +420,16 @@ Path& Path::quadraticTo(double controlPointX, double controlPointY, double x, do
 }
 
 Path& Path::cubicTo(double cpBeginX, double cpBeginY, double cpEndX, double cpEndY, double x, double y, double curveQuality) {
-	Vertex p0 = getPosition();
+	const Vertex p0 = getPosition();
 	double px = p0.x;
 	double py = p0.y;
 
-	double c1x = 3.0 * (cpBeginX - px);
-	double c1y = 3.0 * (cpBeginY - py); 
-	double c2x = 6.0 * (px - 2.0 * cpBeginX + cpEndX);
-	double c2y = 6.0 * (py - 2.0 * cpBeginY + cpEndY);
-	double c3x = 6.0 * (x - px + 3.0 * (cpBeginX - cpEndX));
-	double c3y = 6.0 * (y - py + 3.0 * (cpBeginY - cpEndY));
+	const double c1x = 3.0 * (cpBeginX - px);
+	const double c1y = 3.0 * (cpBeginY - py); 
+	const double c2x = 6.0 * (px - 2.0 * cpBeginX + cpEndX);
+	const double c2y = 6.0 * (py - 2.0 * cpBeginY + cpEndY);
+	const double c3x = 6.0 * (x - px + 3.0 * (cpBeginX - cpEndX));
+	const double c3y = 6.0 * (y - py + 3.0 * (cpBeginY - cpEndY));
 
 	/**
 		Norm of second derivative is a measure of how direction (=first derivative) twist.
@@ -437,14 +437,14 @@ Path& Path::cubicTo(double cpBeginX, double cpBeginY, double cpEndX, double cpEn
 		to be either at the very beginning or very end of the curve. We use this info to
 		decide the segment count.
 	**/
-	double k2x = 6.0 * (cpBeginX - 2.0 * cpEndX + x);
-	double k2y = 6.0 * (cpBeginY - 2.0 * cpEndY + y);
-	double d = sqrt(maxValue(c2x * c2x + c2y * c2y, k2x * k2x + k2y * k2y));
-	int n = minValue(static_cast<int>(sqrt(d * 0.707 * curveQuality) + 0.5) + 1, MAX_SPLINE_SEGMENTS);
+	const double k2x = 6.0 * (cpBeginX - 2.0 * cpEndX + x);
+	const double k2y = 6.0 * (cpBeginY - 2.0 * cpEndY + y);
+	const double d = sqrt(maxValue(c2x * c2x + c2y * c2y, k2x * k2x + k2y * k2y));
+	const int n = minValue(static_cast<int>(sqrt(d * 0.707 * curveQuality) + 0.5) + 1, MAX_SPLINE_SEGMENTS);
 
-	double m = 1.0 / n;
-	double px3 = c3x * m * m * m;
-	double py3 = c3y * m * m * m;
+	const double m = 1.0 / n;
+	const double px3 = c3x * m * m * m;
+	const double py3 = c3y * m * m * m;
 	double px2 = c2x * m * m + px3;
 	double py2 = c2y * m * m + py3;
 	double px1 = c1x * m + (1.0 / 2.0) * px2 - (1.0 / 3.0) * px3;
@@ -485,13 +485,13 @@ Path& Path::arcSweep(double centerX, double centerY, double sweepRadians, double
 	assert(0.0 < aspectRatio && aspectRatio < 10000000000.0);
 	assert(0.0 < curveQuality);
 
-	Vertex pos(getPosition());
-	double sx = (pos.x - centerX) / aspectRatio;
-	double sy = pos.y - centerY;
-	double diameter = maxValue(2.0 * fabs(aspectRatio), 2.0) * sqrt(sx * sx + sy * sy);
+	const Vertex pos(getPosition());
+	const double sx = (pos.x - centerX) / aspectRatio;
+	const double sy = pos.y - centerY;
+	const double diameter = maxValue(2.0 * fabs(aspectRatio), 2.0) * sqrt(sx * sx + sy * sy);
 	double rx;
 	double ry;
-	double t = calcCircleRotationVector(curveQuality, diameter, rx, ry);
+	const double t = calcCircleRotationVector(curveQuality, diameter, rx, ry);
 	double s = sweepRadians;
 	if (s < 0) {
 		s = -s;
@@ -501,8 +501,8 @@ Path& Path::arcSweep(double centerX, double centerY, double sweepRadians, double
 	double py = sy;
 	double r = t;
 	while (r < s - EPSILON) {
-		double nx = px * rx - py * ry;
-		double ny = px * ry + py * rx;
+		const double nx = px * rx - py * ry;
+		const double ny = px * ry + py * rx;
 		px = nx;
 		py = ny;
 		r += t;
@@ -999,8 +999,8 @@ RadialAscend::RadialAscend(double centerX, double centerY, double width, double 
 
 IntRect RadialAscend::calcBounds() const
 {
-	int left = static_cast<int>(floor(centerX - width));
-	int top = static_cast<int>(floor(centerY - height));
+	const int left = static_cast<int>(floor(centerX - width));
+	const int top = static_cast<int>(floor(centerY - height));
 	return IntRect(left, top, static_cast<int>(ceil(centerX + width)) - left
 			, static_cast<int>(ceil(centerY + height)) - top);
 }
@@ -1011,26 +1011,26 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 	
 	// Calculate left and right edge of inner circle for this row.
 	
-	double dy = y + 0.5 - centerY;
-	double a = 1.0 - dy * dy / (height * height);
-	double thisWidth = (a > EPSILON) ? width * sqrt(a) : 0;
-	int leftEdge = minValue(maxValue(roundToInt(centerX - x - thisWidth), 0), length);
-	int rightEdge = minValue(roundToInt(centerX - x + thisWidth), length);
+	const double dy = y + 0.5 - centerY;
+	const double a = 1.0 - dy * dy / (height * height);
+	const double thisWidth = (a > EPSILON) ? width * sqrt(a) : 0;
+	const int leftEdge = minValue(maxValue(roundToInt(centerX - x - thisWidth), 0), length);
+	const int rightEdge = minValue(roundToInt(centerX - x + thisWidth), length);
 
 	int i = 0;
 	while (i < length) {
 		if (i < leftEdge || i >= rightEdge) {
 			assert(i == 0 || i == rightEdge);
-			int edge = (i < leftEdge) ? leftEdge : length;
+			const int edge = (i < leftEdge) ? leftEdge : length;
 			output.addTransparent(edge - i);
 			i = edge;
 		} else {
 			assert(i == leftEdge);
-			double dx = x + i - centerX;
-			double dpp = 2.0 * wk;
-			double dp = (2.0 * dx - 1.0) * wk + dpp * 0.5;
-			double d = dy * dy * hk + dx * dx * wk + dp * 0.5;
-			int dppi = roundToInt(dpp);
+			const double dx = x + i - centerX;
+			const double dpp = 2.0 * wk;
+			const double dp = (2.0 * dx - 1.0) * wk + dpp * 0.5;
+			const double d = dy * dy * hk + dx * dx * wk + dp * 0.5;
+			const int dppi = roundToInt(dpp);
 			int dpi = roundToInt(dp);
 			int di = roundToInt(d);
 			
@@ -1085,9 +1085,9 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 			// Do the last remaining pixels one by one.
 			
 			while (i < rightEdge) {
-				int z = minValue(maxValue(di, 0), (1 << 30) - 1);									// Clamp di to valid range.
-				int precision = (z < (1 << (30 - 8))) << 2;											// Shift input and output (by 8 and 4 respectively) if z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
-				int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);					// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
+				const int z = minValue(maxValue(di, 0), (1 << 30) - 1);									// Clamp di to valid range.
+				const int precision = (z < (1 << (30 - 8))) << 2;											// Shift input and output (by 8 and 4 respectively) if z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
+				const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);					// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
 				*pixels++ = ((255 << precision) - 255 + sqrtTable[z >> sqrtShift]) >> precision;	// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
 				dpi += dppi;																		// Perform run-time integration of the derivate of di * di to avoid the integer multiplication.
 				di += dpi;
@@ -1116,7 +1116,7 @@ void EvenOddFillRule::processCoverage(int count, const Int32* source, Mask8::Pix
 {
 	for (int i = 0; i < count; ++i) {
 		int c = source[i];
-		int k = (1 << (COVERAGE_BITS + POLYGON_FRACTION_BITS));
+		const int k = (1 << (COVERAGE_BITS + POLYGON_FRACTION_BITS));
 		c = ((c & k) != 0) ? ((~c & (k - 1)) + 1) : (c & (k - 1));
 		destination[i] = minValue(c >> ((COVERAGE_BITS + POLYGON_FRACTION_BITS) - 8), 0xFF);
 	}

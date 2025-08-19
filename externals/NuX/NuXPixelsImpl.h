@@ -57,18 +57,18 @@ template<typename T> Rect<T> Rect<T>::calcUnion(const Rect<T>& other) const
 	} else if (other.isEmpty()) {
 		return (*this);
 	} else {
-		T unionLeft = minValue(left, other.left);
-		T unionTop = minValue(top, other.top);
+		const T unionLeft = minValue(left, other.left);
+		const T unionTop = minValue(top, other.top);
 		return Rect<T>(unionLeft, unionTop, maxValue(calcRight(), other.calcRight()) - unionLeft, maxValue(calcBottom(), other.calcBottom()) - unionTop); 
 	}
 }
 
 template<typename T> Rect<T> Rect<T>::calcIntersection(const Rect<T>& other) const
 {
-	T intersectionLeft = maxValue(left, other.left);
-	T intersectionTop = maxValue(top, other.top);
-	T intersectionWidth = minValue(calcRight(), other.calcRight()) - intersectionLeft;
-	T intersectionHeight = minValue(calcBottom(), other.calcBottom()) - intersectionTop;
+	const T intersectionLeft = maxValue(left, other.left);
+	const T intersectionTop = maxValue(top, other.top);
+	const T intersectionWidth = minValue(calcRight(), other.calcRight()) - intersectionLeft;
+	const T intersectionHeight = minValue(calcBottom(), other.calcBottom()) - intersectionTop;
 	if (intersectionWidth <= 0 || intersectionHeight <= 0) {
 		return Rect<T>();
 	} else {
@@ -358,10 +358,10 @@ template<class T> void SpanBuffer<T>::addReference(int length, const typename T:
 template<class T> void SpanBuffer<T>::split(iterator it, int splitPoint) // This method is a low-level method used for "merging" two SpanBuffers. It only splits for "forward iteration", but if you would iterate backwards the array would still be invariant since the split doesn't modify any pixel contents.
 {
 	assert(0 < splitPoint && splitPoint < it->getLength());
-	int remaining = it->getLength() - splitPoint;
-	bool solid = it->isSolid();
-	bool opaque = it->isOpaque();
-	const typename T::Pixel* pixelPointer = it->getPixelPointer();
+	const int remaining = it->getLength() - splitPoint;
+	const bool solid = it->isSolid();
+	const bool opaque = it->isOpaque();
+	const typename T::Pixel* const pixelPointer = it->getPixelPointer();
 	const typename T::Pixel* newPixelPointer = pixelPointer + splitPoint;
 	if (solid) { // Solid pixel must be copied if it resides in this SpanBuffer. Otherwise, it may be overwritten if we overwrite this buffer forwards when merging.
 		if (pixels <= pixelPointer && pixelPointer < endPixel) {
@@ -378,8 +378,8 @@ template<class T> void SpanBuffer<T>::split(iterator it, int splitPoint) // This
 
 template<class A, class B> void merge(SpanBuffer<A>& spansA, SpanBuffer<B>& spansB, typename SpanBuffer<A>::iterator itA, typename SpanBuffer<B>::iterator itB)
 {
-	int lengthA = itA->getLength();
-	int lengthB = itB->getLength();
+	const int lengthA = itA->getLength();
+	const int lengthB = itB->getLength();
 	if (lengthA < lengthB) {
 		spansB.split(itB, lengthA);
 	} else if (lengthB < lengthA) {
@@ -421,14 +421,14 @@ template<class T> void SolidRect<T>::render(int x, int y, int length, SpanBuffer
 	
 	if (y >= rect.top && y < rect.calcBottom()) {
 		if (x < rect.left) {
-			int c = minValue(rect.left - x, length);
+			const int c = minValue(rect.left - x, length);
 			output.addTransparent(c);
 			x += c;
 			length -= c;
 		}
 		assert(length >= 0);
 		if (length > 0 && x < rect.calcRight()) {
-			int c = minValue(rect.calcRight() - x, length);
+			const int c = minValue(rect.calcRight() - x, length);
 			output.addSolid(c, pixel);
 			x += c;
 			length -= c;
@@ -459,14 +459,14 @@ template<class T> void Clipper<T>::render(int x, int y, int length, SpanBuffer<T
 	
 	if (y >= rect.top && y < rect.calcBottom()) {
 		if (x < rect.left) {
-			int c = minValue(rect.left - x, length);
+			const int c = minValue(rect.left - x, length);
 			output.addTransparent(c);
 			x += c;
 			length -= c;
 		}
 		assert(length >= 0);
 		if (length > 0 && x < rect.calcRight()) {
-			int c = minValue(rect.calcRight() - x, length);
+			const int c = minValue(rect.calcRight() - x, length);
 			source.render(x, y, c, output);
 			x += c;
 			length -= c;
@@ -521,14 +521,14 @@ template<class T> void Raster<T>::render(int x, int y, int length, SpanBuffer<T>
 	
 	if (y >= bounds.top && y < bounds.calcBottom()) {
 		if (x < bounds.left) {
-			int c = minValue(bounds.left - x, length);
+			const int c = minValue(bounds.left - x, length);
 			output.addTransparent(c);
 			x += c;
 			length -= c;
 		}
 		assert(length >= 0);
 		if (length > 0 && x < bounds.calcRight()) {
-			int c = minValue(bounds.calcRight() - x, length);
+			const int c = minValue(bounds.calcRight() - x, length);
 			output.addReference(c, pixels + stride * y + x, opaque);
 			x += c;
 			length -= c;
@@ -542,18 +542,18 @@ template<class T> void Raster<T>::render(int x, int y, int length, SpanBuffer<T>
 template<class T> void Raster<T>::fill(const Renderer<T>& source, const IntRect& area)
 {
 	assert(area.isEmpty() || bounds.calcUnion(area) == bounds);		// area must be within target raster bounds
-	int right = area.calcRight();
-	int bottom = area.calcBottom();
+	const int right = area.calcRight();
+	const int bottom = area.calcBottom();
 	for (int y = area.top; y < bottom; ++y) {
 		for (int x = area.left; x < right; x += MAX_RENDER_LENGTH) {
-			int length = minValue(right - x, MAX_RENDER_LENGTH);
+			const int length = minValue(right - x, MAX_RENDER_LENGTH);
 			NUXPIXELS_SPAN_ARRAY(T, spanArray);
 			SpanBuffer<T> output(spanArray, pixels + stride * y + x);
 			source.render(x, y, length, output);
 			typename T::Pixel* target = pixels + stride * y + x;
 			typename SpanBuffer<T>::iterator it = output.begin();
 			while (it != output.end()) {
-				int count = it->getLength();
+				const int count = it->getLength();
 				if (it->isSolid()) {
 					fillPixels<T>(count, target, it->getSolidPixel());
 				} else {
@@ -631,7 +631,7 @@ template<class T> void RLERaster<T>::render(int x, int y, int length, SpanBuffer
 	
 	if (y >= bounds.top && y < bounds.calcBottom()) {
 		if (x < bounds.left) {
-			int c = minValue(bounds.left - x, length);
+			const int c = minValue(bounds.left - x, length);
 			output.addTransparent(c);
 			x += c;
 			length -= c;
@@ -704,13 +704,13 @@ template<class T> void RLERaster<T>::fill(const Renderer<T>& source)
 	newRLE.bounds = bounds;
 	newRLE.opaque = true;
 
-	int right = bounds.calcRight();
-	int bottom = bounds.calcBottom();
+	const int right = bounds.calcRight();
+	const int bottom = bounds.calcBottom();
 	for (int y = bounds.top; y < bottom; ++y) {
 		newRLE.rows.push_back(std::pair<size_t, size_t>(newRLE.spans.size(), newRLE.pixels.size()));
 		bool first = true;
 		for (int x = bounds.left; x < right; x += MAX_RENDER_LENGTH) {
-			int length = minValue(right - x, MAX_RENDER_LENGTH);
+			const int length = minValue(right - x, MAX_RENDER_LENGTH);
 			NUXPIXELS_SPAN_ARRAY(T, spanArray);
 			typename T::Pixel rlePixels[MAX_RENDER_LENGTH];
 			SpanBuffer<T> output(spanArray, rlePixels);
@@ -720,7 +720,7 @@ template<class T> void RLERaster<T>::fill(const Renderer<T>& source)
 				assert(it->getLength() < 0x4000);
 				const bool opaqueSpan = it->isOpaque();
 				const bool solidSpan = it->isSolid();
-				UInt16 span = it->getLength() | (solidSpan ? 0x8000 : 0) | (opaqueSpan ? 0x4000 : 0);
+				const UInt16 span = it->getLength() | (solidSpan ? 0x8000 : 0) | (opaqueSpan ? 0x4000 : 0);
 				if (!first
 						&& (span & 0xC000) == (newRLE.spans.back() & 0xC000)
 						&& (!solidSpan || it->getSolidPixel() == newRLE.pixels.back())
@@ -768,16 +768,16 @@ template<class S, class T> void UnaryOperator<S, T>::render(int x, int y, int le
 	source.render(x, y, length, inputBuffer);
 	while (sourceIt != inputBuffer.end()) {
 		const Span<S> span = *sourceIt++;
-		int spanLength = span.getLength();
+		const int spanLength = span.getLength();
 		bool opaque = span.isOpaque();
 		if (span.isSolid()) {
-			typename S::Pixel sourcePixel = span.getSolidPixel();
+			const typename S::Pixel sourcePixel = span.getSolidPixel();
 			typename T::Pixel targetPixel;
 			process(1, &sourcePixel, &targetPixel, opaque);
 			output.addSolid(spanLength, targetPixel);
 		} else {
-			const typename S::Pixel* sourcePixels = span.getVariablePixels();
-			typename T::Pixel* targetPixels = output.preallocatePixels();
+			const typename S::Pixel* const sourcePixels = span.getVariablePixels();
+			typename T::Pixel* const targetPixels = output.preallocatePixels();
 			process(spanLength, sourcePixels, targetPixels, opaque);
 			output.addVariable(spanLength, opaque);
 		}
@@ -951,7 +951,7 @@ template<class T> void Blender<T>::render(int x, int y, int length, SpanBuffer<T
 		} else if (spanA.isSolid() && spanB.isSolid()) {
 			output.addSolid(spanLength, T::blend(spanA.getSolidPixel(), spanB.getSolidPixel()));
 		} else {
-			typename T::Pixel* pixels = output.addVariable(spanLength, spanA.isOpaque());
+			typename T::Pixel* const pixels = output.addVariable(spanLength, spanA.isOpaque());
 			if (spanA.isSolid()) {
 				const typename T::Pixel pixelA = spanA.getSolidPixel();
 				const typename T::Pixel* pixelsB = spanB.getVariablePixels();
@@ -1043,7 +1043,7 @@ template<class T> void Adder<T>::render(int x, int y, int length, SpanBuffer<T>&
 		} else if (spanA.isSolid() && spanB.isSolid()) {
 			output.addSolid(spanLength, T::add(spanA.getSolidPixel(), spanB.getSolidPixel()));
 		} else {
-			typename T::Pixel* pixels = output.addVariable(spanLength, spanA.isOpaque() || spanB.isOpaque());
+			typename T::Pixel* const pixels = output.addVariable(spanLength, spanA.isOpaque() || spanB.isOpaque());
 			if (spanA.isSolid()) {
 				typename T::Pixel pixelA = spanA.getSolidPixel();
 				const typename T::Pixel* pixelsB = spanB.getVariablePixels();
@@ -1386,8 +1386,8 @@ template<class T> int Texture<T>::Impl::findImage(int length, Fixed32_32& sx, Fi
 	} else {
 		// Binary search for the optimal run-length until image begins (this is similar to a standard division algorithm).
 		
-		int col = high32(sx);
-		int row = high32(sy);
+int col = high32(sx);
+int row = high32(sy);
 
 		if (transformType == IDENTITY) {
 			int spanLength;
@@ -1404,8 +1404,8 @@ template<class T> int Texture<T>::Impl::findImage(int length, Fixed32_32& sx, Fi
 		
 		int spanLength = 0;
 		for (int shift = MAX_SPAN_BITS; shift >= 0; --shift) {
-			Fixed32_32 nx = add(sx, shiftLeft(dxx, shift));
-			Fixed32_32 ny = add(sy, shiftLeft(dxy, shift));
+			const Fixed32_32 nx = add(sx, shiftLeft(dxx, shift));
+			const Fixed32_32 ny = add(sy, shiftLeft(dxy, shift));
 			if ((col < -1 && high32(nx) < -1) || (col >= imageBounds.width && high32(nx) >= imageBounds.width)
 					|| (row < -1 && high32(ny) < -1) || (row >= imageBounds.height && high32(ny) >= imageBounds.height)) {
 				spanLength += (1 << shift);
@@ -1436,7 +1436,7 @@ template<class T> int Texture<T>::Impl::interpolateEdge(int length, Fixed32_32& 
 	int col = high32(sx);
 	int row = high32(sy);
 	const typename T::Pixel* s = &imagePixels[row * imageStride + col];
-	typename T::Pixel* pixels = output.preallocatePixels();
+	typename T::Pixel* const pixels = output.preallocatePixels();
 	typename T::Pixel* d = pixels;
 	typename T::Pixel* e = d + length;
 	do {
@@ -1462,8 +1462,8 @@ template<class T> int Texture<T>::Impl::interpolateEdge(int length, Fixed32_32& 
 		do {
 			const UInt32 colFraction = low32(sx) >> 24;
 			const UInt32 rowFraction = low32(sy) >> 24;
-			typename T::Pixel argb0 = T::interpolate(c00, c10, colFraction);
-			typename T::Pixel argb1 = T::interpolate(c01, c11, colFraction);
+			const typename T::Pixel argb0 = T::interpolate(c00, c10, colFraction);
+			const typename T::Pixel argb1 = T::interpolate(c01, c11, colFraction);
 			*d++ = T::interpolate(argb0, argb1, rowFraction);
 			delta = hop + addCarry(sx, dxx) + (-addCarry(sy, dxy) & imageStride);
 		} while (high32(sx) == col && high32(sy) == row && d < e); // Note: can't just check delta, cause we can actually land at the same sample offset even if we change row and column (e.g. in a 1*1 image).
@@ -1497,8 +1497,8 @@ template<class T> int Texture<T>::Impl::interpolateInside(int length, Fixed32_32
 		Fixed32_32 ex = sx;
 		Fixed32_32 ey = sy;
 		for (int shift = MAX_SPAN_BITS; shift >= 0; --shift) {
-			Fixed32_32 nx = add(ex, shiftLeft(dxx, shift));
-			Fixed32_32 ny = add(ey, shiftLeft(dxy, shift));
+			const Fixed32_32 nx = add(ex, shiftLeft(dxx, shift));
+			const Fixed32_32 ny = add(ey, shiftLeft(dxy, shift));
 			if (high32(nx) >= 0 && high32(nx) + 1 < imageBounds.width && high32(ny) >= 0 && high32(ny) + 1 < imageBounds.height) {
 				spanLength = spanLength + (1 << shift);
 				if (spanLength >= length) {
@@ -1524,7 +1524,7 @@ template<class T> int Texture<T>::Impl::interpolateInside(int length, Fixed32_32
 		break;
 		
 		case INTEGER: {
-			typename T::Pixel* pixels = output.addVariable(spanLength, opaque);
+			typename T::Pixel* const pixels = output.addVariable(spanLength, opaque);
 			for (int i = 0; i < spanLength; ++i) {
 				pixels[i] = *s;
 				s += hop;
@@ -1535,12 +1535,12 @@ template<class T> int Texture<T>::Impl::interpolateInside(int length, Fixed32_32
 		break;
 		
 		case UPSCALE: {
-			typename T::Pixel* pixels = output.addVariable(spanLength, opaque);
+			typename T::Pixel* const pixels = output.addVariable(spanLength, opaque);
 			int i = 0;
 			while (i < spanLength) {
-				UInt32 rowFraction = static_cast<UInt32>(low32(sy) >> 24);
-				typename T::Pixel argb0 = T::interpolate(s[0], s[imageStride], rowFraction);
-				typename T::Pixel argb1 = T::interpolate(s[1], s[imageStride + 1], rowFraction);
+				const UInt32 rowFraction = static_cast<UInt32>(low32(sy) >> 24);
+				const typename T::Pixel argb0 = T::interpolate(s[0], s[imageStride], rowFraction);
+				const typename T::Pixel argb1 = T::interpolate(s[1], s[imageStride + 1], rowFraction);
 				int delta;
 				do {
 					pixels[i] = T::interpolate(argb0, argb1, low32(sx) >> 24);
@@ -1553,21 +1553,21 @@ template<class T> int Texture<T>::Impl::interpolateInside(int length, Fixed32_32
 		break;
 		
 		case FRACTIONAL_X: {
-			typename T::Pixel* pixels = output.addVariable(spanLength, opaque);
+			typename T::Pixel* const pixels = output.addVariable(spanLength, opaque);
 			interpolatePixelsXOnly<T>(spanLength, pixels, s, sx, dxx, hop);
 			sy = add(sy, toFixed32_32(spanLength * high32(dxy), 0));
 		}
 		break;
 
 		case FRACTIONAL_Y: {
-			typename T::Pixel* pixels = output.addVariable(spanLength, opaque);
+			typename T::Pixel* const pixels = output.addVariable(spanLength, opaque);
 			interpolatePixelsYOnly<T>(spanLength, pixels, s, imageStride, sy, dxy, hop);
 			sx = add(sx, toFixed32_32(spanLength * high32(dxx), 0));
 		}
 		break;
 		
 		case ARBITRARY: {
-			typename T::Pixel* pixels = output.addVariable(spanLength, opaque);
+			typename T::Pixel* const pixels = output.addVariable(spanLength, opaque);
 			assert(high32(sx) >= 0 && high32(sx) + 1 < imageBounds.width && high32(sy) >= 0 && high32(sy) + 1 < imageBounds.height);
 			interpolatePixels<T>(spanLength, pixels, s, imageStride, sx, sy, dxx, dxy, hop);
 		}
@@ -1664,8 +1664,8 @@ template<class T> void Texture<T>::render(int x, int y, int length, SpanBuffer<T
 	
 	int offset = 0;
 	while (offset < length) {
-		int col = high32(sx);
-		int row = high32(sy);
+		const int col = high32(sx);
+		const int row = high32(sy);
 		int spanLength;
 		if (col < -colMargin || col >= impl->imageBounds.width || row < -rowMargin || row >= impl->imageBounds.height) {
 			spanLength = impl->findImage(length - offset, sx, sy, output);
