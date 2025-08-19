@@ -1369,54 +1369,55 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 			++integrateIndex;
 		} else {
 			const int coverageByX = seg->coverageByX;
-			int remaining;
+			int remaining;	// Signed total area this segment contributes in THIS row (fixed-point; sign follows winding)
 			Fixed32_32 dx;
-			// Introducing or retiring, sub-pixel accuracy
 			if (rowFixed < seg->topY || rowFixed + FRACT_ONE > seg->bottomY) {
-				unsigned short dy = minValue(seg->bottomY - rowFixed, FRACT_ONE) - maxValue(seg->topY - rowFixed, 0);
+				// Partial row (entering/exiting): compute subpixel dy, scale 'remaining' by dy, advance x by dy*dx.
+				const unsigned short dy = minValue(seg->bottomY - rowFixed, FRACT_ONE) - maxValue(seg->topY - rowFixed, 0);
 				remaining = ((coverageByX < 0) ? -(1 << COVERAGE_BITS) : (1 << COVERAGE_BITS)) * dy;
 				dx = multiply(dy, seg->dx);
 			} else {
+				// Full row: use +/-(1 << (COVERAGE_BITS+FRACT_BITS)) area and advance x by (dx << FRACT_BITS).
 				remaining = (coverageByX < 0)
 						? -(1 << (COVERAGE_BITS + FRACT_BITS)) : (1 << (COVERAGE_BITS + FRACT_BITS));
 				dx = shiftLeft(seg->dx, FRACT_BITS);
 			}
 			int leftX = high32(seg->x);
 			int rightX = high32(add(seg->x, dx));
-			sort(leftX, rightX);
+			sort(leftX, rightX);	// Ensure leftX <= rightX regardless of edge direction
 			int leftCol = (leftX >> FRACT_BITS) - x;
 			const int rightCol = (rightX >> FRACT_BITS) - x;
 			const int leftSub = leftX & FRACT_MASK;
 			const int rightSub = rightX & FRACT_MASK;				
 			
 			if (leftCol >= length) {
-				// Segment lies entirely to the right of the scanline.
+				// Entirely to the RIGHT of the requested span -> nothing to accumulate inside; set edges to length.
 				seg->leftEdge = length;
 				seg->rightEdge = length;
 			} else if (rightCol < 0) {
-				// Segment lies entirely to the left; dump all coverage into column zero.
+				// Entirely to the LEFT of the requested span -> deposit all signed area at boundary 0.
 				seg->leftEdge = 0;
 				seg->rightEdge = 0;
 				coverageDelta[0] += remaining;
 			} else if (leftCol == rightCol) {
-				// Both endpoints fall within one column; split the subpixel coverage.
+				// Both endpoints land in the SAME column -> split 'remaining' between boundaries col and col+1 (trapezoid in x).
 				seg->leftEdge = leftCol;
-				int coverage = (2 * FRACT_ONE - leftSub - rightSub) * remaining >> (FRACT_BITS + 1);
+				const int coverage = (2 * FRACT_ONE - leftSub - rightSub) * remaining >> (FRACT_BITS + 1);
 				coverageDelta[leftCol + 0] += coverage;
 				coverageDelta[leftCol + 1] += remaining - coverage;
-				// record one-past-the-rightmost column
+				// One-past-the-rightmost column
 				seg->rightEdge = leftCol + 1;
 			} else {
-				int covered;
+				int covered;	// signed area already spent on the left this row (clip-left + left partial); subtracted before the right edge
 				if (leftCol < 0) {
-					// Segment enters from the left clip boundary.
+					// Enters from CLIP-LEFT: precharge boundary 0 with area up to it, then start at column 0.
 					seg->leftEdge = 0;
 					covered = (minValue(rightCol, 0) - leftCol) * coverageByX;
 					covered -= leftSub * coverageByX >> FRACT_BITS;
 					coverageDelta[0] += covered;
 					leftCol = 0;
 				} else {
-					// Left edge inside buffer: set leftEdge, trapezoid-split the left partial column into boundary deltas, then advance to first interior column.
+					// Left edge INSIDE span: record leftEdge; split the left PARTIAL pixel between boundaries; advance to first interior column.
 					seg->leftEdge = leftCol;
 					int lx = FRACT_ONE - leftSub;
 					covered = lx * coverageByX >> FRACT_BITS;
@@ -1426,7 +1427,7 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 					++leftCol;
 				}
 				const int colCount = minValue(rightCol, length - 1) - leftCol;
-				// Interior columns receive uniform coverage.
+				// Interior columns: uniform slope contribution -> boundary deltas follow 1/2,1,...,1,1/2 pattern.
 				if (colCount > 0) {
 					coverageDelta[leftCol + 0] += (coverageByX >> 1);
 					for (int col = leftCol + 1; col < leftCol + colCount; ++col) {
@@ -1435,16 +1436,15 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 					coverageDelta[leftCol + colCount] += coverageByX - (coverageByX >> 1);
 				}
 				if (rightCol < length) {
-					// Handle the right edge if it falls within the buffer.
-					// Remaining coverage after subtracting the fully covered columns.
+					// Right edge INSIDE span: spend what's left ('remaining - covered - interiors') in the right PARTIAL pixel.
 					remaining -= covered + colCount * coverageByX;
-					int coverage = (2 * FRACT_ONE - rightSub) * remaining >> (FRACT_BITS + 1);
+					const int coverage = (2 * FRACT_ONE - rightSub) * remaining >> (FRACT_BITS + 1);
 					coverageDelta[rightCol + 0] += coverage;
 					coverageDelta[rightCol + 1] += remaining - coverage;
-					// record one-past-the-rightmost column
+					// One-past-the-rightmost column
 					seg->rightEdge = rightCol + 1;
 				} else {
-					// Segment extends beyond the buffer.
+					// Exits past CLIP-RIGHT: mark rightEdge at span end; no right-partial deposit inside buffer.
 					seg->rightEdge = length;
 				}
 			}
