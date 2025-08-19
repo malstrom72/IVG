@@ -1368,7 +1368,7 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 			std::swap(segsVertically[integrateIndex], segsVertically[drawIndex]);
 			++integrateIndex;
 		} else {
-			int coverageByX = seg->coverageByX;
+			const int coverageByX = seg->coverageByX;
 			int remaining;
 			Fixed32_32 dx;
 			// Introducing or retiring, sub-pixel accuracy
@@ -1385,9 +1385,9 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 			int rightX = high32(add(seg->x, dx));
 			sort(leftX, rightX);
 			int leftCol = (leftX >> FRACT_BITS) - x;
-			int rightCol = (rightX >> FRACT_BITS) - x;
-			int leftSub = leftX & FRACT_MASK;
-			int rightSub = rightX & FRACT_MASK;				
+			const int rightCol = (rightX >> FRACT_BITS) - x;
+			const int leftSub = leftX & FRACT_MASK;
+			const int rightSub = rightX & FRACT_MASK;				
 			
 			if (leftCol >= length) {
 				// Segment lies entirely to the right of the scanline.
@@ -1425,7 +1425,7 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 					coverageDelta[leftCol + 1] += covered - coverage;
 					++leftCol;
 				}
-				int colCount = minValue(rightCol, length - 1) - leftCol;
+				const int colCount = minValue(rightCol, length - 1) - leftCol;
 				// Interior columns receive uniform coverage.
 				if (colCount > 0) {
 					coverageDelta[leftCol + 0] += (coverageByX >> 1);
