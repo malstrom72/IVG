@@ -1390,13 +1390,16 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 			int rightSub = rightX & FRACT_MASK;				
 			
 			if (leftCol >= length) {
+				// Segment lies entirely to the right of the scanline.
 				seg->leftEdge = length;
 				seg->rightEdge = length;
 			} else if (rightCol < 0) {
+				// Segment lies entirely to the left; dump all coverage into column zero.
 				seg->leftEdge = 0;
 				seg->rightEdge = 0;
 				coverageDelta[0] += remaining;
 			} else if (leftCol == rightCol) {
+				// Both endpoints fall within one column; split the subpixel coverage.
 				seg->leftEdge = leftCol;
 				int coverage = (2 * FRACT_ONE - leftSub - rightSub) * remaining >> (FRACT_BITS + 1);
 				coverageDelta[leftCol + 0] += coverage;
@@ -1406,12 +1409,14 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 			} else {
 				int covered;
 				if (leftCol < 0) {
+					// Segment enters from the left clip boundary.
 					seg->leftEdge = 0;
 					covered = (minValue(rightCol, 0) - leftCol) * coverageByX;
 					covered -= leftSub * coverageByX >> FRACT_BITS;
 					coverageDelta[0] += covered;
 					leftCol = 0;
 				} else {
+					// Left edge inside buffer: set leftEdge, trapezoid-split the left partial column into boundary deltas, then advance to first interior column.
 					seg->leftEdge = leftCol;
 					int lx = FRACT_ONE - leftSub;
 					covered = lx * coverageByX >> FRACT_BITS;
@@ -1421,6 +1426,7 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 					++leftCol;
 				}
 				int colCount = minValue(rightCol, length - 1) - leftCol;
+				// Interior columns receive uniform coverage.
 				if (colCount > 0) {
 					coverageDelta[leftCol + 0] += (coverageByX >> 1);
 					for (int col = leftCol + 1; col < leftCol + colCount; ++col) {
@@ -1429,6 +1435,8 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 					coverageDelta[leftCol + colCount] += coverageByX - (coverageByX >> 1);
 				}
 				if (rightCol < length) {
+					// Handle the right edge if it falls within the buffer.
+					// Remaining coverage after subtracting the fully covered columns.
 					remaining -= covered + colCount * coverageByX;
 					int coverage = (2 * FRACT_ONE - rightSub) * remaining >> (FRACT_BITS + 1);
 					coverageDelta[rightCol + 0] += coverage;
@@ -1436,6 +1444,7 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 					// record one-past-the-rightmost column
 					seg->rightEdge = rightCol + 1;
 				} else {
+					// Segment extends beyond the buffer.
 					seg->rightEdge = length;
 				}
 			}
