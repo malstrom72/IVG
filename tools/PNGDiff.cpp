@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <vector>
 #include <stdexcept>
+#include <string>
 #include "png.h"
 
 using namespace std;
