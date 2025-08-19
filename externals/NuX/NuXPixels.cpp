@@ -1499,21 +1499,21 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 	
 		if (nx > col) {
 			int spanLength = nx - col;
-			{ for (int i = 0; i < spanLength; ++i) {
-					coverageAcc += coverageDelta[col + i];
-					coverageDelta[col + i] = coverageAcc;
-			} }
+			for (int i = 0; i < spanLength; ++i) {
+				coverageAcc += coverageDelta[col + i];
+				coverageDelta[col + i] = coverageAcc;
+			}
 			Mask8::Pixel* pixels = output.addVariable(spanLength, false);
 			fillRule.processCoverage(spanLength, &coverageDelta[col], pixels);
 			for (int i = 0; i < spanLength; ++i) {
-					if (!Mask8::isTransparent(pixels[i])) {
-							rowUsed = true;
-							rowMin = minValue(rowMin, col + i);
-							rowMax = maxValue(rowMax, col + i + 1);
-					}
+				if (!Mask8::isTransparent(pixels[i])) {
+					rowUsed = true;
+					rowMin = minValue(rowMin, col + i);
+					rowMax = maxValue(rowMax, col + i + 1);
+				}
 			}
 			for (int i = 0; i < spanLength; ++i) {
-					coverageDelta[col + i] = 0;
+				coverageDelta[col + i] = 0;
 			}
 			col = nx;
 		}
