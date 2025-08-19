@@ -1292,9 +1292,9 @@ return;
 
 #if !defined(NDEBUG)
 if (y < row) {
-std::cerr << "rewind from row " << row << " to y " << y << " x=" << x << " len=" << length << "\n";
+				std::cerr << "rewind from row " << row << " to y " << y << " x=" << x << " len=" << length << "\n";
 } else if (y > row + 1) {
-std::cerr << "jump from row " << row << " to y " << y << " x=" << x << " len=" << length << "\n";
+		std::cerr << "jump from row " << row << " to y " << y << " x=" << x << " len=" << length << "\n";
 }
 #endif
 if (y < row) {
@@ -1382,54 +1382,57 @@ rewind();
                        }
 #endif
 			
-			if (leftCol >= length) {
-				seg->leftEdge = length;
-				seg->rightEdge = length;
-			} else if (rightCol < 0) {
-				seg->leftEdge = 0;
-				seg->rightEdge = 0;
-				coverageDelta[0] += remaining;
-			} else if (leftCol == rightCol) {
-				seg->leftEdge = leftCol;
-				int coverage = (2 * FRACT_ONE - leftSub - rightSub) * remaining >> (FRACT_BITS + 1);
-				coverageDelta[leftCol + 0] += coverage;
-				coverageDelta[leftCol + 1] += remaining - coverage;
-				seg->rightEdge = leftCol + 1; // record one-past-the-rightmost column
+                       if (leftCol >= length) {
+                               seg->leftEdge = length;
+                               seg->rightEdge = length;
+                       } else if (rightCol < 0) {
+                               seg->leftEdge = 0;
+                               seg->rightEdge = 0;
+                               coverageDelta[0] += remaining;
+                               coverageDelta[length] -= remaining;
+                       } else if (leftCol == rightCol) {
+                               seg->leftEdge = leftCol;
+                               int coverage = (2 * FRACT_ONE - leftSub - rightSub) * remaining >> (FRACT_BITS + 1);
+                               coverageDelta[leftCol + 0] += coverage;
+                               coverageDelta[leftCol + 1] += remaining - coverage;
+                               seg->rightEdge = leftCol + 1; // record one-past-the-rightmost column
 			} else {
-				int covered;
-				if (leftCol < 0) {
-					seg->leftEdge = 0;
-					covered = (minValue(rightCol, 0) - leftCol) * coverageByX;
-					covered -= leftSub * coverageByX >> FRACT_BITS;
-					coverageDelta[0] += covered;
-					leftCol = 0;
-				} else {
-					seg->leftEdge = leftCol;
-					int lx = FRACT_ONE - leftSub;
-					covered = lx * coverageByX >> FRACT_BITS;
-					int coverage = lx * covered >> (FRACT_BITS + 1);
-					coverageDelta[leftCol + 0] += coverage;
-					coverageDelta[leftCol + 1] += covered - coverage;
-					++leftCol;
-				}
-				int colCount = minValue(rightCol, length - 1) - leftCol;
-				if (colCount > 0) {
-					coverageDelta[leftCol + 0] += (coverageByX >> 1);
-					{ for (int col = leftCol + 1; col < leftCol + colCount; ++col) coverageDelta[col] += coverageByX; }
-					coverageDelta[leftCol + colCount] += coverageByX - (coverageByX >> 1);
-				}
-				if (rightCol < length) {
-					remaining -= covered + colCount * coverageByX;
-					int coverage = (2 * FRACT_ONE - rightSub) * remaining >> (FRACT_BITS + 1);
-					coverageDelta[rightCol + 0] += coverage;
-					coverageDelta[rightCol + 1] += remaining - coverage;
-					seg->rightEdge = rightCol + 1; // record one-past-the-rightmost column
-				} else {
-					seg->rightEdge = length;
-				}
-			}
-		}
-	}
+                               int covered;
+                               if (leftCol < 0) {
+                                       seg->leftEdge = 0;
+                                       covered = (minValue(rightCol, 0) - leftCol) * coverageByX;
+                                       covered -= leftSub * coverageByX >> FRACT_BITS;
+                                       coverageDelta[0] += covered;
+                                       coverageDelta[length] -= covered;
+                                       leftCol = 0;
+                               } else {
+                                       seg->leftEdge = leftCol;
+                                       int lx = FRACT_ONE - leftSub;
+                                       covered = lx * coverageByX >> FRACT_BITS;
+                                       int coverage = lx * covered >> (FRACT_BITS + 1);
+                                       coverageDelta[leftCol + 0] += coverage;
+                                       coverageDelta[leftCol + 1] += covered - coverage;
+                                       ++leftCol;
+                               }
+                               int colCount = minValue(rightCol, length - 1) - leftCol;
+                               if (colCount > 0) {
+                                       coverageDelta[leftCol + 0] += (coverageByX >> 1);
+                                       { for (int col = leftCol + 1; col < leftCol + colCount; ++col) coverageDelta[col] += coverageByX; }
+                                       coverageDelta[leftCol + colCount] += coverageByX - (coverageByX >> 1);
+                               }
+                               remaining -= covered + colCount * coverageByX;
+                               if (rightCol < length) {
+                                       int coverage = (2 * FRACT_ONE - rightSub) * remaining >> (FRACT_BITS + 1);
+                                       coverageDelta[rightCol + 0] += coverage;
+                                       coverageDelta[rightCol + 1] += remaining - coverage;
+                                       seg->rightEdge = rightCol + 1; // record one-past-the-rightmost column
+                               } else {
+                                       coverageDelta[length] -= remaining;
+                                       seg->rightEdge = length;
+                               }
+                       }
+               }
+       }
 	
 	// Drop retired lines and insert-sort horizontal order-list according to their left-edges.
 
@@ -1523,14 +1526,17 @@ rewind();
 #endif
 
 #if !defined(NDEBUG)
-if (coverageAcc != 0) {
-std::cerr << "coverage carryover at y " << y << " x=" << x << " len=" << length << " coverageAcc=" << coverageAcc << "\n";
+	coverageAcc += coverageDelta[length];
+	if (coverageAcc != 0) {
+		std::cerr << "coverage carryover at y " << y << " x=" << x << " len=" << length << " coverageAcc=" << coverageAcc << "\n";
 }
+#else
+	coverageAcc += coverageDelta[length];
 #endif
-coverageDelta[length] = 0; // Need to clear the extra margin element.
-	if (rightClip > 0) {
-		output.addTransparent(rightClip);
-	}
+	coverageDelta[length] = 0; // Need to clear the extra margin element.
+        if (rightClip > 0) {
+                output.addTransparent(rightClip);
+        }
 }
 
 NonZeroFillRule PolygonMask::nonZeroFillRule;
