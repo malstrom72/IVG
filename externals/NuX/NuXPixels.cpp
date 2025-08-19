@@ -1126,195 +1126,214 @@ void EvenOddFillRule::processCoverage(int count, const Int32* source, Mask8::Pix
 /* --- PolygonMask --- */
 
 // Notice: this compares through pointers, so we can't implement this as operator< for Segment.
-struct PolygonMask::Segment::Order {
-	bool operator()(const PolygonMask::Segment* a, const PolygonMask::Segment* b) {
-		return ((a->topY >> FRACT_BITS) < (b->topY >> FRACT_BITS)
-				|| ((a->topY >> FRACT_BITS) == (b->topY >> FRACT_BITS) && a->leftEdge < b->leftEdge));
-	}
+struct PolygonMask::Segment::Order {/// Sort by starting row then left edge.
+bool operator()(const PolygonMask::Segment* a, const PolygonMask::Segment* b) {
+return ((a->topY >> FRACT_BITS) < (b->topY >> FRACT_BITS)
+|| ((a->topY >> FRACT_BITS) == (b->topY >> FRACT_BITS) && a->leftEdge < b->leftEdge));
+}
 };
 
 PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule)
-	: segments(), fillRule(fillRule), row(0), engagedStart(0), engagedEnd(0), coverageDelta()
+       : segments(), fillRule(fillRule), row(0), engagedStart(0), engagedEnd(0), coverageDelta()
 {
-	IntRect cb = clipBounds;
-	assert(0 <= cb.width && 0 <= cb.height);
-	const int limit = (0x7FFFFFFF >> FRACT_BITS);
-	cb.left = maxValue(-limit, minValue(cb.left, limit));
-	cb.top = maxValue(-limit, minValue(cb.top, limit));
-	int rightBound = maxValue(-limit, minValue(cb.calcRight(), limit));
-	int bottomBound = maxValue(-limit, minValue(cb.calcBottom(), limit));
-	cb.width = maxValue(0, rightBound - cb.left);
-	cb.height = maxValue(0, bottomBound - cb.top);
+       // Clamp the clip rectangle to the numeric limits handled by the rasterizer.
+       IntRect cb = clipBounds;
+       assert(0 <= cb.width && 0 <= cb.height);
+       const int limit = (0x7FFFFFFF >> FRACT_BITS);
+       cb.left = maxValue(-limit, minValue(cb.left, limit));
+       cb.top = maxValue(-limit, minValue(cb.top, limit));
+       int rightBound = maxValue(-limit, minValue(cb.calcRight(), limit));
+       int bottomBound = maxValue(-limit, minValue(cb.calcBottom(), limit));
+       cb.width = maxValue(0, rightBound - cb.left);
+       cb.height = maxValue(0, bottomBound - cb.top);
 
-	segments.reserve(path.size() + 1);
-	int minY = 0x3FFFFFFF;
-	int minX = 0x3FFFFFFF;
-	int maxY = -0x3FFFFFFF;
-	int maxX = -0x3FFFFFFF;
-	int top = cb.top << FRACT_BITS;
-	int right = rightBound << FRACT_BITS;
-	int bottom = bottomBound << FRACT_BITS;
-	int lx = 0;
-	int ly = 0;
+       // Reserve space for all edges plus a sentinel segment.
+       segments.reserve(path.size() + 1);
+       int minY = 0x3FFFFFFF;
+       int minX = 0x3FFFFFFF;
+       int maxY = -0x3FFFFFFF;
+       int maxX = -0x3FFFFFFF;
+       int top = cb.top << FRACT_BITS;
+       int right = rightBound << FRACT_BITS;
+       int bottom = bottomBound << FRACT_BITS;
+       int lx = 0;
+       int ly = 0;
 
-	for (Path::const_iterator it = path.begin(), e = path.end(); it != e;) {
-		while (it != path.end() && it->first == Path::MOVE) {
-			lx = roundToInt(it->second.x * FRACT_ONE);
-			ly = roundToInt(it->second.y * FRACT_ONE);
-			++it;
-		}
-		while (it != path.end() && it->first != Path::MOVE) {
-			int x0 = lx;
-			int y0 = ly;
-			int x1 = roundToInt(it->second.x * FRACT_ONE);
-			int y1 = roundToInt(it->second.y * FRACT_ONE);
-			lx = x1;
-			ly = y1;
-			bool reversed = false;
-			if (y0 > y1) {
-				std::swap(y0, y1);
-				std::swap(x0, x1);
-				reversed = true;
-			}
-			if (y0 != y1 && y1 > top && y0 < bottom && minValue(x0, x1) < right) {
-				segments.push_back(Segment());
-				Segment& seg = segments.back();
-				seg.topY = y0;
-				seg.bottomY = y1;
-				seg.x = toFixed32_32(x0, 0);
-				seg.leftEdge = (x0 >> FRACT_BITS);
-				seg.dx = toFixed32_32(0, 0);
-				int coverageByX = 1 << ((COVERAGE_BITS + FRACT_BITS) - 1);
-				int dx = x1 - x0;
-				if (dx != 0) {
-					int dy = y1 - y0;
-					seg.dx = divide(dx, dy);
-					Fixed32_32 dyByDx = divide(dy, abs(dx));
-					if (high32(dyByDx) < (1 << ((COVERAGE_BITS + FRACT_BITS) - 1))) {
-						coverageByX = high32(shiftLeft(dyByDx, COVERAGE_BITS + FRACT_BITS));
-					}
-				}
-				seg.coverageByX = (reversed ? -coverageByX : coverageByX);
-				if (top > seg.topY) { // Oops, we've passed the first y segment, catch-up!
-					seg.x = add(seg.x, multiply(static_cast<UInt32>(top - seg.topY), seg.dx));
-					seg.topY = top;
-					seg.leftEdge = (high32(seg.x) >> FRACT_BITS);
-				}
-				seg.currentY = seg.topY;
-				seg.rightEdge = seg.leftEdge;
-			}
-			minY = minValue(minY, y0);
-			maxY = maxValue(maxY, y1);
-			sort(x0, x1);
-			minX = minValue(minX, x0);
-			maxX = maxValue(maxX, x1);
-			++it;
-		}
+       // Parse the path, converting each edge to a Segment.
+       for (Path::const_iterator it = path.begin(), e = path.end(); it != e;) {
+               while (it != path.end() && it->first == Path::MOVE) {
+                       // Begin a new contour.
+                       lx = roundToInt(it->second.x * FRACT_ONE);
+                       ly = roundToInt(it->second.y * FRACT_ONE);
+                       ++it;
+               }
+               while (it != path.end() && it->first != Path::MOVE) {
+int x0 = lx;
+int y0 = ly;
+int x1 = roundToInt(it->second.x * FRACT_ONE);
+int y1 = roundToInt(it->second.y * FRACT_ONE);
+lx = x1;
+ly = y1;
+bool reversed = false;
+if (y0 > y1) {
+// Ensure segment runs from top to bottom.
+std::swap(y0, y1);
+std::swap(x0, x1);
+reversed = true;
+}
+// Skip horizontal edges and those completely outside the clip rectangle.
+if (y0 != y1 && y1 > top && y0 < bottom && minValue(x0, x1) < right) {
+segments.push_back(Segment());
+Segment& seg = segments.back();
+seg.topY = y0;
+seg.bottomY = y1;
+seg.x = toFixed32_32(x0, 0);
+seg.leftEdge = (x0 >> FRACT_BITS);
+seg.dx = toFixed32_32(0, 0);
+int coverageByX = 1 << ((COVERAGE_BITS + FRACT_BITS) - 1);
+int dx = x1 - x0;
+if (dx != 0) {
+int dy = y1 - y0;
+seg.dx = divide(dx, dy);
+Fixed32_32 dyByDx = divide(dy, abs(dx));
+if (high32(dyByDx) < (1 << ((COVERAGE_BITS + FRACT_BITS) - 1))) {
+coverageByX = high32(shiftLeft(dyByDx, COVERAGE_BITS + FRACT_BITS));
+}
+}
+seg.coverageByX = (reversed ? -coverageByX : coverageByX);
+if (top > seg.topY) { // Oops, we've passed the first y segment, catch-up!
+seg.x = add(seg.x, multiply(static_cast<UInt32>(top - seg.topY), seg.dx));
+seg.topY = top;
+seg.leftEdge = (high32(seg.x) >> FRACT_BITS);
+}
+seg.currentY = seg.topY;
+seg.rightEdge = seg.leftEdge;
+}
+// Track overall bounds of the path in fixed-point space.
+minY = minValue(minY, y0);
+maxY = maxValue(maxY, y1);
+sort(x0, x1);
+minX = minValue(minX, x0);
+maxX = maxValue(maxX, x1);
+++it;
+}
 	}
-	segments.push_back(Segment());
-	Segment& segSentinel = segments.back();
-	segSentinel.topY = 0x7FFFFFFF; // "Sentinel" value, so we don't have to check the count.
-	segSentinel.currentY = segSentinel.topY;
+// Append a sentinel segment to simplify iteration logic.
+segments.push_back(Segment());
+Segment& segSentinel = segments.back();
+segSentinel.topY = 0x7FFFFFFF; // "Sentinel" value, so we don't have to check the count.
+segSentinel.currentY = segSentinel.topY;
 
-	bounds.left = minX >> FRACT_BITS;
-	bounds.top = minY >> FRACT_BITS;
-	bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
-	bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
-	bounds = bounds.calcIntersection(cb);
-	coverageDelta.assign(bounds.width + 1, 0);
+// Finalize bounds in pixel space and allocate coverage buffer.
+bounds.left = minX >> FRACT_BITS;
+bounds.top = minY >> FRACT_BITS;
+bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
+bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
+bounds = bounds.calcIntersection(cb);
+coverageDelta.assign(bounds.width + 1, 0);
 
-	rewind();
+// Prepare for the first rendering pass.
+rewind();
 }
 
 void PolygonMask::rewind() const {
-	row = bounds.top;
-	engagedStart = 0;
-	engagedEnd = 0;
-	std::fill(coverageDelta.begin(), coverageDelta.end(), 0);
-	for (size_t i = 0, n = segments.size(); i < n; ++i) {
-		Segment* seg = const_cast<Segment*>(&segments[i]);
-		if (seg->currentY != seg->topY) {
-			int dy = seg->currentY - seg->topY;
-			seg->x = add(seg->x, multiply(-dy, seg->dx));
-			seg->currentY = seg->topY;
-		}
-		seg->leftEdge = seg->rightEdge = high32(seg->x) >> FRACT_BITS;
-	}
-	segsVertically.resize(segments.size());
-	for (size_t segIndex = 0; segIndex < segments.size(); ++segIndex) {
-		segsVertically[segIndex] = const_cast<Segment*>(&segments[segIndex]);
-	}
-	std::sort(segsVertically.begin(), segsVertically.end(), Segment::Order());
-	segsHorizontally = segsVertically;
+// Reset state so rendering can start from the top row again.
+row = bounds.top;
+engagedStart = 0;
+engagedEnd = 0;
+std::fill(coverageDelta.begin(), coverageDelta.end(), 0);
+for (size_t i = 0, n = segments.size(); i < n; ++i) {
+Segment* seg = const_cast<Segment*>(&segments[i]);
+if (seg->currentY != seg->topY) {
+int dy = seg->currentY - seg->topY;
+seg->x = add(seg->x, multiply(-dy, seg->dx));
+seg->currentY = seg->topY;
+}
+seg->leftEdge = seg->rightEdge = high32(seg->x) >> FRACT_BITS;
+}
+// Build a list of pointers sorted vertically by topY.
+segsVertically.resize(segments.size());
+for (size_t segIndex = 0; segIndex < segments.size(); ++segIndex) {
+segsVertically[segIndex] = const_cast<Segment*>(&segments[segIndex]);
+}
+std::sort(segsVertically.begin(), segsVertically.end(), Segment::Order());
+// Horizontal list starts identical; it will be maintained in x-order during rendering.
+segsHorizontally = segsVertically;
 #if !defined(NDEBUG)
-	paintedBounds = EMPTY_RECT;
+paintedBounds = EMPTY_RECT;
 #endif
 }
 
 IntRect PolygonMask::calcBounds() const { return bounds; }
 
 void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) const {
-	assert(0 < length && length <= MAX_RENDER_LENGTH);
-	int clipLeft = bounds.left;
-	int clipRight = bounds.calcRight();
-	if (x + length <= clipLeft || x >= clipRight) {
-		output.addTransparent(length);
-		return;
-	}
-	int rightClip = 0;
-	if (x < clipLeft) {
-		const int leftClip = clipLeft - x;
-		output.addTransparent(leftClip);
-		x = clipLeft;
-		length -= leftClip;
-	}
-	if (x + length > clipRight) {
-		rightClip = x + length - clipRight;
-		length -= rightClip;
-	}
-	int clipTop = bounds.top;
-	int clipBottom = clipTop + bounds.height;
-	if (y < clipTop || y >= clipBottom) {
-		output.addTransparent(length);
-		if (rightClip > 0) {
-			output.addTransparent(rightClip);
-		}
-		return;
-	}
+assert(0 < length && length <= MAX_RENDER_LENGTH);
+int clipLeft = bounds.left;
+int clipRight = bounds.calcRight();
+if (x + length <= clipLeft || x >= clipRight) {
+// Entire request lies outside horizontal clip bounds.
+output.addTransparent(length);
+return;
+}
+int rightClip = 0;
+if (x < clipLeft) {
+// Clip span on the left.
+const int leftClip = clipLeft - x;
+output.addTransparent(leftClip);
+x = clipLeft;
+length -= leftClip;
+}
+if (x + length > clipRight) {
+// Clip span on the right.
+rightClip = x + length - clipRight;
+length -= rightClip;
+}
+int clipTop = bounds.top;
+int clipBottom = clipTop + bounds.height;
+if (y < clipTop || y >= clipBottom) {
+// Outside vertical bounds: emit transparent pixels.
+output.addTransparent(length);
+if (rightClip > 0) {
+output.addTransparent(rightClip);
+}
+return;
+}
 
-	if (y < row) {
-		rewind();
-	}
+if (y < row) {
+// Requested row is above last rendered one: restart rasterizer.
+rewind();
+}
 
-	if (y > row) {
-		/*
-			Adjust x for all engaged and newly introduced segments. Already engaged: just jump by
-			rowCount, to be engaged: adjust from topY. Notice that this routine may leave the
-			horizontal list scrambled which can reduce performance (= may require heavier insertion
-			sorting at next rasterizeRows if the merge sort fails).
-		*/
-		int YYY = y << FRACT_BITS;
-		int segIndex = engagedStart;
-		while (segsVertically[segIndex]->topY < YYY) {
-			Segment* seg = segsVertically[segIndex];
-			int dy = YYY - seg->currentY;
-			if (dy > 0) {
-				seg->x = add(seg->x, multiply(static_cast<UInt32>(dy), seg->dx));
-				seg->currentY = YYY;
-			}
-			++segIndex;
-		}
-		row = y;
-	}
+if (y > row) {
+/*
+Advance the active edge list to the requested row.
+Already-engaged edges simply step forward `rowCount` rows.
+Newly-engaged edges adjust from their topY.
+This may leave the horizontal list unsorted, requiring
+extra work later when reordering.
+*/
+int YYY = y << FRACT_BITS;
+int segIndex = engagedStart;
+while (segsVertically[segIndex]->topY < YYY) {
+Segment* seg = segsVertically[segIndex];
+int dy = YYY - seg->currentY;
+if (dy > 0) {
+seg->x = add(seg->x, multiply(static_cast<UInt32>(dy), seg->dx));
+seg->currentY = YYY;
+}
+++segIndex;
+}
+row = y;
+}
 	
 	int YYY = row << FRACT_BITS;
 	
-	int includeIndex = engagedEnd;
-	while (segsVertically[includeIndex]->topY < YYY + FRACT_ONE) {
-		++includeIndex;
-	}
-	
-	// Merge-sort introduced segment into horizontally ordered list.
+int includeIndex = engagedEnd;
+while (segsVertically[includeIndex]->topY < YYY + FRACT_ONE) {
+++includeIndex;
+}
+
+// Merge-sort newly activated segments into the x-ordered list.
 	
 	int insertIndex = includeIndex - 1;
 	int hIndex = engagedEnd - 1;
@@ -1330,7 +1349,7 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 		--insertIndex;
 	}
 	
-	// Draw into scanline with coverage deltas.
+// Rasterize active segments into coverage deltas.
 	
 	engagedEnd = includeIndex;
 	int integrateIndex = engagedStart;
@@ -1410,7 +1429,7 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 		}
 	}
 	
-	// Drop retired lines and insert-sort horizontal order-list according to their left-edges.
+// Drop segments that end at this row and restore horizontal order for remaining ones.
 
 	int orderIndex = engagedEnd - 1;
 	int sortIndex = orderIndex;
@@ -1429,7 +1448,7 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 	}
 	engagedStart = integrateIndex;
 
-	// Integrate and perform rendering.
+// Integrate coverage and emit mask pixels.
 	
 	bool rowUsed = false;
 	int rowMin = length;

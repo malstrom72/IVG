@@ -76,6 +76,8 @@ Raster<ARGB32> view(pixels, 256, IntRect(0, 0, 256, 256), false);
 
 Although designed for sequential rendering, a mask can now be rewound to its initial state with `PolygonMask::rewind()`. Random access is possible by invoking `rewind()` whenever a lower row needs to be revisited, after which rendering can continue from any scanline. Requests outside the mask's clipped bounds simply yield transparent coverage without rewinding. Rewinding requires the rasterizer to re‑sort its segments and clear internal buffers, so jumping around freely is slower than processing rows in order.
 
+Further details on the algorithm, design trade‑offs and pseudo‑code are available in `PolygonMask Rasterizer.md`.
+
 ### Gradients
 A `Gradient` lookup table produces color values for linear or radial fills.
 `LinearAscend` and `RadialAscend` generate a 0–255 coverage ramp that can index
