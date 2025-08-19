@@ -35,3 +35,8 @@ Among these, `patterntest.png` exhibited the greatest variation, with a cumulati
 across six pairwise span comparisons.
 
 These results indicate that adjusting `NUXPIXELS_MAX_SPAN` can alter rendering for certain inputs while leaving others unaffected.
+
+## Visualizing patterntest differences
+
+Run `tools/patterntestDiff.sh` (or `patterntestDiff.cmd` on Windows) to rebuild `IVG2PNG` with span values 7–10 and render `tests/ivg/patterntest.ivg`.
+The script outputs `patterntest_span*.png` along with diff images `patterntest_diff_7-8.png`, `patterntest_diff_8-9.png`, and `patterntest_diff_9-10.png` where differing pixels are shown in bright magenta.
