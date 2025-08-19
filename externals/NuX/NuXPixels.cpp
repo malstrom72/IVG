@@ -586,12 +586,12 @@ Path& Path::addStar(double centerX, double centerY, int points, double radius1, 
 	return *this;
 }
 
-class StrokeSegment {
-	public:		StrokeSegment(const Vertex& v = Vertex(), const Vertex& d = Vertex(), double l = 0.0)
-						: v(v), d(d), l(l) { }
-	public:		Vertex v; ///< Start vertex.
-	public:		Vertex d; ///< Delta vector per "width unit" (i.e. delta vector / length * width).
-	public:		double l; ///< Length in "width units" (i.e. length / width).
+struct StrokeSegment {
+	StrokeSegment(const Vertex& v = Vertex(), const Vertex& d = Vertex(), double l = 0.0)
+			: v(v), d(d), l(l) { }
+	Vertex v; ///< Start vertex.
+	Vertex d; ///< Delta vector per "width unit" (i.e. delta vector / length * width).
+	double l; ///< Length in "width units" (i.e. length / width).
 };
 
 /**
@@ -925,8 +925,7 @@ LinearAscend::LinearAscend(double startX, double startY, double endX, double end
 	dy *= l;
 }
 
-IntRect LinearAscend::calcBounds() const
-{
+IntRect LinearAscend::calcBounds() const {
 	return FULL_RECT; // FIX : optimize, we should calculate the real rect here, but how actually?
 }
 
@@ -991,7 +990,8 @@ RadialAscend::RadialAscend(double centerX, double centerY, double width, double 
 	assert(width != 0.0 && height != 0.0);
 	if (sqrtTable[0] == 0) { // sqrtTable[0] should be 255 when initialized.
 		{ for (int i = 0; i < (1 << RADIAL_SQRT_BITS); ++i) {
-			// Notice: output is 255 at the center so that we'll have full transparency surroundings. The entire table is therefore inversed.
+			// Notice: output is 255 at the center so that we'll have full transparency surroundings.
+			// The entire table is therefore inversed.
 			sqrtTable[i] = 255 - roundToInt(sqrt(double(i) / ((1 << RADIAL_SQRT_BITS) - 1)) * 255);
 		} }
 	}
@@ -1001,7 +1001,8 @@ IntRect RadialAscend::calcBounds() const
 {
 	int left = static_cast<int>(floor(centerX - width));
 	int top = static_cast<int>(floor(centerY - height));
-	return IntRect(left, top, static_cast<int>(ceil(centerX + width)) - left, static_cast<int>(ceil(centerY + height)) - top);
+	return IntRect(left, top, static_cast<int>(ceil(centerX + width)) - left
+			, static_cast<int>(ceil(centerY + height)) - top);
 }
 
 void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) const
@@ -1098,9 +1099,7 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 
 /* --- FillRule --- */
 
-FillRule::~FillRule()
-{
-}
+FillRule::~FillRule() { }
 
 /* --- NonZeroFillRule --- */
 
@@ -1126,11 +1125,12 @@ void EvenOddFillRule::processCoverage(int count, const Int32* source, Mask8::Pix
 /* --- PolygonMask --- */
 
 // Notice: this compares through pointers, so we can't implement this as operator< for Segment.
-struct PolygonMask::Segment::Order {/// Sort by starting row then left edge.
-bool operator()(const PolygonMask::Segment* a, const PolygonMask::Segment* b) {
-return ((a->topY >> FRACT_BITS) < (b->topY >> FRACT_BITS)
-|| ((a->topY >> FRACT_BITS) == (b->topY >> FRACT_BITS) && a->leftEdge < b->leftEdge));
-}
+struct PolygonMask::Segment::Order {
+	bool operator()(const PolygonMask::Segment* a, const PolygonMask::Segment* b) {
+		// Sort by starting row then left edge.
+		return ((a->topY >> FRACT_BITS) < (b->topY >> FRACT_BITS)
+				|| ((a->topY >> FRACT_BITS) == (b->topY >> FRACT_BITS) && a->leftEdge < b->leftEdge));
+	}
 };
 
 PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule)
@@ -1423,7 +1423,9 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 				int colCount = minValue(rightCol, length - 1) - leftCol;
 				if (colCount > 0) {
 					coverageDelta[leftCol + 0] += (coverageByX >> 1);
-					{ for (int col = leftCol + 1; col < leftCol + colCount; ++col) coverageDelta[col] += coverageByX; }
+					for (int col = leftCol + 1; col < leftCol + colCount; ++col) {
+						coverageDelta[col] += coverageByX;
+					}
 					coverageDelta[leftCol + colCount] += coverageByX - (coverageByX >> 1);
 				}
 				if (rightCol < length) {
