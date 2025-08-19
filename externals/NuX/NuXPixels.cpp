@@ -1135,13 +1135,9 @@ struct PolygonMask::Segment::Order {
 };
 
 PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule)
-	 : segments()
-	 , fillRule(fillRule)
-	, row(0)
-	 , engagedStart(0)
-	 , engagedEnd(0)
-	 , coverageDelta()
+       : segments(), fillRule(fillRule), row(0), engagedStart(0), engagedEnd(0), coverageDelta()
 {
+	// Clamp the clip rectangle to the numeric limits handled by the rasterizer.
 	IntRect cb = clipBounds;
 	assert(0 <= cb.width && 0 <= cb.height);
 	const int limit = (0x7FFFFFFF >> FRACT_BITS);
@@ -1149,9 +1145,10 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 	cb.top = maxValue(-limit, minValue(cb.top, limit));
 	int rightBound = maxValue(-limit, minValue(cb.calcRight(), limit));
 	int bottomBound = maxValue(-limit, minValue(cb.calcBottom(), limit));
-        cb.width = maxValue(0, rightBound - cb.left);
-        cb.height = maxValue(0, bottomBound - cb.top);
+	cb.width = maxValue(0, rightBound - cb.left);
+	cb.height = maxValue(0, bottomBound - cb.top);
 
+	// Reserve space for all edges plus a sentinel segment.
 	segments.reserve(path.size() + 1);
 	int minY = 0x3FFFFFFF;
 	int minX = 0x3FFFFFFF;
@@ -1163,8 +1160,10 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 	int lx = 0;
 	int ly = 0;
 
+	// Parse the path, converting each edge to a Segment.
 	for (Path::const_iterator it = path.begin(), e = path.end(); it != e;) {
 		while (it != path.end() && it->first == Path::MOVE) {
+			// Begin a new contour.
 			lx = roundToInt(it->second.x * FRACT_ONE);
 			ly = roundToInt(it->second.y * FRACT_ONE);
 			++it;
@@ -1178,10 +1177,13 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 			ly = y1;
 			bool reversed = false;
 			if (y0 > y1) {
+				// Ensure segment runs from top to bottom.
 				std::swap(y0, y1);
 				std::swap(x0, x1);
 				reversed = true;
 			}
+			
+			// Skip horizontal edges and those completely outside the clip rectangle.
 			if (y0 != y1 && y1 > top && y0 < bottom && minValue(x0, x1) < right) {
 				segments.push_back(Segment());
 				Segment& seg = segments.back();
@@ -1209,6 +1211,8 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 				seg.currentY = seg.topY;
 				seg.rightEdge = seg.leftEdge;
 			}
+			
+			// Track overall bounds of the path in fixed-point space.
 			minY = minValue(minY, y0);
 			maxY = maxValue(maxY, y1);
 			sort(x0, x1);
@@ -1217,22 +1221,27 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 			++it;
 		}
 	}
+	
+	// Append a sentinel segment to simplify iteration logic.
 	segments.push_back(Segment());
 	Segment& segSentinel = segments.back();
 	segSentinel.topY = 0x7FFFFFFF; // "Sentinel" value, so we don't have to check the count.
 	segSentinel.currentY = segSentinel.topY;
 
-       bounds.left = minX >> FRACT_BITS;
-       bounds.top = minY >> FRACT_BITS;
-       bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
-       bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
-       bounds = bounds.calcIntersection(cb);
-       coverageDelta.assign(bounds.width + 1, 0);
+	// Finalize bounds in pixel space and allocate coverage buffer.
+	bounds.left = minX >> FRACT_BITS;
+	bounds.top = minY >> FRACT_BITS;
+	bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
+	bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
+	bounds = bounds.calcIntersection(cb);
+	coverageDelta.assign(bounds.width + 1, 0);
 
-       rewind();
+	// Prepare for the first rendering pass.
+	rewind();
 }
 
 void PolygonMask::rewind() const {
+	// Reset state so rendering can start from the top row again.
 	row = bounds.top;
 	engagedStart = 0;
 	engagedEnd = 0;
@@ -1246,96 +1255,97 @@ void PolygonMask::rewind() const {
 		}
 		seg->leftEdge = seg->rightEdge = high32(seg->x) >> FRACT_BITS;
 	}
+	
+	// Build a list of pointers sorted vertically by topY.
 	segsVertically.resize(segments.size());
 	for (size_t segIndex = 0; segIndex < segments.size(); ++segIndex) {
 		segsVertically[segIndex] = const_cast<Segment*>(&segments[segIndex]);
 	}
 	std::sort(segsVertically.begin(), segsVertically.end(), Segment::Order());
+	// Horizontal list starts identical; it will be maintained in x-order during rendering.
 	segsHorizontally = segsVertically;
 #if !defined(NDEBUG)
 	paintedBounds = EMPTY_RECT;
 #endif
 }
 
-
-
 IntRect PolygonMask::calcBounds() const { return bounds; }
 
 void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) const {
 	assert(0 < length && length <= MAX_RENDER_LENGTH);
-	int clipLeft = bounds.left;
-	int clipRight = bounds.calcRight();
+	const int clipLeft = bounds.left;
+	const int clipRight = bounds.calcRight();
 	if (x + length <= clipLeft || x >= clipRight) {
+		// Entire request lies outside horizontal clip bounds.
 		output.addTransparent(length);
 		return;
 	}
 	int rightClip = 0;
 	if (x < clipLeft) {
+		// Clip span on the left.
 		const int leftClip = clipLeft - x;
 		output.addTransparent(leftClip);
 		x = clipLeft;
 		length -= leftClip;
 	}
 	if (x + length > clipRight) {
+		// Clip span on the right.
 		rightClip = x + length - clipRight;
 		length -= rightClip;
 	}
-int clipTop = bounds.top;
-int clipBottom = clipTop + bounds.height;
-if (y < clipTop || y >= clipBottom) {
-output.addTransparent(length);
-if (rightClip > 0) {
-output.addTransparent(rightClip);
-}
-return;
-}
+	const int clipTop = bounds.top;
+	const int clipBottom = clipTop + bounds.height;
+	if (y < clipTop || y >= clipBottom) {
+		// Outside vertical bounds: emit transparent pixels.
+		output.addTransparent(length);
+		if (rightClip > 0) {
+			output.addTransparent(rightClip);
+		}
+		return;
+	}
 
-#if !defined(NDEBUG)
-if (y < row) {
-				std::cerr << "rewind from row " << row << " to y " << y << " x=" << x << " len=" << length << "\n";
-} else if (y > row + 1) {
-		std::cerr << "jump from row " << row << " to y " << y << " x=" << x << " len=" << length << "\n";
-}
-#endif
-if (y < row) {
-rewind();
-}
+	if (y < row) {
+		// Requested row is above last rendered one: restart rasterizer.
+		rewind();
+	}
 
 	if (y > row) {
 		/*
-			Adjust x for all engaged and newly introduced segments. Already engaged: just jump by
-			rowCount, to be engaged: adjust from topY. Notice that this routine may leave the
-			horizontal list scrambled which can reduce performance (= may require heavier insertion
-			sorting at next rasterizeRows if the merge sort fails).
+			Advance the active edge list to the requested row.
+			Already-engaged edges simply step forward `rowCount` rows.
+			Newly-engaged edges adjust from their topY.
+			This may leave the horizontal list unsorted, requiring
+			extra work later when reordering.
 		*/
-		int YYY = y << FRACT_BITS;
+		const int yFixed = y << FRACT_BITS;
 		int segIndex = engagedStart;
-		while (segsVertically[segIndex]->topY < YYY) {
+		while (segsVertically[segIndex]->topY < yFixed) {
 			Segment* seg = segsVertically[segIndex];
-			int dy = YYY - seg->currentY;
+			int dy = yFixed - seg->currentY;
 			if (dy > 0) {
 				seg->x = add(seg->x, multiply(static_cast<UInt32>(dy), seg->dx));
-				seg->currentY = YYY;
+				seg->currentY = yFixed;
 			}
 			++segIndex;
 		}
 		row = y;
 	}
 	
-	int YYY = row << FRACT_BITS;
+	const int rowFixed = row << FRACT_BITS;
 	
 	int includeIndex = engagedEnd;
-	while (segsVertically[includeIndex]->topY < YYY + FRACT_ONE) {
+	while (segsVertically[includeIndex]->topY < rowFixed + FRACT_ONE) {
 		++includeIndex;
 	}
-	
-	// Merge-sort introduced segment into horizontally ordered list.
+
+	// Merge-sort newly activated segments into the x-ordered list.
 	
 	int insertIndex = includeIndex - 1;
 	int hIndex = engagedEnd - 1;
 	int vIndex = insertIndex;
 	while (insertIndex >= engagedStart && (vIndex >= engagedEnd || hIndex != insertIndex)) {
-		if (vIndex < engagedEnd || (hIndex >= engagedStart && segsHorizontally[hIndex]->leftEdge > segsVertically[vIndex]->leftEdge - x)) {
+		if (vIndex < engagedEnd || (hIndex >= engagedStart
+				&& segsHorizontally[hIndex]->leftEdge > segsVertically[vIndex]->leftEdge - x)) {
 			segsHorizontally[insertIndex] = segsHorizontally[hIndex];
 			--hIndex;
 		} else {
@@ -1345,96 +1355,104 @@ rewind();
 		--insertIndex;
 	}
 	
-	// Draw into scanline with coverage deltas.
+	// Rasterize active segments into coverage deltas.
 	
 	engagedEnd = includeIndex;
 	int integrateIndex = engagedStart;
 	for (int drawIndex = engagedStart; drawIndex < engagedEnd; ++drawIndex) {
 		Segment* seg = segsVertically[drawIndex];
 		
-		if (YYY >= seg->bottomY) {
-			seg->leftEdge = -0x7FFFFFFF;											// Mark retired line for horizontal removal.
-			std::swap(segsVertically[integrateIndex], segsVertically[drawIndex]);	// Swap out directly from vertical list.
+		if (rowFixed >= seg->bottomY) {
+			// Mark retired line for horizontal removal.
+			seg->leftEdge = -0x7FFFFFFF;
+			// Swap out directly from vertical list.
+			std::swap(segsVertically[integrateIndex], segsVertically[drawIndex]);
 			++integrateIndex;
 		} else {
-			int coverageByX = seg->coverageByX;
-			int remaining;
+			const int coverageByX = seg->coverageByX;
+			int remaining;	// Signed total area this segment contributes in THIS row (fixed-point; sign follows winding)
 			Fixed32_32 dx;
-			if (YYY < seg->topY || YYY + FRACT_ONE > seg->bottomY) {					// Introducing or retiring, sub-pixel accuracy
-				unsigned short dy = minValue(seg->bottomY - YYY, FRACT_ONE) - maxValue(seg->topY - YYY, 0);
+			if (rowFixed < seg->topY || rowFixed + FRACT_ONE > seg->bottomY) {
+				// Partial row (entering/exiting): compute subpixel dy, scale 'remaining' by dy, advance x by dy*dx.
+				const unsigned short dy = minValue(seg->bottomY - rowFixed, FRACT_ONE) - maxValue(seg->topY - rowFixed, 0);
 				remaining = ((coverageByX < 0) ? -(1 << COVERAGE_BITS) : (1 << COVERAGE_BITS)) * dy;
 				dx = multiply(dy, seg->dx);
 			} else {
-				remaining = (coverageByX < 0) ? -(1 << (COVERAGE_BITS + FRACT_BITS)) : (1 << (COVERAGE_BITS + FRACT_BITS));
+				// Full row: use +/-(1 << (COVERAGE_BITS+FRACT_BITS)) area and advance x by (dx << FRACT_BITS).
+				remaining = (coverageByX < 0)
+						? -(1 << (COVERAGE_BITS + FRACT_BITS)) : (1 << (COVERAGE_BITS + FRACT_BITS));
 				dx = shiftLeft(seg->dx, FRACT_BITS);
 			}
 			int leftX = high32(seg->x);
 			int rightX = high32(add(seg->x, dx));
-			sort(leftX, rightX);
-                       int leftCol = (leftX >> FRACT_BITS) - x;
-                       int rightCol = (rightX >> FRACT_BITS) - x;
-                       int leftSub = leftX & FRACT_MASK;
-                       int rightSub = rightX & FRACT_MASK;
-#if !defined(NDEBUG)
-                       if (leftCol < 0 || rightCol >= length) {
-                               std::cerr << "span clip at y " << y << " x=" << x
-                                       << " leftCol=" << leftCol << " rightCol=" << rightCol << "\n";
-                       }
-#endif
+			sort(leftX, rightX);	// Ensure leftX <= rightX regardless of edge direction
+			int leftCol = (leftX >> FRACT_BITS) - x;
+			const int rightCol = (rightX >> FRACT_BITS) - x;
+			const int leftSub = leftX & FRACT_MASK;
+			const int rightSub = rightX & FRACT_MASK;				
 			
-                       if (leftCol >= length) {
-                               seg->leftEdge = length;
-                               seg->rightEdge = length;
-                       } else if (rightCol < 0) {
-                               seg->leftEdge = 0;
-                               seg->rightEdge = 0;
-                               coverageDelta[0] += remaining;
-                               coverageDelta[length] -= remaining;
-                       } else if (leftCol == rightCol) {
-                               seg->leftEdge = leftCol;
-                               int coverage = (2 * FRACT_ONE - leftSub - rightSub) * remaining >> (FRACT_BITS + 1);
-                               coverageDelta[leftCol + 0] += coverage;
-                               coverageDelta[leftCol + 1] += remaining - coverage;
-                               seg->rightEdge = leftCol + 1; // record one-past-the-rightmost column
+			if (leftCol >= length) {
+				// Entirely to the RIGHT of the requested span -> nothing to accumulate inside; set edges to length.
+				seg->leftEdge = length;
+				seg->rightEdge = length;
+			} else if (rightCol < 0) {
+				// Entirely to the LEFT of the requested span -> deposit all signed area at boundary 0.
+				seg->leftEdge = 0;
+				seg->rightEdge = 0;
+				coverageDelta[0] += remaining;
+			} else if (leftCol == rightCol) {
+				// Both endpoints land in the SAME column -> split 'remaining' between boundaries col and col+1 (trapezoid in x).
+				seg->leftEdge = leftCol;
+				const int coverage = (2 * FRACT_ONE - leftSub - rightSub) * remaining >> (FRACT_BITS + 1);
+				coverageDelta[leftCol + 0] += coverage;
+				coverageDelta[leftCol + 1] += remaining - coverage;
+				// One-past-the-rightmost column
+				seg->rightEdge = leftCol + 1;
 			} else {
-                               int covered;
-                               if (leftCol < 0) {
-                                       seg->leftEdge = 0;
-                                       covered = (minValue(rightCol, 0) - leftCol) * coverageByX;
-                                       covered -= leftSub * coverageByX >> FRACT_BITS;
-                                       coverageDelta[0] += covered;
-                                       coverageDelta[length] -= covered;
-                                       leftCol = 0;
-                               } else {
-                                       seg->leftEdge = leftCol;
-                                       int lx = FRACT_ONE - leftSub;
-                                       covered = lx * coverageByX >> FRACT_BITS;
-                                       int coverage = lx * covered >> (FRACT_BITS + 1);
-                                       coverageDelta[leftCol + 0] += coverage;
-                                       coverageDelta[leftCol + 1] += covered - coverage;
-                                       ++leftCol;
-                               }
-                               int colCount = minValue(rightCol, length - 1) - leftCol;
-                               if (colCount > 0) {
-                                       coverageDelta[leftCol + 0] += (coverageByX >> 1);
-                                       { for (int col = leftCol + 1; col < leftCol + colCount; ++col) coverageDelta[col] += coverageByX; }
-                                       coverageDelta[leftCol + colCount] += coverageByX - (coverageByX >> 1);
-                               }
-                               remaining -= covered + colCount * coverageByX;
-                               if (rightCol < length) {
-                                       int coverage = (2 * FRACT_ONE - rightSub) * remaining >> (FRACT_BITS + 1);
-                                       coverageDelta[rightCol + 0] += coverage;
-                                       coverageDelta[rightCol + 1] += remaining - coverage;
-                                       seg->rightEdge = rightCol + 1; // record one-past-the-rightmost column
-                               } else {
-                                       coverageDelta[length] -= remaining;
-                                       seg->rightEdge = length;
-                               }
-                       }
-               }
-       }
+				int covered;	// signed area already spent on the left this row (clip-left + left partial); subtracted before the right edge
+				if (leftCol < 0) {
+					// Enters from CLIP-LEFT: precharge boundary 0 with area up to it, then start at column 0.
+					seg->leftEdge = 0;
+					covered = (minValue(rightCol, 0) - leftCol) * coverageByX;
+					covered -= leftSub * coverageByX >> FRACT_BITS;
+					coverageDelta[0] += covered;
+					leftCol = 0;
+				} else {
+					// Left edge INSIDE span: record leftEdge; split the left PARTIAL pixel between boundaries; advance to first interior column.
+					seg->leftEdge = leftCol;
+					int lx = FRACT_ONE - leftSub;
+					covered = lx * coverageByX >> FRACT_BITS;
+					int coverage = lx * covered >> (FRACT_BITS + 1);
+					coverageDelta[leftCol + 0] += coverage;
+					coverageDelta[leftCol + 1] += covered - coverage;
+					++leftCol;
+				}
+				const int colCount = minValue(rightCol, length - 1) - leftCol;
+				// Interior columns: uniform slope contribution -> boundary deltas follow 1/2,1,...,1,1/2 pattern.
+				if (colCount > 0) {
+					coverageDelta[leftCol + 0] += (coverageByX >> 1);
+					for (int col = leftCol + 1; col < leftCol + colCount; ++col) {
+						coverageDelta[col] += coverageByX;
+					}
+					coverageDelta[leftCol + colCount] += coverageByX - (coverageByX >> 1);
+				}
+				if (rightCol < length) {
+					// Right edge INSIDE span: spend what's left ('remaining - covered - interiors') in the right PARTIAL pixel.
+					remaining -= covered + colCount * coverageByX;
+					const int coverage = (2 * FRACT_ONE - rightSub) * remaining >> (FRACT_BITS + 1);
+					coverageDelta[rightCol + 0] += coverage;
+					coverageDelta[rightCol + 1] += remaining - coverage;
+					// One-past-the-rightmost column
+					seg->rightEdge = rightCol + 1;
+				} else {
+					// Exits past CLIP-RIGHT: mark rightEdge at span end; no right-partial deposit inside buffer.
+					seg->rightEdge = length;
+				}
+			}
+		}
+	}
 	
-	// Drop retired lines and insert-sort horizontal order-list according to their left-edges.
+	// Drop segments that end at this row and restore horizontal order for remaining ones.
 
 	int orderIndex = engagedEnd - 1;
 	int sortIndex = orderIndex;
@@ -1453,7 +1471,7 @@ rewind();
 	}
 	engagedStart = integrateIndex;
 
-	// Integrate and perform rendering.
+	// Integrate coverage and emit mask pixels.
 	
 	bool rowUsed = false;
 	int rowMin = length;
@@ -1493,29 +1511,29 @@ rewind();
 	
 		if (nx > col) {
 			int spanLength = nx - col;
-			{ for (int i = 0; i < spanLength; ++i) {
-					coverageAcc += coverageDelta[col + i];
-					coverageDelta[col + i] = coverageAcc;
-			} }
+			for (int i = 0; i < spanLength; ++i) {
+				coverageAcc += coverageDelta[col + i];
+				coverageDelta[col + i] = coverageAcc;
+			}
 			Mask8::Pixel* pixels = output.addVariable(spanLength, false);
 			fillRule.processCoverage(spanLength, &coverageDelta[col], pixels);
 			for (int i = 0; i < spanLength; ++i) {
-					if (!Mask8::isTransparent(pixels[i])) {
-							rowUsed = true;
-							rowMin = minValue(rowMin, col + i);
-							rowMax = maxValue(rowMax, col + i + 1);
-					}
+				if (!Mask8::isTransparent(pixels[i])) {
+					rowUsed = true;
+					rowMin = minValue(rowMin, col + i);
+					rowMax = maxValue(rowMax, col + i + 1);
+				}
 			}
-			{ for (int i = 0; i < spanLength; ++i) {
-					coverageDelta[col + i] = 0;
-			} }
+			for (int i = 0; i < spanLength; ++i) {
+				coverageDelta[col + i] = 0;
+			}
 			col = nx;
 		}
 	}
 
 #if !defined(NDEBUG)
 	if (rowUsed) {
-		IntRect rowRect(x + rowMin, y, rowMax - rowMin, 1);
+		const IntRect rowRect(x + rowMin, y, rowMax - rowMin, 1);
 		paintedBounds = paintedBounds.isEmpty() ? rowRect : paintedBounds.calcUnion(rowRect);
 	}
 	if (y + 1 == bounds.calcBottom()) {
@@ -1524,19 +1542,10 @@ rewind();
 #else
 	(void)rowUsed; (void)rowMin; (void)rowMax;
 #endif
-
-#if !defined(NDEBUG)
-	coverageAcc += coverageDelta[length];
-	if (coverageAcc != 0) {
-		std::cerr << "coverage carryover at y " << y << " x=" << x << " len=" << length << " coverageAcc=" << coverageAcc << "\n";
-}
-#else
-	coverageAcc += coverageDelta[length];
-#endif
 	coverageDelta[length] = 0; // Need to clear the extra margin element.
-        if (rightClip > 0) {
-                output.addTransparent(rightClip);
-        }
+	if (rightClip > 0) {
+		output.addTransparent(rightClip);
+	}
 }
 
 NonZeroFillRule PolygonMask::nonZeroFillRule;
