@@ -31,4 +31,7 @@ Files with differing outputs and spans producing identical PNGs:
 - `transformTests1.png` – span 7 | spans 8,9,10
 - `unicode.png` – span 7 | span 8 | spans 9,10
 
+Among these, `patterntest.png` exhibited the greatest variation, with a cumulative 480,152 differing pixels
+across six pairwise span comparisons.
+
 These results indicate that adjusting `NUXPIXELS_MAX_SPAN` can alter rendering for certain inputs while leaving others unaffected.
