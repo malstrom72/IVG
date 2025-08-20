@@ -163,15 +163,15 @@ int main(int argc, char** argv)
 		int iterations = 1;
 		if (argc > 3) iterations = std::atoi(argv[3]);
 		unsigned seed = unsigned(std::time(0));
-		if (argc > 4) seed = unsigned(std::atoi(argv[4]));
-		std::srand(seed);
-		bool dump = false;
+		if (argc > 4) seed = unsigned(std::atoi(argv[4]));		bool dump = false;
 		bool repro = false;
 		for (int i = 5; i < argc; ++i) {
 				if (!std::strcmp(argv[i], "dump")) dump = true;
 				if (!std::strcmp(argv[i], "repro")) repro = true;
 		}
 		for (int i = 0; iterations == 0 || i < iterations; ++i) {
+				unsigned iterSeed = seed + unsigned(i);
+				std::srand(iterSeed);
 				Path path;
 				std::vector<std::string> pathLog;
 				if (repro) {
@@ -196,7 +196,7 @@ int main(int argc, char** argv)
 				SelfContainedRaster<Mask8> small(bounds);
 				renderRect(mask2, bounds, smallSpan, small);
 				if (!equals(big, small, bounds)) {
-						std::cerr << "span length mismatch (seed=" << seed << ", iter=" << i << ")\n";
+						std::cerr << "span length mismatch (seed=" << iterSeed << ", iter=" << i << ")\n";
 						for (std::vector<std::string>::const_iterator it = pathLog.begin(); it != pathLog.end(); ++it)
 								std::cerr << *it << '\n';
 						return 1;
