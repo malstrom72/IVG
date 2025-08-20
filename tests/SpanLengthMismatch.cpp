@@ -149,8 +149,8 @@ static void buildRandomPath(Path& path, std::vector<std::string>* log)
 
 static void buildSeed1Iter3Path(Path& path)
 {
-path.addStar(97.493440,403.695645,3,62.663141,28.976358,0);
-path.addCircle(487.772714,33.000087,114.542143);
+path.addStar(97.493440-43,403.695645+82,3,62.663141,28.976358,0);
+path.addCircle(487.772714-43,33.000087+82,114.542143);
 path.closeAll();
 }
 

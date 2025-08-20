@@ -1414,7 +1414,7 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 					// Enters from CLIP-LEFT: precharge boundary 0 with area up to it, then start at column 0.
 					seg->leftEdge = 0;
 					covered = (minValue(rightCol, 0) - leftCol) * coverageByX;
-					covered -= leftSub * coverageByX >> FRACT_BITS;
+					covered += -leftSub * coverageByX >> FRACT_BITS;
 					coverageDelta[0] += covered;
 					leftCol = 0;
 				} else {
