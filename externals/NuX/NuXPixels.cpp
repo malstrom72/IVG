@@ -1427,14 +1427,29 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 					coverageDelta[leftCol + 1] += covered - coverage;
 					++leftCol;
 				}
-				const int colCount = minValue(rightCol, length - 1) - leftCol;
-				// Interior columns: uniform slope contribution -> boundary deltas follow 1/2,1,...,1,1/2 pattern.
-				if (colCount > 0) {
-					coverageDelta[leftCol + 0] += (coverageByX >> 1);
-					for (int col = leftCol + 1; col < leftCol + colCount; ++col) {
-						coverageDelta[col] += coverageByX;
+				const int colCount = rightCol - leftCol; // minValue(rightCol, length - 1) - leftCol;
+				assert(colCount >= 0);
+				if (rightCol >= length) {
+					if (colCount > 0) {
+						coverageDelta[leftCol + 0] += (coverageByX >> 1);
+						for (int col = leftCol + 1; col < leftCol + colCount; ++col) {
+							if (col < length) {
+								coverageDelta[col] += coverageByX;
+							}
+						}
+						if (leftCol + colCount < length) {
+							coverageDelta[leftCol + colCount] += coverageByX - (coverageByX >> 1);
+						}
 					}
-					coverageDelta[leftCol + colCount] += coverageByX - (coverageByX >> 1);
+				} else {
+					// Interior columns: uniform slope contribution -> boundary deltas follow 1/2,1,...,1,1/2 pattern.
+					if (colCount > 0) {
+						coverageDelta[leftCol + 0] += (coverageByX >> 1);
+						for (int col = leftCol + 1; col < leftCol + colCount; ++col) {
+							coverageDelta[col] += coverageByX;
+						}
+						coverageDelta[leftCol + colCount] += coverageByX - (coverageByX >> 1);
+					}
 				}
 				if (rightCol < length) {
 					// Right edge INSIDE span: spend what's left ('remaining - covered - interiors') in the right PARTIAL pixel.

@@ -35,8 +35,9 @@ static void renderRect(const PolygonMask& mask, const IntRect& rect, int spanLen
 
 static bool equals(const SelfContainedRaster<Mask8>& a, const SelfContainedRaster<Mask8>& b, const IntRect& rect)
 {
-	int strideA = a.getStride();
-	int strideB = b.getStride();
+	bool equal = true;
+	const int strideA = a.getStride();
+	const int strideB = b.getStride();
 	const Mask8::Pixel* pixelsA = a.getPixelPointer();
 	const Mask8::Pixel* pixelsB = b.getPixelPointer();
 	for (int y = rect.top; y < rect.calcBottom(); ++y) {
@@ -46,29 +47,32 @@ static bool equals(const SelfContainedRaster<Mask8>& a, const SelfContainedRaste
 			if (rowA[x] != rowB[x]) {
 				std::cerr << "mismatch at (" << rect.left + x << "," << y << ") baseline="
 					<< int(rowA[x]) << " test=" << int(rowB[x]) << "\n";
-				return false;
+				equal = false;
 			}
 		}
 	}
-	return true;
+	return equal;
 }
 
 int main()
 {
 	Path path;
-	path.addRoundedRect(50, 50, 700, 500, 80, 80);
-	path.addStar(400, 300, 7, 300, 150, 0);
-	path.addCircle(400, 300, 200);
+	path.addRoundedRect(0, 0, 700, 500, 80, 80);
+	path.addStar(350, 350, 7, 300, 150, 0);
+	path.addCircle(350, 350, 200);
 	path.closeAll();
 
 	PolygonMask mask(path);
 	IntRect bounds = mask.calcBounds();
+	std::cout << "mask bounds: " << bounds.left << "," << bounds.top << " - "
+		<< bounds.calcRight() << "," << bounds.calcBottom() << "\n";
 
 	SelfContainedRaster<Mask8> big(bounds);
-	renderRect(mask, bounds, 512, big);
+	renderRect(mask, bounds, 128, big);
 
+	PolygonMask mask2(path);
 	SelfContainedRaster<Mask8> small(bounds);
-	renderRect(mask, bounds, 256, small);
+	renderRect(mask2, bounds, 64, small);
 
 	if (!equals(big, small, bounds)) {
 		std::cerr << "span length mismatch\n";
