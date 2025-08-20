@@ -2,6 +2,7 @@
 #include "externals/NuX/NuXPixels.h"
 #include "externals/NuX/NuXPixelsImpl.h"
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 
 using namespace NuXPixels;
@@ -54,8 +55,13 @@ static bool equals(const SelfContainedRaster<Mask8>& a, const SelfContainedRaste
 	return equal;
 }
 
-int main()
+int main(int argc, char** argv)
 {
+	int bigSpan = 128;
+	int smallSpan = 64;
+	if (argc > 1) bigSpan = std::atoi(argv[1]);
+	if (argc > 2) smallSpan = std::atoi(argv[2]);
+
 	Path path;
 	path.addRoundedRect(0, 0, 700, 500, 80, 80);
 	path.addStar(350, 350, 7, 300, 150, 0);
@@ -68,11 +74,11 @@ int main()
 		<< bounds.calcRight() << "," << bounds.calcBottom() << "\n";
 
 	SelfContainedRaster<Mask8> big(bounds);
-	renderRect(mask, bounds, 128, big);
+	renderRect(mask, bounds, bigSpan, big);
 
 	PolygonMask mask2(path);
 	SelfContainedRaster<Mask8> small(bounds);
-	renderRect(mask2, bounds, 64, small);
+	renderRect(mask2, bounds, smallSpan, small);
 
 	if (!equals(big, small, bounds)) {
 		std::cerr << "span length mismatch\n";
