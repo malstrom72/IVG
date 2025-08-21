@@ -912,19 +912,19 @@ GammaTable::GammaTable(double gamma)
 /* --- LinearAscend --- */
 
 LinearAscend::LinearAscend(double startX, double startY, double endX, double endY)
-	: startX(startX)
-	, startY(startY)
 {
-	dx = endX - startX;
-	dy = endY - startY;
-	double l = sqrt(dx * dx + dy * dy);
+	double dx0 = endX - startX;
+	double dy0 = endY - startY;
+	double l = sqrt(dx0 * dx0 + dy0 * dy0);
 	if (l != 0) {
 		l = 1.0 / l;
 	}
 	l *= l * (1 << 16);
-	dx *= l;
-	dy *= l;
+	dx = roundToInt(dx0 * l);
+	dy = roundToInt(dy0 * l);
+	start = roundToInt(-startX * dx - startY * dy);
 }
+
 
 IntRect LinearAscend::calcBounds() const
 {
@@ -936,10 +936,10 @@ void LinearAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 	assert(0 < length && length <= MAX_RENDER_LENGTH);
 
 	// FIX : increase x resolution from 16 bits?
-	
-	double k0 = (x - startX) * dx + (y - startY) * dy;
-	int ki = int(k0);
-	int dk = int(dx);
+
+	int ki = start + x * dx + y * dy;
+	int dk = dx;
+
 	int i = 0;
 	while (i < length) {
 		if (ki <= 0 || ki >= (1 << 16) || dk == 0) {
@@ -986,8 +986,10 @@ RadialAscend::RadialAscend(double centerX, double centerY, double width, double 
 	, centerY(centerY)
 	, width(fabs(width))
 	, height(fabs(height))
-	, hk((1U << 30) / (height * height))
-	, wk((1U << 30) / (width * width))
+	, hk(roundToInt(((1 << 30) / (height * height)) / (256 * 256)))
+	, wk(roundToInt(((1 << 30) / (width * width)) / (256 * 256)))
+	, centerXi(roundToInt(centerX * 256))
+	, centerYi(roundToInt(centerY * 256))
 {
 	assert(width != 0.0 && height != 0.0);
 	if (sqrtTable[0] == 0) { // sqrtTable[0] should be 255 when initialized.
@@ -1008,94 +1010,44 @@ IntRect RadialAscend::calcBounds() const
 void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) const
 {
 	assert(0 < length && length <= MAX_RENDER_LENGTH);
-	
+
 	// Calculate left and right edge of inner circle for this row.
-	
+
 	double dy = y + 0.5 - centerY;
 	double a = 1.0 - dy * dy / (height * height);
 	double thisWidth = (a > EPSILON) ? width * sqrt(a) : 0;
-	int leftEdge = minValue(maxValue(roundToInt(centerX - x - thisWidth), 0), length);
-	int rightEdge = minValue(roundToInt(centerX - x + thisWidth), length);
+	int globalLeft = roundToInt(centerX - thisWidth);
+	int globalRight = roundToInt(centerX + thisWidth);
+	int leftEdge = minValue(maxValue(globalLeft - x, 0), length);
+	int rightEdge = minValue(maxValue(globalRight - x, 0), length);
 
 	int i = 0;
-	while (i < length) {
-		if (i < leftEdge || i >= rightEdge) {
-			assert(i == 0 || i == rightEdge);
-			int edge = (i < leftEdge) ? leftEdge : length;
-			output.addTransparent(edge - i);
-			i = edge;
-		} else {
-			assert(i == leftEdge);
-			double dx = x + i - centerX;
-			double dpp = 2.0 * wk;
-			double dp = (2.0 * dx - 1.0) * wk + dpp * 0.5;
-			double d = dy * dy * hk + dx * dx * wk + dp * 0.5;
-			int dppi = roundToInt(dpp);
-			int dpi = roundToInt(dp);
-			int di = roundToInt(d);
-			
-			// Process in chunks of 4 pixels, increases performance by 30% or so.
-			
-			// FIX : drop i here, we have the buffer pointer ya know
-			// FIX : or perhaps, drop the buffer pointer and use [i], nicer...
-			Mask8::Pixel* pixels = output.addVariable(rightEdge - leftEdge, false);
-			while (i + 4 <= rightEdge) {
-				// Perform run-time integration of the derivate of di * di to avoid the integer multiplication.
-				
-				int z0 = di;
-				dpi += dppi;
-				di += dpi;
-				int z1 = di;
-				dpi += dppi;
-				di += dpi;
-				int z2 = di;
-				dpi += dppi;
-				di += dpi;
-				int z3 = di;
-				dpi += dppi;
-				di += dpi;
-				
-				int allZ = z0 | z1 | z2 | z3;											// allZ is used to determine the resolution for the table lookup later on.
-				if ((allZ & ~((1 << 30) - 1)) != 0) {									// Check if any z was outside 0 <= z < (1 << 30) range, if so, clamp them all.
-					z0 = minValue(maxValue(z0, 0), (1 << 30) - 1);
-					z1 = minValue(maxValue(z1, 0), (1 << 30) - 1);
-					z2 = minValue(maxValue(z2, 0), (1 << 30) - 1);
-					z3 = minValue(maxValue(z3, 0), (1 << 30) - 1);
-					allZ = z0 | z1 | z2 | z3;
-				}
-				
-				if (allZ < (1 << (30 - 8))) {											// Shift input and output if maximum z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
-					const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - 8);					// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.					
-					pixels[0] = ((255 << 4) - 255 + sqrtTable[z0 >> sqrtShift]) >> 4;	// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.					
-					pixels[1] = ((255 << 4) - 255 + sqrtTable[z1 >> sqrtShift]) >> 4;
-					pixels[2] = ((255 << 4) - 255 + sqrtTable[z2 >> sqrtShift]) >> 4;
-					pixels[3] = ((255 << 4) - 255 + sqrtTable[z3 >> sqrtShift]) >> 4;
-				} else {
-					const int sqrtShift = (30 - RADIAL_SQRT_BITS);
-					pixels[0] = sqrtTable[z0 >> sqrtShift];
-					pixels[1] = sqrtTable[z1 >> sqrtShift];
-					pixels[2] = sqrtTable[z2 >> sqrtShift];
-					pixels[3] = sqrtTable[z3 >> sqrtShift];
-				}
-
-				pixels += 4;
-				i += 4;
-			}
-			
-			// Do the last remaining pixels one by one.
-			
-			while (i < rightEdge) {
-				int z = minValue(maxValue(di, 0), (1 << 30) - 1);									// Clamp di to valid range.
-				int precision = (z < (1 << (30 - 8))) << 2;											// Shift input and output (by 8 and 4 respectively) if z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
-				int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);					// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
-				*pixels++ = ((255 << precision) - 255 + sqrtTable[z >> sqrtShift]) >> precision;	// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
-				dpi += dppi;																		// Perform run-time integration of the derivate of di * di to avoid the integer multiplication.
-				di += dpi;
-				++i;
-			}
+	if (leftEdge > 0) {
+		output.addTransparent(leftEdge);
+		i = leftEdge;
+	}
+	if (i < rightEdge) {
+		Mask8::Pixel* pixels = output.addVariable(rightEdge - i, false);
+		int dyf = ((y << 8) + 128) - centerYi;
+		long long dyTerm = (long long)dyf * dyf * hk;
+		for (int j = 0; i < rightEdge; ++i, ++j) {
+			int dxf = (((x + i) << 8) + 128) - centerXi;
+			long long z = dyTerm + (long long)dxf * dxf * wk;
+			long long zi = z;
+			if (zi < 0) zi = 0;
+			if (zi >= (1LL << 30)) zi = (1LL << 30) - 1;
+			int zint = (int)zi;
+			int precision = (zint < (1 << (30 - 8))) << 2;
+			int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);
+			pixels[j] = ((255 << precision) - 255 + sqrtTable[zint >> sqrtShift]) >> precision;
 		}
 	}
+	if (rightEdge < length) {
+		output.addTransparent(length - rightEdge);
+	}
 }
+
+
 
 /* --- FillRule --- */
 

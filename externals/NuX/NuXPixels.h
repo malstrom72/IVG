@@ -799,10 +799,9 @@ class LinearAscend : public Renderer<Mask8> { // FIX : name? LinearMask, LinearA
 	public:		LinearAscend(double startX, double startY, double endX, double endY);
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<Mask8>& output) const;
-	protected:	double startX;
-	protected:	double startY;
-	protected:	double dx;
-	protected:	double dy;
+	protected:	int start;
+	protected:	int dx;
+	protected:	int dy;
 };
 
 /**
@@ -820,8 +819,10 @@ class RadialAscend : public Renderer<Mask8> {
 	protected:	double centerY;
 	protected:	double width;
 	protected:	double height;
-	protected:	double hk;
-	protected:	double wk;
+	protected:	int hk;
+	protected:	int wk;
+	protected:	int centerXi;
+	protected:	int centerYi;
 	protected:	static Mask8::Pixel sqrtTable[1 << RADIAL_SQRT_BITS];
 };
 
