@@ -1021,77 +1021,77 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 
 	int i = 0;
 	while (i < length) {
-			if (i < leftEdge || i >= rightEdge) {
-					assert(i == 0 || i == rightEdge);
-					int edge = (i < leftEdge) ? leftEdge : length;
-					output.addTransparent(edge - i);
-					i = edge;
-			} else {
-					assert(i == leftEdge);
-					int dppi = wk << 1;
-					int dxInt = ((x + i) << 8) - centerXi;
-					int dyInt = ((y << 8) + 128) - centerYi;
-					long long tmp = (long long)dppi * dxInt;
-					int dpi = int((tmp + ((tmp < 0) ? -128 : 128)) >> 8);
-					long long term = (long long)dyInt * dyInt * hk;
-					int di = int((term + 32768) >> 16);
-					term = (long long)dxInt * dxInt * wk;
-					di += int((term + 32768) >> 16);
-					term = (long long)dxInt * wk;
-					di += int((term + ((term < 0) ? -128 : 128)) >> 8);
+		if (i < leftEdge || i >= rightEdge) {
+			assert(i == 0 || i == rightEdge);
+			int edge = (i < leftEdge) ? leftEdge : length;
+			output.addTransparent(edge - i);
+			i = edge;
+		} else {
+			assert(i == leftEdge);
+			int dppi = wk << 1;
+			int dxInt = ((x + i) << 8) - centerXi;
+			int dyInt = ((y << 8) + 128) - centerYi;
+			long long tmp = (long long)dppi * dxInt;
+			int dpi = int((tmp + ((tmp < 0) ? -128 : 128)) >> 8);
+			long long term = (long long)dyInt * dyInt * hk;
+			int di = int((term + 32768) >> 16);
+			term = (long long)dxInt * dxInt * wk;
+			di += int((term + 32768) >> 16);
+			term = (long long)dxInt * wk;
+			di += int((term + ((term < 0) ? -128 : 128)) >> 8);
 
-					Mask8::Pixel* pixels = output.addVariable(rightEdge - leftEdge, false);
-					while (i + 4 <= rightEdge) {
-							int z0 = di;
-							dpi += dppi;
-							di += dpi;
-							int z1 = di;
-							dpi += dppi;
-							di += dpi;
-							int z2 = di;
-							dpi += dppi;
-							di += dpi;
-							int z3 = di;
-							dpi += dppi;
-							di += dpi;
+			Mask8::Pixel* pixels = output.addVariable(rightEdge - leftEdge, false);
+			while (i + 4 <= rightEdge) {
+				int z0 = di;
+				dpi += dppi;
+				di += dpi;
+				int z1 = di;
+				dpi += dppi;
+				di += dpi;
+				int z2 = di;
+				dpi += dppi;
+				di += dpi;
+				int z3 = di;
+				dpi += dppi;
+				di += dpi;
 
-							int allZ = z0 | z1 | z2 | z3;							/// allZ is used to determine the resolution for the table lookup later on.
-							if ((allZ & ~((1 << 30) - 1)) != 0) {					/// Check if any z was outside 0 <= z < (1 << 30) range, if so, clamp them all.
-									z0 = minValue(maxValue(z0, 0), (1 << 30) - 1);
-									z1 = minValue(maxValue(z1, 0), (1 << 30) - 1);
-									z2 = minValue(maxValue(z2, 0), (1 << 30) - 1);
-									z3 = minValue(maxValue(z3, 0), (1 << 30) - 1);
-									allZ = z0 | z1 | z2 | z3;
-							}
+				int allZ = z0 | z1 | z2 | z3;							/// allZ is used to determine the resolution for the table lookup later on.
+				if ((allZ & ~((1 << 30) - 1)) != 0) {					/// Check if any z was outside 0 <= z < (1 << 30) range, if so, clamp them all.
+					z0 = minValue(maxValue(z0, 0), (1 << 30) - 1);
+					z1 = minValue(maxValue(z1, 0), (1 << 30) - 1);
+					z2 = minValue(maxValue(z2, 0), (1 << 30) - 1);
+					z3 = minValue(maxValue(z3, 0), (1 << 30) - 1);
+					allZ = z0 | z1 | z2 | z3;
+				}
 
-							if (allZ < (1 << (30 - 8))) {							/// Shift input and output if maximum z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
-									const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - 8); /// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
-									pixels[0] = ((255 << 4) - 255 + sqrtTable[z0 >> sqrtShift]) >> 4;	// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
-									pixels[1] = ((255 << 4) - 255 + sqrtTable[z1 >> sqrtShift]) >> 4;
-									pixels[2] = ((255 << 4) - 255 + sqrtTable[z2 >> sqrtShift]) >> 4;
-									pixels[3] = ((255 << 4) - 255 + sqrtTable[z3 >> sqrtShift]) >> 4;
-							} else {
-									const int sqrtShift = (30 - RADIAL_SQRT_BITS);
-									pixels[0] = sqrtTable[z0 >> sqrtShift];
-									pixels[1] = sqrtTable[z1 >> sqrtShift];
-									pixels[2] = sqrtTable[z2 >> sqrtShift];
-									pixels[3] = sqrtTable[z3 >> sqrtShift];
-							}
+				if (allZ < (1 << (30 - 8))) {							/// Shift input and output if maximum z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
+					const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - 8); /// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
+					pixels[0] = ((255 << 4) - 255 + sqrtTable[z0 >> sqrtShift]) >> 4;	// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
+					pixels[1] = ((255 << 4) - 255 + sqrtTable[z1 >> sqrtShift]) >> 4;
+					pixels[2] = ((255 << 4) - 255 + sqrtTable[z2 >> sqrtShift]) >> 4;
+					pixels[3] = ((255 << 4) - 255 + sqrtTable[z3 >> sqrtShift]) >> 4;
+				} else {
+					const int sqrtShift = (30 - RADIAL_SQRT_BITS);
+					pixels[0] = sqrtTable[z0 >> sqrtShift];
+					pixels[1] = sqrtTable[z1 >> sqrtShift];
+					pixels[2] = sqrtTable[z2 >> sqrtShift];
+					pixels[3] = sqrtTable[z3 >> sqrtShift];
+				}
 
-							pixels += 4;
-							i += 4;
-					}
-
-					while (i < rightEdge) {
-							int z = minValue(maxValue(di, 0), (1 << 30) - 1);				/// Clamp di to valid range.
-							int precision = (z < (1 << (30 - 8))) << 2;						/// Shift input and output (by 8 and 4 respectively) if z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
-							int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);		/// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
-							*pixels++ = ((255 << precision) - 255 + sqrtTable[z >> sqrtShift]) >> precision;	/// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
-							dpi += dppi;											/// Perform run-time integration of the derivate of di * di to avoid the integer multiplication.
-							di += dpi;
-							++i;
-					}
+				pixels += 4;
+				i += 4;
 			}
+
+			while (i < rightEdge) {
+				int z = minValue(maxValue(di, 0), (1 << 30) - 1);				/// Clamp di to valid range.
+				int precision = (z < (1 << (30 - 8))) << 2;						/// Shift input and output (by 8 and 4 respectively) if z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
+				int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);		/// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
+				*pixels++ = ((255 << precision) - 255 + sqrtTable[z >> sqrtShift]) >> precision;	/// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
+				dpi += dppi;											/// Perform run-time integration of the derivate of di * di to avoid the integer multiplication.
+				di += dpi;
+				++i;
+			}
+		}
 	}
 }
 
