@@ -152,7 +152,7 @@ const int RADIAL_SQRT_BITS = 12;
 /**
 	Microsoft still have problems with std::min and std::max (the old C macros sometimes get in the
 	way). Besides, in MSVC 8 they are a bit slow due to debugging stuff, even in release builds.
-*/
+**/
 template<typename T> T minValue(T a, T b) { return (a < b) ? a : b; }
 template<typename T> T maxValue(T a, T b) { return (a > b) ? a : b; }
 inline int roundToInt(double d) { return int(floor(d + 0.5)); }

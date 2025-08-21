@@ -1192,13 +1192,15 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 				seg.x = toFixed32_32(x0, 0);
 				seg.leftEdge = (x0 >> FRACT_BITS);
 				seg.dx = toFixed32_32(0, 0);
-				int coverageByX = 1 << ((COVERAGE_BITS + FRACT_BITS) - 1);
-				int dx = x1 - x0;
+				int coverageByX = 1 << (COVERAGE_BITS + FRACT_BITS);
+				const int dx = x1 - x0;
 				if (dx != 0) {
-					int dy = y1 - y0;
+					const int dy = y1 - y0;
 					seg.dx = divide(dx, dy);
-					Fixed32_32 dyByDx = divide(dy, abs(dx));
-					if (high32(dyByDx) < (1 << ((COVERAGE_BITS + FRACT_BITS) - 1))) {
+					assert(dy >= 0);
+					const Fixed32_32 dyByDx = divide(dy, abs(dx));
+					// if dy/|dx| < 1, use floor(2^T * dy/|dx|); else keep the saturated default
+					if (high32(dyByDx) == 0) {
 						coverageByX = high32(shiftLeft(dyByDx, COVERAGE_BITS + FRACT_BITS));
 					}
 				}
