@@ -90,8 +90,21 @@ Gradient<ARGB32>::Stop stops[] = {
     {0.0, 0xff0000ff}, {1.0, 0xffffffff}
 };
 Gradient<ARGB32> grad(2, stops);
-canvas |= grad[LinearAscend(0, 0, 0, 100)];
+ canvas |= grad[LinearAscend(0, 0, 0, 100)];
 ```
+
+> **Warning:** `Gradient::operator[]` keeps a reference to the mask renderer. Passing a temporary
+> `LinearAscend` or `RadialAscend` is only safe if the lookup is consumed within the same statement.
+> To reuse the lookup later, store the ramp separately so it remains alive:
+>
+> ```cpp
+> LinearAscend ramp(x0, y0, x1, y1);
+> Lookup<ARGB32, LookupTable<ARGB32> > renderer = grad[ramp];
+> canvas |= renderer; /// `ramp` must outlive `renderer`
+> ```
+>
+> See [Lifetime of renderers](#lifetime-of-renderers) for the general rule that
+> all NuXPixels expressions hold references to their components.
 
 ### Solid and Texture
 `Solid<T>` outputs a constant pixel value. `Texture<T>` samples from a raster using an affine
@@ -122,6 +135,28 @@ Because drawing is demand driven, NuXPixels can optimize away work in real time.
 Opaque spans automatically block processing of any renderers beneath them since
 those pixels are invisible. This culling happens per span and keeps the renderer
 efficient even with many layers.
+
+### Lifetime of renderers
+Most renderer types store references to the objects passed into their
+constructors or operators. C++ destroys temporary objects at the end of the
+statement, so a renderer built from temporaries must also be used in that same
+statement. To keep a renderer for later, create and store every component
+separately so their lifetimes extend as needed.
+
+```cpp
+Gradient<ARGB32>::Stop stops[] = {{0.0, 0xff0000ff}, {1.0, 0xffffffff}};
+Gradient<ARGB32> grad(2, stops);
+LinearAscend ramp(x0, y0, x1, y1);
+Lookup<ARGB32, LookupTable<ARGB32> > lookup = grad[ramp];
+canvas |= lookup; /// `grad` and `ramp` must outlive `lookup`
+
+canvas |= Gradient<ARGB32>(2, stops)[LinearAscend(x0, y0, x1, y1)]; /// safe: everything is temporary
+```
+
+This rule applies to all expressions in NuXPixels—`PolygonMask`, `Texture`,
+`Solid`, gradients and more. Either chain the full expression in a single
+statement or keep each renderer alive for as long as any derived renderer uses
+it.
 
 ## Path construction
 `Path` is a sequence of drawing commands supporting lines, quadratic and cubic curves. It can be modified with helper methods like `addRect`, `addEllipse`, `addRoundedRect` and `stroke`. Paths operate in double precision and can be transformed with an `AffineTransformation` before rendering.
