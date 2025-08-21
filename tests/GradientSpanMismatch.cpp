@@ -130,13 +130,17 @@ int main(int argc, char** argv)
 		stops[1].position = 1.0;
 		stops[1].color = randomColor(prng);
 		Gradient<ARGB32> grad(2, stops);
+		Gradient<ARGB32> grad2(2, stops);
 		IntRect bounds(0, 0, 256, 256);
 		if (randomInt(prng, 0, 1) == 0) {
 			double x0 = randomDouble(prng, -50.0, 300.0);
 			double y0 = randomDouble(prng, -50.0, 300.0);
 			double x1 = randomDouble(prng, -50.0, 300.0);
 			double y1 = randomDouble(prng, -50.0, 300.0);
-			Lookup<ARGB32, LookupTable<ARGB32> > renderer = grad[LinearAscend(x0, y0, x1, y1)];
+			LinearAscend ascend1(x0, y0, x1, y1);
+			LinearAscend ascend2(x0, y0, x1, y1);
+			Lookup<ARGB32, LookupTable<ARGB32> > renderer = grad[ascend1];
+			Lookup<ARGB32, LookupTable<ARGB32> > renderer2 = grad2[ascend2];
 			SelfContainedRaster<ARGB32> big(bounds);
 			SelfContainedRaster<ARGB32> small(bounds);
 			renderRect(renderer, bounds, bigSpan, big);
@@ -150,7 +154,10 @@ int main(int argc, char** argv)
 			double cy = randomDouble(prng, 0.0, 256.0);
 			double rx = randomDouble(prng, 5.0, 200.0);
 			double ry = randomDouble(prng, 5.0, 200.0);
-			Lookup<ARGB32, LookupTable<ARGB32> > renderer = grad[RadialAscend(cx, cy, rx, ry)];
+			RadialAscend ascend1(cx, cy, rx, ry);
+			RadialAscend ascend2(cx, cy, rx, ry);
+			Lookup<ARGB32, LookupTable<ARGB32> > renderer = grad[ascend1];
+			Lookup<ARGB32, LookupTable<ARGB32> > renderer2 = grad2[ascend2];
 			SelfContainedRaster<ARGB32> big(bounds);
 			SelfContainedRaster<ARGB32> small(bounds);
 			renderRect(renderer, bounds, bigSpan, big);
