@@ -973,9 +973,6 @@ class PolygonMask : public Renderer<Mask8> {
 	protected:	mutable std::vector<Int32> coverageDelta;
 	protected:	mutable std::vector<Segment*> segsVertically;
 	protected:	mutable std::vector<Segment*> segsHorizontally;
-#if !defined(NDEBUG)
-	protected:	mutable IntRect paintedBounds;
-#endif
 };
 
 /**

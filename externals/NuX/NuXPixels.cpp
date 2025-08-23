@@ -1250,7 +1250,7 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 	bounds.width = ((maxX + FRACT_MASK) >> FRACT_BITS) - bounds.left;
 	bounds.height = ((maxY + FRACT_MASK) >> FRACT_BITS) - bounds.top;
 	bounds = bounds.calcIntersection(cb);
-	coverageDelta.assign(bounds.width + 1, 0);
+	coverageDelta.assign(minValue(bounds.width + 1, MAX_RENDER_LENGTH + 1), 0);
 
 	// Prepare for the first rendering pass.
 	rewind();
@@ -1280,9 +1280,6 @@ void PolygonMask::rewind() const {
 	std::sort(segsVertically.begin(), segsVertically.end(), Segment::Order());
 	// Horizontal list starts identical; it will be maintained in x-order during rendering.
 	segsHorizontally = segsVertically;
-#if !defined(NDEBUG)
-	paintedBounds = EMPTY_RECT;
-#endif
 }
 
 IntRect PolygonMask::calcBounds() const { return bounds; }
@@ -1490,9 +1487,6 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 
 	// Integrate coverage and emit mask pixels.
 	
-	bool rowUsed = false;
-	int rowMin = length;
-	int rowMax = 0;
 	int coverageAcc = 0;
 	int col = 0;
 	while (col < length) {
@@ -1507,11 +1501,6 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 			fillRule.processCoverage(1, sourceCoverage, &pixel);
 			coverageDelta[col] = 0;
 			output.addSolid(nx - col, pixel);
-			if (!Mask8::isTransparent(pixel)) {
-				rowUsed = true;
-				rowMin = minValue(rowMin, col);
-				rowMax = maxValue(rowMax, nx);
-			}
 			col = nx;
 		}
 
@@ -1535,11 +1524,6 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 			Mask8::Pixel* pixels = output.addVariable(spanLength, false);
 			fillRule.processCoverage(spanLength, &coverageDelta[col], pixels);
 			for (int i = 0; i < spanLength; ++i) {
-				if (!Mask8::isTransparent(pixels[i])) {
-					rowUsed = true;
-					rowMin = minValue(rowMin, col + i);
-					rowMax = maxValue(rowMax, col + i + 1);
-				}
 			}
 			for (int i = 0; i < spanLength; ++i) {
 				coverageDelta[col + i] = 0;
@@ -1548,17 +1532,6 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 		}
 	}
 
-#if !defined(NDEBUG)
-	if (rowUsed) {
-		const IntRect rowRect(x + rowMin, y, rowMax - rowMin, 1);
-		paintedBounds = paintedBounds.isEmpty() ? rowRect : paintedBounds.calcUnion(rowRect);
-	}
-	if (y + 1 == bounds.calcBottom()) {
-		assert(bounds.calcIntersection(paintedBounds) == paintedBounds);
-	}
-#else
-	(void)rowUsed; (void)rowMin; (void)rowMax;
-#endif
 	coverageDelta[length] = 0; // Need to clear the extra margin element.
 	if (rightClip > 0) {
 		output.addTransparent(rightClip);
