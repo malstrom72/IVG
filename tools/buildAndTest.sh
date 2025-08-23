@@ -38,7 +38,13 @@ cd ..
 echo Testing...
 cd tests
 bash ../tools/testIVG.sh ../output/IVG2PNG
-bash ../tools/testSVG.sh
+if [ -n "${SKIP_SVG:-}" ]; then
+	echo "Skipping SVG tests"
+elif command -v node >/dev/null 2>&1; then
+	bash ../tools/testSVG.sh
+else
+	echo "Warning: Node.js not found, skipping SVG tests" >&2
+fi
 cd ..
 ./output/PolygonMaskTest
 exit 0
