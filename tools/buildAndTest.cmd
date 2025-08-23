@@ -44,7 +44,16 @@ CALL .\tools\BuildCpp.cmd %1 %2 .\output\PolygonMaskTest "-DNUXPIXELS_SIMD=%simd
 ECHO Testing...
 CD tests
 CALL ..\tools\testIVG.cmd ..\output\IVG2PNG || GOTO error
-CALL ..\tools\testSVG.cmd || GOTO error
+IF NOT "%SKIP_SVG%"=="" (
+	ECHO Skipping SVG tests
+) ELSE (
+	WHERE node >NUL 2>NUL
+	IF ERRORLEVEL 1 (
+		ECHO Warning: Node.js not found, skipping SVG tests
+) ELSE (
+		CALL ..\tools\testSVG.cmd || GOTO error
+)
+)
 CD ..
 CALL .\output\PolygonMaskTest || GOTO error
 

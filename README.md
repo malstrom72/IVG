@@ -60,6 +60,8 @@ You will need a standard C++ compiler.
 - On **Windows**, the build requires Microsoft Visual C++. Any version from Visual Studio 2008
   (VC9.0) onward should work. The build scripts locate the compiler automatically using
   `vswhere.exe`, falling back to known versions if needed.
+- Node.js 16+ is required for the SVG conversion tests. If Node.js is unavailable, set
+  `SKIP_SVG=1` before running `./build.sh` to skip them.
 
 ## Build & Test
 
