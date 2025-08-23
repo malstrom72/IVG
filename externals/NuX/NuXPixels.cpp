@@ -590,9 +590,9 @@ Path& Path::addStar(double centerX, double centerY, int points, double radius1, 
 class StrokeSegment {
 	public:		StrokeSegment(const Vertex& v = Vertex(), const Vertex& d = Vertex(), double l = 0.0)
 						: v(v), d(d), l(l) { }
-	public:		Vertex v; /// Start vertex.
-	public:		Vertex d; /// Delta vector per "width unit" (i.e. delta vector / length * width).
-	public:		double l; /// Length in "width units" (i.e. length / width).
+	public:		Vertex v; ///< Start vertex.
+	public:		Vertex d; ///< Delta vector per "width unit" (i.e. delta vector / length * width).
+	public:		double l; ///< Length in "width units" (i.e. length / width).
 };
 
 /**
@@ -1011,69 +1011,98 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 
 	// Calculate left and right edge of inner circle for this row.
 
-	const double dy = y + 0.5 - centerY;
-	const double a = 1.0 - dy * dy / (height * height);
-	const double rowWidth = (a > EPSILON) ? width * sqrt(a) : 0;
-	const double rowStart = (centerX - rowWidth);
-	const int leftEdge = minValue(maxValue(roundToInt(rowStart - x), 0), length);
-	const int rightEdge = minValue(roundToInt(rowStart + rowWidth * 2 - x), length);
-	
+	double dy = y + 0.5 - centerY;
+	double a = 1.0 - dy * dy / (height * height);
+	double thisWidth = (a > EPSILON) ? width * sqrt(a) : 0;
+	int leftEdge = minValue(maxValue(roundToInt(centerX - x - thisWidth), 0), length);
+	int rightEdge = minValue(roundToInt(centerX - x + thisWidth), length);
+
 	int i = 0;
 	while (i < length) {
 		if (i < leftEdge || i >= rightEdge) {
 			assert(i == 0 || i == rightEdge);
-			const int edge = (i < leftEdge) ? leftEdge : length;
+			int edge = (i < leftEdge) ? leftEdge : length;
 			output.addTransparent(edge - i);
 			i = edge;
 		} else {
 			assert(i == leftEdge);
-						
-			const int rowStartInt = roundToInt(rowStart);
-			const double dx = rowStartInt - centerX;
-			const double dpp = 2.0 * wk;
-			const double dp = (2.0 * dx - 1.0) * wk + dpp * 0.5;
-			const double d = dy * dy * hk + dx * dx * wk + dp * 0.5;
-			assert(dpp >= 0.0);
-			const unsigned int dppi = roundToInt(dpp);
-
-			const int steps = x + i - rowStartInt;
-			assert(steps >= 0);
-			assert(steps < (1 << 16));
-			const int dp0 = roundToInt(dp);
 			
-			// Calculate steps * (steps + 1) / 2 in a way that avoids overflow.
-			const int tri = ((steps & 1) != 0) ? steps * ((steps + 1) >> 1) : (steps >> 1) * (steps + 1);
-			int dpi = dp0 + steps * dppi;
-			int di = roundToInt(d) + steps * dp0 + dppi * tri;			
+			// true global left edge (no clamping to [0,length])
+			int leftEdgeGlobal = roundToInt(centerX - thisWidth);
+			
+			double dx = leftEdgeGlobal - centerX;
+			double dpp = 2.0 * wk;
+			double dp = (2.0 * dx - 1.0) * wk + dpp * 0.5;
+			double d = dy * dy * hk + dx * dx * wk + dp * 0.5;
+			int dppi = roundToInt(dpp);
+			int dpi = roundToInt(dp);
+			int di = roundToInt(d);
+
+			if (y == 88) {
+				// std::cout << "RadialAscend::render: init y == 88, x == " << x << ", length = " << length << ", di = " << di << ", dpi = " << dpi << ", dppi = " << dppi << std::endl;
+			}
+
+			// roll forward from global left edge to current pixel at global x = x + i
+			/*int steps = (x + i) - leftEdgeGlobal;
+			assert(steps >= 0);
+			for (int s = 0; s < steps; ++s) {
+				dpi += dppi;
+				di += dpi;
+			}*/
+			
+			const int steps = (x + i) - leftEdgeGlobal;
+			long long dpi0 = dpi;
+			dpi += (long long)steps * dppi;
+			di  += (long long)steps * dpi0 + (long long)dppi * steps * (steps + 1) / 2;
+						
+			if (y == 88) {
+				// std::cout << "RadialAscend::render: y == 88, x == " << x << ", length = " << length << ", di = " << di << ", dpi = " << dpi << ", dppi = " << dppi << std::endl;
+			}
+			
+			
+			
+			
 			
 			Mask8::Pixel* pixels = output.addVariable(rightEdge - leftEdge, false);
 			
-			// Lead up to next absolute x divisible by 4, to enforce identical output regardless of span length limits
+			// Lead up to next absolute x divisible by 4, to enforce identical output regardless of span length
 			while (((i + x) & 3) != 0 && i < rightEdge) {
-				const int z = minValue(maxValue(di, 0), (1 << 30) - 1);								// Clamp di to valid range.
-				const int precision = (z < (1 << (30 - 8))) << 2;									// Shift input and output (by 8 and 4 respectively) if z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
-				const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);			// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
-				*pixels++ = ((255 << precision) - 255 + sqrtTable[z >> sqrtShift]) >> precision;	// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
-				dpi += dppi;																		// Perform run-time integration of the derivate of di * di to avoid the integer multiplication.
+				int z = minValue(maxValue(di, 0), (1 << 30) - 1);				/// Clamp di to valid range.
+				int precision = (z < (1 << (30 - 8))) << 2;						/// Shift input and output (by 8 and 4 respectively) if z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
+				int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);		/// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
+				*pixels++ = ((255 << precision) - 255 + sqrtTable[z >> sqrtShift]) >> precision;	/// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
+				dpi += dppi;											/// Perform run-time integration of the derivate of di * di to avoid the integer multiplication.
 				di += dpi;
 				++i;
 			}
 			while (i + 4 <= rightEdge) {
+	if (y == 88 && (i & 63) == 0) {
+		// std::cout << "RadialAscend::render: y == 88, i == " << i << ", length = " << length << ", di = " << di << ", dpi = " << dpi << ", dppi = " << dppi << std::endl;
+	}
 				int z0 = di;
 				dpi += dppi;
 				di += dpi;
+	if (y == 88 && ((i + 1) & 63) == 0) {
+		// std::cout << "RadialAscend::render: y == 88, i == " << (i + 1) << ", length = " << length << ", di = " << di << ", dpi = " << dpi << ", dppi = " << dppi << std::endl;
+	}
 				int z1 = di;
 				dpi += dppi;
 				di += dpi;
+	if (y == 88 && ((i + 2) & 63) == 0) {
+		// std::cout << "RadialAscend::render: y == 88, i == " << (i + 2) << ", length = " << length << ", di = " << di << ", dpi = " << dpi << ", dppi = " << dppi << std::endl;
+	}
 				int z2 = di;
 				dpi += dppi;
 				di += dpi;
+	if (y == 88 && ((i + 3) & 63) == 0) {
+		// std::cout << "RadialAscend::render: y == 88, i == " << (i + 3) << ", length = " << length << ", di = " << di << ", dpi = " << dpi << ", dppi = " << dppi << std::endl;
+	}
 				int z3 = di;
 				dpi += dppi;
 				di += dpi;
 
-				int allZ = z0 | z1 | z2 | z3;														// allZ is used to determine the resolution for the table lookup later on.
-				if ((allZ & ~((1 << 30) - 1)) != 0) {												// Check if any z was outside 0 <= z < (1 << 30) range, if so, clamp them all.
+				int allZ = z0 | z1 | z2 | z3;							/// allZ is used to determine the resolution for the table lookup later on.
+				if ((allZ & ~((1 << 30) - 1)) != 0) {					/// Check if any z was outside 0 <= z < (1 << 30) range, if so, clamp them all.
 					z0 = minValue(maxValue(z0, 0), (1 << 30) - 1);
 					z1 = minValue(maxValue(z1, 0), (1 << 30) - 1);
 					z2 = minValue(maxValue(z2, 0), (1 << 30) - 1);
@@ -1081,9 +1110,9 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 					allZ = z0 | z1 | z2 | z3;
 				}
 
-				if (allZ < (1 << (30 - 8))) {														// Shift input and output if maximum z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
-					const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - 8); 							// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
-					pixels[0] = ((255 << 4) - 255 + sqrtTable[z0 >> sqrtShift]) >> 4;				// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
+				if (allZ < (1 << (30 - 8))) {							/// Shift input and output if maximum z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
+					const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - 8); /// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
+					pixels[0] = ((255 << 4) - 255 + sqrtTable[z0 >> sqrtShift]) >> 4;	// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
 					pixels[1] = ((255 << 4) - 255 + sqrtTable[z1 >> sqrtShift]) >> 4;
 					pixels[2] = ((255 << 4) - 255 + sqrtTable[z2 >> sqrtShift]) >> 4;
 					pixels[3] = ((255 << 4) - 255 + sqrtTable[z3 >> sqrtShift]) >> 4;
@@ -1100,17 +1129,22 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 			}
 
 			while (i < rightEdge) {
-				const int z = minValue(maxValue(di, 0), (1 << 30) - 1);								// Clamp di to valid range.
-				const int precision = (z < (1 << (30 - 8))) << 2;									// Shift input and output (by 8 and 4 respectively) if z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
-				const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);			// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
-				*pixels++ = ((255 << precision) - 255 + sqrtTable[z >> sqrtShift]) >> precision;	// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
-				dpi += dppi;																		// Perform run-time integration of the derivate of di * di to avoid the integer multiplication.
+	if (y == 88 && ((i + 0) & 63) == 0) {
+		// std::cout << "RadialAscend::render: y == 88, i == " << (i + 0) << ", length = " << length << ", di = " << di << ", dpi = " << dpi << ", dppi = " << dppi << std::endl;
+	}
+				int z = minValue(maxValue(di, 0), (1 << 30) - 1);				/// Clamp di to valid range.
+				int precision = (z < (1 << (30 - 8))) << 2;						/// Shift input and output (by 8 and 4 respectively) if z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
+				int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);		/// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
+				*pixels++ = ((255 << precision) - 255 + sqrtTable[z >> sqrtShift]) >> precision;	/// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
+				dpi += dppi;											/// Perform run-time integration of the derivate of di * di to avoid the integer multiplication.
 				di += dpi;
 				++i;
 			}
 		}
 	}
 }
+
+
 
 /* --- FillRule --- */
 
