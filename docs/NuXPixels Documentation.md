@@ -3,21 +3,23 @@
 ## Table of Contents
 - [Intro](#intro)
 - [Quickstart](#quickstart)
-- [Data types](#data-types)
-  - [Points and Rectangles](#points-and-rectangles)
-  - [Colors](#colors)
-  - [AffineTransformation](#affinetransformation)
-- [Rendering pipeline](#rendering-pipeline)
-  - [Raster and Renderer](#raster-and-renderer)
-  - [PolygonMask](#polygonmask)
-  - [Gradients](#gradients)
-  - [Solid and Texture](#solid-and-texture)
-  - [RLERaster](#rleraster)
-  - [Operator overloading](#operator-overloading)
-  - [Pull model](#pull-model)
-  - [Path construction](#path-construction)
-  - [Limits and Safety](#limits-and-safety)
-  - [Examples](#examples)
+- [Core Data Types](#core-data-types)
+	- [Points and Rectangles](#points-and-rectangles)
+	- [Pixel Formats](#pixel-formats)
+	- [Color Math](#color-math)
+	- [AffineTransformations](#affinetransformations)
+- [Rendering Pipeline](#rendering-pipeline)
+	- [Raster and Renderer](#raster-and-renderer)
+	- [PolygonMask](#polygonmask)
+	- [Solid and Texture](#solid-and-texture)
+	- [Gradients](#gradients)
+	- [RLERaster](#rleraster)
+- [Operator Overloading](#operator-overloading)
+- [Pull Model](#pull-model)
+- [Lifetime of Renderers](#lifetime-of-renderers)
+- [Path Construction](#path-construction)
+- [Limits and Safety](#limits-and-safety)
+- [Examples and Recipes](#examples-and-recipes)
 ## Intro
 
 _NuXPixels_ is a small C++ library for 2D graphics rendering. It is designed to be self contained with no operating system dependencies and focuses on a minimal API with high quality anti‑aliasing. The renderer operates entirely in memory.
@@ -40,7 +42,7 @@ int main() {
 
 Compile with `g++ example.cpp -std=c++17` (or a similar C++17 compiler command).
 
-## Data types
+## Core Data Types
 
 ### Points and Rectangles
 `NuXPixels` defines generic `Point<T>` and `Rect<T>` templates for integer and floating point coordinates. Convenience typedefs such as `IntPoint`, `IntRect` and `Vertex` (a double precision point) are available for common use.
@@ -54,10 +56,11 @@ IntRect b(20, 20, 10, 10);
 IntRect clipped = a.calcIntersection(b);
 ```
 
-### Colors
-The library ships with a few pixel formats. `ARGB32` stores premultiplied 8‑bit channels in `0xAARRGGBB` order (little‑endian machines lay the bytes out as BB GG RR AA). Blending follows the conventional `dst*(255-srcA)/255 + src` equation. Colors are assumed sRGB and all computations occur on premultiplied channels in that gamma space; there is no implicit linearization. Intermediate arithmetic uses integer math with truncation, so channel multiplications are rounded toward zero. A lightweight `Mask8` type is used when rendering coverage masks.
+### Pixel Formats
+The library ships with a few pixel formats. `ARGB32` stores premultiplied 8‑bit channels in `0xAARRGGBB` order (little‑endian machines lay the bytes out as BB GG RR AA). A lightweight `Mask8` type carries 8‑bit coverage when rendering masks.
 
-`ARGB32` also includes `multiply` and `interpolate` utilities for pixel arithmetic. A color can be constructed from floats and then modulated:
+### Color Math
+Blending follows the conventional `dst*(255-srcA)/255 + src` equation. Colors are assumed sRGB and all computations occur on premultiplied channels in that gamma space; there is no implicit linearization. Intermediate arithmetic uses integer math with truncation, so channel multiplications are rounded toward zero. `ARGB32` also includes `multiply` and `interpolate` utilities for pixel arithmetic. A color can be constructed from floats and then modulated:
 
 ```cpp
 ARGB32::Pixel p = ARGB32::fromFloatRGB(1.0, 0.0, 0.0, 0.5); // 50% red
@@ -65,7 +68,7 @@ ARGB32::Pixel dark = ARGB32::multiply(p, 128);               // scale alpha & rg
 // If using a literal, red opaque is 0xFFFF0000, blue is 0xFF0000FF.
 ```
 
-### AffineTransformation
+### AffineTransformations
 `AffineTransformation` represents 2×3 matrices for translation, scaling, rotation and shearing. Transformations can be composed with the `transform()` function and applied to vertices or paths.
 
 Chained calls build complex transforms in a readable manner:
@@ -79,7 +82,7 @@ AffineTransformation t = AffineTransformation()
 
 Transforms are pre‑multiplied (points are column vectors), so calls execute left‑to‑right: `translate().scale().rotate()` means translate, then scale, then rotate in object space. Angles are specified in radians.
 
-## Rendering pipeline
+## Rendering Pipeline
 
 ### Raster and Renderer
 All drawing is expressed through `Renderer` templates that generate spans of
@@ -147,7 +150,7 @@ Gradient<ARGB32>::Stop stops2[] = {
 > canvas |= renderer; /// `ramp` must outlive `renderer`
 > ```
 >
-> See [Lifetime of renderers](#lifetime-of-renderers) for the general rule that
+> See [Lifetime of Renderers](#lifetime-of-renderers) for the general rule that
 > all NuXPixels expressions hold references to their components.
 
 ### Solid and Texture
@@ -171,14 +174,14 @@ canvas |= Solid<ARGB32>(color) * cache;
 
 Runs encode either a solid pixel or a block of per‑pixel data. Each span stores a 16‑bit header plus optional pixel payload, preserving partial alpha. Memory footprint is typically 20–60% of an uncompressed raster depending on image coherence.
 
-### Operator overloading
+## Operator Overloading
 Renderers can be combined with `*`, `+`, `|`, `+=`, `*=`, and `|=` operators.
 Each operator returns another `Renderer` that lazily requests spans from its
 inputs. An expression like `canvas |= Solid<ARGB32>(color) * mask` forms a small
 pipeline. Operator precedence follows C++ rules: `*` binds tighter than `|`. The
 `|` operator blends the right renderer over the left; it is not a bitwise OR.
 
-### Pull model
+## Pull Model
 As the canvas renders, it pulls spans from the expression and each stage only
 computes what the next stage requires. Because drawing is demand driven,
 NuXPixels can optimize away work in real time. Opaque spans automatically block
@@ -186,7 +189,7 @@ processing of any renderers beneath them since those pixels are invisible. This
 culling happens per span and keeps the renderer efficient even with many
 layers.
 
-### Lifetime of renderers
+## Lifetime of Renderers
 Most renderer types store references to the objects passed into their
 constructors or operators. C++ destroys temporary objects at the end of the
 statement, so a renderer built from temporaries must also be used in that same
@@ -219,7 +222,7 @@ Even types that are trivially copyable still reference external data; treat rend
 | Gradient<T>::Lookup | gradient, ramp | no |
 | RLERaster<T> | none | owns span/pixel arrays |
 
-## Path construction
+## Path Construction
 `Path` is a sequence of drawing commands supporting lines, quadratic and cubic curves. It can be modified with helper methods like `addRect`, `addEllipse`, `addRoundedRect` and `stroke`. Paths operate in double precision and can be transformed with an `AffineTransformation` before rendering.
 
 ```cpp
@@ -231,7 +234,17 @@ star.dash(5.0, 2.0);
 
 `stroke(width, endCaps, joints, miterLimit, curveQuality)` defaults to a miter limit of `2.0`. `EndCapStyle` may be `BUTT`, `ROUND`, or `SQUARE`; `JointStyle` is `BEVEL`, `CURVE`, or `MITER`. `dash(dashLength, gapLength, dashOffset)` alternates drawn and skipped segments starting at `dashOffset`; fractional lengths accumulate along each sub-path and the pattern resets at every `moveTo`.
 
-## Examples
+## Limits and Safety
+
+- Maximum span length is 256 pixels (`MAX_RENDER_LENGTH`); longer runs are chunked automatically.
+- Coordinates are 31‑bit signed; `FULL_RECT` defines the valid range.
+- Texture sampling outside the source repeats when `wrap=true` and returns transparent black (`0x00000000`) when `wrap=false`.
+- Renderers and rasters are not thread‑safe; rendering distinct instances on separate threads is safe, but do not share one object across threads.
+- `PolygonMask::rewind()` re‑sorts segments; cost grows with edge count (≈O(n log n)).
+- `RLERaster` memory footprint is roughly 20–60% of raw raster size.
+- Paths with fewer than two points or zero-length segments yield zero coverage. Color and coverage calculations use 8‑bit integer arithmetic with truncation. Geometry and transform math rely on double precision and may overflow or produce NaN on extreme values. Functions do not guarantee `noexcept` and may fail on allocation.
+
+## Examples and Recipes
 
 A short example shows how the operator overloads work together:
 
@@ -265,12 +278,3 @@ Texture<ARGB32> tex(texCanvas, true);
 canvas |= tex * mask;
 ```
 
-## Limits and Safety
-
-- Maximum span length is 256 pixels (`MAX_RENDER_LENGTH`); longer runs are chunked automatically.
-- Coordinates are 31‑bit signed; `FULL_RECT` defines the valid range.
-- Texture sampling outside the source repeats when `wrap=true` and returns transparent black (`0x00000000`) when `wrap=false`.
-- Renderers and rasters are not thread‑safe; rendering distinct instances on separate threads is safe, but do not share one object across threads.
-- `PolygonMask::rewind()` re‑sorts segments; cost grows with edge count (≈O(n log n)).
-- `RLERaster` memory footprint is roughly 20–60% of raw raster size.
-- Paths with fewer than two points or zero-length segments yield zero coverage. Arithmetic uses integer math with truncation; invalid transforms or extreme coordinates can overflow and produce undefined results. Functions do not guarantee `noexcept` and may fail on allocation.
