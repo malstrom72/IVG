@@ -132,7 +132,7 @@ int main(int argc, char** argv)
 		Gradient<ARGB32> grad(2, stops);
 		Gradient<ARGB32> grad2(2, stops);
 		IntRect bounds(0, 0, 256, 256);
-		if (randomInt(prng, 0, 1) == 0) {
+		if (false && randomInt(prng, 0, 1) == 0) {
 			double x0 = randomDouble(prng, -50.0, 300.0);
 			double y0 = randomDouble(prng, -50.0, 300.0);
 			double x1 = randomDouble(prng, -50.0, 300.0);

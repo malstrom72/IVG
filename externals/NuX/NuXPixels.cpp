@@ -1029,28 +1029,77 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 		} else {
 			assert(i == leftEdge);
 			int dppi = wk << 1;
-			int dxInt = ((x + i) << 8) - centerXi;
 			int dyInt = ((y << 8) + 128) - centerYi;
-			long long tmp = (long long)dppi * dxInt;
-			int dpi = int((tmp + ((tmp < 0) ? -128 : 128)) >> 8);
+			
+			// true global left edge (no clamping to [0,length])
+			int leftEdgeGlobal = roundToInt(centerX - thisWidth);
+			
+			// seed at global left edge
+			int dxBase = (leftEdgeGlobal << 8) - centerXi;
+			long long t = (long long)dppi * dxBase;
+			int dpi = (int)((t + ((t < 0) ? -128 : 128)) >> 8);
+			
 			long long term = (long long)dyInt * dyInt * hk;
-			int di = int((term + 32768) >> 16);
-			term = (long long)dxInt * dxInt * wk;
-			di += int((term + 32768) >> 16);
-			term = (long long)dxInt * wk;
-			di += int((term + ((term < 0) ? -128 : 128)) >> 8);
+			int di = (int)((term + 32768) >> 16);
+			term = (long long)dxBase * dxBase * wk;
+			di += (int)((term + 32768) >> 16);
+			term = (long long)dxBase * wk;
+			di += (int)((term + ((term < 0) ? -128 : 128)) >> 8);
 
+			if (y == 88) {
+				// std::cout << "RadialAscend::render: init y == 88, x == " << x << ", length = " << length << ", di = " << di << ", dpi = " << dpi << ", dppi = " << dppi << std::endl;
+			}
+
+
+			// roll forward from global left edge to current pixel at global x = x + i
+			int steps = (x + i) - leftEdgeGlobal;
+			assert(steps >= 0);
+			for (int s = 0; s < steps; ++s) {
+				dpi += dppi;
+				di += dpi;
+			}
+			
+
+			if (y == 88) {
+				// std::cout << "RadialAscend::render: y == 88, x == " << x << ", length = " << length << ", di = " << di << ", dpi = " << dpi << ", dppi = " << dppi << std::endl;
+			}
+			
+			
+			
+			
+			
 			Mask8::Pixel* pixels = output.addVariable(rightEdge - leftEdge, false);
+			while (((i + x) & 3) != 0 && i < rightEdge) {
+				int z = minValue(maxValue(di, 0), (1 << 30) - 1);				/// Clamp di to valid range.
+				int precision = (z < (1 << (30 - 8))) << 2;						/// Shift input and output (by 8 and 4 respectively) if z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
+				int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);		/// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
+				*pixels++ = ((255 << precision) - 255 + sqrtTable[z >> sqrtShift]) >> precision;	/// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
+				dpi += dppi;											/// Perform run-time integration of the derivate of di * di to avoid the integer multiplication.
+				di += dpi;
+				++i;
+			}
 			while (i + 4 <= rightEdge) {
+	if (y == 88 && (i & 63) == 0) {
+		// std::cout << "RadialAscend::render: y == 88, i == " << i << ", length = " << length << ", di = " << di << ", dpi = " << dpi << ", dppi = " << dppi << std::endl;
+	}
 				int z0 = di;
 				dpi += dppi;
 				di += dpi;
+	if (y == 88 && ((i + 1) & 63) == 0) {
+		// std::cout << "RadialAscend::render: y == 88, i == " << (i + 1) << ", length = " << length << ", di = " << di << ", dpi = " << dpi << ", dppi = " << dppi << std::endl;
+	}
 				int z1 = di;
 				dpi += dppi;
 				di += dpi;
+	if (y == 88 && ((i + 2) & 63) == 0) {
+		// std::cout << "RadialAscend::render: y == 88, i == " << (i + 2) << ", length = " << length << ", di = " << di << ", dpi = " << dpi << ", dppi = " << dppi << std::endl;
+	}
 				int z2 = di;
 				dpi += dppi;
 				di += dpi;
+	if (y == 88 && ((i + 3) & 63) == 0) {
+		// std::cout << "RadialAscend::render: y == 88, i == " << (i + 3) << ", length = " << length << ", di = " << di << ", dpi = " << dpi << ", dppi = " << dppi << std::endl;
+	}
 				int z3 = di;
 				dpi += dppi;
 				di += dpi;
@@ -1083,6 +1132,9 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 			}
 
 			while (i < rightEdge) {
+	if (y == 88 && ((i + 0) & 63) == 0) {
+		// std::cout << "RadialAscend::render: y == 88, i == " << (i + 0) << ", length = " << length << ", di = " << di << ", dpi = " << dpi << ", dppi = " << dppi << std::endl;
+	}
 				int z = minValue(maxValue(di, 0), (1 << 30) - 1);				/// Clamp di to valid range.
 				int precision = (z < (1 << (30 - 8))) << 2;						/// Shift input and output (by 8 and 4 respectively) if z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
 				int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);		/// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
