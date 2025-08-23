@@ -103,12 +103,15 @@ pixel data. A span models a contiguous horizontal run. When marked *solid* the
 span stores one pixel value repeated for the entire run; otherwise it carries an
 array of per-pixel values so coverage or color may vary across the span. Each
 span also flags opaque or transparent runs to enable culling. Spans longer than
-`MAX_RENDER_LENGTH` are split automatically. `Raster<T>` collects the result in a client supplied buffer while `SelfContainedRaster<T>` manages its own memory. A typical pipeline blends color data from `Renderer<ARGB32>` through coverage masks produced by `Renderer<Mask8>` sources.
+`MAX_RENDER_LENGTH` are split automatically. `Raster<T>` collects the result in a client supplied buffer while `SelfContainedRaster<T>` manages its own memory. A typical pipeline blends color data from `Renderer<ARGB32>` through coverage masks produced by `Renderer<Mask8>` sources:
 
 ```cpp
 ARGB32::Pixel pixels[1024 * 1024];
 Raster<ARGB32> view(pixels, 1024, IntRect(0, 0, 1024, 1024), false);
-view |= Solid<ARGB32>(0xFFFF0000); // fill raster red
+Path rect;
+rect.addRect(IntRect(100, 100, 200, 200));
+PolygonMask mask(rect, view.calcBounds());
+view |= Solid<ARGB32>(0xFFFF0000) * mask;
 ```
 
 ### PolygonMask
@@ -242,7 +245,7 @@ star.dash(5.0, 2.0);
 - `RLERaster` compresses runs; memory usage varies with image content.
 - Paths with fewer than two points or zero-length segments yield zero coverage.
 - Color and coverage calculations use 8‑bit integer arithmetic with truncation.
-- Many routines assume coordinates roughly within -32768 to 32767; exceeding that range can overflow internal 16-bit accumulators or lose precision. Int operations clamp to 31-bit ranges (`IntRect` uses ±0x40000000).
+- Many routines assume coordinates roughly within -32768 to 32767; exceeding that range can overflow internal 16-bit accumulators or lose precision. `IntRect` stores 31-bit signed coordinates (`FULL_RECT` spans ±0x40000000); exceeding this may overflow.
 - Functions do not guarantee `noexcept` and may fail on allocation.
 
 ## Examples and Recipes
