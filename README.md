@@ -106,11 +106,11 @@ You can also try it live without cloning the repo:
 
 The repository includes several `.ivgfont` files converted from the following open-source fonts:
 
-- Source Sans Pro  
-- Source Serif Pro  
-- Source Code Pro  
+- Source Sans Pro
+- Source Serif Pro
+- Source Code Pro
 
-These fonts are licensed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL).
+These fonts are licensed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL). The full license text is available in `fonts/OFL.txt`.
 
 See [ivgfont Documentation](docs/ivgfont%20Documentation.md) for details on the font format and how
 to convert other fonts.
@@ -132,6 +132,6 @@ a "PikaScript").
 
 ## License
 
-This project is released under the [BSD 2-Clause License](LICENSE).  
-Fonts are distributed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL).
+This project is released under the [BSD 2-Clause License](LICENSE).
+Fonts are distributed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL); see `fonts/OFL.txt` for the full license text.
 
