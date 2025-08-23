@@ -152,7 +152,7 @@ const int RADIAL_SQRT_BITS = 12;
 /**
 	Microsoft still have problems with std::min and std::max (the old C macros sometimes get in the
 	way). Besides, in MSVC 8 they are a bit slow due to debugging stuff, even in release builds.
-*/
+**/
 template<typename T> T minValue(T a, T b) { return (a < b) ? a : b; }
 template<typename T> T maxValue(T a, T b) { return (a > b) ? a : b; }
 inline int roundToInt(double d) { return int(floor(d + 0.5)); }
@@ -466,7 +466,7 @@ inline void ARGB32::split(Pixel c, UInt8 components[COMPONENT_COUNT]) {
 }
 
 inline ARGB32::Pixel ARGB32::join(const UInt8 components[COMPONENT_COUNT]) {
-        return (components[0] << 24) | (components[1] << 16) | (components[2] << 8) | components[3];
+		return (components[0] << 24) | (components[1] << 16) | (components[2] << 8) | components[3];
 }
 
 /**
@@ -512,10 +512,10 @@ inline Mask8::Pixel Mask8::join(const UInt8 components[COMPONENT_COUNT]) { retur
 inline Mask8::Pixel convert(const ARGB32&, const Mask8&, ARGB32::Pixel source) { return source >> 24; }
 inline ARGB32::Pixel convert(const Mask8&, const ARGB32&, Mask8::Pixel source) { return (source << 24) | (source << 16) | (source << 8) | source; }
 /**
-       Span models a run of consecutive pixels. The run length and the "solid"
-       and "opaque" flags are packed into a 32-bit field. When the span is solid,
-       \p pixels points to a single color repeated for the entire run; otherwise
-       it addresses an array containing one pixel per position.
+	   Span models a run of consecutive pixels. The run length and the "solid"
+	   and "opaque" flags are packed into a 32-bit field. When the span is solid,
+	   \p pixels points to a single color repeated for the entire run; otherwise
+	   it addresses an array containing one pixel per position.
 **/
 
 template<class T> class Span {
@@ -541,14 +541,14 @@ template<class T> class Span {
 #endif
 
 /**
-       SpanBuffer stores runs of pixels in two parallel arrays. When a span of
-       length \p n is added, \p n entries are reserved in the span array. The
-       first entry holds the span itself while the last entry duplicates it so
-       the iterator can read the previous span's length when stepping
-       backwards. Entries in between are unused but make pointer arithmetic work
-       for both forward and backward iteration. Pixel data are appended to the
-       pixel array in tandem—a solid span stores one color, whereas a variable
-       span stores \p n colors.
+	   SpanBuffer stores runs of pixels in two parallel arrays. When a span of
+	   length \p n is added, \p n entries are reserved in the span array. The
+	   first entry holds the span itself while the last entry duplicates it so
+	   the iterator can read the previous span's length when stepping
+	   backwards. Entries in between are unused but make pointer arithmetic work
+	   for both forward and backward iteration. Pixel data are appended to the
+	   pixel array in tandem—a solid span stores one color, whereas a variable
+	   span stores \p n colors.
 **/
 template<class T> class SpanBuffer {
 	public:		class iterator;
@@ -799,10 +799,9 @@ class LinearAscend : public Renderer<Mask8> { // FIX : name? LinearMask, LinearA
 	public:		LinearAscend(double startX, double startY, double endX, double endY);
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<Mask8>& output) const;
-	protected:	double startX;
-	protected:	double startY;
-	protected:	double dx;
-	protected:	double dy;
+	protected:	int start;
+	protected:	int dx;
+	protected:	int dy;
 };
 
 /**

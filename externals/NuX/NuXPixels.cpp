@@ -22,6 +22,7 @@
 **/
 #include <math.h>
 #include <algorithm>
+#include <iostream>
 #include "NuXPixels.h"
 #include "NuXPixelsImpl.h"
 #if (NUXPIXELS_SIMD)
@@ -589,9 +590,9 @@ Path& Path::addStar(double centerX, double centerY, int points, double radius1, 
 struct StrokeSegment {
 	StrokeSegment(const Vertex& v = Vertex(), const Vertex& d = Vertex(), double l = 0.0)
 			: v(v), d(d), l(l) { }
-	Vertex v; ///< Start vertex.
-	Vertex d; ///< Delta vector per "width unit" (i.e. delta vector / length * width).
-	double l; ///< Length in "width units" (i.e. length / width).
+	Vertex v; /// Start vertex.
+	Vertex d; /// Delta vector per "width unit" (i.e. delta vector / length * width).
+	double l; /// Length in "width units" (i.e. length / width).
 };
 
 /**
@@ -674,7 +675,7 @@ static void strokeOneSide(Path& stroked, double direction, const StrokeSegment* 
 			stroked.lineTo(ax0 + adx * v, ay0 + ady * v);
 		} else {											// If lines do not cross, resort to a safe romb that fills correctly
 			stroked.lineTo(ax1, ay1);
-			// stroked.lineTo(bx0 - bdy, by0 + bdx); 		// would produce a slimmer join
+			// stroked.lineTo(bx0 - bdy, by0 + bdx);		// would produce a slimmer join
 			stroked.lineTo(bx0, by0);
 		}	
 	} else {
@@ -685,7 +686,7 @@ static void strokeOneSide(Path& stroked, double direction, const StrokeSegment* 
 				double w = (fabs(d) >= EPSILON) ? (ady * (ax0 - bx0) - adx * (ay0 - by0)) / d : 0.0;	// param along B
 				if (w > miterLimitW) {						// Intersection within miter limit?
 					stroked.lineTo(bx0 + bdx * w, by0 + bdy * w);
-				} else { 									// Clip to miter limit
+				} else {									// Clip to miter limit
 					stroked.lineTo(ax1 - adx * miterLimitW, ay1 - ady * miterLimitW);
 					stroked.lineTo(bx0 + bdx * miterLimitW, by0 + bdy * miterLimitW);
 				}
@@ -911,18 +912,17 @@ GammaTable::GammaTable(double gamma)
 /* --- LinearAscend --- */
 
 LinearAscend::LinearAscend(double startX, double startY, double endX, double endY)
-	: startX(startX)
-	, startY(startY)
 {
-	dx = endX - startX;
-	dy = endY - startY;
-	double l = sqrt(dx * dx + dy * dy);
+	double dx0 = endX - startX;
+	double dy0 = endY - startY;
+	double l = sqrt(dx0 * dx0 + dy0 * dy0);
 	if (l != 0) {
 		l = 1.0 / l;
 	}
 	l *= l * (1 << 16);
-	dx *= l;
-	dy *= l;
+	dx = roundToInt(dx0 * l);
+	dy = roundToInt(dy0 * l);
+	start = roundToInt(-startX * dx - startY * dy);
 }
 
 IntRect LinearAscend::calcBounds() const {
@@ -934,10 +934,10 @@ void LinearAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 	assert(0 < length && length <= MAX_RENDER_LENGTH);
 
 	// FIX : increase x resolution from 16 bits?
-	
-	double k0 = (x - startX) * dx + (y - startY) * dy;
-	int ki = int(k0);
-	int dk = int(dx);
+
+	int ki = start + x * dx + y * dy;
+	int dk = dx;
+
 	int i = 0;
 	while (i < length) {
 		if (ki <= 0 || ki >= (1 << 16) || dk == 0) {
@@ -1008,15 +1008,16 @@ IntRect RadialAscend::calcBounds() const
 void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) const
 {
 	assert(0 < length && length <= MAX_RENDER_LENGTH);
-	
+
 	// Calculate left and right edge of inner circle for this row.
-	
+
 	const double dy = y + 0.5 - centerY;
 	const double a = 1.0 - dy * dy / (height * height);
-	const double thisWidth = (a > EPSILON) ? width * sqrt(a) : 0;
-	const int leftEdge = minValue(maxValue(roundToInt(centerX - x - thisWidth), 0), length);
-	const int rightEdge = minValue(roundToInt(centerX - x + thisWidth), length);
-
+	const double rowWidth = (a > EPSILON) ? width * sqrt(a) : 0;
+	const double rowStart = (centerX - rowWidth);
+	const int leftEdge = minValue(maxValue(roundToInt(rowStart - x), 0), length);
+	const int rightEdge = minValue(roundToInt(rowStart + rowWidth * 2 - x), length);
+	
 	int i = 0;
 	while (i < length) {
 		if (i < leftEdge || i >= rightEdge) {
@@ -1026,22 +1027,38 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 			i = edge;
 		} else {
 			assert(i == leftEdge);
-			const double dx = x + i - centerX;
+						
+			const int rowStartInt = roundToInt(rowStart);
+			const double dx = rowStartInt - centerX;
 			const double dpp = 2.0 * wk;
 			const double dp = (2.0 * dx - 1.0) * wk + dpp * 0.5;
 			const double d = dy * dy * hk + dx * dx * wk + dp * 0.5;
-			const int dppi = roundToInt(dpp);
-			int dpi = roundToInt(dp);
-			int di = roundToInt(d);
+			assert(dpp >= 0.0);
+			const unsigned int dppi = roundToInt(dpp);
+
+			const int steps = x + i - rowStartInt;
+			assert(steps >= 0);
+			assert(steps < (1 << 16));
+			const int dp0 = roundToInt(dp);
 			
-			// Process in chunks of 4 pixels, increases performance by 30% or so.
+			// Calculate steps * (steps + 1) / 2 in a way that avoids overflow.
+			const int tri = ((steps & 1) != 0) ? steps * ((steps + 1) >> 1) : (steps >> 1) * (steps + 1);
+			int dpi = dp0 + steps * dppi;
+			int di = roundToInt(d) + steps * dp0 + dppi * tri;			
 			
-			// FIX : drop i here, we have the buffer pointer ya know
-			// FIX : or perhaps, drop the buffer pointer and use [i], nicer...
 			Mask8::Pixel* pixels = output.addVariable(rightEdge - leftEdge, false);
+			
+			// Lead up to next absolute x divisible by 4, to enforce identical output regardless of span length limits
+			while (((i + x) & 3) != 0 && i < rightEdge) {
+				const int z = minValue(maxValue(di, 0), (1 << 30) - 1);								// Clamp di to valid range.
+				const int precision = (z < (1 << (30 - 8))) << 2;									// Shift input and output (by 8 and 4 respectively) if z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
+				const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);			// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
+				*pixels++ = ((255 << precision) - 255 + sqrtTable[z >> sqrtShift]) >> precision;	// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
+				dpi += dppi;																		// Perform run-time integration of the derivate of di * di to avoid the integer multiplication.
+				di += dpi;
+				++i;
+			}
 			while (i + 4 <= rightEdge) {
-				// Perform run-time integration of the derivate of di * di to avoid the integer multiplication.
-				
 				int z0 = di;
 				dpi += dppi;
 				di += dpi;
@@ -1054,19 +1071,19 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 				int z3 = di;
 				dpi += dppi;
 				di += dpi;
-				
-				int allZ = z0 | z1 | z2 | z3;											// allZ is used to determine the resolution for the table lookup later on.
-				if ((allZ & ~((1 << 30) - 1)) != 0) {									// Check if any z was outside 0 <= z < (1 << 30) range, if so, clamp them all.
+
+				int allZ = z0 | z1 | z2 | z3;														// allZ is used to determine the resolution for the table lookup later on.
+				if ((allZ & ~((1 << 30) - 1)) != 0) {												// Check if any z was outside 0 <= z < (1 << 30) range, if so, clamp them all.
 					z0 = minValue(maxValue(z0, 0), (1 << 30) - 1);
 					z1 = minValue(maxValue(z1, 0), (1 << 30) - 1);
 					z2 = minValue(maxValue(z2, 0), (1 << 30) - 1);
 					z3 = minValue(maxValue(z3, 0), (1 << 30) - 1);
 					allZ = z0 | z1 | z2 | z3;
 				}
-				
-				if (allZ < (1 << (30 - 8))) {											// Shift input and output if maximum z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
-					const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - 8);					// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.					
-					pixels[0] = ((255 << 4) - 255 + sqrtTable[z0 >> sqrtShift]) >> 4;	// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.					
+
+				if (allZ < (1 << (30 - 8))) {														// Shift input and output if maximum z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
+					const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - 8); 							// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
+					pixels[0] = ((255 << 4) - 255 + sqrtTable[z0 >> sqrtShift]) >> 4;				// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
 					pixels[1] = ((255 << 4) - 255 + sqrtTable[z1 >> sqrtShift]) >> 4;
 					pixels[2] = ((255 << 4) - 255 + sqrtTable[z2 >> sqrtShift]) >> 4;
 					pixels[3] = ((255 << 4) - 255 + sqrtTable[z3 >> sqrtShift]) >> 4;
@@ -1081,13 +1098,11 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 				pixels += 4;
 				i += 4;
 			}
-			
-			// Do the last remaining pixels one by one.
-			
+
 			while (i < rightEdge) {
-				const int z = minValue(maxValue(di, 0), (1 << 30) - 1);									// Clamp di to valid range.
-				const int precision = (z < (1 << (30 - 8))) << 2;											// Shift input and output (by 8 and 4 respectively) if z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
-				const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);					// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
+				const int z = minValue(maxValue(di, 0), (1 << 30) - 1);								// Clamp di to valid range.
+				const int precision = (z < (1 << (30 - 8))) << 2;									// Shift input and output (by 8 and 4 respectively) if z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
+				const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);			// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
 				*pixels++ = ((255 << precision) - 255 + sqrtTable[z >> sqrtShift]) >> precision;	// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
 				dpi += dppi;																		// Perform run-time integration of the derivate of di * di to avoid the integer multiplication.
 				di += dpi;
@@ -1191,13 +1206,15 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 				seg.x = toFixed32_32(x0, 0);
 				seg.leftEdge = (x0 >> FRACT_BITS);
 				seg.dx = toFixed32_32(0, 0);
-				int coverageByX = 1 << ((COVERAGE_BITS + FRACT_BITS) - 1);
-				int dx = x1 - x0;
+				int coverageByX = 1 << (COVERAGE_BITS + FRACT_BITS);
+				const int dx = x1 - x0;
 				if (dx != 0) {
-					int dy = y1 - y0;
+					const int dy = y1 - y0;
 					seg.dx = divide(dx, dy);
-					Fixed32_32 dyByDx = divide(dy, abs(dx));
-					if (high32(dyByDx) < (1 << ((COVERAGE_BITS + FRACT_BITS) - 1))) {
+					assert(dy >= 0);
+					const Fixed32_32 dyByDx = divide(dy, abs(dx));
+					// if dy/|dx| < 1, use floor(2^T * dy/|dx|); else keep the saturated default
+					if (high32(dyByDx) == 0) {
 						coverageByX = high32(shiftLeft(dyByDx, COVERAGE_BITS + FRACT_BITS));
 					}
 				}
@@ -1413,7 +1430,7 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 					// Enters from CLIP-LEFT: precharge boundary 0 with area up to it, then start at column 0.
 					seg->leftEdge = 0;
 					covered = (minValue(rightCol, 0) - leftCol) * coverageByX;
-					covered -= leftSub * coverageByX >> FRACT_BITS;
+					covered += -leftSub * coverageByX >> FRACT_BITS;
 					coverageDelta[0] += covered;
 					leftCol = 0;
 				} else {
@@ -1426,14 +1443,29 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 					coverageDelta[leftCol + 1] += covered - coverage;
 					++leftCol;
 				}
-				const int colCount = minValue(rightCol, length - 1) - leftCol;
-				// Interior columns: uniform slope contribution -> boundary deltas follow 1/2,1,...,1,1/2 pattern.
-				if (colCount > 0) {
-					coverageDelta[leftCol + 0] += (coverageByX >> 1);
-					for (int col = leftCol + 1; col < leftCol + colCount; ++col) {
-						coverageDelta[col] += coverageByX;
+				const int colCount = rightCol - leftCol; // minValue(rightCol, length - 1) - leftCol;
+				assert(colCount >= 0);
+				if (rightCol >= length) {
+					if (colCount > 0) {
+						coverageDelta[leftCol + 0] += (coverageByX >> 1);
+						for (int col = leftCol + 1; col < leftCol + colCount; ++col) {
+							if (col < length) {
+								coverageDelta[col] += coverageByX;
+							}
+						}
+						if (leftCol + colCount < length) {
+							coverageDelta[leftCol + colCount] += coverageByX - (coverageByX >> 1);
+						}
 					}
-					coverageDelta[leftCol + colCount] += coverageByX - (coverageByX >> 1);
+				} else {
+					// Interior columns: uniform slope contribution -> boundary deltas follow 1/2,1,...,1,1/2 pattern.
+					if (colCount > 0) {
+						coverageDelta[leftCol + 0] += (coverageByX >> 1);
+						for (int col = leftCol + 1; col < leftCol + colCount; ++col) {
+							coverageDelta[col] += coverageByX;
+						}
+						coverageDelta[leftCol + colCount] += coverageByX - (coverageByX >> 1);
+					}
 				}
 				if (rightCol < length) {
 					// Right edge INSIDE span: spend what's left ('remaining - covered - interiors') in the right PARTIAL pixel.
