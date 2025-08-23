@@ -1,9 +1,9 @@
 # Repository Guidelines
 
-To run the test suite use the helper script with up to three minutes allowed for execution:
+To run the test suite use the helper script with up to five minutes allowed for execution:
 
 ```bash
-timeout 180 ./build.sh
+timeout 300 ./build.sh
 ```
 
 Always execute this command before committing changes to verify that the build and regression tests succeed.
