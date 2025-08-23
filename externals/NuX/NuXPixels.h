@@ -819,10 +819,8 @@ class RadialAscend : public Renderer<Mask8> {
 	protected:	double centerY;
 	protected:	double width;
 	protected:	double height;
-	protected:	int hk;
-	protected:	int wk;
-	protected:	int centerXi;
-	protected:	int centerYi;
+	protected:	double hk;
+	protected:	double wk;
 	protected:	static Mask8::Pixel sqrtTable[1 << RADIAL_SQRT_BITS];
 };
 
