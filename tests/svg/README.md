@@ -1,7 +1,7 @@
 # svg2ivg Test Cases
 
 ## Running the Converter
-Build PikaScript via `timeout 180 ./build.sh` from the repository root, then run the converter from its folder so `xmlMini.ppeg` can be found:
+Build PikaScript via `timeout 300 ./build.sh` from the repository root, then run the converter from its folder so `xmlMini.ppeg` can be found:
 
 ```
 cd tools/svg2ivg
