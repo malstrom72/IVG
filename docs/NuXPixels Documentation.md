@@ -2,10 +2,11 @@
 
 ## Table of Contents
 - [Intro](#intro)
+- [Quickstart](#quickstart)
 - [Data types](#data-types)
   - [Points and Rectangles](#points-and-rectangles)
   - [Colors](#colors)
-  - [AffineTransformations](#affinetransformations)
+  - [AffineTransformation](#affinetransformation)
 - [Rendering pipeline](#rendering-pipeline)
   - [Raster and Renderer](#raster-and-renderer)
   - [PolygonMask](#polygonmask)
@@ -14,17 +15,36 @@
   - [RLERaster](#rleraster)
   - [Operator overloading](#operator-overloading-and-pull-model)
 - [Path construction](#path-construction)
+- [Limits and Safety](#limits-and-safety)
 - [Examples](#examples)
 ## Intro
 
-_NuXPixels_ is a small C++ library for 2D graphics rendering. It is designed to be self contained with no operating system dependencies and is used by the IVG engine to produce pixel rasters. The library focuses on a minimal API with high quality anti‑aliasing and can operate entirely in memory.
+_NuXPixels_ is a small C++ library for 2D graphics rendering. It is designed to be self contained with no operating system dependencies and focuses on a minimal API with high quality anti‑aliasing. The renderer operates entirely in memory.
+
+## Quickstart
+
+```cpp
+#include "NuXPixels.h"
+using namespace NuXPixels;
+
+int main() {
+	SelfContainedRaster<ARGB32> canvas(IntRect(0, 0, 64, 64));
+	canvas |= Solid<ARGB32>(0xFFFF0000); // red
+	FILE* f = fopen("out.raw", "wb");
+	fwrite(canvas.getPixelPointer(), sizeof(ARGB32::Pixel), 64 * 64, f);
+	fclose(f);
+	return 0;
+}
+```
+
+Compile with `g++ example.cpp -std=c++17` (or a similar C++17 compiler command).
 
 ## Data types
 
 ### Points and Rectangles
 `NuXPixels` defines generic `Point<T>` and `Rect<T>` templates for integer and floating point coordinates. Convenience typedefs such as `IntPoint`, `IntRect` and `Vertex` (a double precision point) are available for common use.
 
-`Rect<T>` provides helpers like `offset`, `calcUnion` and `calcIntersection` to manipulate regions.
+`Rect<T>` uses half‑open bounds `[left, left+width) × [top, top+height)` and expects non‑negative `width` and `height`. When rectangles only touch at an edge the intersection is empty. Coordinates are 31‑bit signed integers; `FULL_RECT` spans ±0x40000000. `Rect<T>` provides helpers like `offset`, `calcUnion` and `calcIntersection` to manipulate regions.
 These operations simplify clipping logic:
 
 ```cpp
@@ -34,37 +54,37 @@ IntRect clipped = a.calcIntersection(b);
 ```
 
 ### Colors
-The library ships with a few pixel formats. `ARGB32` stores premultiplied 8‑bit channels and provides helpers like `isOpaque`, `add`, `blend` and `fromFloatRGB`. A lightweight `Mask8` type is used when rendering coverage masks.
+The library ships with a few pixel formats. `ARGB32` stores premultiplied 8‑bit channels in `0xAARRGGBB` order (little‑endian machines lay the bytes out as BB GG RR AA). Blending follows `dst + src - dst * srcA / 255`. Colors are assumed sRGB and math is performed on premultiplied channels in linear space. A lightweight `Mask8` type is used when rendering coverage masks.
 
-`ARGB32` also includes `multiply` and `interpolate` utilities for pixel arithmetic. A color can be
-constructed from floats and then modulated:
+`ARGB32` also includes `multiply` and `interpolate` utilities for pixel arithmetic. A color can be constructed from floats and then modulated:
 
 ```cpp
-ARGB32::Pixel p = ARGB32::fromFloatRGB(1.0, 0.0, 0.0, 0.5);
-ARGB32::Pixel dark = ARGB32::multiply(p, 128);
+ARGB32::Pixel p = ARGB32::fromFloatRGB(1.0, 0.0, 0.0, 0.5); // 50% red
+ARGB32::Pixel dark = ARGB32::multiply(p, 128);               // scale alpha & rgb by 128/255
+// If using a literal, red opaque is 0xFFFF0000, blue is 0xFF0000FF.
 ```
 
-### AffineTransformations
+### AffineTransformation
 `AffineTransformation` represents 2×3 matrices for translation, scaling, rotation and shearing. Transformations can be composed with the `transform()` function and applied to vertices or paths.
 
 Chained calls build complex transforms in a readable manner:
 
 ```cpp
 AffineTransformation t = AffineTransformation()
-    .translate(20, 10)
-    .scale(2)
-    .rotate(0.25 * M_PI);
+	.translate(20, 10)
+	.scale(2)
+	.rotate(0.25 * M_PI);
 ```
+
+Transforms are post‑multiplied (points are column vectors), so `translate().scale().rotate()` means rotate, then scale, then translate in object space. Angles are specified in radians.
 
 ## Rendering pipeline
 
 ### Raster and Renderer
 All drawing is expressed through `Renderer` templates that generate spans of
-pixel data. A span represents a contiguous horizontal run of pixels with identical
-coverage or color. `Raster<T>` collects the result in a client supplied buffer
-while `SelfContainedRaster<T>` manages its own memory. Canvases in IVG typically
-blend color data from `Renderer<ARGB32>` through coverage masks produced by
-`Renderer<Mask8>` sources.
+pixel data. A span models a contiguous horizontal run. When marked *solid* the
+span stores one pixel value repeated for the entire run; otherwise it carries an
+array of per-pixel values, allowing coverage or color to vary. `Raster<T>` collects the result in a client supplied buffer while `SelfContainedRaster<T>` manages its own memory. A typical pipeline blends color data from `Renderer<ARGB32>` through coverage masks produced by `Renderer<Mask8>` sources.
 
 ```cpp
 ARGB32::Pixel pixels[256 * 256];
@@ -72,9 +92,23 @@ Raster<ARGB32> view(pixels, 256, IntRect(0, 0, 256, 256), false);
 ```
 
 ### PolygonMask
-`PolygonMask` is the workhorse renderer for filling shapes. Given a vector `Path` and an optional fill rule, it converts the geometry into a scanline coverage mask (`Renderer<Mask8>`). Paint sources such as solid colors or gradients are then blended through this mask onto the destination raster. Most higher level drawing operations in NuXPixels build a `PolygonMask` internally and render it row by row from top to bottom. Both even‑odd and non‑zero winding rules are supported. The constructor also accepts an optional clip rectangle (defaulting to `FULL_RECT`); the rectangle is clamped to the maximum coordinate range supported by the rasterizer.
+`PolygonMask` is the workhorse renderer for filling paths. Given a vector `Path`
+and an optional fill rule, it converts the geometry into a scanline coverage mask
+(`Renderer<Mask8>`). Paint sources such as solid colors or gradients are then
+blended through this mask onto the destination raster. It powers path filling and
+stroking, processing scanlines sequentially from top to bottom. Coverage values
+range 0–255 from an 8×8 area-sampling kernel. Both even‑odd and non‑zero winding
+rules are exact. The constructor also accepts an optional clip rectangle
+(defaulting to `FULL_RECT`); the rectangle is clamped to the maximum coordinate
+range supported by the rasterizer and applied before rasterization.
 
-Although designed for sequential rendering, a mask can now be rewound to its initial state with `PolygonMask::rewind()`. Random access is possible by invoking `rewind()` whenever a lower row needs to be revisited, after which rendering can continue from any scanline. Requests outside the mask's clipped bounds simply yield transparent coverage without rewinding. Rewinding requires the rasterizer to re‑sort its segments and clear internal buffers, so jumping around freely is slower than processing rows in order.
+Although designed for sequential rendering, a mask can be rewound to its initial
+state with `PolygonMask::rewind()`. Random access is possible by invoking
+`rewind()` whenever a lower row needs to be revisited, after which rendering can
+continue from any scanline. Requests outside the mask's clipped bounds simply
+yield transparent coverage without rewinding. Rewinding re‑sorts segments and
+clears internal buffers; its cost grows with the number of path edges, so jumping
+around freely is slower than processing rows in order.
 
 Further details on the algorithm, design trade‑offs and pseudo‑code are available in `PolygonMask Rasterizer.md`.
 
@@ -87,10 +121,16 @@ provides a `GammaTable` for simple tone adjustments.
 
 ```cpp
 Gradient<ARGB32>::Stop stops[] = {
-    {0.0, 0xff0000ff}, {1.0, 0xffffffff}
+	{0.0, 0xFF0000FF},// blue
+	{1.0, 0xFFFFFFFF}// white
 };
 Gradient<ARGB32> grad(2, stops);
- canvas |= grad[LinearAscend(0, 0, 0, 100)];
+canvas |= grad[LinearAscend(0, 0, 0, 100)];
+
+Gradient<ARGB32>::Stop stops2[] = {
+	{0.0, 0xFFFF0000},// red
+	{1.0, 0xFFFFFFFF}
+};
 ```
 
 > **Warning:** `Gradient::operator[]` keeps a reference to the mask renderer. Passing a temporary
@@ -112,7 +152,8 @@ transformation and optional wrapping.
 
 ```cpp
 Texture<ARGB32> tex(image, true, AffineTransformation().scale(0.5));
-canvas |= tex * mask;
+canvas |= tex * mask; // Defaults: bilinear filter, wrap repeat
+// Clamp with wrap=false; sampling happens in premultiplied space.
 ```
 
 ### RLERaster
@@ -123,6 +164,8 @@ masks so that complex paths need not be rasterized repeatedly.
 RLERaster<Mask8> cache(area, mask);
 canvas |= Solid<ARGB32>(color) * cache;
 ```
+
+Runs encode either a solid pixel or a block of per‑pixel data. Each span stores a 16‑bit header plus optional pixel payload, preserving partial alpha. Memory footprint is typically 20–60% of an uncompressed raster depending on image coherence.
 
 ### Operator overloading and pull model
 Renderers can be combined with `*`, `+`, `|`, `+=`, `*=`, and `|=` operators.
@@ -135,6 +178,8 @@ Because drawing is demand driven, NuXPixels can optimize away work in real time.
 Opaque spans automatically block processing of any renderers beneath them since
 those pixels are invisible. This culling happens per span and keeps the renderer
 efficient even with many layers.
+
+Operator precedence follows C++ rules: `*` binds tighter than `|`. The `|` operator blends the right renderer over the left; it is not a bitwise OR.
 
 ### Lifetime of renderers
 Most renderer types store references to the objects passed into their
@@ -158,6 +203,16 @@ This rule applies to all expressions in NuXPixels—`PolygonMask`, `Texture`,
 statement or keep each renderer alive for as long as any derived renderer uses
 it.
 
+Even types that are trivially copyable still reference external data; treat renderers as views rather than owning objects.
+
+| Renderer | References | Ownership |
+|---|---|---|
+| Solid<T> | none | value |
+| Texture<T> | source `Raster<T>` | no |
+| PolygonMask | `Path`, `FillRule` | no |
+| Gradient<T> | copy of stops | table |
+| RLERaster<T> | none | owns span/pixel arrays |
+
 ## Path construction
 `Path` is a sequence of drawing commands supporting lines, quadratic and cubic curves. It can be modified with helper methods like `addRect`, `addEllipse`, `addRoundedRect` and `stroke`. Paths operate in double precision and can be transformed with an `AffineTransformation` before rendering.
 
@@ -168,6 +223,7 @@ star.stroke(3.0, Path::ROUND, Path::MITER);
 star.dash(5.0, 2.0);
 ```
 
+`stroke(width, endCaps, joints, miterLimit, curveQuality)` defaults to a miter limit of `2.0`. `EndCapStyle` may be `BUTT`, `ROUND`, or `SQUARE`; `JointStyle` is `BEVEL`, `CURVE`, or `MITER`. `dash(dashLength, gapLength, dashOffset)` alternates drawn and skipped segments starting at `dashOffset`; fractional lengths are allowed.
 
 ## Examples
 
@@ -202,3 +258,13 @@ texCanvas |= grad[RadialAscend(32, 32, 32, 32)];
 Texture<ARGB32> tex(texCanvas, true);
 canvas |= tex * mask;
 ```
+
+## Limits and Safety
+
+- Maximum span length is 256 pixels (`MAX_RENDER_LENGTH`).
+- Coordinates are 31‑bit signed; `FULL_RECT` defines the valid range.
+- Texture sampling outside the source repeats when `wrap=true` and returns transparent pixels when `wrap=false`.
+- Renderers and rasters are not thread‑safe; do not render the same instance from multiple threads simultaneously.
+- `PolygonMask::rewind()` re‑sorts segments; cost grows with edge count (≈O(n log n)).
+- `RLERaster` memory footprint is roughly 20–60% of raw raster size.
+- Degenerate paths yield zero coverage. Extremely large coordinates or NaN/Inf values lead to undefined results. Functions do not guarantee `noexcept` and may fail on allocation.

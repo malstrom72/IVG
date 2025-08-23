@@ -74,10 +74,23 @@ instructions when available.
 
 ## Helper Scripts
 
-- `build.sh` / `build.cmd` – build both the **beta** and **release** targets and run all tests  
+- `build.sh` / `build.cmd` – build both the **beta** and **release** targets and run all tests
 - `tools/updateIVGTests.sh` / `.cmd` – regenerate golden PNGs from all `.ivg` test files
 - `tools/updateDocumentation.sh` – rebuild HTML documentation using Pandoc and PikaScript
   (Mac / Linux only)
+
+## svg2ivg
+
+`svg2ivg` converts a subset of SVG into IVG's ImpD language. The Node.js script
+resides at `tools/svg2ivg/svg2ivg.js` and is invoked as:
+
+```
+node tools/svg2ivg/svg2ivg.js input.svg [output.ivg] [defaultWidth,defaultHeight]
+```
+
+Omitting `output.ivg` prints the converted ImpD to stdout. See
+[docs/SVG Support.md](docs/SVG%20Support.md) for supported features and
+`tests/svg` for sample inputs.
 
 ## IVGFiddle
 
