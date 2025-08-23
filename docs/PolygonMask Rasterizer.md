@@ -36,6 +36,9 @@ for each row y:
 	- `segsVertically`: by `topY` (activation order).
 	- `segsHorizontally`: by `leftEdge` (x order for the current row).
 
+- Row buffer:
+	- `coverageDelta`: length `min(bounds.width + 1, MAX_RENDER_LENGTH + 1)` with guard element at index `length`.
+
 ## Row pipeline (per call to `render(x, y, length, output)`)
 
 1) **Clip** the requested `[x, x+length)` span and vertical row `y` to `bounds`. Emit transparent for clipped parts.
@@ -100,18 +103,19 @@ for each row y:
 					++leftCol
 					```
 
-			- **Interior columns** (uniform slope across pixels):
-				```
-				colCount = min(rightCol, length-1) - leftCol
-				if (colCount > 0) {
-					coverageDelta[leftCol + 0] += (coverageByX >> 1)
-					for (int col = leftCol + 1; col < leftCol + colCount; ++col) {
-						coverageDelta[col] += coverageByX
-					}
-					coverageDelta[leftCol + colCount] += coverageByX - (coverageByX >> 1)
+		- **Interior columns** (uniform slope across pixels):
+			```
+			colCount = rightCol - leftCol
+			if (colCount > 0) {
+				coverageDelta[leftCol + 0] += (coverageByX >> 1)
+				end = min(leftCol + colCount, length)
+				for (int col = leftCol + 1; col < end; ++col) {
+					coverageDelta[col] += coverageByX
 				}
-				```
-				This is the trapezoidal ½, 1, …, 1, ½ pattern in **slope-delta** form.
+				coverageDelta[end] += coverageByX - (coverageByX >> 1)
+			}
+			```
+			This is the trapezoidal ½, 1, …, 1, ½ pattern in **slope-delta** form.
 
 			- **Right edge** (if inside buffer): spend the remaining area in the right partial column:
 				```
@@ -149,12 +153,23 @@ for each row y:
 
 		- **Edge span** from current `leftEdge` to the merged `rightEdge`:
 			```
-			for (int i = col; i < nx; ++i) {
-				coverageAcc += coverageDelta[i]
-				coverageDelta[i] = coverageAcc  // reuse as area buffer for this span
+			nx = segsHorizontally[integrateIndex]->rightEdge
+			while (integrateIndex + 1 < engagedEnd
+					&& nx + 4 >= segsHorizontally[integrateIndex + 1]->leftEdge) {
+				++integrateIndex
+				nx = max(segsHorizontally[integrateIndex]->rightEdge, nx)
 			}
+			++integrateIndex
+			spanLength = nx - col
+			for (int i = 0; i < spanLength; ++i) {
+				coverageAcc += coverageDelta[col + i]
+				coverageDelta[col + i] = coverageAcc  // reuse as area buffer for this span
+			}
+			pixels = output.addVariable(spanLength, false)
 			fillRule.processCoverage(spanLength, &coverageDelta[col], pixels)
-			memset(&coverageDelta[col], 0, spanLength * sizeof(coverageDelta[0]))
+			for (int i = 0; i < spanLength; ++i) {
+				coverageDelta[col + i] = 0
+			}
 			```
 
 	- Clear guard each row:
