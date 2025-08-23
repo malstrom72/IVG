@@ -63,7 +63,7 @@ You will need a standard C++ compiler.
 
 ## Build & Test
 
-Run `./build.sh` (or `build.cmd` on Windows) from the repository root. This builds the renderer
+Run `bash build.sh` (or `build.cmd` on Windows) from the repository root. This builds the renderer
 tools and runs the regression tests.
 
 Both the **beta** and **release** targets are compiled with optimizations enabled. The **beta**
