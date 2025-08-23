@@ -73,7 +73,7 @@ IntRect clipped = a.calcIntersection(b);
 The library ships with a few pixel formats. `ARGB32` stores premultiplied 8‑bit channels in `0xAARRGGBB` order. A lightweight `Mask8` type carries 8‑bit coverage when rendering masks.
 
 ### Color Math
-Blending follows the conventional `dst * (255 - srcA) / 255 + src` equation on premultiplied channels. Intermediate arithmetic uses integer math with truncation, so channel multiplications round toward zero. `ARGB32` provides utilities such as `add`, `multiply` and `interpolate` for pixel arithmetic. A color can be constructed from floats and then modulated:
+Pixels are interpreted as sRGB and all arithmetic happens in that gamma space; no linear conversion is performed. Blending follows the conventional `dst * (255 - src.a) / 255 + src` equation on premultiplied channels, where `src.a` is the source alpha (0–255). Intermediate arithmetic uses integers with truncation, so channel multiplications round toward zero. `ARGB32` provides utilities such as `add`, `multiply` and `interpolate` for pixel arithmetic. A color can be constructed from floats and then modulated:
 
 ```cpp
 ARGB32::Pixel p = ARGB32::fromFloatRGB(1.0, 0.0, 0.0, 0.5); // 50% red
@@ -108,6 +108,7 @@ span also flags opaque or transparent runs to enable culling. Spans longer than
 ```cpp
 ARGB32::Pixel pixels[1024 * 1024];
 Raster<ARGB32> view(pixels, 1024, IntRect(0, 0, 1024, 1024), false);
+view |= Solid<ARGB32>(0xFFFF0000); // fill raster red
 ```
 
 ### PolygonMask
@@ -234,14 +235,14 @@ star.dash(5.0, 2.0);
 ## Limits and Safety
 
 - Maximum span length is 256 pixels (`MAX_RENDER_LENGTH`); longer runs are split automatically.
-- `IntRect` uses 31‑bit signed coordinates (`FULL_RECT`); floating types rely on `double` and extremely large values may overflow.
+- `IntRect` uses 31‑bit signed coordinates (`FULL_RECT`); floating types use `double` values.
 - Texture sampling outside the source repeats when `wrap=true` and returns transparent black (`0x00000000`) when `wrap=false`.
 - Renderers and rasters are not thread‑safe; use separate instances on different threads.
 - Requesting scanlines out of order forces `PolygonMask` to rewind and resort edges, which is slower than sequential rendering.
 - `RLERaster` compresses runs; memory usage varies with image content.
 - Paths with fewer than two points or zero-length segments yield zero coverage.
 - Color and coverage calculations use 8‑bit integer arithmetic with truncation.
-- Geometry and transform math use double precision and may overflow or produce NaN on extreme coordinates or invalid transforms.
+- Many routines assume coordinates roughly within -32768 to 32767; exceeding that range can overflow internal 16-bit accumulators or lose precision. Int operations clamp to 31-bit ranges (`IntRect` uses ±0x40000000).
 - Functions do not guarantee `noexcept` and may fail on allocation.
 
 ## Examples and Recipes
@@ -251,14 +252,14 @@ A short example shows how the operator overloads work together:
 ```cpp
 using namespace NuXPixels;
 
-SelfContainedRaster<ARGB32> canvas(IntRect(0, 0, 256, 256));
+SelfContainedRaster<ARGB32> canvas(IntRect(0, 0, 64, 64));
 
 Path rect;
-rect.addRect(IntRect(50, 50, 150, 150));
+rect.addRect(IntRect(8, 8, 48, 48));
 PolygonMask mask(rect, canvas.calcBounds());
 
 // Multiply the coverage mask with a solid color and alpha-blend onto the canvas
-canvas |= Solid<ARGB32>(ARGB32::fromFloatRGB(1.0, 0.0, 0.0, 0.8)) * mask;
+canvas |= Solid<ARGB32>(0xFFFF0000) * mask;
 ```
 Here `*` multiplies the color renderer with the `PolygonMask`, producing
 `Renderer<ARGB32>` spans masked by the polygon coverage. The resulting renderer
@@ -266,6 +267,8 @@ is then blended onto `canvas` with `|=`. The entire expression becomes a pull
 pipeline: the canvas requests pixels, which asks the mask for coverage, which in
 turn iterates the path only for the visible spans. Similar expressions can chain
 gradients or multiple masks together.
+
+This program (including file output) is available as `tests/red_square.cpp`.
 
 Another example uses a texture and gradient:
 
