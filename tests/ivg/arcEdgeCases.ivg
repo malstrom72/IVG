@@ -6,7 +6,7 @@ WIPE white
 fill none
 pen black width:1
 
-// --- helpers (0-based arguments) ---
+// --- helpers (0-based args) ---
 chord = call [
 	pen gray width:0.6
 	PATH svg:[M {$0} {$1} L {$2} {$3}]
@@ -22,95 +22,95 @@ cell = call [
 	]
 ]
 
-// #1 λ-scaling required (padded)
+// -- #1
 $cell 10 10 [
-	$chord 12 12 272 12
-	$markStart 12 12
-	$markEnd 272 12
+	$chord 50 100 250 100
+	$markStart 50 100
+	$markEnd 250 100
 	pen black width:1
-	PATH svg:[M 12 12 A 30 10 0 0 0 272 12]
+	PATH svg:[M 50 100 A 30 10 0 0 0 250 100]
 ]
 
-// #2 λ-scaling with rotation
+// -- #2 (rotation 45°, shorter chord)
 $cell 310 10 [
-	$chord 12 12 272 12
-	$markStart 12 12
-	$markEnd 272 12
+	$chord 60 100 240 100
+	$markStart 60 100
+	$markEnd 240 100
 	pen black width:1
-	PATH svg:[M 12 12 A 30 10 45 0 0 272 12]
+	PATH svg:[M 60 100 A 12 12 45 0 0 240 100]
 ]
 
-// #3 acos clamp (near-straight)
+// -- #3 (near-straight + acos clamp case)
 $cell 10 210 [
-	$chord 12 12 212 12
-	$markStart 12 12
-	$markEnd 212 12
+	$chord 70 100 230 100
+	$markStart 70 100
+	$markEnd 230 100
 	pen black width:1
-	PATH svg:[M 12 12 A 100000 100000 0 0 1 212 12.000001]
+	PATH svg:[M 70 100 A 100000 100000 0 0 1 230 100.000001]
 ]
 
-// #4 four distinct flag combos
+// -- #4 (four flag combos)
 $cell 310 210 [
-	$chord 62 62 262 62
-	$markStart 62 62
-	$markEnd 262 62
+	$chord 60 100 240 100
+	$markStart 60 100
+	$markEnd 240 100
 	pen black width:1
-	PATH svg:[M 62 62 A 40 30 0 0 0 262 62]
-	PATH svg:[M 62 62 A 40 30 0 0 1 262 62]
-	PATH svg:[M 62 62 A 40 30 0 1 0 262 62]
-	PATH svg:[M 62 62 A 40 30 0 1 1 262 62]
+	PATH svg:[M 60 100 A 35 25 0 0 0 240 100]
+	PATH svg:[M 60 100 A 35 25 0 0 1 240 100]
+	PATH svg:[M 60 100 A 35 25 0 1 0 240 100]
+	PATH svg:[M 60 100 A 35 25 0 1 1 240 100]
 ]
 
-// #5 degenerate radii -> straight line
+// -- #5 (degenerate radii -> straight)
 $cell 10 410 [
-	$chord 22 22 272 22
-	$markStart 22 22
-	$markEnd 272 22
+	$chord 70 100 230 100
+	$markStart 70 100
+	$markEnd 230 100
 	pen black width:1
-	PATH svg:[M 22 22 A 0 50 0 0 1 272 22]
+	PATH svg:[M 70 100 A 0 40 0 0 1 230 100]
 ]
 
-// #6 coincident endpoints -> nothing
+// -- #6 (coincident endpoints)
 $cell 310 410 [
-	$markStart 158 112
-	$markEnd 158 112
+	$markStart 150 100
+	$markEnd 150 100
 	pen black width:1
-	PATH svg:[M 158 112 A 50 20 0 1 1 158 112]
+	PATH svg:[M 150 100 A 40 15 0 1 1 150 100]
 ]
 
-// #7 CW vs CCW must be opposite
+// -- #7 (CW vs CCW)
 $cell 10 610 [
-	$chord 112 112 52 112
-	$markStart 112 112
-	$markEnd 52 112
+	$chord 200 100 100 100
+	$markStart 200 100
+	$markEnd 100 100
 	pen black width:1
-	PATH svg:[M 112 112 A 60 60 0 0 1 52 112]
-	PATH svg:[M 112 112 A 60 60 0 0 0 52 112]
+	PATH svg:[M 200 100 A 50 50 0 0 1 100 100]
+	PATH svg:[M 200 100 A 50 50 0 0 0 100 100]
 ]
 
-// #8 rotation ~90°
+// -- #8 (rotation ≈90°, tuned to avoid λ-scaling blow-up)
 $cell 310 610 [
-	$chord 12 12 212 12
-	$markStart 12 12
-	$markEnd 212 12
+	$chord 50 100 250 100
+	$markStart 50 100
+	$markEnd 250 100
 	pen black width:1
-	PATH svg:[M 12 12 A 80 20 89.9999 0 1 212 12]
+	PATH svg:[M 50 100 A 10 12 89.9999 0 1 250 100]
 ]
 
-// #9 tiny delta, large-arc=1 sweep=1 -> long arc
+// -- #9 (tiny delta, large-arc=1 sweep=1)
 $cell 10 810 [
-	$chord 12 12 12.001 12
-	$markStart 12 12
-	$markEnd 12.001 12
+	$chord 150 100 150.001 100
+	$markStart 150 100
+	$markEnd 150.001 100
 	pen black width:1
-	PATH svg:[M 12 12 A 50 50 0 1 1 12.001 12]
+	PATH svg:[M 150 100 A 40 40 0 1 1 150.001 100]
 ]
 
-// #10 rx!=ry + rotation (export sanity)
+// -- #10 (rx!=ry + rotation; export sanity)
 $cell 310 810 [
-	$chord 32 32 292 192
-	$markStart 32 32
-	$markEnd 292 192
+	$chord 70 50 230 150
+	$markStart 70 50
+	$markEnd 230 150
 	pen black width:1
-	PATH svg:[M 32 32 A 100 40 30 1 0 292 192]
+	PATH svg:[M 70 50 A 80 35 30 1 0 230 150]
 ]
