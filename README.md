@@ -1,7 +1,7 @@
 # IVG
 
-IVG (Imperative Vector Graphics) is a compact, dependency-free 2D vector format and renderer written
-in standard C++. Graphics are described using the small imperative language **ImpD**, which
+IVG (Imperative Vector Graphics) is a compact, dependency-free 2D vector format and renderer
+written in standard C++. Graphics are described using the small imperative language **ImpD**, which
 supports variables and control flow for defining procedural images.
 
 The renderer is built on the included **NuXPixels** rasterizer and provides high-quality
@@ -112,10 +112,15 @@ The repository includes several `.ivgfont` files converted from the following op
 - Source Serif Pro
 - Source Code Pro
 
-These fonts are licensed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL). The full license text is available in `fonts/OFL.txt`.
+These fonts are licensed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL). The
+full license text is available in `fonts/OFL.txt`.
 
-See [ivgfont Documentation](docs/ivgfont%20Documentation.md) for details on the font format and how
-to convert other fonts.
+See [ivgfont Documentation](docs/ivgfont%20Documentation.md) for details on the font format and
+how to convert other fonts.
+
+Font parsing for the converter relies on the [Typr.ts](https://github.com/fredli74/Typr.ts) library
+by Fredrik Lidström, a TypeScript wrapper around the legacy
+[Typr.js](https://github.com/photopea/Typr.js) from 2020, both MIT-licensed.
 
 ## Documentation
 
@@ -135,5 +140,5 @@ a "PikaScript").
 ## License
 
 This project is released under the [BSD 2-Clause License](LICENSE).
-Fonts are distributed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL); see `fonts/OFL.txt` for the full license text.
-
+Fonts are distributed under the [SIL Open Font License 1.1](https://scripts.sil.org/OFL); see
+`fonts/OFL.txt` for the full license text.

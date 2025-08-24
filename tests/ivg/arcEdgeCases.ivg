@@ -1,0 +1,116 @@
+FORMAT IVG-1 requires:IMPD-1
+BOUNDS 0,0,600,1000
+
+reset
+WIPE white
+fill none
+pen black width:1
+
+// --- helpers (0-based arguments) ---
+chord = call [
+	pen gray width:0.6
+	PATH svg:[M {$0} {$1} L {$2} {$3}]
+]
+markStart = call [ fill black; pen none; RECT {$0-2},{$1-2},4,4 ]
+markEnd   = call [ fill none; pen black width:1; RECT {$0-2},{$1-2},4,4 ]
+cell = call [
+	context [
+		offset $0,$1
+		pen gray width:1
+		RECT 0,0,300,200
+		$2
+	]
+]
+
+// #1 λ-scaling required (padded)
+$cell 10 10 [
+	$chord 12 12 272 12
+	$markStart 12 12
+	$markEnd 272 12
+	pen black width:1
+	PATH svg:[M 12 12 A 30 10 0 0 0 272 12]
+]
+
+// #2 λ-scaling with rotation
+$cell 310 10 [
+	$chord 12 12 272 12
+	$markStart 12 12
+	$markEnd 272 12
+	pen black width:1
+	PATH svg:[M 12 12 A 30 10 45 0 0 272 12]
+]
+
+// #3 acos clamp (near-straight)
+$cell 10 210 [
+	$chord 12 12 212 12
+	$markStart 12 12
+	$markEnd 212 12
+	pen black width:1
+	PATH svg:[M 12 12 A 100000 100000 0 0 1 212 12.000001]
+]
+
+// #4 four distinct flag combos
+$cell 310 210 [
+	$chord 62 62 262 62
+	$markStart 62 62
+	$markEnd 262 62
+	pen black width:1
+	PATH svg:[M 62 62 A 40 30 0 0 0 262 62]
+	PATH svg:[M 62 62 A 40 30 0 0 1 262 62]
+	PATH svg:[M 62 62 A 40 30 0 1 0 262 62]
+	PATH svg:[M 62 62 A 40 30 0 1 1 262 62]
+]
+
+// #5 degenerate radii -> straight line
+$cell 10 410 [
+	$chord 22 22 272 22
+	$markStart 22 22
+	$markEnd 272 22
+	pen black width:1
+	PATH svg:[M 22 22 A 0 50 0 0 1 272 22]
+]
+
+// #6 coincident endpoints -> nothing
+$cell 310 410 [
+	$markStart 158 112
+	$markEnd 158 112
+	pen black width:1
+	PATH svg:[M 158 112 A 50 20 0 1 1 158 112]
+]
+
+// #7 CW vs CCW must be opposite
+$cell 10 610 [
+	$chord 112 112 52 112
+	$markStart 112 112
+	$markEnd 52 112
+	pen black width:1
+	PATH svg:[M 112 112 A 60 60 0 0 1 52 112]
+	PATH svg:[M 112 112 A 60 60 0 0 0 52 112]
+]
+
+// #8 rotation ~90°
+$cell 310 610 [
+	$chord 12 12 212 12
+	$markStart 12 12
+	$markEnd 212 12
+	pen black width:1
+	PATH svg:[M 12 12 A 80 20 89.9999 0 1 212 12]
+]
+
+// #9 tiny delta, large-arc=1 sweep=1 -> long arc
+$cell 10 810 [
+	$chord 12 12 12.001 12
+	$markStart 12 12
+	$markEnd 12.001 12
+	pen black width:1
+	PATH svg:[M 12 12 A 50 50 0 1 1 12.001 12]
+]
+
+// #10 rx!=ry + rotation (export sanity)
+$cell 310 810 [
+	$chord 32 32 292 192
+	$markStart 32 32
+	$markEnd 292 192
+	pen black width:1
+	PATH svg:[M 32 32 A 100 40 30 1 0 292 192]
+]
