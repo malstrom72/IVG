@@ -37,9 +37,37 @@ DEL badcheck.txt
 ECHO Seems fine
 CD ..
 
-CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVG2PNG "-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" /I"externals\libpng" /I"externals\zlib" .\tools\IVG2PNG.cpp .\src\IVG.cpp .\src\IMPD.cpp .\externals\NuX\NuXPixels.cpp .\externals\libpng\*.c .\externals\zlib\*.c || EXIT /B 1
+REM Build libpng objects individually to avoid Mac clang fp.h issues
+SET LIBPNG_OBJS=
+FOR %%f IN (
+        png.c pngerror.c pngget.c pngmem.c pngpread.c pngread.c
+        pngrio.c pngrtran.c pngrutil.c pngset.c pngtrans.c pngwio.c
+        pngwrite.c pngwtran.c pngwutil.c
+) DO (
+        SET obj=output\%%~nf.obj
+        CALL .\tools\BuildCpp.cmd %1 %2 !obj! /c externals\libpng\%%f /I"externals\libpng" /I"externals\zlib" /Isrc || EXIT /B 1
+        SET LIBPNG_OBJS=!LIBPNG_OBJS! !obj!
+)
 
-CALL .\tools\BuildCpp.cmd %1 %2 .\output\PolygonMaskTest "-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" .\tools\PolygonMaskTest.cpp .\externals\NuX\NuXPixels.cpp || EXIT /B 1
+SET ZLIB_OBJS=
+FOR %%f IN (
+        adler32.c compress.c crc32.c deflate.c infback.c inffast.c
+        inflate.c inftrees.c trees.c uncompr.c zutil.c
+) DO (
+        SET obj=output\%%~nf.obj
+        CALL .\tools\BuildCpp.cmd %1 %2 !obj! /c externals\zlib\%%f /I"externals\libpng" /I"externals\zlib" /Isrc || EXIT /B 1
+        SET ZLIB_OBJS=!ZLIB_OBJS! !obj!
+)
+
+CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVG2PNG ^
+"-ffp-contract=off" "-DNUXPIXELS_SIMD=%simd%" ^
+/I"." /I"externals" /I"externals\libpng" /I"externals\zlib" ^
+.\tools\IVG2PNG.cpp .\src\IVG.cpp .\src\IMPD.cpp .\externals\NuX\NuXPixels.cpp ^
+!LIBPNG_OBJS! !ZLIB_OBJS! || EXIT /B 1
+
+CALL .\tools\BuildCpp.cmd %1 %2 .\output\PolygonMaskTest ^
+"-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" ^
+.\tools\PolygonMaskTest.cpp .\externals\NuX\NuXPixels.cpp || EXIT /B 1
 
 ECHO Testing...
 CD tests

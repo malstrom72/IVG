@@ -16,7 +16,7 @@ else
 	exit 1
 fi
 
-mkdir -p ./output 
+mkdir -p ./output
 ./tools/BuildCpp.sh $1 $2 ./output/IMPDTest -I ./ ./tools/IMPDTest.cpp ./src/IMPD.cpp
 
 cd ./tests
@@ -30,10 +30,48 @@ echo
 echo Seems fine
 cd ..
 
-# -ffp-contract=off is necessary to avoid issues with floating point optimizations that can cause differences in results
-./tools/BuildCpp.sh $1 $2 ./output/IVG2PNG -ffp-contract=off ./tools/IVG2PNG.cpp -DNUXPIXELS_SIMD=$simd -I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp ./externals/libpng/*.c ./externals/zlib/*.c
+# Build libpng and zlib objects separately to avoid Mac clang fp.h issues
+LIBPNG_SRCS=(./externals/libpng/png.c ./externals/libpng/pngerror.c ./externals/libpng/pngget.c \
+        ./externals/libpng/pngmem.c ./externals/libpng/pngpread.c ./externals/libpng/pngread.c \
+        ./externals/libpng/pngrio.c ./externals/libpng/pngrtran.c ./externals/libpng/pngrutil.c \
+        ./externals/libpng/pngset.c ./externals/libpng/pngtrans.c ./externals/libpng/pngwio.c \
+        ./externals/libpng/pngwrite.c ./externals/libpng/pngwtran.c ./externals/libpng/pngwutil.c)
+LIBPNG_OBJS=()
+for src_file in "${LIBPNG_SRCS[@]}"; do
+        obj_file="output/$(basename "$src_file" .c).o"
+        CPP_OPTIONS="-std=c11" \
+                ./tools/BuildCpp.sh $1 $2 "$obj_file" "$src_file" -c \
+                -Iexternals/libpng \
+                -Iexternals/zlib \
+                -Isrc
+        LIBPNG_OBJS+=("$obj_file")
+done
 
-./tools/BuildCpp.sh $1 $2 ./output/PolygonMaskTest -DNUXPIXELS_SIMD=$simd -I ./ -I ./externals ./tools/PolygonMaskTest.cpp ./externals/NuX/NuXPixels.cpp
+ZLIB_SRCS=(./externals/zlib/adler32.c ./externals/zlib/compress.c ./externals/zlib/crc32.c \
+        ./externals/zlib/deflate.c ./externals/zlib/infback.c ./externals/zlib/inffast.c \
+        ./externals/zlib/inflate.c ./externals/zlib/inftrees.c ./externals/zlib/trees.c \
+        ./externals/zlib/uncompr.c ./externals/zlib/zutil.c)
+ZLIB_OBJS=()
+for src_file in "${ZLIB_SRCS[@]}"; do
+        obj_file="output/$(basename "$src_file" .c).o"
+        CPP_OPTIONS="-std=c11" \
+                ./tools/BuildCpp.sh $1 $2 "$obj_file" "$src_file" -c \
+                -Iexternals/libpng \
+                -Iexternals/zlib \
+                -Isrc
+        ZLIB_OBJS+=("$obj_file")
+done
+
+# -ffp-contract=off is necessary to avoid issues with floating point optimizations that can cause differences in results
+./tools/BuildCpp.sh $1 $2 ./output/IVG2PNG \
+-ffp-contract=off ./tools/IVG2PNG.cpp -DNUXPIXELS_SIMD=$simd \
+-I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib \
+./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp \
+"${LIBPNG_OBJS[@]}" "${ZLIB_OBJS[@]}"
+
+./tools/BuildCpp.sh $1 $2 ./output/PolygonMaskTest \
+-DNUXPIXELS_SIMD=$simd -I ./ -I ./externals \
+./tools/PolygonMaskTest.cpp ./externals/NuX/NuXPixels.cpp
 
 echo Testing...
 cd tests
