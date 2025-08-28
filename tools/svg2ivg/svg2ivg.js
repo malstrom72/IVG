@@ -685,7 +685,13 @@ function buildGradient(g) {
 }
 
 function buildPattern(p) {
-	let s = `pattern:[bounds 0,0,${p.width},${p.height}`;
+	// Patterns require integer bounds too; ceil fractional sizes and warn
+	const pw = Math.ceil(p.width);
+	const ph = Math.ceil(p.height);
+	if (pw !== p.width || ph !== p.height) {
+		warning(`Non-integer pattern bounds (${formatFloat(p.width)},${formatFloat(p.height)}); using ceil (${pw},${ph}).`);
+	}
+	let s = `pattern:[bounds 0,0,${pw},${ph}`;
 	if (p.body) {
 		s += "; " + p.body;
 	}
@@ -1227,13 +1233,19 @@ converters.svg = function (element, attribs) {
 			currentColor = convertPaint(c).paint;
 		}
 	}
-	if (!firstSVG) {
-		output("reset");
-	}
-	firstSVG = false;
-	output(`bounds 0,0,${width},${height}`);
-	output("fill black");
-	output("pen miter-limit:4");
+    if (!firstSVG) {
+        output("reset");
+    }
+    firstSVG = false;
+    // Ensure integer bounds for IVG; ceil fractional sizes and warn
+    const widthCeil = Math.ceil(width);
+    const heightCeil = Math.ceil(height);
+    if (widthCeil !== width || heightCeil !== height) {
+        warning(`Non-integer bounds (${formatFloat(width)},${formatFloat(height)}); using ceil (${widthCeil},${heightCeil}).`);
+    }
+    output(`bounds 0,0,${widthCeil},${heightCeil}`);
+    output("fill black");
+    output("pen miter-limit:4");
 	const oldFamily = defaultFontFamily;
 	const oldSize = defaultFontSize;
 	if ("font-family" in attribs) {

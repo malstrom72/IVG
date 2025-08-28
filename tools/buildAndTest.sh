@@ -38,13 +38,14 @@ LIBPNG_SRCS=(./externals/libpng/png.c ./externals/libpng/pngerror.c ./externals/
         ./externals/libpng/pngwrite.c ./externals/libpng/pngwtran.c ./externals/libpng/pngwutil.c)
 LIBPNG_OBJS=()
 for src_file in "${LIBPNG_SRCS[@]}"; do
-        obj_file="output/$(basename "$src_file" .c).o"
-        CPP_OPTIONS="-std=c11" \
-                ./tools/BuildCpp.sh $1 $2 "$obj_file" "$src_file" -c \
-                -Iexternals/libpng \
-                -Iexternals/zlib \
-                -Isrc
-        LIBPNG_OBJS+=("$obj_file")
+		obj_file="output/$(basename "$src_file" .c).o"
+		# Undefine TARGET_OS_MAC to avoid legacy Mac include path in libpng (fp.h)
+		CPP_OPTIONS="-std=c11 -UTARGET_OS_MAC" \
+				./tools/BuildCpp.sh $1 $2 "$obj_file" "$src_file" -c \
+				-Iexternals/libpng \
+				-Iexternals/zlib \
+				-Isrc
+		LIBPNG_OBJS+=("$obj_file")
 done
 
 ZLIB_SRCS=(./externals/zlib/adler32.c ./externals/zlib/compress.c ./externals/zlib/crc32.c \
@@ -53,13 +54,14 @@ ZLIB_SRCS=(./externals/zlib/adler32.c ./externals/zlib/compress.c ./externals/zl
         ./externals/zlib/uncompr.c ./externals/zlib/zutil.c)
 ZLIB_OBJS=()
 for src_file in "${ZLIB_SRCS[@]}"; do
-        obj_file="output/$(basename "$src_file" .c).o"
-        CPP_OPTIONS="-std=c11" \
-                ./tools/BuildCpp.sh $1 $2 "$obj_file" "$src_file" -c \
-                -Iexternals/libpng \
-                -Iexternals/zlib \
-                -Isrc
-        ZLIB_OBJS+=("$obj_file")
+		obj_file="output/$(basename "$src_file" .c).o"
+		# Undefine TARGET_OS_MAC to avoid classic Mac paths (e.g., fdopen redefinition)
+		CPP_OPTIONS="-std=c11 -UTARGET_OS_MAC" \
+				./tools/BuildCpp.sh $1 $2 "$obj_file" "$src_file" -c \
+				-Iexternals/libpng \
+				-Iexternals/zlib \
+				-Isrc
+		ZLIB_OBJS+=("$obj_file")
 done
 
 # -ffp-contract=off is necessary to avoid issues with floating point optimizations that can cause differences in results

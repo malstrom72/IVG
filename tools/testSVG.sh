@@ -15,12 +15,17 @@ for NAME in circle rect ellipse line path group color-names stroke-fill viewbox 
 		percentage transform skew matrix gradient gradient-stops gradient-radial gradient-transform defs-use opacity \
 		text text-stroke resvg_tests_shapes_rect_em-values resvg_tests_shapes_rect_vw-and-vh-values \
 		resvg_tests_painting_color_inherit resvg_tests_masking_clipPath_clipPathUnits=objectBoundingBox \
-		resvg_tests_painting_marker_marker-on-line; do
+		resvg_tests_painting_marker_marker-on-line blossom blossomCSS blossomStyles; do
 echo Testing "$NAME"
 node ../../tools/svg2ivg/svg2ivg.js "supported/$NAME.svg" 500,500 | tail -n +2 > "$TMP/$NAME.ivg"
 cmp "$TMP/$NAME.ivg" "supported/$NAME.ivg"
-if [ -f "supported/$NAME.png" ]; then
-$EXE --fonts "$FONTS" --background white "$TMP/$NAME.ivg" "$TMP/$NAME.png"
+if [ -f "supported/$NAME.png" ] || [ -n "${REQUIRE_PNG:-}" ]; then
+	if [ ! -f "supported/$NAME.png" ]; then
+		echo "Missing golden PNG: supported/$NAME.png" >&2
+		exit 1
+	fi
+	$EXE --fonts "$FONTS" --background white "$TMP/$NAME.ivg" "$TMP/$NAME.png"
+	cmp "$TMP/$NAME.png" "supported/$NAME.png"
 fi
 echo
 echo
