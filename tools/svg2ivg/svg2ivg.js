@@ -1662,21 +1662,22 @@ converters.text = function (element, attribs) {
 };
 
 converters.defs = function (element) {
-	for (const item of element.contents || []) {
-		if (!item.element) continue;
-		const child = item.element;
-	       if (
-		       child.type === "linearGradient" ||
-		       child.type === "radialGradient" ||
-		       child.type === "pattern" ||
-		       child.type === "defs" ||
-		       child.type === "mask"
-	       ) {
-		       convertSVGElement(child);
-	       } else {
-		       registerDefinition(child);
-	       }
-	}
+        for (const item of element.contents || []) {
+                if (!item.element) continue;
+                const child = item.element;
+                if (
+                        child.type === "linearGradient" ||
+                        child.type === "radialGradient" ||
+                        child.type === "pattern" ||
+                        child.type === "defs" ||
+                        child.type === "mask" ||
+                        child.type === "style"
+                ) {
+                        convertSVGElement(child);
+                } else {
+                        registerDefinition(child);
+                }
+        }
 };
 
 converters.use = function (element, attribs) {
