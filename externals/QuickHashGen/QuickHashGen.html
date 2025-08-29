@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>QuickHashGen</title>
+		<style>
+			:root {
+				color-scheme: dark;
+			}
+			body {
+				background: #0b0b0b;
+				color: #e6e6e6;
+				font:
+					14px/1.4 ui-monospace,
+					SFMono-Regular,
+					Menlo,
+					Consolas,
+					"Liberation Mono",
+					monospace;
+				margin: 16px;
+			}
+			h1 {
+				font-size: 18px;
+				text-align: center;
+				margin: 0 0 12px;
+				color: #fafafa;
+			}
+			.controls {
+				display: flex;
+				flex-wrap: wrap;
+				align-items: center;
+				gap: 12px;
+				margin: 8px 0 12px;
+			}
+			label {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+				opacity: 0.9;
+			}
+			button {
+				background: #1f1f1f;
+				color: #e6e6e6;
+				border: 1px solid #333;
+				padding: 6px 10px;
+				border-radius: 6px;
+				cursor: pointer;
+			}
+			button:hover {
+				background: #262626;
+			}
+			textarea {
+				width: 100%;
+				box-sizing: border-box;
+				background: #0f0f0f;
+				color: #e6e6e6;
+				border: 1px solid #333;
+				border-radius: 6px;
+				padding: 8px;
+				tab-size: 4;
+			}
+			.stats {
+				margin: 8px 0;
+				opacity: 0.9;
+			}
+			pre {
+				background: #0f0f0f;
+				border: 1px solid #333;
+				border-radius: 6px;
+				padding: 8px;
+				white-space: pre-wrap;
+			}
+			.small {
+				font-size: 12px;
+				opacity: 0.8;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>QuickHashGen</h1>
+		<textarea id="editor" rows="18" cols="90" autofocus>
+enter
+one
+string
+per
+line
+"or", "many", "on a line", "like this!\r\n"</textarea
+		>
+		<div class="controls">
+			<button id="startStop" onclick="toggleRun()">Start</button>
+			<label><input id="allowMultiplications" type="checkbox" checked />Allow Multiplications</label>
+			<label
+				><input
+					id="allowLength"
+					type="checkbox"
+					checked
+					title="Allow length n in the hash expression. This often reduces collisions and table size, especially when strings share prefixes/suffixes."
+				/>Allow n in hash</label
+			>
+			<label><input id="requireZeroTermination" type="checkbox" checked />Expect Zero Termination</label>
+			<label><input id="evalTest" type="checkbox" />Eval-test expression</label>
+			<label><input id="forceEval" type="checkbox" />Use eval engine (if available)</label>
+		</div>
+		<div class="stats">
+			Tested <span id="testedCount">0</span> expressions. Found <span id="solutionsCount">0</span> solutions. Complexity:
+			<span id="complexity">?</span>, cost: <span id="cost">?</span>, table size: <span id="tableSize">?</span>.
+			<div id="testStatus" class="small"></div>
+		</div>
+		<pre id="hashes"></pre>
+
+		<script src="QuickHashGenCore.js"></script>
+		<script src="QuickHashGenApp.js"></script>
+	</body>
+</html>
