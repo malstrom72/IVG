@@ -8,6 +8,8 @@
     -   [ELLIPSE](#ellipse)
     -   [IMAGE](#image)
     -   [PATH](#path)
+    -   [LINE](#line)
+    -   [POLYGON](#polygon)
     -   [RECT](#rect)
     -   [STAR](#star)
     -   [TEXT](#text)
@@ -256,6 +258,37 @@ Example:
     // Draw the heart path
     PATH svg:[M100,300 v-200 h200 a100,100,90,0,1,0,200 a100,100,90,0,1,-200,0 z]
 ![](images/svgPathExample.png)
+
+### LINE
+
+The `LINE` instruction draws an open polyline using the current [`pen`](#pen).
+
+Syntax:
+
+    LINE <x0>,<y0>[,<x1>,<y1> ...]
+
+Two points draw a single line segment; additional points extend the polyline.
+
+Example:
+
+    pen black width:2
+    LINE 10,10, 80,40, 40,80
+
+### POLYGON
+
+The `POLYGON` instruction draws a closed polygon using the current [`fill`](#fill) and [`pen`](#pen).
+
+Syntax:
+
+    POLYGON <x0>,<y0>[,<x1>,<y1> ...]
+
+The polygon is automatically closed.
+
+Example:
+
+    fill lime
+    pen black
+    POLYGON 20,20, 120,20, 120,80, 20,80
 
 ### RECT
 
