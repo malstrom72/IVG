@@ -4,31 +4,31 @@
 Build PikaScript via `timeout 300 ./build.sh` from the repository root, then run the converter from its folder so `xmlMini.ppeg` can be found:
 
 ```
-cd tools/svg2ivg
-../../externals/PikaScript/output/PikaCmd svg2ivg.pika ../../tests/svg/supported/circle.svg
+cd tools
+../externals/PikaScript/output/PikaCmd svg2ivg.pika ../tests/svg/supported/circle.svg
 ```
 
 Process all samples in one go:
 
 ```
-cd tools/svg2ivg
-for f in ../../tests/svg/*/*.svg; do
-	../../externals/PikaScript/output/PikaCmd svg2ivg.pika "$f" >/dev/null
+cd tools
+for f in ../tests/svg/*/*.svg; do
+	../externals/PikaScript/output/PikaCmd svg2ivg.pika "$f" >/dev/null
 done
 ```
 
 Or use the Node.js port:
 
 ```
-cd tools/svg2ivg
-node svg2ivg.js ../../tests/svg/supported/circle.svg
+cd tools
+node svg2ivg.js ../tests/svg/supported/circle.svg
 ```
 
 Process all samples with Node:
 
 ```
-cd tools/svg2ivg
-for f in ../../tests/svg/*/*.svg; do
+cd tools
+for f in ../tests/svg/*/*.svg; do
 	node svg2ivg.js "$f" >/dev/null
 done
 ```
