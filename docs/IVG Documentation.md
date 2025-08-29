@@ -267,7 +267,7 @@ Syntax:
 
     LINE <x0>,<y0>[,<x1>,<y1> ...]
 
-Two points draw a single line segment; additional points extend the polyline.
+At least two points (four coordinates) are required. Two points draw a single line segment; additional points extend the polyline.
 
 Example:
 
@@ -282,7 +282,7 @@ Syntax:
 
     POLYGON <x0>,<y0>[,<x1>,<y1> ...]
 
-The polygon is automatically closed.
+At least three points (six coordinates) are required. The polygon is automatically closed.
 
 Example:
 
