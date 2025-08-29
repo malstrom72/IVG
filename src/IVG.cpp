@@ -352,11 +352,11 @@ MaskMakerCanvas::MaskMakerCanvas(const IntRect& bounds) : mask8RLE(new RLERaster
 
 void MaskMakerCanvas::parsePaint(Interpreter& impd, IVGExecutor& executor, Context& context, ArgumentsContainer& args
 		, Paint& paint) const {
-    parsePaintOfType<Mask8>(impd, executor, context, args, paint);
+	parsePaintOfType<Mask8>(impd, executor, context, args, paint);
 }
 
 void MaskMakerCanvas::blendWithARGB32(const Renderer<ARGB32>& source) {
-    (*mask8RLE) |= Converter<ARGB32, Mask8>(source);
+	(*mask8RLE) |= Converter<ARGB32, Mask8>(source);
 }
 
 void MaskMakerCanvas::blendWithMask8(const Renderer<Mask8>& source) { (*mask8RLE) |= source; }
@@ -485,7 +485,7 @@ template<> ARGB32::Pixel parseColor<ARGB32>(Interpreter& impd, const StringRange
 			impd.throwBadSyntax(String("Invalid color name: ") + String(r.b, r.e));
 		}
 		return STANDARD_COLORS[i];
-        }
+		}
 }
 
 ARGB32::Pixel parseColor(const String& color) {
@@ -1030,7 +1030,7 @@ static IntRect expandToIntRect(const Rect<double>& floatRect) {
 
 void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	double numbers[4];
- 	parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
+	parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
 	const Vertex atPosition = Vertex(numbers[0], numbers[1]);
 	const WideString imageName = impd.unescapeToWide(args.fetchRequired(1));
 	const String* s;
@@ -1193,8 +1193,8 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	if (opacity != 255) {
 		renderer = &opacityMultiplier;
 	}
- 	// dummy argument if no mask
- 	Multiplier<ARGB32, Mask8> maskMultiplier(*renderer
+	// dummy argument if no mask
+	Multiplier<ARGB32, Mask8> maskMultiplier(*renderer
 			, (state.mask != 0 ? static_cast< const Renderer<Mask8>& >(*state.mask) : opacitySolid));
 	if (state.mask != 0) {
 		renderer = &maskMultiplier;
@@ -1537,8 +1537,8 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		case LINE_INSTRUCTION: { // LINE
 			StringVector elems;
 			int count = impd.parseList(args.fetchRequired(0), elems, true, false, 4, 1000);
-			if (count & 1) {
-				impd.throwBadSyntax("Invalid LINE arguments");
+			if (count < 4 || (count & 1)) {
+					impd.throwBadSyntax("Invalid LINE arguments");
 			}
 			Path p;
 			p.moveTo(impd.toDouble(elems[0]), impd.toDouble(elems[1]));
@@ -1554,8 +1554,8 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		case POLYGON_INSTRUCTION: { // POLYGON
 			StringVector elems;
 			int count = impd.parseList(args.fetchRequired(0), elems, true, false, 6, 1000);
-			if (count & 1) {
-				impd.throwBadSyntax("Invalid POLYGON arguments");
+			if (count < 6 || (count & 1)) {
+					impd.throwBadSyntax("Invalid POLYGON arguments");
 			}
 			Path p;
 			p.moveTo(impd.toDouble(elems[0]), impd.toDouble(elems[1]));

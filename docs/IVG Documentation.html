@@ -451,7 +451,7 @@ PATH svg:[M100,300 v-200 h200 a100,100,90,0,1,0,200 a100,100,90,0,1,-200,0 z]</c
 <p>The <code>LINE</code> instruction draws an open polyline using the current <a href="#pen"><code>pen</code></a>.</p>
 <p>Syntax:</p>
 <pre><code>LINE &lt;x0&gt;,&lt;y0&gt;[,&lt;x1&gt;,&lt;y1&gt; ...]</code></pre>
-<p>Two points draw a single line segment; additional points extend the polyline.</p>
+<p>At least two points (four coordinates) are required. Two points draw a single line segment; additional points extend the polyline.</p>
 <p>Example:</p>
 <pre><code>pen black width:2
 LINE 10,10, 80,40, 40,80</code></pre>
@@ -459,7 +459,7 @@ LINE 10,10, 80,40, 40,80</code></pre>
 <p>The <code>POLYGON</code> instruction draws a closed polygon using the current <a href="#fill"><code>fill</code></a> and <a href="#pen"><code>pen</code></a>.</p>
 <p>Syntax:</p>
 <pre><code>POLYGON &lt;x0&gt;,&lt;y0&gt;[,&lt;x1&gt;,&lt;y1&gt; ...]</code></pre>
-<p>The polygon is automatically closed.</p>
+<p>At least three points (six coordinates) are required. The polygon is automatically closed.</p>
 <p>Example:</p>
 <pre><code>fill lime
 pen black
