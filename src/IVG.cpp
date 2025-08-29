@@ -817,17 +817,17 @@ int Context::calcPatternScale() const {
 
 /* Built with QuickHashGen */
 static int findIVGInstruction(size_t n /* string length */, const char* s /* zero-terminated string */) {
-	static const char* STRINGS[21] = {
-		"rect", "pen", "fill", "path", "matrix", "scale", "rotate", "offset", "shear", 
-		"context", "wipe", "options", "reset", "ellipse", "star", "mask", "bounds", 
-		"define", "font", "text", "image"
-	};
-	static const int HASH_TABLE[64] = {
-		-1, 16, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
-		-1, -1, -1, 8, -1, -1, -1, -1, -1, -1, 5, -1, -1, -1, 10, 20, 
-		14, -1, -1, 6, -1, 0, 12, -1, -1, -1, 7, 17, 3, -1, 11, -1, 
-		13, 15, 2, -1, -1, -1, -1, -1, 19, 4, -1, -1, 18, -1, 1, 9
-	};
+       static const char* STRINGS[23] = {
+               "rect", "pen", "fill", "path", "matrix", "scale", "rotate", "offset", "shear",
+               "context", "wipe", "options", "reset", "ellipse", "star", "mask", "bounds",
+               "define", "font", "text", "image", "line", "polygon"
+       };
+       static const int HASH_TABLE[64] = {
+               -1, 16, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+               -1, -1, -1, 8, -1, -1, -1, -1, -1, -1, 5, -1, -1, -1, 10, 20,
+               14, -1, -1, 6, -1, 0, 12, 21, -1, -1, 7, 17, 3, -1, 11, -1,
+               13, 15, 2, -1, -1, 22, -1, -1, 19, 4, -1, -1, 18, -1, 1, 9
+       };
 	assert(s[n] == '\0');
 	if (n < 3 || n > 7) return -1;
 	int stringIndex = HASH_TABLE[(s[3] - s[0] + s[2]) & 63];
@@ -838,7 +838,7 @@ enum IVGInstruction {
 	RECT_INSTRUCTION, PEN_INSTRUCTION, FILL_INSTRUCTION, PATH_INSTRUCTION, MATRIX_INSTRUCTION, SCALE_INSTRUCTION
 	, ROTATE_INSTRUCTION, OFFSET_INSTRUCTION, SHEAR_INSTRUCTION, CONTEXT_INSTRUCTION, WIPE_INSTRUCTION
 	, OPTIONS_INSTRUCTION, RESET_INSTRUCTION, ELLIPSE_INSTRUCTION, STAR_INSTRUCTION, MASK_INSTRUCTION
-	, BOUNDS_INSTRUCTION, DEFINE_INSTRUCTION, FONT_INSTRUCTION, TEXT_INSTRUCTION, IMAGE_INSTRUCTION
+       , BOUNDS_INSTRUCTION, DEFINE_INSTRUCTION, FONT_INSTRUCTION, TEXT_INSTRUCTION, IMAGE_INSTRUCTION, LINE_INSTRUCTION, POLYGON_INSTRUCTION
 };
 
 /* --- IVGExecutor --- */
@@ -1526,7 +1526,40 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 
-		case IMAGE_INSTRUCTION: executeImage(impd, args); break;
+               case IMAGE_INSTRUCTION: executeImage(impd, args); break;
+
+               case LINE_INSTRUCTION: { // LINE
+                       double numbers[100];
+                       int count = parseNumberList(impd, args.fetchRequired(0), numbers, 4, 100);
+                       args.throwIfAnyUnfetched();
+                       if (count & 1) {
+                               impd.throwRunTimeError("Odd number of LINE coordinates");
+                       }
+                       Path p;
+                       p.moveTo(numbers[0], numbers[1]);
+                       for (int i = 2; i < count; i += 2) {
+                               p.lineTo(numbers[i], numbers[i + 1]);
+                       }
+                       currentContext->draw(p);
+                       break;
+               }
+
+               case POLYGON_INSTRUCTION: { // POLYGON
+                       double numbers[100];
+                       int count = parseNumberList(impd, args.fetchRequired(0), numbers, 6, 100);
+                       args.throwIfAnyUnfetched();
+                       if (count & 1) {
+                               impd.throwRunTimeError("Odd number of POLYGON coordinates");
+                       }
+                       Path p;
+                       p.moveTo(numbers[0], numbers[1]);
+                       for (int i = 2; i < count; i += 2) {
+                               p.lineTo(numbers[i], numbers[i + 1]);
+                       }
+                       p.close();
+                       currentContext->draw(p);
+                       break;
+               }
 	}
 	
 	return true;
