@@ -58,10 +58,10 @@ You will need a standard C++ compiler.
 
 - On **macOS** or **Linux**, use `g++` or `clang++`.
 - On **Windows**, the build requires Microsoft Visual C++. Any version from Visual Studio 2008
-  (VC9.0) onward should work. The build scripts locate the compiler automatically using
-  `vswhere.exe`, falling back to known versions if needed.
+	(VC9.0) onward should work. The build scripts locate the compiler automatically using
+	`vswhere.exe`, falling back to known versions if needed.
 - Node.js 16+ is required for the SVG conversion tests. If Node.js is unavailable, set
-  `SKIP_SVG=1` before running `./build.sh` to skip them.
+	`SKIP_SVG=1` before running `./build.sh` to skip them.
 
 ## Build & Test
 
@@ -79,15 +79,15 @@ instructions when available.
 - `build.sh` / `build.cmd` – build both the **beta** and **release** targets and run all tests
 - `tools/updateIVGTests.sh` / `.cmd` – regenerate golden PNGs from all `.ivg` test files
 - `tools/updateDocumentation.sh` – rebuild HTML documentation using Pandoc and PikaScript
-  (Mac / Linux only)
+	(Mac / Linux only)
 
 ## svg2ivg
 
 `svg2ivg` converts a subset of SVG into IVG's ImpD language. The Node.js script
-resides at `tools/svg2ivg/svg2ivg.js` and is invoked as:
+resides at `tools/svg2ivg.js` and is invoked as:
 
 ```
-node tools/svg2ivg/svg2ivg.js input.svg [output.ivg] [defaultWidth,defaultHeight]
+node tools/svg2ivg.js input.svg [output.ivg] [defaultWidth,defaultHeight]
 ```
 
 Omitting `output.ivg` prints the converted ImpD to stdout. See

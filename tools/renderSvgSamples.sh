@@ -10,7 +10,7 @@ for cat in supported unsupported; do
 	for svg in "$SVG_DIR/$cat"/*.svg; do
 		echo "Converting $svg"
 		name="$(basename "$svg" .svg)"
-		if node tools/svg2ivg/svg2ivg.js "$svg" 500,500 | tail -n +2 > "$OUT_DIR/$cat/$name.ivg"; then
+		if node tools/svg2ivg.js "$svg" 500,500 | tail -n +2 > "$OUT_DIR/$cat/$name.ivg"; then
 			output/IVG2PNG --fonts fonts --background white "$OUT_DIR/$cat/$name.ivg" "$OUT_DIR/$cat/$name.png" || true
 		else
 			echo "Failed to convert $svg"

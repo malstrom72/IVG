@@ -1,6 +1,6 @@
 # resvg Test Compatibility
 
-This document lists which `externals/resvgTests` files the `tools/svg2ivg/svg2ivg.js` converter can handle.
+This document lists which `externals/resvgTests` files the `tools/svg2ivg.js` converter can handle.
 
 ## Should work
 - shapes/circle/simple-case.svg
@@ -47,8 +47,8 @@ This document lists which `externals/resvgTests` files the `tools/svg2ivg/svg2iv
 
 ## Might work
 - text/tspan/tspan-bbox-1.svg – svg2ivg normalizes gradients for each `<tspan>` instead of the whole `<text>`
-      element, causing “long” to start white and end darker green. This deviates from the SVG spec; matching the
-      SVG would require measuring the full text bounds and emitting a user-space gradient.
+	element, causing “long” to start white and end darker green. This deviates from the SVG spec; matching the
+	SVG would require measuring the full text bounds and emitting a user-space gradient.
 - painting/stroke-miterlimit/valid-value.svg
 
 ## Should work with fixes

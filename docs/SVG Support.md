@@ -47,4 +47,4 @@
 -   Any `viewBox` behavior beyond a simple uniform scale and top-left offset.
 -   Error recovery for missing attributes—many attributes treated as required even though the SVG spec provides defaults.
 
-This list reflects the current state of `tools/svg2ivg/svg2ivg.pika` and may change as the converter evolves.
+This list reflects the current state of `tools/svg2ivg.pika` and may change as the converter evolves.
