@@ -405,6 +405,7 @@ class CombinedMask {
 
 /* --- Colors --- */
 
+/* Built with QuickHashGen */
 static int findStandardColorName(size_t n /* string length */, const char* s /* zero-terminated string */) {
 	static const char* STRINGS[17] = {
 		"none", "aqua", "black", "blue", "fuchsia", "gray", "green", "lime", "maroon",
@@ -511,6 +512,7 @@ enum TransformType {
 	SHEAR_TRANSFORM
 };
 
+/* Built with QuickHashGen */
 static int findTransformType(size_t n /* string length */, const char* s /* zero-terminated string */) {
 	static const char* STRINGS[5] = {
 		"matrix", "scale", "rotate", "offset", "shear"
@@ -813,6 +815,7 @@ int Context::calcPatternScale() const {
 	return static_cast<int>(max(ceil(scale * state.options.patternResolution - 0.0001), 1.0));
 }
 
+/* Built with QuickHashGen */
 static int findIVGInstruction(size_t n /* string length */, const char* s /* zero-terminated string */) {
 	static const char* STRINGS[21] = {
 		"rect", "pen", "fill", "path", "matrix", "scale", "rotate", "offset", "shear", 
@@ -995,6 +998,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 	}
 }
 
+/* Built with QuickHashGen */
 static int findAlignmentKeyword(size_t n /* string length */, const char* s /* string (zero terminated) */) {
 	static const char* STRINGS[6] = {
 		"left", "center", "right", "top", "middle", "bottom"
@@ -1696,6 +1700,7 @@ bool FontParser::format(Interpreter& impd, const String& identifier, const Strin
 	return (identifier == "ivgfont-1" && requires.empty());
 }
 
+/* Built with QuickHashGen */
 static int findIVGFontInstruction(size_t n /* string length */, const char* s /* string (zero terminated) */) {
 	static const char* STRINGS[3] = {
 		"metrics", "glyph", "kern"

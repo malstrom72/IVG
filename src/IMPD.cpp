@@ -254,7 +254,7 @@ double (*Interpreter::MATH_FUNCTION_POINTERS[MATH_FUNCTION_COUNT])(double) = {
 const Char Interpreter::ESCAPE_CHARS[ESCAPE_CODE_COUNT] = {  'a',  'b',  'f',  'n',  'r',  't',  'v' };
 const Char Interpreter::ESCAPE_CODES[ESCAPE_CODE_COUNT] = { '\a', '\b', '\f', '\n', '\r', '\t', '\v' };
 
-/* Built with http://nuedge.net/StringHashMaker */
+/* Built with QuickHashGen */
 int Interpreter::findFunction(int n /* string length */, const char* s /* string (zero terminated) */) {
 	static const char* STRINGS[20] = {
 		"abs", "acos", "asin", "atan", "ceil", "cos", "cosh", "exp", "floor", "log",
@@ -271,7 +271,7 @@ int Interpreter::findFunction(int n /* string length */, const char* s /* string
 	return (stringIndex >= 0 && strncmp(s, STRINGS[stringIndex], n) == 0 && STRINGS[stringIndex][n] == 0) ? stringIndex : -1;
 }
 
-/* Built with QuickHashMaker.pika */
+/* Built with QuickHashGen */
 int Interpreter::findBuiltInInstruction(int n, const char* s) {
 	static const char* STRINGS[11] = {
 		"_debug", "call", "for", "format", "if", "include", "local", "repeat",
