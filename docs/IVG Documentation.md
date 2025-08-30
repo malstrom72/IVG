@@ -1065,8 +1065,8 @@ The `<gradient>` paint type creates a smooth transition between multiple colors.
 ending color or multiple color stops. `<gradient>` is used by the [`<paint>`](#paint-specification) specification, such
 as in the [`pen`](#pen) and [`fill`](#fill) directives. The syntax for specifying a gradient is as follows:
 
-    <gradient> = linear <x0>,<y0>,<x1>,<y1> | radial <cx>,<cy>,(<r>|<rx>,<ry>)
-                 from:<color> to:<color> | stops:<number>,<color>,[<number>,<color>,...]
+    <gradient> = (linear <x0>,<y0>,<x1>,<y1> | radial <cx>,<cy>,(<r>|<rx>,<ry>))
+                 (from:<color> to:<color> | stops:<number>,<color>,[<number>,<color>,...])
 
 -   The `linear` alternative creates a linear gradient that transitions between colors along a straight line defined by
     two points (`<x0>,<y0>` and `<x1>,<y1>`).

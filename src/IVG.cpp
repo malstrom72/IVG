@@ -626,9 +626,9 @@ enum PathInstructionType {
 };
 
 class PathInstructionExecutor : public Executor {
-	public:		PathInstructionExecutor(Executor& parentExecutor, Path& path, bool doClose, double curveQuality)
-						: parentExecutor(parentExecutor), path(path), doClose(doClose), curveQuality(curveQuality)
-						, moveToSeen(false) { };
+	public:		PathInstructionExecutor(Executor& parentExecutor, Path& path, double curveQuality)
+					: parentExecutor(parentExecutor), path(path), curveQuality(curveQuality)
+					, moveToSeen(false) { };
 	public:		virtual bool format(Interpreter& impd, const String& identifier, const vector<String>& uses
 						, const vector<String>& requires) {
 					(void)impd; (void)identifier; (void)uses; (void)requires;
@@ -666,50 +666,42 @@ class PathInstructionExecutor : public Executor {
 						}
 						case BEZIER_TO_INSTRUCTION: {
 							checkHasMoveTo();
-							double end[2];
-							parseNumberList(impd, args.fetchRequired(0), end, 2, 2);
-							const String& via = args.fetchRequired("via");
-							double control[4];
-							const int count = parseNumberList(impd, via, control, 2, 4);
-							if (count == 2) {
-								path.quadraticTo(control[0], control[1], end[0], end[1], curveQuality);
-							} else if (count == 4) {
-								path.cubicTo(control[0], control[1], control[2], control[3], end[0], end[1], curveQuality);
+							double c1[2];
+							parseNumberList(impd, args.fetchRequired(0), c1, 2, 2);
+							const String& second = args.fetchRequired(1);
+							const String* third = args.fetchOptional(2);
+							if (third == 0) {
+								double end[2];
+								parseNumberList(impd, second, end, 2, 2);
+								path.quadraticTo(c1[0], c1[1], end[0], end[1], curveQuality);
 							} else {
-								impd.throwBadSyntax(String("Invalid via for bezier-to: ") + via);
+								double c2[2];
+								double end[2];
+								parseNumberList(impd, second, c2, 2, 2);
+								parseNumberList(impd, *third, end, 2, 2);
+								path.cubicTo(c1[0], c1[1], c2[0], c2[1], end[0], end[1], curveQuality);
 							}
 							args.throwIfAnyUnfetched();
 							return true;
 						}
 						case ARC_TO_INSTRUCTION: {
 							checkHasMoveTo();
-							double numbers[4];
-							const int count = parseNumberList(impd, args.fetchRequired(0), numbers, 3, 4);
-							double endX = numbers[0];
-							double endY = numbers[1];
-							double rx;
-							double ry;
-							if (count == 3) {
-								rx = ry = numbers[2];
-							} else if (count == 4) {
-								rx = numbers[2];
-								ry = numbers[3];
-							} else {
-								impd.throwBadSyntax("Invalid arc-to coordinate count");
-							}
+							double end[2];
+							double radii[2];
+							parseNumberList(impd, args.fetchRequired(0), end, 2, 2);
+							const String& radiusArg = args.fetchRequired(1);
+							int radiusCount = parseNumberList(impd, radiusArg, radii, 1, 2);
+							double rx = radii[0];
+							double ry = (radiusCount == 1 ? radii[0] : radii[1]);
 							int sweepFlag = 1;
 							int largeFlag = 0;
 							double rotate = 0.0;
 							const String* sweep = args.fetchOptional("sweep");
 							if (sweep != 0) {
 								const String sweepLower = impd.toLower(*sweep);
-								if (sweepLower == "cw") {
-									sweepFlag = 1;
-								} else if (sweepLower == "ccw") {
-									sweepFlag = 0;
-								} else {
-									impd.throwBadSyntax(String("Invalid sweep for arc-to: ") + *sweep);
-								}
+								if (sweepLower == "cw") sweepFlag = 1;
+								else if (sweepLower == "ccw") sweepFlag = 0;
+								else impd.throwBadSyntax(String("Invalid sweep for arc-to: ") + *sweep);
 							}
 							const String* large = args.fetchOptional("large");
 							if (large != 0) {
@@ -719,36 +711,23 @@ class PathInstructionExecutor : public Executor {
 								else impd.throwBadSyntax(String("Invalid large for arc-to: ") + *large);
 							}
 							const String* rotateArg = args.fetchOptional("rotate");
-							if (rotateArg != 0) {
-								rotate = impd.toDouble(*rotateArg);
-							}
+							if (rotateArg != 0) rotate = impd.toDouble(*rotateArg);
 							args.throwIfAnyUnfetched();
 							Vertex startPos(path.getPosition());
-							Vertex endPos(endX, endY);
+							Vertex endPos(end[0], end[1]);
 							appendArcSegment(startPos, endPos, rx, ry, rotate, sweepFlag, largeFlag, curveQuality, path);
 							path.lineTo(endPos.x, endPos.y);
 							return true;
 						}
 						case ARC_SWEEP_INSTRUCTION: {
 							checkHasMoveTo();
-							double vals[3];
-							parseNumberList(impd, args.fetchRequired(0), vals, 3, 3);
+							double center[2];
+							parseNumberList(impd, args.fetchRequired(0), center, 2, 2);
+							double degrees;
+							parseNumberList(impd, args.fetchRequired(1), &degrees, 1, 1);
 							args.throwIfAnyUnfetched();
-							double cx = vals[0];
-							double cy = vals[1];
-							double degrees = vals[2];
-							Vertex startPos(path.getPosition());
-							double dx = startPos.x - cx;
-							double dy = startPos.y - cy;
-							double radius = sqrt(dx * dx + dy * dy);
-							double angle = -degrees * DEGREES;
-							double cosA = cos(angle);
-							double sinA = sin(angle);
-							Vertex endPos(cx + dx * cosA - dy * sinA, cy + dx * sinA + dy * cosA);
-							int sweepFlag = (degrees >= 0.0 ? 1 : 0);
-							int largeFlag = (fabs(degrees) > 180.0 ? 1 : 0);
-							appendArcSegment(startPos, endPos, radius, radius, 0.0, sweepFlag, largeFlag, curveQuality, path);
-							path.lineTo(endPos.x, endPos.y);
+							double sweepRadians = -degrees * DEGREES;
+							path.arcSweep(center[0], center[1], sweepRadians, 1.0, curveQuality);
 							return true;
 						}
 					}
@@ -764,7 +743,6 @@ class PathInstructionExecutor : public Executor {
 				}
 	protected:	Executor& parentExecutor;
 	protected:	Path& path;
-	protected:	const bool doClose;
 	protected:	const double curveQuality;
 	protected:	bool moveToSeen;
 };
@@ -1466,9 +1444,12 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				const String* closed = args.fetchOptional("closed");
 				const bool doClose = (closed != 0 && impd.toBool(*closed));
 				const String& block = args.fetchRequired(0, false);
-				PathInstructionExecutor pathExecutor(impd.getExecutor(), path, doClose, curveQuality);
+				PathInstructionExecutor pathExecutor(impd.getExecutor(), path, curveQuality);
 				Interpreter pathInterpreter(pathExecutor, impd);
 				pathInterpreter.run(block);
+				if (doClose) {
+					path.closeAll();
+				}
 			}
 			args.throwIfAnyUnfetched();
 			currentContext->draw(path);

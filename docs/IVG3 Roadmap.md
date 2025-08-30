@@ -60,11 +60,11 @@ PATH [move-to 20,20; line-to 120,20 120,80 20,80] closed:yes
 **Instructions**
 
 ```
-move-to   <x>,<y>
-line-to   <x>,<y> [<x>,<y> ...]
+move-to	  <x>,<y>
+line-to	  <x>,<y> [<x>,<y> ...]
 bezier-to <cx>,<cy> <x>,<y>
 bezier-to <c1x>,<c1y> <c2x>,<c2y> <x>,<y>
-arc-to    <x>,<y> (<r>|<rx>,<ry>) [sweep:cw|ccw=cw] [large:yes|no=no] [rotate:<deg>=0]
+arc-to	  <x>,<y> (<r>|<rx>,<ry>) [sweep:cw|ccw=cw] [large:yes|no=no] [rotate:<deg>=0]
 arc-sweep <cx>,<cy> <degrees>
 ```
 
@@ -73,10 +73,10 @@ arc-sweep <cx>,<cy> <degrees>
 - `bezier-to <cx>,<cy> <x>,<y>` draws a quadratic Bezier curve.
 - `bezier-to <c1x>,<c1y> <c2x>,<c2y> <x>,<y>` draws a cubic Bezier curve using two control points.
 - `arc-to <x>,<y> <r>|<rx>,<ry>` draws an elliptical arc from the current point to `<x>,<y>`.
-    - `<r>` specifies a circular radius; `<rx>,<ry>` specify ellipse radii.
-    - `[sweep:cw|ccw=cw]` chooses direction.
-    - `[large:yes|no=no]` chooses larger or smaller arc.
-    - `[rotate:<deg>=0]` rotates the ellipse axes before tracing.
+	- `<r>` specifies a circular radius; `<rx>,<ry>` specify ellipse radii.
+	- `[sweep:cw|ccw=cw]` chooses direction.
+	- `[large:yes|no=no]` chooses larger or smaller arc.
+	- `[rotate:<deg>=0]` rotates the ellipse axes before tracing.
 - `arc-sweep <cx>,<cy> <degrees>` draws a circular arc around center `<cx>,<cy>`. Radius is the distance from the current point. Positive degrees sweep clockwise, negative sweep counterclockwise.
 - `closed:(yes|no)=no` closes the path automatically, connecting the final point back to the first for both fill and stroke. Also, closes sub-paths on move-to.
 
@@ -113,7 +113,7 @@ PATH [move-to 10,50; arc-sweep 50,50 180]
 ## Milestone 4 – arc handling
 - [x] Extract the arc maths used in the `'A'` case of `buildPathFromSVG` (lines 279–334) into a shared helper, e.g. `appendArcSegment(startPos, endPos, rx, ry, xAxisRotation, sweepFlag, largeArcFlag, curveQuality, NuXPixels::Path&)`.
 - [x] Call `appendArcSegment` from the new `arc-to` branch in `PathInstructionExecutor::execute` and also replace the inline code in `buildPathFromSVG` with a helper call to avoid duplication.
-- [x] Implement `arc-sweep` by computing the radius from the current point to the supplied center `(cx,cy)` and delegating to `appendArcSegment` with the calculated end point.
+- [x] Implement `arc-sweep` by converting the degree argument to radians and calling `path.arcSweep(cx, cy, radians)`.
 - [x] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
 ## Milestone 5 – finalize path and integrate
 - [x] In `IVGExecutor::execute` (around line 1285), when the `svg:` argument is missing, fetch the instruction block as the first unlabeled argument and invoke `buildPathFromInstructions` to construct the path.
