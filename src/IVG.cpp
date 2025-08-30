@@ -1202,6 +1202,22 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	canvas.blend(*renderer);
 }
 
+static Path makeLinePath(Interpreter& impd, ArgumentsContainer& args, int minimumCount, const char* argError) {
+	StringVector elems;
+	const int count = impd.parseList(args.fetchRequired(0), elems, true, false, minimumCount);
+	if ((count & 1) != 0) {
+		impd.throwBadSyntax(argError);
+	}
+	args.throwIfAnyUnfetched();
+	Path path;
+	path.moveTo(impd.toDouble(elems[0]), impd.toDouble(elems[1]));
+	for (int i = 2; i < count; i += 2) {
+		path.lineTo(impd.toDouble(elems[i]), impd.toDouble(elems[i + 1]));
+	}
+	return path;
+}
+
+
 bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const String& arguments) {
 	int foundInstruction = findIVGInstruction(instruction.size(), instruction.c_str());
 	if (foundInstruction < 0) {
@@ -1213,7 +1229,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 
 	IVGInstruction ivgInstruction = static_cast<IVGInstruction>(foundInstruction);
 	switch (ivgInstruction) {
-		case RECT_INSTRUCTION: { // RECT
+		case RECT_INSTRUCTION: {
 			parseNumberList(impd, args.fetchRequired(0), numbers, 4, 4);
 			const String* s = args.fetchOptional("rounded");
 			args.throwIfAnyUnfetched();
@@ -1243,12 +1259,12 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 
-		case PEN_INSTRUCTION: { // pen
+		case PEN_INSTRUCTION: {
 			parseStroke(impd, args, currentContext->accessState().pen);
 			break;
 		}
 
-		case FILL_INSTRUCTION: { // fill
+		case FILL_INSTRUCTION: {
 			State& state = currentContext->accessState();
 			Canvas& canvas = currentContext->accessCanvas();
 			canvas.parsePaint(impd, *this, *currentContext, args, state.fill);
@@ -1264,7 +1280,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 
-		case PATH_INSTRUCTION: { // PATH
+		case PATH_INSTRUCTION: {
 			const String* s = args.fetchOptional("svg");
 			if (s != 0) {
 				Path p;
@@ -1285,7 +1301,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		case SCALE_INSTRUCTION:
 		case ROTATE_INSTRUCTION:
 		case OFFSET_INSTRUCTION:
-		case SHEAR_INSTRUCTION: { // transforms
+		case SHEAR_INSTRUCTION: {
 			State& state = currentContext->accessState();
 			AffineTransformation thisXF = parseSingleTransformation(impd, static_cast<TransformType>(ivgInstruction - MATRIX_INSTRUCTION), args);
 			args.throwIfAnyUnfetched();
@@ -1294,7 +1310,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 
-		case CONTEXT_INSTRUCTION: { // context
+		case CONTEXT_INSTRUCTION: {
 			const String& block = args.fetchRequired(0, false);
 			args.throwIfAnyUnfetched();
 			Context newContext(currentContext->accessCanvas(), *currentContext);
@@ -1302,7 +1318,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 		
-		case WIPE_INSTRUCTION: { // wipe
+		case WIPE_INSTRUCTION: {
 			Paint wipePaint;
 			currentContext->accessCanvas().parsePaint(impd, *this, *currentContext, args, wipePaint);
 			args.throwIfNoneFetched();
@@ -1318,7 +1334,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 		
-		case OPTIONS_INSTRUCTION: { // options
+		case OPTIONS_INSTRUCTION: {
 			const String* s;
 			State& state = currentContext->accessState();
 			if ((s = args.fetchOptional("aa-gamma")) != 0) {
@@ -1347,13 +1363,13 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 		
-		case RESET_INSTRUCTION: { // reset
+		case RESET_INSTRUCTION: {
 			args.throwIfAnyUnfetched();
 			currentContext->resetState();
 			break;
 		}
 		
-		case ELLIPSE_INSTRUCTION: { // ELLIPSE
+		case ELLIPSE_INSTRUCTION: {
 			int count = parseNumberList(impd, args.fetchRequired(0), numbers, 3, 4);
 			args.throwIfAnyUnfetched();			
 			Path p;
@@ -1371,7 +1387,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 
-		case STAR_INSTRUCTION: { // STAR
+		case STAR_INSTRUCTION: {
 			StringVector elems;
 			int count = impd.parseList(args.fetchRequired(0), elems, true, false, 4, 5);
 			const String* s = args.fetchOptional("rotation");
@@ -1396,7 +1412,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 
-		case MASK_INSTRUCTION: { // mask
+		case MASK_INSTRUCTION: {
 			const String& block = args.fetchRequired(0, false);
 			bool inverted = false;
 			const String* s = args.fetchOptional("inverted");
@@ -1418,7 +1434,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 		
-		case BOUNDS_INSTRUCTION: { // bounds
+		case BOUNDS_INSTRUCTION: {
 			StringVector elems;
 			impd.parseList(args.fetchRequired(0), elems, true, false, 4, 4);
 			args.throwIfAnyUnfetched();
@@ -1534,37 +1550,17 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 
 		case IMAGE_INSTRUCTION: executeImage(impd, args); break;
 
-		case LINE_INSTRUCTION: { // LINE
-			StringVector elems;
-			int count = impd.parseList(args.fetchRequired(0), elems, true, false, 4, 1000);
-			if (count < 4 || (count & 1)) {
-					impd.throwBadSyntax("Invalid LINE arguments");
-			}
-			Path p;
-			p.moveTo(impd.toDouble(elems[0]), impd.toDouble(elems[1]));
-			for (int i = 2; i < count; i += 2) {
-				p.lineTo(impd.toDouble(elems[i]), impd.toDouble(elems[i + 1]));
-			}
-			args.throwIfAnyUnfetched();
-			const Rect<double> pathBounds(p.calcFloatBounds());
-			currentContext->stroke(p, currentContext->accessState().pen, pathBounds, 1.0);
+		case LINE_INSTRUCTION: {
+			const Path path = makeLinePath(impd, args, 4, "Invalid LINE arguments");
+			const Rect<double> pathBounds(path.calcFloatBounds());
+			currentContext->stroke(path, currentContext->accessState().pen, pathBounds, 1.0);
 			break;
 		}
 
-		case POLYGON_INSTRUCTION: { // POLYGON
-			StringVector elems;
-			int count = impd.parseList(args.fetchRequired(0), elems, true, false, 6, 1000);
-			if (count < 6 || (count & 1)) {
-					impd.throwBadSyntax("Invalid POLYGON arguments");
-			}
-			Path p;
-			p.moveTo(impd.toDouble(elems[0]), impd.toDouble(elems[1]));
-			for (int i = 2; i < count; i += 2) {
-				p.lineTo(impd.toDouble(elems[i]), impd.toDouble(elems[i + 1]));
-			}
-			p.close();
-			args.throwIfAnyUnfetched();
-			currentContext->draw(p);
+		case POLYGON_INSTRUCTION: {
+			Path path = makeLinePath(impd, args, 4, "Invalid LINE arguments");
+			path.close();
+			currentContext->draw(path);
 			break;
 		}
 	}
