@@ -9,8 +9,8 @@ SET fonts=..\..\fonts
 
 where emcc >NUL 2>&1
 IF ERRORLEVEL 1 (
-    ECHO emcc not found. Install Emscripten first.
-    GOTO error
+    ECHO Warning: Emscripten not found, skipping ivgfiddle build
+    EXIT /b 0
 )
 
 IF NOT EXIST "%output%" MKDIR "%output%"
@@ -19,6 +19,13 @@ IF NOT EXIST "%output%" MKDIR "%output%"
 COPY "%src%\ivgfiddle.html" "%src%\ivgfiddle.js" "%src%\setupModule.js" "%output%" >NUL
 IF NOT EXIST "%output%\ace" MKDIR "%output%\ace"
 COPY "%src%\ace\ace.js" "%src%\ace\ext-searchbox.js" "%src%\ace\mode-ivg.js" "%src%\ace\theme-twilight.js" "%output%\ace" >NUL
+
+WHERE node >NUL 2>NUL
+IF ERRORLEVEL 1 (
+    ECHO Warning: Node.js not found, skipping ivgfiddle test
+) ELSE (
+    node .\testIVGFiddle.js "%output%" || GOTO error
+)
 
 EXIT /b 0
 :error

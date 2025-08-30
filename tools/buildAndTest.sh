@@ -87,11 +87,10 @@ else
 fi
 cd ..
 ./output/PolygonMaskTest
-# Build and test ivgfiddle if Node.js is available
-if command -v node >/dev/null 2>&1; then
-    bash ./tools/ivgfiddle/buildIVGFiddle.sh
-    node ./tools/ivgfiddle/testIVGFiddle.js
+# Build and test ivgfiddle if Node.js and Emscripten are available
+if command -v node >/dev/null 2>&1 && command -v emcc >/dev/null 2>&1; then
+bash ./tools/ivgfiddle/buildIVGFiddle.sh
 else
-    echo "Warning: Node.js not found, skipping ivgfiddle test" >&2
+echo "Warning: skipping ivgfiddle build; requires Node.js and Emscripten" >&2
 fi
 exit 0

@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const here = __dirname;
+const outDir = path.resolve(process.argv[2] || path.join(here, "output"));
 
 function fail(msg){ console.error(msg); process.exit(1); }
 
@@ -16,7 +17,7 @@ function heapU32(Module){
 	return new Uint32Array(mem.buffer);
 }
 
-const createModule = require(path.join(here, "output", "rasterizeIVG.js"));
+const createModule = require(path.join(outDir, "rasterizeIVG.js"));
 createModule().then(Module => {
 	try {
 		const src = fs.readFileSync(path.join(here, "src", "demoSource.ivg"), "utf8");

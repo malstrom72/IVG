@@ -87,10 +87,14 @@ CALL .\output\PolygonMaskTest || GOTO error
 
 WHERE node >NUL 2>NUL
 IF ERRORLEVEL 1 (
-        ECHO Warning: Node.js not found, skipping ivgfiddle test
+ECHO Warning: Node.js not found, skipping ivgfiddle build
 ) ELSE (
-        CALL .\tools\ivgfiddle\buildIVGFiddle.cmd || GOTO error
-        node .\tools\ivgfiddle\testIVGFiddle.js || GOTO error
+WHERE emcc >NUL 2>NUL
+IF ERRORLEVEL 1 (
+ECHO Warning: Emscripten not found, skipping ivgfiddle build
+) ELSE (
+CALL .\tools\ivgfiddle\buildIVGFiddle.cmd || GOTO error
+)
 )
 
 GOTO :eof
