@@ -726,7 +726,7 @@ class PathInstructionExecutor : public Executor {
 							double degrees;
 							parseNumberList(impd, args.fetchRequired(1), &degrees, 1, 1);
 							args.throwIfAnyUnfetched();
-							double sweepRadians = -degrees * DEGREES;
+							double sweepRadians = min(max(degrees * DEGREES, -PI2), PI2);
 							path.arcSweep(center[0], center[1], sweepRadians, 1.0, curveQuality);
 							return true;
 						}
