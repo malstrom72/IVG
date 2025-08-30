@@ -92,34 +92,6 @@ PATH [move-to 10,50; arc-sweep 50,50,180]
 # Implementation plan
 
 ## Milestone 1 – helper stub and declaration
-<<<<<<< ours
-- [ ] In `src/IVG.cpp`, add `buildPathFromInstructions` immediately after `buildPathFromSVG` (function ends around line 346). The stub should accept an `ImpDDecoder&` and `PathBuilder&` and simply return `false` for now. Include a `// TODO` comment so the body is easy to locate later.
-- [ ] Declare `buildPathFromInstructions` in `src/IVG.h` directly beneath the `buildPathFromSVG` prototype. Use the same namespaces (`IMPD` and `NuXPixels`) as the existing declarations so the header compiles without additional includes.
-- [ ] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
-## Milestone 2 – executor scaffold and dispatcher
-- [ ] Introduce `PathInstructionExecutor` in `src/IVG.cpp` near the other executor helpers (around line 575 next to `TransformationExecutor`).
-      * Derive from `Executor` and store references to the `Decoder` and the `PathBuilder` passed in through the constructor.
-      * Forward the `trace`, `progress`, and `load` calls to the parent `Decoder` in the same way `TransformationExecutor` forwards to its parent executor.
-- [ ] Run `node externals/QuickHashGen/QuickHashGenCLI.node.js --seed 1 <<<'move-to\nline-to\nbezier-to\narc-to\narc-sweep\n'` and paste the generated function into `src/IVG.cpp` as `findPathInstructionType`.
-- [ ] Place `findPathInstructionType` alongside the other `/* Built with QuickHashGen */` helpers (around line 515) and invoke it from `PathInstructionExecutor::execute` to switch over the five supported instruction names. Unknown names should return `false` so the decoder can raise a syntax error.
-- [ ] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
-## Milestone 3 – basic instructions
-- [ ] Within `buildPathFromInstructions`, iterate over the instruction block using the new executor:
-      * `move-to` **must** appear first. Read two floats with `decoder.getFloat()` and call `builder.moveTo()`.
-      * For `line-to`, continue pulling pairs with `decoder.getFloat()` until the decoder reports no more arguments and pass them to `builder.lineTo()`.
-- [ ] Add support for `bezier-to`:
-      * Fetch the mandatory end point (`x`,`y`).
-      * Read the `via:` label – if it contains two numbers call `builder.quadraticTo()`, otherwise interpret four numbers and call `builder.cubicTo()`.
-- [ ] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
-## Milestone 4 – arc handling
-- [ ] Extract the arc maths used in the `'A'` case of `buildPathFromSVG` (lines 279–334) into a shared helper, e.g. `appendArcSegment(startPos, endPos, rx, ry, xAxisRotation, sweepFlag, largeArcFlag, curveQuality, PathBuilder&)`.
-- [ ] Call `appendArcSegment` from the new `arc-to` branch in `buildPathFromInstructions` and also replace the inline code in `buildPathFromSVG` with a helper call to avoid duplication.
-- [ ] Implement `arc-sweep` by computing the radius from the current point to the supplied center `(cx,cy)` and delegating to `appendArcSegment` with the calculated end point.
-- [ ] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
-## Milestone 5 – finalize path and integrate
-- [ ] Parse the optional `closed:` argument inside `buildPathFromInstructions`; if set to `yes`, call `builder.closePath()` before returning.
-- [ ] In `IVGExecutor::execute` (around line 1285), update the `PATH` case so that when the `svg:` argument is missing, the function builds a path by invoking `buildPathFromInstructions` with the instruction block collected from the decoder. Keep the existing `svg:` branch intact.
-=======
 - [ ] In `src/IVG.cpp`, add `buildPathFromInstructions` immediately after `buildPathFromSVG` (function ends around line 346). The stub should accept `IMPD::Interpreter& impd`, `const IMPD::String& instructionBlock`, `double curveQuality`, and `NuXPixels::Path& path`, then simply `return false;` with a `// TODO` comment so the body is easy to locate later.
 - [ ] Declare `buildPathFromInstructions` in `src/IVG.h` directly beneath the `buildPathFromSVG` prototype using the same namespaces (`IMPD` and `NuXPixels`) as the existing declarations.
 - [ ] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
@@ -146,7 +118,6 @@ PATH [move-to 10,50; arc-sweep 50,50,180]
 ## Milestone 5 – finalize path and integrate
 - [ ] In `IVGExecutor::execute` (around line 1285), when the `svg:` argument is missing, fetch the instruction block as the first unlabeled argument and invoke `buildPathFromInstructions` to construct the path.
 - [ ] Parse the optional `closed:` argument in the PATH case; if set to `yes`, call `p.close()` after `buildPathFromInstructions` succeeds.
->>>>>>> theirs
 - [ ] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
 ## Milestone 6 – documentation
 - [ ] In `docs/IVG Documentation.md`, expand the PATH section (starts around line 230) to cover instruction lists, detailing each sub-command with short examples mirroring the ones above.
