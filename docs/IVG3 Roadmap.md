@@ -62,16 +62,16 @@ PATH [move-to 20,20; line-to 120,20 120,80 20,80] closed:yes
 ```
 move-to   <x>,<y>
 line-to   <x>,<y> [<x>,<y> ...]
-quad-to   <x>,<y> <cx>,<cy>
-cubic-to  <x>,<y> <c1x>,<c1y> <c2x>,<c2y>
+bezier-to <cx>,<cy> <x>,<y>
+bezier-to <c1x>,<c1y> <c2x>,<c2y> <x>,<y>
 arc-to    <x>,<y> (<r>|<rx>,<ry>) [sweep:cw|ccw=cw] [large:yes|no=no] [rotate:<deg>=0]
 arc-sweep <cx>,<cy> <degrees>
 ```
 
 - `move-to <x>,<y>` sets the current drawing point (must be the first instruction).
 - `line-to <x>,<y> [<x>,<y> ...]` draws straight lines from the current point to one or more endpoints.
-- `quad-to <x>,<y> <cx>,<cy>` draws a quadratic Bezier curve.
-- `cubic-to <x>,<y> <c1x>,<c1y> [c2x,c2y]` draws a cubic Bezier curve using two control points.
+- `bezier-to <cx>,<cy> <x>,<y>` draws a quadratic Bezier curve.
+- `bezier-to <c1x>,<c1y> <c2x>,<c2y> <x>,<y>` draws a cubic Bezier curve using two control points.
 - `arc-to <x>,<y> <r>|<rx>,<ry>` draws an elliptical arc from the current point to `<x>,<y>`.
     - `<r>` specifies a circular radius; `<rx>,<ry>` specify ellipse radii.
     - `[sweep:cw|ccw=cw]` chooses direction.
