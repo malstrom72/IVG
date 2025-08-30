@@ -1202,21 +1202,23 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	canvas.blend(*renderer);
 }
 
-static Path makeLinePath(Interpreter& impd, ArgumentsContainer& args, int minimumCount, const char* argError) {
-	StringVector elems;
-	const int count = impd.parseList(args.fetchRequired(0), elems, true, false, minimumCount);
-	if ((count & 1) != 0) {
-		impd.throwBadSyntax(argError);
+static Path makeLinePath(Interpreter& impd, ArgumentsContainer& args, const char* argError) {
+	double numbers[2];
+	parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
+	Path path;
+	path.moveTo(numbers[0], numbers[1]);
+	parseNumberList(impd, args.fetchRequired(1), numbers, 2, 2);
+	path.lineTo(numbers[0], numbers[1]);
+	const String* s;
+	int i = 2;
+	while ((s = args.fetchOptional(i)) != 0) {
+		parseNumberList(impd, *s, numbers, 2, 2);
+		path.lineTo(numbers[0], numbers[1]);
+		++i;
 	}
 	args.throwIfAnyUnfetched();
-	Path path;
-	path.moveTo(impd.toDouble(elems[0]), impd.toDouble(elems[1]));
-	for (int i = 2; i < count; i += 2) {
-		path.lineTo(impd.toDouble(elems[i]), impd.toDouble(elems[i + 1]));
-	}
 	return path;
 }
-
 
 bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const String& arguments) {
 	int foundInstruction = findIVGInstruction(instruction.size(), instruction.c_str());
@@ -1550,19 +1552,20 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 
 		case IMAGE_INSTRUCTION: executeImage(impd, args); break;
 
-		case LINE_INSTRUCTION: {
-			const Path path = makeLinePath(impd, args, 4, "Invalid LINE arguments");
-			const Rect<double> pathBounds(path.calcFloatBounds());
-			currentContext->stroke(path, currentContext->accessState().pen, pathBounds, 1.0);
-			break;
-		}
+               case LINE_INSTRUCTION: {
+                       const Path path = makeLinePath(impd, args, "Invalid LINE arguments");
+                       const Rect<double> pathBounds(path.calcFloatBounds());
+                       currentContext->stroke(path, currentContext->accessState().pen, pathBounds, 1.0);
+                       break;
+               }
 
-		case POLYGON_INSTRUCTION: {
-			Path path = makeLinePath(impd, args, 4, "Invalid LINE arguments");
-			path.close();
-			currentContext->draw(path);
-			break;
-		}
+               case POLYGON_INSTRUCTION: {
+                       args.fetchRequired(2);
+                       Path path = makeLinePath(impd, args, "Invalid LINE arguments");
+                       path.close();
+                       currentContext->draw(path);
+                       break;
+               }
 	}
 	
 	return true;
