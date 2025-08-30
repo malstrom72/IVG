@@ -84,7 +84,6 @@ IF NOT "%SKIP_SVG%"=="" (
 )
 CD ..
 CALL .\output\PolygonMaskTest || GOTO error
-
 GOTO :eof
 
 :error
