@@ -85,6 +85,14 @@ IF NOT "%SKIP_SVG%"=="" (
 CD ..
 CALL .\output\PolygonMaskTest || GOTO error
 
+WHERE node >NUL 2>NUL
+IF ERRORLEVEL 1 (
+        ECHO Warning: Node.js not found, skipping ivgfiddle test
+) ELSE (
+        CALL .\tools\ivgfiddle\buildIVGFiddle.cmd || GOTO error
+        node .\tools\ivgfiddle\testIVGFiddle.js || GOTO error
+)
+
 GOTO :eof
 
 :error
