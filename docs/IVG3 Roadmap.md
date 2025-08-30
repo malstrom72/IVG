@@ -72,3 +72,37 @@ arc-sweep <cx>,<cy>,<degrees>
 - `arc-sweep <cx>,<cy>,<degrees>` draws a circular arc around center `<cx>,<cy>`. Radius is the distance from the current point. Positive degrees sweep clockwise, negative sweep counterclockwise.
 - `closed:(yes|no)=no` closes the path automatically, connecting the final point back to the first for both fill and stroke.
 
+
+
+# Implementation plan
+
+## Milestone 1 – helper stub and declaration
+- [ ] Add `buildPathFromInstructions` next to `buildPathFromSVG` in `src/IVG.cpp`.
+- [ ] Declare the helper in `src/IVG.h`.
+- [ ] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
+## Milestone 2 – executor scaffold and dispatcher
+- [ ] Introduce `PathInstructionExecutor` deriving from `Executor` and forwarding `trace`, `progress`, and `load`.
+- [ ] Generate QuickHash dispatcher with `node externals/QuickHashGen/QuickHashGenCLI.node.js --seed 1 <<<'move-to\nline-to\nbezier-to\narc-to\narc-sweep\n'`.
+- [ ] Place `findPathInstructionType` near other QuickHashGen blocks and call it from `execute`.
+- [ ] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
+## Milestone 3 – basic instructions
+- [ ] Parse `move-to` (must come first) and `line-to` (accept multiple pairs).
+- [ ] Parse `bezier-to` using `via:` list for quadratic/cubic control points.
+- [ ] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
+## Milestone 4 – arc handling
+- [ ] Implement `arc-to` reusing math from `'A'` case of `buildPathFromSVG`.
+- [ ] Implement `arc-sweep` starting sweep from the current point.
+- [ ] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
+## Milestone 5 – finalize path and integrate
+- [ ] Close path when `closed:yes`.
+- [ ] In `IVGExecutor::execute` PATH branch, call the helper when no `svg:` argument is present and keep existing `svg:` support.
+- [ ] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
+## Milestone 6 – documentation
+- [ ] In `docs/IVG Documentation.md`, expand the PATH section to cover instruction lists with examples.
+- [ ] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
+## Milestone 7 – regression test
+- [ ] Add `tests/ivg/pathInstructions.ivg` demonstrating the new syntax.
+- [ ] Test by generating PNGs on the fly; do not commit any `.png` files.
+- [ ] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
+## Final test
+- [ ] `timeout 300 ./tools/buildAndTest.sh beta native nosimd`
