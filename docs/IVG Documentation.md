@@ -265,14 +265,14 @@ The `LINE` instruction draws an open polyline using the current [`pen`](#pen).
 
 Syntax:
 
-    LINE <x0>,<y0>[,<x1>,<y1> ...]
+	LINE <x0>,<y0> <x1>,<y1> [<x2>,<y2> ...]
 
 At least two points (four coordinates) are required. Two points draw a single line segment; additional points extend the polyline.
 
 Example:
 
-    pen black width:2
-    LINE 10,10, 80,40, 40,80
+	pen black width:2
+	LINE 10,10 80,40 40,80
 
 ### POLYGON
 
@@ -280,15 +280,15 @@ The `POLYGON` instruction draws a closed polygon using the current [`fill`](#fil
 
 Syntax:
 
-    POLYGON <x0>,<y0>[,<x1>,<y1> ...]
+	POLYGON <x0>,<y0> <x1>,<y1> [<x2>,<y2> ...]
 
 At least three points (six coordinates) are required. The polygon is automatically closed.
 
 Example:
 
-    fill lime
-    pen black
-    POLYGON 20,20, 120,20, 120,80, 20,80
+	fill lime
+	pen black
+	POLYGON 20,20 120,20 120,80 20,80
 
 ### RECT
 
