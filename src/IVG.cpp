@@ -133,6 +133,48 @@ static Mask8::Pixel parseOpacity(const Interpreter& impd, const StringRange& r) 
 	return static_cast<Mask8::Pixel>(i);
 }
 
+static void appendArcSegment(const Vertex& startPos, const Vertex& endPos, double rx, double ry, double xAxisRotation
+		, int sweepFlag, int largeArcFlag, double curveQuality, Path& path) {
+	rx = fabs(rx);
+	ry = fabs(ry);
+	if (rx < EPSILON || ry < EPSILON) return;
+	Vertex s(startPos);
+	Vertex e(endPos);
+	AffineTransformation affineReverse;
+	if (xAxisRotation != 0.0) {
+		affineReverse = AffineTransformation().rotate(xAxisRotation * DEGREES);
+		AffineTransformation affineForward = affineReverse;
+		bool success = affineForward.invert();
+		(void)success;
+		assert(success);
+		s = affineForward.transform(s);
+		e = affineForward.transform(e);
+	}
+	const double dx = e.x - s.x;
+	const double dy = e.y - s.y;
+	if (fabs(dx) < EPSILON && fabs(dy) < EPSILON) {
+		return;
+	}
+	const double largeArcSign = (largeArcFlag != 0 ? 1.0 : -1.0);
+	const double sweepSign = (sweepFlag != 0 ? largeArcSign : -largeArcSign);
+	const double aspectRatio = rx / ry;
+	const double l = dx * dx + (aspectRatio * dy) * (aspectRatio * dy);
+	const double b = max(4.0 * rx * rx / l - 1.0, EPSILON);
+	const double a = sweepSign * sqrt(b * 0.25);
+	const double centerX = s.x + dx * 0.5 + a * dy * aspectRatio;
+	const double centerY = s.y + dy * 0.5 - a * dx / aspectRatio;
+	const double sweepRadians = sweepSign * (largeArcSign * PI + PI - acos((b - 1.0) / (1.0 + b)));
+	if (xAxisRotation != 0.0) {
+		Path tempPath;
+		tempPath.lineTo(s.x, s.y);
+		tempPath.arcSweep(centerX, centerY, sweepRadians, aspectRatio, curveQuality);
+		tempPath.transform(affineReverse);
+		path.append(tempPath);
+	} else {
+		path.arcSweep(centerX, centerY, sweepRadians, aspectRatio, curveQuality);
+	}
+}
+
 bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, const char*& errorString) {
 	assert(curveQuality > 0.0);
 	StringIt p = svgSource.begin();
@@ -291,44 +333,7 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 						first = false;
 						p = q;
 						v = toAbsoluteVertex(path, isRelative, v);
-						radii.x = fabs(radii.x);
-						radii.y = fabs(radii.y);
-						if (radii.x >= EPSILON && radii.y >= EPSILON) {
-							Vertex startPos(path.getPosition());
-							Vertex endPos(v);
-							AffineTransformation affineReverse;
-							if (xAxisRotation != 0.0) {
-								affineReverse = AffineTransformation().rotate(xAxisRotation * (PI2 / 360.0));
-								AffineTransformation affineForward = affineReverse;
-								bool success = affineForward.invert();
-								(void)success;
-								assert(success);
-								startPos = affineForward.transform(startPos);
-								endPos = affineForward.transform(endPos);
-							}
-							double dx = endPos.x - startPos.x;
-							double dy = endPos.y - startPos.y;
-							if (fabs(dx) >= EPSILON || fabs(dy) >= EPSILON) {
-								double largeArcSign = (largeArcFlag != 0 ? 1.0 : -1.0);
-								double sweepSign = (sweepFlag != 0 ? largeArcSign : -largeArcSign);
-								double aspectRatio = radii.x / radii.y;
-								double l = dx * dx + (aspectRatio * dy) * (aspectRatio * dy);
-								double b = max(4.0 * radii.x * radii.x / l - 1.0, EPSILON);
-								double a = sweepSign * sqrt(b * 0.25);
-								double centerX = startPos.x + dx * 0.5 + a * dy * aspectRatio;
-								double centerY = startPos.y + dy * 0.5 - a * dx / aspectRatio;
-								double sweepRadians = sweepSign * (largeArcSign * PI + PI - acos((b - 1.0) / (1.0 + b)));
-								if (xAxisRotation != 0.0) {
-									Path tempPath;
-									tempPath.lineTo(startPos.x, startPos.y);
-									tempPath.arcSweep(centerX, centerY, sweepRadians, aspectRatio, curveQuality);
-									tempPath.transform(affineReverse);
-									path.append(tempPath);
-								} else {
-									path.arcSweep(centerX, centerY, sweepRadians, aspectRatio, curveQuality);
-								}
-							}
-						}
+						appendArcSegment(path.getPosition(), v, radii.x, radii.y, xAxisRotation, sweepFlag, largeArcFlag, curveQuality, path);
 						path.lineTo(v.x, v.y);
 					}
 					break;
@@ -525,6 +530,20 @@ static int findTransformType(size_t n /* string length */, const char* s /* zero
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
+/* Built with QuickHashGen */
+static int findPathInstructionType(size_t n /* string length */, const char* s /* zero-terminated string */) {
+	static const char* STRINGS[5] = {
+		"move-to", "line-to", "bezier-to", "arc-to", "arc-sweep"
+	};
+	static const int QUICK_HASH_TABLE[8] = {
+		4, -1, 0, 1, -1, 3, -1, 2
+	};
+	const unsigned char* p = (const unsigned char*) s;
+	if (n < 6 || n > 9) return -1;
+	int stringIndex = QUICK_HASH_TABLE[(n - p[0]) & 7u];
+	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
+}
+
 static AffineTransformation parseSingleTransformation(Interpreter& impd, TransformType transformType, ArgumentsContainer& arguments) {
 	double numbers[6];
 	double anchor[2];
@@ -596,6 +615,158 @@ class TransformationExecutor : public Executor {
 	public:		const AffineTransformation& getTransform() const { return xf; }
 	protected:	Executor& parentExecutor;
 	protected:	AffineTransformation xf;
+};
+
+enum PathInstructionType {
+	MOVE_TO_INSTRUCTION,
+	LINE_TO_INSTRUCTION,
+	BEZIER_TO_INSTRUCTION,
+	ARC_TO_INSTRUCTION,
+	ARC_SWEEP_INSTRUCTION
+};
+
+class PathInstructionExecutor : public Executor {
+	public:		PathInstructionExecutor(Executor& parentExecutor, Path& path, bool doClose, double curveQuality)
+						: parentExecutor(parentExecutor), path(path), doClose(doClose), curveQuality(curveQuality)
+						, moveToSeen(false) { };
+	public:		virtual bool format(Interpreter& impd, const String& identifier, const vector<String>& uses
+						, const vector<String>& requires) {
+					(void)impd; (void)identifier; (void)uses; (void)requires;
+					return false;
+				}
+	public:		virtual bool execute(Interpreter& impd, const String& instruction, const String& arguments) {
+					const int foundInstruction = findPathInstructionType(IMPD::lossless_cast<int>(instruction.size()), instruction.c_str());
+					if (foundInstruction < 0) {
+						return false;
+					}
+					ArgumentsContainer args(ArgumentsContainer::parse(impd, arguments));
+					switch (foundInstruction) {
+						case MOVE_TO_INSTRUCTION: {
+							double numbers[2];
+							parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
+							path.moveTo(numbers[0], numbers[1]);
+							args.throwIfAnyUnfetched();
+							moveToSeen = true;
+							return true;
+						}
+						case LINE_TO_INSTRUCTION: {
+							checkHasMoveTo();
+							double numbers[2];
+							parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
+							path.lineTo(numbers[0], numbers[1]);
+							const String* s;
+							int i = 1;
+							while ((s = args.fetchOptional(i)) != 0) {
+								parseNumberList(impd, *s, numbers, 2, 2);
+								path.lineTo(numbers[0], numbers[1]);
+								++i;
+							}
+							args.throwIfAnyUnfetched();
+							return true;
+						}
+						case BEZIER_TO_INSTRUCTION: {
+							checkHasMoveTo();
+							double end[2];
+							parseNumberList(impd, args.fetchRequired(0), end, 2, 2);
+							const String& via = args.fetchRequired("via");
+							double control[4];
+							const int count = parseNumberList(impd, via, control, 2, 4);
+							if (count == 2) {
+								path.quadraticTo(control[0], control[1], end[0], end[1], curveQuality);
+							} else if (count == 4) {
+								path.cubicTo(control[0], control[1], control[2], control[3], end[0], end[1], curveQuality);
+							} else {
+								impd.throwBadSyntax(String("Invalid via for bezier-to: ") + via);
+							}
+							args.throwIfAnyUnfetched();
+							return true;
+						}
+						case ARC_TO_INSTRUCTION: {
+							checkHasMoveTo();
+							double numbers[4];
+							const int count = parseNumberList(impd, args.fetchRequired(0), numbers, 3, 4);
+							double endX = numbers[0];
+							double endY = numbers[1];
+							double rx;
+							double ry;
+							if (count == 3) {
+								rx = ry = numbers[2];
+							} else if (count == 4) {
+								rx = numbers[2];
+								ry = numbers[3];
+							} else {
+								impd.throwBadSyntax("Invalid arc-to coordinate count");
+							}
+							int sweepFlag = 1;
+							int largeFlag = 0;
+							double rotate = 0.0;
+							const String* sweep = args.fetchOptional("sweep");
+							if (sweep != 0) {
+								const String sweepLower = impd.toLower(*sweep);
+								if (sweepLower == "cw") {
+									sweepFlag = 1;
+								} else if (sweepLower == "ccw") {
+									sweepFlag = 0;
+								} else {
+									impd.throwBadSyntax(String("Invalid sweep for arc-to: ") + *sweep);
+								}
+							}
+							const String* large = args.fetchOptional("large");
+							if (large != 0) {
+								const String largeLower = impd.toLower(*large);
+								if (largeLower == "yes") largeFlag = 1;
+								else if (largeLower == "no") largeFlag = 0;
+								else impd.throwBadSyntax(String("Invalid large for arc-to: ") + *large);
+							}
+							const String* rotateArg = args.fetchOptional("rotate");
+							if (rotateArg != 0) {
+								rotate = impd.toDouble(*rotateArg);
+							}
+							args.throwIfAnyUnfetched();
+							Vertex startPos(path.getPosition());
+							Vertex endPos(endX, endY);
+							appendArcSegment(startPos, endPos, rx, ry, rotate, sweepFlag, largeFlag, curveQuality, path);
+							path.lineTo(endPos.x, endPos.y);
+							return true;
+						}
+						case ARC_SWEEP_INSTRUCTION: {
+							checkHasMoveTo();
+							double vals[3];
+							parseNumberList(impd, args.fetchRequired(0), vals, 3, 3);
+							args.throwIfAnyUnfetched();
+							double cx = vals[0];
+							double cy = vals[1];
+							double degrees = vals[2];
+							Vertex startPos(path.getPosition());
+							double dx = startPos.x - cx;
+							double dy = startPos.y - cy;
+							double radius = sqrt(dx * dx + dy * dy);
+							double angle = -degrees * DEGREES;
+							double cosA = cos(angle);
+							double sinA = sin(angle);
+							Vertex endPos(cx + dx * cosA - dy * sinA, cy + dx * sinA + dy * cosA);
+							int sweepFlag = (degrees >= 0.0 ? 1 : 0);
+							int largeFlag = (fabs(degrees) > 180.0 ? 1 : 0);
+							appendArcSegment(startPos, endPos, radius, radius, 0.0, sweepFlag, largeFlag, curveQuality, path);
+							path.lineTo(endPos.x, endPos.y);
+							return true;
+						}
+					}
+					return false;
+				}
+	public:		virtual void trace(Interpreter& impd, const WideString& s) { parentExecutor.trace(impd, s); }
+	public:		virtual bool progress(Interpreter& impd, int maxStatementsLeft) { return parentExecutor.progress(impd, maxStatementsLeft); }
+	public:		virtual bool load(Interpreter& impd, const WideString& filename, String& contents) { return parentExecutor.load(impd, filename, contents); }
+	protected:	void checkHasMoveTo() const {
+					if (!moveToSeen) {
+						Interpreter::throwRunTimeError("move-to must appear first in path instructions");
+					}
+				}
+	protected:	Executor& parentExecutor;
+	protected:	Path& path;
+	protected:	const bool doClose;
+	protected:	const double curveQuality;
+	protected:	bool moveToSeen;
 };
 
 static AffineTransformation parseTransformationBlock(Interpreter& impd, const String& source) {
@@ -1283,19 +1454,24 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		}
 
 		case PATH_INSTRUCTION: {
-			const String* s = args.fetchOptional("svg");
-			if (s != 0) {
-				Path p;
+			Path path;
+			const double curveQuality = currentContext->calcCurveQuality();
+			const String* svg = args.fetchOptional("svg");
+			if (svg != 0) {
 				const char* errorString;
-				if (!buildPathFromSVG(*s, currentContext->calcCurveQuality(), p, errorString)) {
+				if (!buildPathFromSVG(*svg, curveQuality, path, errorString)) {
 					impd.throwBadSyntax(errorString);
 				}
-				args.throwIfAnyUnfetched();
-				currentContext->draw(p);
 			} else {
-				args.throwIfAnyUnfetched();
-				impd.throwBadSyntax("Invalid PATH arguments (missing svg argument)");
+				const String* closed = args.fetchOptional("closed");
+				const bool doClose = (closed != 0 && impd.toBool(*closed));
+				const String& block = args.fetchRequired(0, false);
+				PathInstructionExecutor pathExecutor(impd.getExecutor(), path, doClose, curveQuality);
+				Interpreter pathInterpreter(pathExecutor, impd);
+				pathInterpreter.run(block);
 			}
+			args.throwIfAnyUnfetched();
+			currentContext->draw(path);
 			break;
 		}
 			
@@ -1552,20 +1728,20 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 
 		case IMAGE_INSTRUCTION: executeImage(impd, args); break;
 
-               case LINE_INSTRUCTION: {
-                       const Path path = makeLinePath(impd, args, "Invalid LINE arguments");
-                       const Rect<double> pathBounds(path.calcFloatBounds());
-                       currentContext->stroke(path, currentContext->accessState().pen, pathBounds, 1.0);
-                       break;
-               }
+			   case LINE_INSTRUCTION: {
+					   const Path path = makeLinePath(impd, args, "Invalid LINE arguments");
+					   const Rect<double> pathBounds(path.calcFloatBounds());
+					   currentContext->stroke(path, currentContext->accessState().pen, pathBounds, 1.0);
+					   break;
+			   }
 
-               case POLYGON_INSTRUCTION: {
-                       args.fetchRequired(2);
-                       Path path = makeLinePath(impd, args, "Invalid LINE arguments");
-                       path.close();
-                       currentContext->draw(path);
-                       break;
-               }
+			   case POLYGON_INSTRUCTION: {
+					   args.fetchRequired(2);
+					   Path path = makeLinePath(impd, args, "Invalid LINE arguments");
+					   path.close();
+					   currentContext->draw(path);
+					   break;
+			   }
 	}
 	
 	return true;
@@ -1711,7 +1887,7 @@ bool buildPathForString(const UniString& string, const std::vector<const Font*>&
 			glyph = fonts[0]->findGlyph(thisCharacter);
 		}
 		const char* thisError = 0;
-		if (glyph != 0 && IVG::buildPathFromSVG(glyph->svgPath, fontInfoIt->effectiveQuality, glyphPath, thisError)) {
+		if (glyph != 0 && buildPathFromSVG(glyph->svgPath, fontInfoIt->effectiveQuality, glyphPath, thisError)) {
 			advance += (*fontIt == lastFont
 					? (*fontIt)->findKerningAdjust(lastCharacter, thisCharacter) * fontInfoIt->mpu * size : 0.0);
 			lastFont = *fontIt;
