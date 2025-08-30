@@ -919,7 +919,7 @@ void IVGExecutor::runInNewContext(Interpreter& interpreter, Context& context, co
 bool IVGExecutor::format(Interpreter& impd, const String& identifier, const vector<String>& uses
 		, const vector<String>& requires) {
 	(void)impd; (void)uses;
-	return ((identifier == "ivg-1" || identifier == "ivg-2") && requires.empty());
+	return ((identifier == "ivg-1" || identifier == "ivg-2" || identifier == "ivg-3") && requires.empty());
 }
 
 void IVGExecutor::trace(Interpreter& impd, const WideString& s) {
