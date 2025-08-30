@@ -87,7 +87,4 @@ else
 fi
 cd ..
 ./output/PolygonMaskTest
-#
-# All ivgfiddle build and test logic lives outside this script.  The top-level
-# build wrappers decide whether to invoke it based on toolchain availability.
 exit 0

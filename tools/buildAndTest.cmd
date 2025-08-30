@@ -84,8 +84,6 @@ IF NOT "%SKIP_SVG%"=="" (
 )
 CD ..
 CALL .\output\PolygonMaskTest || GOTO error
-
-REM ivgfiddle build/test is handled by outer build scripts
 GOTO :eof
 
 :error
