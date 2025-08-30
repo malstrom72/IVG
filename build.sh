@@ -10,3 +10,9 @@ if [ "$sys" = "Darwin" ] || [ "$sys" = "Linux" ]; then
     ./tools/buildAndTest.sh beta native simd
     ./tools/buildAndTest.sh release native simd
 fi
+
+if command -v emcc >/dev/null 2>&1; then
+    bash ./tools/ivgfiddle/buildIVGFiddle.sh
+else
+    echo "Warning: skipping ivgfiddle build; requires Emscripten" >&2
+fi
