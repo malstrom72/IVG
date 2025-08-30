@@ -87,10 +87,7 @@ else
 fi
 cd ..
 ./output/PolygonMaskTest
-# Build and test ivgfiddle if Node.js and Emscripten are available
-if command -v node >/dev/null 2>&1 && command -v emcc >/dev/null 2>&1; then
-bash ./tools/ivgfiddle/buildIVGFiddle.sh
-else
-echo "Warning: skipping ivgfiddle build; requires Node.js and Emscripten" >&2
-fi
+#
+# All ivgfiddle build and test logic lives outside this script.  The top-level
+# build wrappers decide whether to invoke it based on toolchain availability.
 exit 0

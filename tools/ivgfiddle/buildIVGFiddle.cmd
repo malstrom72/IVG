@@ -9,8 +9,8 @@ SET fonts=..\..\fonts
 
 where emcc >NUL 2>&1
 IF ERRORLEVEL 1 (
-    ECHO Warning: Emscripten not found, skipping ivgfiddle build
-    EXIT /b 0
+    ECHO emcc not found. Install Emscripten first.
+    GOTO error
 )
 
 IF NOT EXIST "%output%" MKDIR "%output%"
