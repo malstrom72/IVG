@@ -64,7 +64,9 @@ const rasterizeIVG = function(source, scaling) {
 	Module._free(stringPointer);
 	return result;
 };
-const deallocatePixels = Module._deallocatePixels;
+function deallocatePixels(pixelsPointer) {
+	Module._deallocatePixels(pixelsPointer);
+}
 
 function heapU32(Module) {
 	if (Module.HEAPU32) return Module.HEAPU32;
