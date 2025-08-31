@@ -82,7 +82,7 @@ It's worth noting that basic knowledge of the _ImpD_ language is necessary to un
 For more information on _ImpD_, please refer to the separate [_ImpD documentation_](ImpD%20Documentation.html) provided.
 It will cover how to use variables and control flow statements to create dynamic and interactive graphics.
 
-The _ImpD format_ used in this documentation is `IVG-2`. Therefore, the `format` instruction should be as follows:
+The _IVG_ format used in this documentation is `IVG-3`. Therefore, the `format` instruction should be as follows:
 
 	format IVG-3 requires:ImpD-1
 
@@ -106,7 +106,6 @@ The `ELLIPSE` instruction draws an ellipse or circle shape on the canvas. It wil
 
 Syntax:
 
-	ELLIPSE <cx>,<cy>,(<r>|<rx>,<ry>)
 	ELLIPSE <cx>,<cy> (<r>|<rx>,<ry>)
 
 -	`<cx>,<cy>` is the center point of the ellipse.
@@ -187,9 +186,9 @@ Demonstration:
 	define image silly [
 		bounds 0,0,100,100
 		pen white; RECT 0.5,0.5,99,99
-		fill aqua; pen black; ELLIPSE 50,50,35,45
-		fill white; pen black; ELLIPSE 37,40,10; ELLIPSE 62,45,10
-		fill black; ELLIPSE 39,42,4; ELLIPSE 60,42,4
+		fill aqua; pen black; ELLIPSE 50,50 35,45
+		fill white; pen black; ELLIPSE 37,40 10; ELLIPSE 62,45 10
+		fill black; ELLIPSE 39,42 4; ELLIPSE 60,42 4
 		fill red; PATH svg:[M 27,65 Q 70,85 72,60 z]
 	]
 	
@@ -274,7 +273,7 @@ Arcs:
 
 Using raw SVG data:
 
-	format IVG-1 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,400,380
 
 	// Wipe the canvas with a very dark purple
@@ -357,7 +356,6 @@ The `STAR` instruction is used for drawing a star shape or regular polygon. It w
 
 Syntax:
 
-	STAR <cx>,<cy>,<points>,<r1>[,<r2>=<r1>] [rotation:<angle>]
 	STAR <cx>,<cy> <points> <r1>[,<r2>=<r1>] [rotation:<angle>]
 
 Both comma-separated and space-separated forms are accepted.
@@ -554,7 +552,7 @@ Demonstration:
 		pen none
 		
 		// Fill a rotated, masked gradient 3d cube silhouette.
-		STAR 150,150,6,90,110
+		STAR 150,150 6 90,110
 	]
 	// This rect will have the same style and transformation as the first.
 	RECT 60,60,180,180
@@ -758,8 +756,8 @@ Demonstration:
 	font serif size:18 color:yellow
 	
 	// Define two circles.
-	c1=70,70,50
-	c2=110,70,30
+	c1=70,70 50
+	c2=110,70 30
 	
 	// A macro to outline them.
 	outline=context [
@@ -850,8 +848,8 @@ the current [context](#context).
 		options aa-gamma:$gamma
 	
 		// Draw white and black circles.
-		pen white; ellipse 0,20,14; ellipse 0,20,4
-		pen black; ellipse 0,60,14; ellipse 0,60,4
+		pen white; ELLIPSE 0,20 14; ELLIPSE 0,20 4
+		pen black; ELLIPSE 0,60 14; ELLIPSE 0,60 4
 	
 		// Write gamma value under circles.
 		text at:0,110 $gamma anchor:center
@@ -899,7 +897,7 @@ the current [context](#context).
 			fill pattern:[
 				bounds 0,0,10,10
 				pen gradient:[linear 0,0 1,1 stops:[0,blue,0.5,yellow,0.8,blue]] relative:yes
-				ellipse 5,5,3
+				ELLIPSE 5,5 3
 			]
 			
 			// Scale the pattern up by 8x after the pattern definition to
@@ -982,9 +980,9 @@ Demonstration of different stroke styles:
 			
 			// Show the three coordinates defining the shape.
 			fill #7070C0
-			ELLIPSE -100,100,3
-			ELLIPSE 0,0,3
-			ELLIPSE 100,100,3
+			ELLIPSE -100,100 3
+			ELLIPSE 0,0 3
+			ELLIPSE 100,100 3
 			
 			// Write out the <pen instruction> but cut out "[pen " and "]".
 			TEXT at:0,140 anchor:center [{$2{5:len($2)-6}}]
@@ -1099,11 +1097,8 @@ The `<gradient>` paint type creates a smooth transition between multiple colors.
 ending color or multiple color stops. `<gradient>` is used by the [`<paint>`](#paint-specification) specification, such
 as in the [`pen`](#pen) and [`fill`](#fill) directives. The syntax for specifying a gradient is as follows:
 
-	<gradient> = (linear <x0>,<y0>,<x1>,<y1>
-	 | linear <x0>,<y0> <x1>,<y1>
-	 | radial <cx>,<cy>,(<r>|<rx>,<ry>)
-	 | radial <cx>,<cy> (<r>|<rx>,<ry>))
-	   (from:<color> to:<color> | stops:<number>,<color>,[<number>,<color>,...])
+	<gradient> = (linear <x0>,<y0> <x1>,<y1> | radial <cx>,<cy> (<r>|<rx>,<ry>))
+				 (from:<color> to:<color> | stops:<number>,<color>,[<number>,<color>,...])
 
 -	The `linear` alternative creates a linear gradient that transitions between colors along a straight line defined by
 	two points (`<x0>,<y0>` and `<x1>,<y1>`).
@@ -1117,7 +1112,6 @@ as in the [`pen`](#pen) and [`fill`](#fill) directives. The syntax for specifyin
 		WIPE gradient:[linear 0,0 10,0 from:red to:blue]
 		WIPE gradient:[radial 5,5 5 from:white to:black]
 
-
 -	The `from` alternative specifies the start and end colors of the gradient (see [Color
 	Specification](#color-specification)).
 
@@ -1128,7 +1122,7 @@ as in the [`pen`](#pen) and [`fill`](#fill) directives. The syntax for specifyin
 
 Gradient demonstration:
 
-	format IVG-3 requires:IMPD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,500,500
 	
 	// Set font style.
@@ -1209,8 +1203,8 @@ Demonstration:
 	mask [
 		WIPE pattern:[
 			bounds 0,0,100,100
-			ELLIPSE 40,45,30
-			ELLIPSE 80,80,20
+			ELLIPSE 40,45 30
+			ELLIPSE 80,80 20
 		] transform:[scale 0.75; rotate 10 anchor:200,150]
 	]
 	

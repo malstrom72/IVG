@@ -279,8 +279,8 @@ more information on <em>ImpD</em>, please refer to the separate <a
 href="ImpD%20Documentation.html"><em>ImpD documentation</em></a>
 provided. It will cover how to use variables and control flow statements
 to create dynamic and interactive graphics.</p>
-<p>The <em>ImpD format</em> used in this documentation is
-<code>IVG-2</code>. Therefore, the <code>format</code> instruction
+<p>The <em>IVG</em> format used in this documentation is
+<code>IVG-3</code>. Therefore, the <code>format</code> instruction
 should be as follows:</p>
 <pre><code>format IVG-3 requires:ImpD-1</code></pre>
 <p>Notice that <em>ImpD</em> is case-insensitive, but in this document,
@@ -300,8 +300,7 @@ on the canvas. It will be filled with the current <a
 href="#fill"><code>fill</code></a> setting and outlined with the current
 <a href="#pen"><code>pen</code></a> setting.</p>
 <p>Syntax:</p>
-<pre><code>ELLIPSE &lt;cx&gt;,&lt;cy&gt;,(&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;)
-ELLIPSE &lt;cx&gt;,&lt;cy&gt; (&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;)</code></pre>
+<pre><code>ELLIPSE &lt;cx&gt;,&lt;cy&gt; (&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;)</code></pre>
 <ul>
 <li><p><code>&lt;cx&gt;,&lt;cy&gt;</code> is the center point of the
 ellipse.</p></li>
@@ -384,9 +383,9 @@ WIPE pattern:[bounds 0,0,40,300; WIPE gradient:[linear 0,0 40,0 stops:[
 define image silly [
     bounds 0,0,100,100
     pen white; RECT 0.5,0.5,99,99
-    fill aqua; pen black; ELLIPSE 50,50,35,45
-    fill white; pen black; ELLIPSE 37,40,10; ELLIPSE 62,45,10
-    fill black; ELLIPSE 39,42,4; ELLIPSE 60,42,4
+    fill aqua; pen black; ELLIPSE 50,50 35,45
+    fill white; pen black; ELLIPSE 37,40 10; ELLIPSE 62,45 10
+    fill black; ELLIPSE 39,42 4; ELLIPSE 60,42 4
     fill red; PATH svg:[M 27,65 Q 70,85 72,60 z]
 ]
 
@@ -431,9 +430,9 @@ setting and outlined with the current <a
 href="#pen"><code>pen</code></a> setting. Paths may be supplied as raw
 SVG data or as an instruction list.</p>
 <p>Syntax:</p>
-<pre><code>PATH svg:&lt;svg data&gt;
-PATH [&lt;instructions&gt;] [closed:(yes|no)=no]</code></pre>
-<p>The <code>PATH svg:</code> form is available in all IVG versions. The instruction-list variant requires IVG-3.</p>
+<p>PATH svg:<svg data> PATH [<instructions>] [closed:(yes|no)=no]</p>
+<p>The <code>PATH svg:</code> form is available in all IVG versions. The
+instruction-list variant requires IVG-3.</p>
 <ul>
 <li><p><code>&lt;svg data&gt;</code> is a string containing SVG path
 data. See https://svgwg.org/specs/paths/ for details.</p></li>
@@ -459,7 +458,7 @@ PATH [move-to 20,20; bezier-to 40,20 80,60 100,80]</code></pre>
 <pre><code>PATH [move-to 20,20; arc-to 120,20 40,40]
 PATH [move-to 60,60; arc-sweep 60,100 180]</code></pre>
 <p>Using raw SVG data:</p>
-<pre><code>format IVG-1 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,400,380
 
 // Wipe the canvas with a very dark purple
@@ -713,7 +712,7 @@ context [
     pen none
     
     // Fill a rotated, masked gradient 3d cube silhouette.
-    STAR 150,150,6,90,110
+    STAR 150,150 6 90,110
 ]
 // This rect will have the same style and transformation as the first.
 RECT 60,60,180,180</code></pre>
@@ -924,8 +923,8 @@ fill red
 font serif size:18 color:yellow
 
 // Define two circles.
-c1=70,70,50
-c2=110,70,30
+c1=70,70 50
+c2=110,70 30
 
 // A macro to outline them.
 outline=context [
@@ -1017,8 +1016,8 @@ for gamma in:[0.6,0.7,0.8,0.9,1.0,1.2,1.5,2.0,3.0,4.0] [
     options aa-gamma:$gamma
 
     // Draw white and black circles.
-    pen white; ellipse 0,20,14; ellipse 0,20,4
-    pen black; ellipse 0,60,14; ellipse 0,60,4
+    pen white; ELLIPSE 0,20 14; ELLIPSE 0,20 4
+    pen black; ELLIPSE 0,60 14; ELLIPSE 0,60 4
 
     // Write gamma value under circles.
     text at:0,110 $gamma anchor:center
@@ -1061,7 +1060,7 @@ for resolution in:[1,2,4,8] [
         fill pattern:[
             bounds 0,0,10,10
             pen gradient:[linear 0,0 1,1 stops:[0,blue,0.5,yellow,0.8,blue]] relative:yes
-            ellipse 5,5,3
+            ELLIPSE 5,5 3
         ]
         
         // Scale the pattern up by 8x after the pattern definition to
@@ -1144,9 +1143,9 @@ drawPath = call [
         
         // Show the three coordinates defining the shape.
         fill #7070C0
-        ELLIPSE -100,100,3
-        ELLIPSE 0,0,3
-        ELLIPSE 100,100,3
+        ELLIPSE -100,100 3
+        ELLIPSE 0,0 3
+        ELLIPSE 100,100 3
         
         // Write out the &lt;pen instruction&gt; but cut out &quot;[pen &quot; and &quot;]&quot;.
         TEXT at:0,140 anchor:center [{$2{5:len($2)-6}}]
@@ -1301,7 +1300,7 @@ note that you must set the stops in ascending order of the
 <code>&lt;number&gt;</code> positions.</p></li>
 </ul>
 <p>Gradient demonstration:</p>
-<pre><code>format IVG-3 requires:IMPD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,500,500
 
 // Set font style.
@@ -1392,8 +1391,8 @@ WIPE pattern:[
 mask [
     WIPE pattern:[
         bounds 0,0,100,100
-        ELLIPSE 40,45,30
-        ELLIPSE 80,80,20
+        ELLIPSE 40,45 30
+        ELLIPSE 80,80 20
     ] transform:[scale 0.75; rotate 10 anchor:200,150]
 ]
 
