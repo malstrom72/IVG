@@ -244,7 +244,7 @@ and skewing.</p>
 <p>To give you a better idea of how <em>IVG</em> works, here’s an
 example of a simple source code that creates a smiley face:</p>
 <pre><code>// IVG and ImpD version.
-format IVG-2 requires:ImpD-1
+format IVG-3 requires:ImpD-1
 
 // Set the canvas bounds to 400x400 pixels.
 bounds 0,0,400,400
@@ -282,14 +282,14 @@ to create dynamic and interactive graphics.</p>
 <p>The <em>ImpD format</em> used in this documentation is
 <code>IVG-2</code>. Therefore, the <code>format</code> instruction
 should be as follows:</p>
-<pre><code>format IVG-2 requires:ImpD-1</code></pre>
+<pre><code>format IVG-3 requires:ImpD-1</code></pre>
 <p>Notice that <em>ImpD</em> is case-insensitive, but in this document,
 we follow a convention where we have written “directives” (defining
 settings, etc.) in lowercase and drawing instructions in uppercase.</p>
 <h2 id="ivg-1-vs-ivg-2">IVG-1 vs IVG-2</h2>
-<p><code>IVG-1</code> covers core vector drawing, styling, text, and
-fonts. <code>IVG-2</code> extends the format with raster image support
-through <code>define image</code> and <code>IMAGE</code>.</p>
+<p><code>IVG-1</code> covers core vector drawing and styling.
+<code>IVG-2</code> adds text, fonts, and raster image support through
+<code>define image</code> and <code>IMAGE</code>.</p>
 <p>The interpreter processes both versions identically, but readers that
 only understand <code>IVG-1</code> will reject documents marked
 <code>IVG-2</code>.</p>
@@ -371,7 +371,7 @@ executing all transformations, resulting in efficient performance.
 However, it is important to note that large rescales may result in low
 image quality.</p>
 <p>Demonstration:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,340,300
 options aa-gamma:1.5
 
@@ -458,7 +458,7 @@ PATH [move-to 20,20; bezier-to 40,20 80,60 100,80]</code></pre>
 <pre><code>PATH [move-to 20,20; arc-to 120,20 40,40]
 PATH [move-to 60,60; arc-sweep 60,100 180]</code></pre>
 <p>Using raw SVG data:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,400,380
 
 // Wipe the canvas with a very dark purple
@@ -510,7 +510,7 @@ rounded corners. You specify the radius as a single value for all
 corners or as separate values for the x and y radius.</p></li>
 </ul>
 <p>Example:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,300,80
 
 // Draw a dark blue rectangle.
@@ -545,7 +545,7 @@ for the star in degrees.</p></li>
 </ul>
 <p>This example shows the effect of varying the number of points and the
 proportion of <code>&lt;r2&gt;</code> to <code>&lt;r1&gt;</code>:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,540,420
 options aa-gamma:1.5
 
@@ -562,7 +562,7 @@ counts = [3,4,5,6,8,10,12]
 
 // Loop through a list of &lt;r2&gt; to &lt;r1&gt; proportions.
 offset 60,0
-for r2 in:[100,80,60,40,20,0] [
+for r2 in:[100,80,60,40,20,5] [
     context [
         // Draw a label indicating the proportion on this row.
         TEXT at:15,45 $r2% anchor:right
@@ -609,7 +609,7 @@ next character would have been written.</p></li>
 <code>TEXT</code> draws a single line of text only.</p></li>
 </ul>
 <p>Demonstration:</p>
-<pre><code>FORMAT IVG-2 requires:ImpD-1
+<pre><code>FORMAT IVG-3 requires:ImpD-1
 options aa-gamma:1.5
 
 bounds 0,0,440,80
@@ -664,7 +664,7 @@ information. Note that <em>relative paint</em> is not allowed for this
 instruction.</li>
 </ul>
 <p>Example:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,200,200
 
 // Wipe the full canvas with a radial rainbow gradient
@@ -691,7 +691,7 @@ properties, masks, transforms, and definitions are restored when the
 group ends.</p>
 <pre><code>context &lt;instructions&gt;</code></pre>
 <p>Demonstration:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,300,300
 
 // Wipe the canvas with a gradient, to begin with.
@@ -769,7 +769,7 @@ they can be referred to by name and set with the <a
 href="#font"><code>font</code></a> directive, just like embedded
 fonts.</p>
 <p>Example:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 
 // Embed a font called &quot;myEmbeddedFont&quot; with only 3 defined glyphs.
 define font myEmbeddedFont [
@@ -807,7 +807,7 @@ and https://en.wikipedia.org/wiki/Even-odd_rule. The default value is
 <code>non-zero</code>.</p></li>
 </ul>
 <p>Fill rule demonstration:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,350,230
 
 // Setup style.
@@ -907,7 +907,7 @@ transparency.</p>
 <p>Initially, the pen (and font outline) is set to <code>none</code>,
 and the fill (and font color) to <code>#FF</code> (fully opaque).</p>
 <p>Demonstration:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,310,320
 
 // Make a rotated striped background.
@@ -998,7 +998,7 @@ chosen with a formula that considers the current context transform, and
 the resolution is always an integer factor.</p></li>
 </ul>
 <p><code>aa-gamma</code> demonstration:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,400,124
 
 // Draw a white rectangle on black background.
@@ -1025,7 +1025,7 @@ for gamma in:[0.6,0.7,0.8,0.9,1.0,1.2,1.5,2.0,3.0,4.0] [
 ]</code></pre>
 <p><img src="images/gammaDemo.png" /></p>
 <p><code>curve-quality</code> demonstration:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,410,100
 WIPE white
 pen black
@@ -1043,7 +1043,7 @@ for quality in:[0.001 0.01 0.1 1.0 10.0] [
 ]</code></pre>
 <p><img src="images/curveQualityDemo.png" /></p>
 <p><code>pattern-resolution</code> demonstration:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,320,100
 
 // Wipe the canvas with a dark grey color.
@@ -1116,7 +1116,7 @@ dash pattern at which the stroke begins.</p></li>
 </ul>
 <p>The initial pen is <code>none</code>. In other words, invisible.</p>
 <p>Demonstration of different stroke styles:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,560,400
 
 // Wipe canvas and setup styles.
@@ -1218,7 +1218,7 @@ be used; it will be invisible.</p></li>
 predefined color names.</p></li>
 </ul>
 <p>Colors example:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,500,380
 
 // Wipe canvas with a checkboard pattern and setup styles.
@@ -1300,7 +1300,7 @@ note that you must set the stops in ascending order of the
 <code>&lt;number&gt;</code> positions.</p></li>
 </ul>
 <p>Gradient demonstration:</p>
-<pre><code>format IVG-2 requires:IMPD-1
+<pre><code>format IVG-3 requires:IMPD-1
 bounds 0,0,500,500
 
 // Set font style.
@@ -1372,7 +1372,7 @@ transparency and 1 is full opacity. Alternatively, you can use
 hexadecimal values <code>#00</code> to <code>#FF</code>.</p></li>
 </ul>
 <p>Demonstration:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,400,300
 
 // Light gray background.
@@ -1452,7 +1452,7 @@ the transformation. By default, the anchor point is the origin
 (0,0).</p></li>
 </ul>
 <p>Demonstration:</p>
-<pre><code>format IVG-2 requires:ImpD-1
+<pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,310,240
 
 wipe #403020

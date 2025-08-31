@@ -49,7 +49,7 @@ strokes, as well as applying transformations like scaling, rotating, and skewing
 To give you a better idea of how _IVG_ works, here's an example of a simple source code that creates a smiley face:
 
 	// IVG and ImpD version.
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	
 	// Set the canvas bounds to 400x400 pixels.
 	bounds 0,0,400,400
@@ -84,15 +84,15 @@ It will cover how to use variables and control flow statements to create dynamic
 
 The _ImpD format_ used in this documentation is `IVG-2`. Therefore, the `format` instruction should be as follows:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 
 Notice that _ImpD_ is case-insensitive, but in this document, we follow a convention where we have written "directives"
 (defining settings, etc.) in lowercase and drawing instructions in uppercase.
 
 ## IVG-1 vs IVG-2
 
-`IVG-1` covers core vector drawing, styling, text, and fonts.
-`IVG-2` extends the format with raster image support through `define image` and `IMAGE`.
+`IVG-1` covers core vector drawing and styling.
+`IVG-2` adds text, fonts, and raster image support through `define image` and `IMAGE`.
 
 The interpreter processes both versions identically, but readers that only understand `IVG-1`
 will reject documents marked `IVG-2`.
@@ -174,7 +174,7 @@ it is important to note that large rescales may result in low image quality.
 
 Demonstration:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,340,300
 	options aa-gamma:1.5
 	
@@ -272,7 +272,7 @@ Arcs:
 
 Using raw SVG data:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,400,380
 
 	// Wipe the canvas with a very dark purple
@@ -335,7 +335,7 @@ Syntax:
 
 Example:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,300,80
 	
 	// Draw a dark blue rectangle.
@@ -371,7 +371,7 @@ Both comma-separated and space-separated forms are accepted.
 
 This example shows the effect of varying the number of points and the proportion of `<r2>` to `<r1>`:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,540,420
 	options aa-gamma:1.5
 	
@@ -438,7 +438,7 @@ Syntax:
 
 Demonstration:
 
-	FORMAT IVG-2 requires:ImpD-1
+	FORMAT IVG-3 requires:ImpD-1
 	options aa-gamma:1.5
 	
 	bounds 0,0,440,80
@@ -495,7 +495,7 @@ Syntax:
 
 Example:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,200,200
 	
 	// Wipe the full canvas with a radial rainbow gradient
@@ -531,7 +531,7 @@ group ends.
 
 Demonstration:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,300,300
 	
 	// Wipe the canvas with a gradient, to begin with.
@@ -607,7 +607,7 @@ application, as they can be referred to by name and set with the [`font`](#font)
 
 Example:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	
 	// Embed a font called "myEmbeddedFont" with only 3 defined glyphs.
 	define font myEmbeddedFont [
@@ -645,7 +645,7 @@ The fill directive sets the fill style for subsequent drawing operations in the 
 
 Fill rule demonstration:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,350,230
 	
 	// Setup style.
@@ -740,7 +740,7 @@ Initially, the pen (and font outline) is set to `none`, and the fill (and font c
 
 Demonstration:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,310,320
 	
 	// Make a rotated striped background.
@@ -830,7 +830,7 @@ the current [context](#context).
 
 `aa-gamma` demonstration:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,400,124
 	
 	// Draw a white rectangle on black background.
@@ -859,7 +859,7 @@ the current [context](#context).
 
 `curve-quality` demonstration:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,410,100
 	WIPE white
 	pen black
@@ -880,7 +880,7 @@ the current [context](#context).
 
 `pattern-resolution` demonstration:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,320,100
 	
 	// Wipe the canvas with a dark grey color.
@@ -953,7 +953,7 @@ The initial pen is `none`. In other words, invisible.
 
 Demonstration of different stroke styles:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,560,400
 	
 	// Wipe canvas and setup styles.
@@ -1049,7 +1049,7 @@ specifying a color is as follows:
 
 Colors example:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,500,380
 	
 	// Wipe canvas with a checkboard pattern and setup styles.
@@ -1126,7 +1126,7 @@ as in the [`pen`](#pen) and [`fill`](#fill) directives. The syntax for specifyin
 
 Gradient demonstration:
 
-	format IVG-2 requires:IMPD-1
+	format IVG-3 requires:IMPD-1
 	bounds 0,0,500,500
 	
 	// Set font style.
@@ -1188,7 +1188,7 @@ look like. You can select a solid color, a gradient of colors, or a pattern.
 
 Demonstration:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,400,300
 	
 	// Light gray background.
@@ -1258,7 +1258,7 @@ The syntax for specifying a transformation is as follows:
 
 Demonstration:
 
-	format IVG-2 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	bounds 0,0,310,240
 	
 	wipe #403020
