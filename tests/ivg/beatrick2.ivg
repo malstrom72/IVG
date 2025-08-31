@@ -1,4 +1,4 @@
-FORMAT IVG-1 requires:IMPD-1
+FORMAT IVG-3 requires:IMPD-1
 BOUNDS 0,0,800,600
 // OPTIONS curve-quality:0.3
 PEN caps:butt joints:miter miter-limit:10
@@ -132,8 +132,8 @@ REPEAT 2 [
 			$beatrick
 
 			FILL gradient:[
-				linear 2742.1494,196.7764,2743.7817,316.4407
-				stops:0.0,#78CCCB,0.1012,#74C1C8,0.2942,#6AA8C2,0.5562,#5C82B5,0.8182,#4F5DAA
+linear 2742.1494,196.7764 2743.7817,316.4407
+stops:0.0,#78CCCB,0.1012,#74C1C8,0.2942,#6AA8C2,0.5562,#5C82B5,0.8182,#4F5DAA
 			]
 			PEN #EEEDE3 width:4
 			$beatrick

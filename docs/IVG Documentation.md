@@ -236,8 +236,10 @@ as an instruction list.
 
 Syntax:
 
-	PATH svg:<svg data>
-	PATH [<instructions>] [closed:(yes|no)=no]
+PATH svg:<svg data>
+PATH [<instructions>] [closed:(yes|no)=no]
+
+The `PATH svg:` form is available in all IVG versions. The instruction-list variant requires IVG-3.
 
 - `<svg data>` is a string containing SVG path data. See https://svgwg.org/specs/paths/ for details.
 - `<instructions>` is a semicolon-separated list of sub-commands:
@@ -272,7 +274,7 @@ Arcs:
 
 Using raw SVG data:
 
-	format IVG-3 requires:ImpD-1
+	format IVG-1 requires:ImpD-1
 	bounds 0,0,400,380
 
 	// Wipe the canvas with a very dark purple

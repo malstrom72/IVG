@@ -1,4 +1,4 @@
-FORMAT IVG-1 requires:IMPD-1
+FORMAT IVG-3 requires:IMPD-1
 BOUNDS 0,0,800,600
 
 RESET
@@ -36,7 +36,7 @@ CONTEXT [
 		
 		FILL $color opacity:{$o*0.4}
 		PEN width:10.0 opacity:{$o}
-		FOR i from:1 to:$C [ ELLIPSE {$x$i*800},{$y$i*800},{$r$i*1000} ]
+            FOR i from:1 to:$C [ ELLIPSE {$x$i*800},{$y$i*800} {$r$i*1000} ]
 
 		o = {$o*75%}
 		ROTATE 20; OFFSET 10,0; SCALE 0.7

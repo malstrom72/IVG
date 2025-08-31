@@ -1,4 +1,4 @@
-FORMAT IVG-1 requires:IMPD-1
+FORMAT IVG-3 requires:IMPD-1
 BOUNDS 0,0,240,180
 
 reset

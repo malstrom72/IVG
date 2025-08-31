@@ -1,6 +1,4 @@
 //
-//  JS80RMX Logo - Created by Fredrik Lidström on 2020-02-26.
-//
 format IVG-1 requires:IMPD-1; bounds 0,0,100,40
 
 /***** DATA *****/
@@ -28,38 +26,38 @@ RMX=[
 
 // Draw pixel text from array
 pixelText=[
-    LOCAL x
-    LOCAL y
-    LOCAL svgpath
-    LOCAL penStart=-1
-    LOCAL penDown=[
-      if {$penStart < 0} [
-        penStart=$x
-      ]
-    ]
-    LOCAL penUp=[
-      if {$penStart >= 0} [
-        svgpath={$svgpath}M{$penStart},{$y}H{$x}
-        penStart=-1
-      ]
-    ]
-    
-    y=0
-    for line in:$0 [
-      x=0
-      for pixel in:$line [
-        if {$pixel == X} [
-          CALL $penDown
-        ] else:[
-          CALL $penUp
-        ]
-        x={$x + 1}
-      ]
-      CALL $penUp
-      y={$y + 1}
-    ]
-    // TRACE $svgpath
-    path svg:[$svgpath]
+	LOCAL x
+	LOCAL y
+	LOCAL svgpath
+	LOCAL penStart=-1
+	LOCAL penDown=[
+	  if {$penStart < 0} [
+		penStart=$x
+	  ]
+	]
+	LOCAL penUp=[
+	  if {$penStart >= 0} [
+		svgpath={$svgpath}M{$penStart},{$y}H{$x}
+		penStart=-1
+	  ]
+	]
+	
+	y=0
+	for line in:$0 [
+	  x=0
+	  for pixel in:$line [
+		if {$pixel == X} [
+		  CALL $penDown
+		] else:[
+		  CALL $penUp
+		]
+		x={$x + 1}
+	  ]
+	  CALL $penUp
+	  y={$y + 1}
+	]
+	// TRACE $svgpath
+	path svg:[$svgpath]
 ]
 
 /***** DRAW INSTRUCTIONS *****/

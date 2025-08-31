@@ -7,8 +7,8 @@
 	- Run `timeout 600 ./build.sh` to ensure compilation still succeeds.
 - [ ] Reject version-specific instructions
 	- In `IVGExecutor::execute`, gate features based on `formatVersion`; skip these checks if no format was declared:
-		- IVG-1: forbid `DEFINE`, `FONT`, `TEXT`, and `IMAGE` so that font and image definitions or usage are rejected
-		- IVG-2: forbid `PATH`, `LINE`, and `POLYGON` which are only valid in IVG-3
+	- IVG-1: allow only instructions defined in IVG-1 and reject everything introduced later, including `DEFINE`, `FONT`, `TEXT`, `IMAGE`, `LINE`, `POLYGON`, and `PATH` without `svg:`.
+	- IVG-2: reject IVG-3-only instructions (`LINE`, `POLYGON`, and `PATH` without `svg:`).
 	- Emit `Interpreter::throwBadSyntax` with a helpful message when an instruction is disallowed.
 	- Run `timeout 600 ./build.sh` and verify regression tests.
 - [ ] Restrict syntax of geometry instructions
@@ -18,8 +18,11 @@
 	- Ensure `parsePaintOfType` passes the format version when creating a `GradientSpec`.
 	- Run `timeout 600 ./build.sh` once more and confirm all tests pass.
 - [ ] Add or update regression tests
+	- Use a test-driven workflow: write failing tests first, then implement the checks to make them pass.
 	- Create tests that try disallowed instructions in each version (e.g., `TEXT` in IVG-1, `LINE` in IVG-2) and ensure they fail.
 	- Add tests verifying the required syntax for `ELLIPSE`, `STAR`, and gradients across versions.
+	- For each format version (including no format), add tests for every instruction that should succeed and for every instruction that should fail (e.g., `TEXT` in IVG-1, `LINE` in IVG-2, `PATH` when no format is specified, etc.).
+	- Add positive and negative tests verifying the required syntax for `ELLIPSE`, `STAR`, and gradients across versions.
 	- Run `timeout 600 ./build.sh` to run the full test suite.
 
 ## Testing

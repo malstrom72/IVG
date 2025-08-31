@@ -1,4 +1,4 @@
-FORMAT IVG-1 requires:IMPD-1
+FORMAT IVG-3 requires:IMPD-1
 BOUNDS 0,0,700,600
 
 RESET
@@ -17,7 +17,7 @@ randomArray = CALL [
 ]
 
 R=-13
-color=gradient:[linear 0,-500,0,10 stops:0.0,YELLOW,0.5,RED,1.0,NONE]
+color=gradient:[linear 0,-500 0,10 stops:0.0,YELLOW,0.5,RED,1.0,NONE]
 C = 4
 S = 2
 o = {100%}
@@ -37,7 +37,7 @@ CONTEXT [
 		
 		FILL $color opacity:0.4
 		PEN width:10.0 opacity:{$o}
-		FOR i from:1 to:$C [ ELLIPSE {$x$i*800},{$y$i*800},{abs($r$i*1000)} ]
+            FOR i from:1 to:$C [ ELLIPSE {$x$i*800},{$y$i*800} {abs($r$i*1000)} ]
 
 		o = {$o*75%}
 		ROTATE $R; OFFSET 10,0; SCALE 0.7
