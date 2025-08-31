@@ -774,11 +774,10 @@ GradientSpec(const Interpreter& impd, IVGExecutor::FormatVersion version, const 
 };
 
 GradientSpec::GradientSpec(const Interpreter& impd, IVGExecutor::FormatVersion version, const String& source, bool reverseRadialStops) {
-ArgumentsContainer gradientArgs(ArgumentsContainer::parse(impd, source));
-
-isRadial = false;
-const String gradientType = gradientArgs.fetchRequired(0);
-const String gradientTypeLower = impd.toLower(gradientType);
+	ArgumentsContainer gradientArgs(ArgumentsContainer::parse(impd, source));
+	isRadial = false;
+	const String gradientType = gradientArgs.fetchRequired(0);
+	const String gradientTypeLower = impd.toLower(gradientType);
 	if (gradientTypeLower == "radial") {
 		isRadial = true;
 	} else if (gradientTypeLower != "linear") {
@@ -786,32 +785,32 @@ const String gradientTypeLower = impd.toLower(gradientType);
 	}
 	reverseRadialStops = reverseRadialStops && isRadial;
 
-const String& arg1 = gradientArgs.fetchRequired(1);
-const String* arg2 = gradientArgs.fetchOptional(2);
-if (arg2 != 0) {
-if (version == IVGExecutor::IVG_1 || version == IVGExecutor::IVG_2) {
-impd.throwBadSyntax("IVG-1 and IVG-2 require comma-separated gradient coordinates");
-}
-parseNumberList(impd, arg1, coords, 2, 2);
-int count2 = parseNumberList(impd, *arg2, coords + 2, 1, 2);
-if (!isRadial && count2 != 2) {
-impd.throwBadSyntax(String("Invalid linear gradient coordinates: ") + *arg2);
-}
-if (count2 == 1) {
-coords[3] = coords[2];
-}
-} else {
-if (version == IVGExecutor::IVG_3) {
-impd.throwBadSyntax("IVG-3 requires space-separated gradient coordinates");
-}
-const int count = parseNumberList(impd, arg1, coords, (isRadial ? 3 : 4), 4);
-if (count == 3) {
-coords[3] = coords[2];
-}
-}
+	const String& arg1 = gradientArgs.fetchRequired(1);
+	const String* arg2 = gradientArgs.fetchOptional(2);
+	if (arg2 != 0) {
+		if (version == IVGExecutor::IVG_1 || version == IVGExecutor::IVG_2) {
+			impd.throwBadSyntax("IVG-1 and IVG-2 require comma-separated gradient coordinates");
+		}
+		parseNumberList(impd, arg1, coords, 2, 2);
+		int count2 = parseNumberList(impd, *arg2, coords + 2, 1, 2);
+		if (!isRadial && count2 != 2) {
+			impd.throwBadSyntax(String("Invalid linear gradient coordinates: ") + *arg2);
+		}
+		if (count2 == 1) {
+			coords[3] = coords[2];
+		}
+	} else {
+		if (version == IVGExecutor::IVG_3) {
+			impd.throwBadSyntax("IVG-3 requires space-separated gradient coordinates");
+		}
+		const int count = parseNumberList(impd, arg1, coords, (isRadial ? 3 : 4), 4);
+		if (count == 3) {
+			coords[3] = coords[2];
+		}
+	}
 	if (isRadial && (coords[2] < 0.0 || coords[3] < 0.0)) {
 		impd.throwRunTimeError(String("Negative radial gradient radius: ")
-			        + impd.toString(coords[coords[2] < 0.0 ? 2 : 3]));
+				+ impd.toString(coords[coords[2] < 0.0 ? 2 : 3]));
 	}
 
 	const String* s = gradientArgs.fetchOptional("stops");
@@ -1018,7 +1017,7 @@ enum IVGInstruction {
 /* --- IVGExecutor --- */
 
 IVGExecutor::IVGExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform)
-		: rootContext(canvas, initialTransform), currentContext(&rootContext), formatVersion(ANY) { }
+		: rootContext(canvas, initialTransform), currentContext(&rootContext), formatVersion(UNKNOWN) { }
 
 void IVGExecutor::parseStroke(Interpreter& impd, ArgumentsContainer& args, Stroke& stroke) {
 	const String* s;

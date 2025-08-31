@@ -311,8 +311,7 @@ struct Image {
        Executes IVG drawing instructions within a rendering context.
 **/
 class IVGExecutor : public IMPD::Executor {
-	public:
-		enum FormatVersion { ANY, IVG_1, IVG_2, IVG_3 };
+	public:		enum FormatVersion { UNKNOWN, IVG_1, IVG_2, IVG_3 };
 	public:		IVGExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform
 						= NuXPixels::AffineTransformation());
 	public:		FormatVersion getFormatVersion() const { return formatVersion; }
