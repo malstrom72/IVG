@@ -1,5 +1,5 @@
 FORMAT IVG-3 requires:IMPD-1
-BOUNDS 0,0,240,180
+BOUNDS 0,0,340,240
 
 reset
 WIPE white
