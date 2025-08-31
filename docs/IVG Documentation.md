@@ -61,14 +61,14 @@ To give you a better idea of how _IVG_ works, here's an example of a simple sour
     fill yellow
     
     // Draw the face.
-    ELLIPSE 200,200,150
+	ELLIPSE 200 200 150
     
     // Set the fill color to black.
     fill black
     
     // Draw the eyes.
-    ELLIPSE 150,170,25
-    ELLIPSE 250,170,25
+	ELLIPSE 150 170 25
+	ELLIPSE 250 170 25
     
     // Draw the mouth using a SVG path.
     PATH svg:[M 150,270 Q 200,320 250,270]
@@ -107,6 +107,7 @@ The `ELLIPSE` instruction draws an ellipse or circle shape on the canvas. It wil
 Syntax:
 
     ELLIPSE <cx>,<cy>,(<r>|<rx>,<ry>)
+    ELLIPSE <cx>,<cy> (<r>|<rx>,<ry>)
 
 -   `<cx>,<cy>` is the center point of the ellipse.
 
@@ -122,13 +123,13 @@ Example:
     
     // Fill a red circle.
     fill #802020
-    ELLIPSE 150,100,80
-    
+    ELLIPSE 150,100 80
+
     // Outline a flat ellipse, rotated 10 degrees clockwise around its center.
     fill none
     pen #802020 width:5
     rotate 10 anchor:150,100
-    ELLIPSE 150,100,140,30
+    ELLIPSE 150,100 140,30
 ![](images/ellipseExample.png)
 
 ### IMAGE
@@ -178,7 +179,7 @@ Demonstration:
     options aa-gamma:1.5
     
     // Fill the canvas with a "barber pole" pattern
-    WIPE pattern:[bounds 0,0,40,300; WIPE gradient:[linear 0,0,40,0 stops:[
+	WIPE pattern:[bounds 0,0,40,300; WIPE gradient:[linear 0 0 40 0 stops:[
         0,gray,0.25,blue,0.5,gray,0.75,maroon,1,gray
     ] ] ] transform:[rotate 45]
     
@@ -198,32 +199,32 @@ Demonstration:
     
     // A: standard
     IMAGE 10,10 silly
-    STAR 10,10,4,5
+    STAR 10,10 4 5
     TEXT at:60,130 anchor:center A
     
     // B: showcasing alignment and transform
     IMAGE 170,70 silly align:[middle center] transform:[scale 0.7;rotate -20]
-    STAR 170,70,4,5
+	STAR 170 70 4 5
     TEXT at:170,130 anchor:center B
     
     // C: showcasing clipping and opacity
     IMAGE 230,10 silly clip:[25,25,50,50] opacity:0.6
-    STAR 230,10,4,5
+	STAR 230 10 4 5
     TEXT at:280,130 anchor:center C
     
     // D: showcasing clipping and scale to exact width
     IMAGE 10,160 silly align:[top left] clip:[25,25,50,50] width:100 stretch:no
-    STAR 10,160,4,5
+	STAR 10 160 4 5
     TEXT at:60,280 anchor:center D
     
     // E: showcasing a different aspect ratio 
     IMAGE 220,260 silly align:[bottom right] width:100 height:66
-    STAR 220,260,4,5
+	STAR 220 260 4 5
     TEXT at:170,280 anchor:center E
     
     // F: showcasing vertical flipping with transform
     IMAGE 230,160 silly align:[bottom right] transform:[scale -1]
-    STAR 230,160,4,5
+	STAR 230 160 4 5
     TEXT at:280,280 anchor:center F
 ![](images/imageExample.png)
 
@@ -327,6 +328,9 @@ The `STAR` instruction is used for drawing a star shape or regular polygon. It w
 Syntax:
 
     STAR <cx>,<cy>,<points>,<r1>[,<r2>=<r1>] [rotation:<angle>]
+    STAR <cx>,<cy> <points> <r1>[,<r2>=<r1>] [rotation:<angle>]
+
+Both comma-separated and space-separated forms are accepted.
 
 -   `<cx>, <cy>` are the x and y coordinates of the center of the star.
 
@@ -367,7 +371,7 @@ This example shows the effect of varying the number of points and the proportion
                 offset 60,0
     
                 // Draw a star with the current point count and radius values.
-                STAR 0,40,$c,20,{20*$r2%}
+				STAR 0 40 $c 20 {20*$r2%}
             ]
         ]
     
@@ -434,9 +438,9 @@ Demonstration:
     TEXT at:$x,$y $s anchor:center caret:rx
     
     // Setup fill and pen gradients for the box.
-    fill gradient:[linear 0,18,0,40 from:hsv(0.5,0.5,0.2) to:hsv(0.5,0.7,0.6)]
-    pen gradient:[radial $x,{$y-$size/3},{$rx-$x},$size
-        .. from:hsv(0.4,0.7,0.9) to:hsv(0.5,0.7,0.4)] width:8.0
+	fill gradient:[linear 0 18 0 40 from:hsv(0.5,0.5,0.2) to:hsv(0.5,0.7,0.6)]
+	pen gradient:[radial $x {$y-$size/3} {$rx-$x} $size
+		.. from:hsv(0.4,0.7,0.9) to:hsv(0.5,0.7,0.4)] width:8.0
     
     /*
         Draw a rounded rect box around the text. The equations make the box dimensions adjust
@@ -503,7 +507,7 @@ Demonstration:
     bounds 0,0,300,300
     
     // Wipe the canvas with a gradient, to begin with.
-    WIPE gradient:[linear 0,0,200,200 from:black to:gray]
+	WIPE gradient:[linear 0 0 200 200 from:black to:gray]
     
     // Setup fill, pen, and an initial transform of x2.
     pen black width:3
@@ -516,7 +520,7 @@ Demonstration:
         rotate 10 anchor:150,150
         
         // The fill and pen will be local to this context.
-        fill gradient:[linear 0,0,1,0 from:silver to:blue] relative:yes
+		fill gradient:[linear 0 0 1 0 from:silver to:blue] relative:yes
         pen none
         
         // Fill a rotated, masked gradient 3d cube silhouette.
@@ -766,7 +770,7 @@ Demonstration:
     offset 150,0
     context [
         mask [
-            fill gradient:[linear 0,0,0.5,1 from:#00 to:#C0] relative:yes
+			fill gradient:[linear 0 0 0.5 1 from:#00 to:#C0] relative:yes
             ellipse $c2
         ]
         ellipse $c1
@@ -864,7 +868,7 @@ the current [context](#context).
             // Declare the pattern using a simple gradient-colored circle.
             fill pattern:[
                 bounds 0,0,10,10
-                pen gradient:[linear 0,0,1,1 stops:[0,blue,0.5,yellow,0.8,blue]] relative:yes
+				pen gradient:[linear 0 0 1 1 stops:[0,blue,0.5,yellow,0.8,blue]] relative:yes
                 ellipse 5,5,3
             ]
             
@@ -1065,8 +1069,11 @@ The `<gradient>` paint type creates a smooth transition between multiple colors.
 ending color or multiple color stops. `<gradient>` is used by the [`<paint>`](#paint-specification) specification, such
 as in the [`pen`](#pen) and [`fill`](#fill) directives. The syntax for specifying a gradient is as follows:
 
-    <gradient> = (linear <x0>,<y0>,<x1>,<y1> | radial <cx>,<cy>,(<r>|<rx>,<ry>))
-                 (from:<color> to:<color> | stops:<number>,<color>,[<number>,<color>,...])
+    <gradient> = (linear <x0>,<y0>,<x1>,<y1>
+     | linear <x0>,<y0> <x1>,<y1>
+     | radial <cx>,<cy>,(<r>|<rx>,<ry>)
+     | radial <cx>,<cy> (<r>|<rx>,<ry>))
+       (from:<color> to:<color> | stops:<number>,<color>,[<number>,<color>,...])
 
 -   The `linear` alternative creates a linear gradient that transitions between colors along a straight line defined by
     two points (`<x0>,<y0>` and `<x1>,<y1>`).
@@ -1075,6 +1082,11 @@ as in the [`pen`](#pen) and [`fill`](#fill) directives. The syntax for specifyin
     (`<cx>,<cy>`) and spreading outward. You can further define the shape of the gradient by providing either the radius
     (`<r>`), which creates a circular shape or the x-radius and y-radius (`<rx>,<ry>`), which creates an elliptical
     shape.
+    Examples using the spaced coordinate form:
+
+        WIPE gradient:[linear 0,0 10,0 from:red to:blue]
+        WIPE gradient:[radial 5,5 5 from:white to:black]
+
 
 -   The `from` alternative specifies the start and end colors of the gradient (see [Color
     Specification](#color-specification)).
@@ -1093,7 +1105,7 @@ Gradient demonstration:
     font serif size:16 color:white
     
     // Wipe the canvas with a simple Linear gradient from red to blue.
-    WIPE gradient:[linear 0,0,500,500 from:red to:blue]
+	WIPE gradient:[linear 0 0 500 500 from:red to:blue]
     RECT 0,0,500,500
     TEXT at:10,490 anchor:left "linear gradient"
     
@@ -1101,12 +1113,12 @@ Gradient demonstration:
     fill relative:yes
     
     // Elliptic gradient with stops.
-    fill gradient:[radial 0.5,0.5,0.7,0.5 stops:0,blue,0.25,yellow,0.5,blue,0.75,lime,1,blue]
+	fill gradient:[radial 0.5 0.5 0.7 0.5 stops:0,blue,0.25,yellow,0.5,blue,0.75,lime,1,blue]
     RECT 200,200,250,250
     TEXT at:210,440 anchor:left "radial gradient with stops"
     
     // Linear gradient with stops.
-    fill gradient:[linear 0,0.3,1,0.7 stops:0,red,0.5,lime,1,blue]
+	fill gradient:[linear 0 0.3 1 0.7 stops:0,red,0.5,lime,1,blue]
     RECT 40,40,250,250
     TEXT at:50,280 anchor:left "linear gradient with stops"
 ![](images/gradientDemo.png)
@@ -1173,7 +1185,7 @@ Demonstration:
     ]
     
     // Fill the mask with a relative gradient.
-    fill gradient:[ linear 0,0,1,1 stops:0.0,white,1.0,blue ] relative:yes
+	fill gradient:[ linear 0 0 1 1 stops:0.0,white,1.0,blue ] relative:yes
     RECT 0,0,400,300
 ![](images/paintDemo.png)
 

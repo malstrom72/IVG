@@ -1,0 +1,8 @@
+FORMAT IVG-1 requires:IMPD-1
+BOUNDS 0,0,300,200
+
+RESET
+WIPE white
+FILL none
+PEN black width:1
+ELLIPSE 150,100 80

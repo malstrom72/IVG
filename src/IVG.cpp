@@ -786,13 +786,26 @@ GradientSpec::GradientSpec(const Interpreter& impd, const String& source, bool r
 	}
 	reverseRadialStops = reverseRadialStops && isRadial;
 
-	const int count = parseNumberList(impd, gradientArgs.fetchRequired(1), coords, (isRadial ? 3 : 4), 4);
-	if (count == 3) {
-		coords[3] = coords[2];
+	const String& arg1 = gradientArgs.fetchRequired(1);
+	const String* arg2 = gradientArgs.fetchOptional(2);
+	if (arg2 != 0) {
+		parseNumberList(impd, arg1, coords, 2, 2);
+		int count2 = parseNumberList(impd, *arg2, coords + 2, 1, 2);
+		if (!isRadial && count2 != 2) {
+			impd.throwBadSyntax(String("Invalid linear gradient coordinates: ") + *arg2);
+		}
+		if (count2 == 1) {
+			coords[3] = coords[2];
+		}
+	} else {
+		const int count = parseNumberList(impd, arg1, coords, (isRadial ? 3 : 4), 4);
+		if (count == 3) {
+			coords[3] = coords[2];
+		}
 	}
 	if (isRadial && (coords[2] < 0.0 || coords[3] < 0.0)) {
 		impd.throwRunTimeError(String("Negative radial gradient radius: ")
-				+ impd.toString(coords[coords[2] < 0.0 ? 2 : 3]));
+			        + impd.toString(coords[coords[2] < 0.0 ? 2 : 3]));
 	}
 
 	const String* s = gradientArgs.fetchOptional("stops");
@@ -1529,38 +1542,77 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		}
 		
 		case ELLIPSE_INSTRUCTION: {
-			int count = parseNumberList(impd, args.fetchRequired(0), numbers, 3, 4);
-			args.throwIfAnyUnfetched();			
-			Path p;
-			const double rx = numbers[2];
-			const double ry = (count == 4 ? numbers[3] : rx);
+			const String* secondArg = args.fetchOptional(1);
+			double cx;
+			double cy;
+			double rx;
+			double ry;
+			if (secondArg != 0) {
+				double center[2];
+				double radii[2];
+				parseNumberList(impd, args.fetchRequired(0), center, 2, 2);
+				int radiusCount = parseNumberList(impd, *secondArg, radii, 1, 2);
+				cx = center[0];
+				cy = center[1];
+				rx = radii[0];
+				ry = (radiusCount == 2 ? radii[1] : radii[0]);
+			} else {
+				double parsed[4];
+				int count = parseNumberList(impd, args.fetchRequired(0), parsed, 3, 4);
+				cx = parsed[0];
+				cy = parsed[1];
+				rx = parsed[2];
+				ry = (count == 4 ? parsed[3] : parsed[2]);
+			}
+			args.throwIfAnyUnfetched();
 			if (rx < 0.0 || ry < 0.0) {
 				impd.throwRunTimeError(String("Negative ellipse radius: ") + impd.toString(rx < 0.0 ? rx : ry));
 			}
+			Path p;
 			if (rx == ry) {
-				p.addCircle(numbers[0], numbers[1], rx, currentContext->calcCurveQuality());
+				p.addCircle(cx, cy, rx, currentContext->calcCurveQuality());
 			} else {
-				p.addEllipse(numbers[0], numbers[1], rx, ry, currentContext->calcCurveQuality());
+				p.addEllipse(cx, cy, rx, ry, currentContext->calcCurveQuality());
 			}
 			currentContext->draw(p);
 			break;
 		}
 
 		case STAR_INSTRUCTION: {
-			StringVector elems;
-			int count = impd.parseList(args.fetchRequired(0), elems, true, false, 4, 5);
+			double center[2];
+			double radii[2];
+			const String& arg0 = args.fetchRequired(0);
+			const String* arg2 = args.fetchOptional(2);
 			const String* s = args.fetchOptional("rotation");
-			args.throwIfAnyUnfetched();			
 
 			const double rotation = (s != 0 ? impd.toDouble(*s) * DEGREES : 0.0);
-			const double cx = impd.toDouble(elems[0]);
-			const double cy = impd.toDouble(elems[1]);
-			const int points = impd.toInt(elems[2]);
+			double cx, cy, r1, r2;
+			int points;
+
+			if (arg2 != 0) {
+				parseNumberList(impd, arg0, center, 2, 2);
+				const String& pointsArg = args.fetchRequired(1);
+				points = impd.toInt(pointsArg);
+				int radiusCount = parseNumberList(impd, *arg2, radii, 1, 2);
+				r1 = radii[0];
+				r2 = (radiusCount == 2 ? radii[1] : r1);
+				cx = center[0];
+				cy = center[1];
+			} else {
+				StringVector elems;
+				int count = impd.parseList(arg0, elems, true, false, 4, 5);
+				cx = impd.toDouble(elems[0]);
+				cy = impd.toDouble(elems[1]);
+				points = impd.toInt(elems[2]);
+				r1 = impd.toDouble(elems[3]);
+				r2 = (count == 5 ? impd.toDouble(elems[4]) : r1);
+			}
+
+			args.throwIfAnyUnfetched();
+
 			if (points <= 0 || points > 10000) {
 				impd.throwRunTimeError(String("star points out of range [1..10000]: ") + impd.toString(points));
 			}
-			const double r1 = impd.toDouble(elems[3]);
-			const double r2 = (count == 5 ? impd.toDouble(elems[4]) : r1);
 			if (r1 < 0.0 || r2 < 0.0) {
 				impd.throwRunTimeError(String("Negative star radius: ") + impd.toString(r1 < 0.0 ? r1 : r2));
 			}

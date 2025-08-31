@@ -7,9 +7,6 @@
   <title>IVG Documentation</title>
   <style>
     html {
-      line-height: 1.5;
-      font-family: Georgia, serif;
-      font-size: 20px;
       color: #1a1a1a;
       background-color: #fdfdfd;
     }
@@ -28,13 +25,16 @@
     @media (max-width: 600px) {
       body {
         font-size: 0.9em;
-        padding: 1em;
+        padding: 12px;
       }
       h1 {
         font-size: 1.8em;
       }
     }
     @media print {
+      html {
+        background-color: white;
+      }
       body {
         background-color: transparent;
         color: black;
@@ -84,9 +84,10 @@
       color: #606060;
     }
     code {
-      font-family: Menlo, Monaco, 'Lucida Console', Consolas, monospace;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
       font-size: 85%;
       margin: 0;
+      hyphens: manual;
     }
     pre {
       margin: 1em 0;
@@ -151,8 +152,11 @@
     div.columns{display: flex; gap: min(4vw, 1.5em);}
     div.column{flex: auto; overflow-x: auto;}
     div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
-    ul.task-list{list-style: none;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
     ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
       width: 0.8em;
       margin: 0 0.8em 0.2em -1.6em;
       vertical-align: middle;
@@ -171,9 +175,6 @@
       color: #3030A0;
     }
   </style>
-  <!--[if lt IE 9]>
-    <script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv-printshiv.min.js"></script>
-  <![endif]-->
 </head>
 <body>
 <header id="title-block-header">
@@ -251,14 +252,14 @@ WIPE maroon
 fill yellow
 
 // Draw the face.
-ELLIPSE 200,200,150
+ELLIPSE 200 200 150
 
 // Set the fill color to black.
 fill black
 
 // Draw the eyes.
-ELLIPSE 150,170,25
-ELLIPSE 250,170,25
+ELLIPSE 150 170 25
+ELLIPSE 250 170 25
 
 // Draw the mouth using a SVG path.
 PATH svg:[M 150,270 Q 200,320 250,270]</code></pre>
@@ -282,11 +283,12 @@ should be as follows:</p>
 we follow a convention where we have written “directives” (defining
 settings, etc.) in lowercase and drawing instructions in uppercase.</p>
 <h2 id="ivg-1-vs-ivg-2">IVG-1 vs IVG-2</h2>
-<p><code>IVG-1</code> covers core vector drawing, styling, text, and fonts.
-<code>IVG-2</code> extends the format with raster image support through
-<code>define image</code> and <code>IMAGE</code>.</p>
-<p>The interpreter processes both versions identically, but readers that only understand
-<code>IVG-1</code> will reject documents marked <code>IVG-2</code>.</p>
+<p><code>IVG-1</code> covers core vector drawing, styling, text, and
+fonts. <code>IVG-2</code> extends the format with raster image support
+through <code>define image</code> and <code>IMAGE</code>.</p>
+<p>The interpreter processes both versions identically, but readers that
+only understand <code>IVG-1</code> will reject documents marked
+<code>IVG-2</code>.</p>
 <h2 id="instructions">Instructions</h2>
 <h3 id="ellipse">ELLIPSE</h3>
 <p>The <code>ELLIPSE</code> instruction draws an ellipse or circle shape
@@ -294,7 +296,12 @@ on the canvas. It will be filled with the current <a
 href="#fill"><code>fill</code></a> setting and outlined with the current
 <a href="#pen"><code>pen</code></a> setting.</p>
 <p>Syntax:</p>
-<pre><code>ELLIPSE &lt;cx&gt;,&lt;cy&gt;,(&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;)</code></pre>
+<pre><code>ELLIPSE &lt;cx&gt;,&lt;cy&gt;,(&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;)
+<<<<<<< ours
+ELLIPSE &lt;cx&gt;,&lt;cy&gt; (&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;)</code></pre>
+=======
+ELLIPSE &lt;cx&gt; &lt;cy&gt; (&lt;r&gt;|&lt;rx&gt; &lt;ry&gt;)</code></pre>
+>>>>>>> theirs
 <ul>
 <li><p><code>&lt;cx&gt;,&lt;cy&gt;</code> is the center point of the
 ellipse.</p></li>
@@ -310,13 +317,17 @@ WIPE #E0E0E0
 
 // Fill a red circle.
 fill #802020
-ELLIPSE 150,100,80
+ELLIPSE 150,100 80
 
 // Outline a flat ellipse, rotated 10 degrees clockwise around its center.
 fill none
 pen #802020 width:5
 rotate 10 anchor:150,100
-ELLIPSE 150,100,140,30</code></pre>
+<<<<<<< ours
+ELLIPSE 150,100 140,30</code></pre>
+=======
+ELLIPSE 150 100 140 30</code></pre>
+>>>>>>> theirs
 <p><img src="images/ellipseExample.png" /></p>
 <h3 id="image">IMAGE</h3>
 <p>You use the <code>IMAGE</code> instruction for drawing an image on
@@ -369,7 +380,7 @@ bounds 0,0,340,300
 options aa-gamma:1.5
 
 // Fill the canvas with a &quot;barber pole&quot; pattern
-WIPE pattern:[bounds 0,0,40,300; WIPE gradient:[linear 0,0,40,0 stops:[
+WIPE pattern:[bounds 0,0,40,300; WIPE gradient:[linear 0 0 40 0 stops:[
     0,gray,0.25,blue,0.5,gray,0.75,maroon,1,gray
 ] ] ] transform:[rotate 45]
 
@@ -389,32 +400,32 @@ pen red width:1
 
 // A: standard
 IMAGE 10,10 silly
-STAR 10,10,4,5
+STAR 10 10 4 5
 TEXT at:60,130 anchor:center A
 
 // B: showcasing alignment and transform
 IMAGE 170,70 silly align:[middle center] transform:[scale 0.7;rotate -20]
-STAR 170,70,4,5
+STAR 170 70 4 5
 TEXT at:170,130 anchor:center B
 
 // C: showcasing clipping and opacity
 IMAGE 230,10 silly clip:[25,25,50,50] opacity:0.6
-STAR 230,10,4,5
+STAR 230 10 4 5
 TEXT at:280,130 anchor:center C
 
 // D: showcasing clipping and scale to exact width
 IMAGE 10,160 silly align:[top left] clip:[25,25,50,50] width:100 stretch:no
-STAR 10,160,4,5
+STAR 10 160 4 5
 TEXT at:60,280 anchor:center D
 
 // E: showcasing a different aspect ratio 
 IMAGE 220,260 silly align:[bottom right] width:100 height:66
-STAR 220,260,4,5
+STAR 220 260 4 5
 TEXT at:170,280 anchor:center E
 
 // F: showcasing vertical flipping with transform
 IMAGE 230,160 silly align:[bottom right] transform:[scale -1]
-STAR 230,160,4,5
+STAR 230 160 4 5
 TEXT at:280,280 anchor:center F</code></pre>
 <p><img src="images/imageExample.png" /></p>
 <h3 id="path">PATH</h3>
@@ -448,18 +459,23 @@ rotate -135 anchor:200,200
 PATH svg:[M100,300 v-200 h200 a100,100,90,0,1,0,200 a100,100,90,0,1,-200,0 z]</code></pre>
 <p><img src="images/svgPathExample.png" /></p>
 <h3 id="line">LINE</h3>
-<p>The <code>LINE</code> instruction draws an open polyline using the current <a href="#pen"><code>pen</code></a>.</p>
+<p>The <code>LINE</code> instruction draws an open polyline using the
+current <a href="#pen"><code>pen</code></a>.</p>
 <p>Syntax:</p>
 <pre><code>LINE &lt;x0&gt;,&lt;y0&gt; &lt;x1&gt;,&lt;y1&gt; [&lt;x2&gt;,&lt;y2&gt; ...]</code></pre>
-<p>At least two points (four coordinates) are required. Two points draw a single line segment; additional points extend the polyline.</p>
+<p>At least two points (four coordinates) are required. Two points draw
+a single line segment; additional points extend the polyline.</p>
 <p>Example:</p>
 <pre><code>pen black width:2
 LINE 10,10 80,40 40,80</code></pre>
 <h3 id="polygon">POLYGON</h3>
-<p>The <code>POLYGON</code> instruction draws a closed polygon using the current <a href="#fill"><code>fill</code></a> and <a href="#pen"><code>pen</code></a>.</p>
+<p>The <code>POLYGON</code> instruction draws a closed polygon using the
+current <a href="#fill"><code>fill</code></a> and <a
+href="#pen"><code>pen</code></a>.</p>
 <p>Syntax:</p>
 <pre><code>POLYGON &lt;x0&gt;,&lt;y0&gt; &lt;x1&gt;,&lt;y1&gt; [&lt;x2&gt;,&lt;y2&gt; ...]</code></pre>
-<p>At least three points (six coordinates) are required. The polygon is automatically closed.</p>
+<p>At least three points (six coordinates) are required. The polygon is
+automatically closed.</p>
 <p>Example:</p>
 <pre><code>fill lime
 pen black
@@ -497,7 +513,8 @@ regular polygon. It will be filled with the current <a
 href="#fill"><code>fill</code></a> setting and outlined with the current
 <a href="#pen"><code>pen</code></a> setting.</p>
 <p>Syntax:</p>
-<pre><code>STAR &lt;cx&gt;,&lt;cy&gt;,&lt;points&gt;,&lt;r1&gt;[,&lt;r2&gt;=&lt;r1&gt;] [rotation:&lt;angle&gt;]</code></pre>
+<pre><code>STAR &lt;cx&gt;,&lt;cy&gt;,&lt;points&gt;,&lt;r1&gt;[,&lt;r2&gt;=&lt;r1&gt;] [rotation:&lt;angle&gt;]
+STAR &lt;cx&gt; &lt;cy&gt; &lt;points&gt; &lt;r1&gt;[ &lt;r2&gt;=&lt;r1&gt;] [rotation:&lt;angle&gt;]</code></pre>
 <ul>
 <li><p><code>&lt;cx&gt;, &lt;cy&gt;</code> are the x and y coordinates
 of the center of the star.</p></li>
@@ -540,7 +557,7 @@ for r2 in:[100,80,60,40,20,0] [
             offset 60,0
 
             // Draw a star with the current point count and radius values.
-            STAR 0,40,$c,20,{20*$r2%}
+            STAR 0 40 $c 20 {20*$r2%}
         ]
     ]
 
@@ -604,8 +621,8 @@ font serif size:$size color:hsv(0.47,0.3,0.9) outline:black
 TEXT at:$x,$y $s anchor:center caret:rx
 
 // Setup fill and pen gradients for the box.
-fill gradient:[linear 0,18,0,40 from:hsv(0.5,0.5,0.2) to:hsv(0.5,0.7,0.6)]
-pen gradient:[radial $x,{$y-$size/3},{$rx-$x},$size
+fill gradient:[linear 0 18 0 40 from:hsv(0.5,0.5,0.2) to:hsv(0.5,0.7,0.6)]
+pen gradient:[radial $x {$y-$size/3} {$rx-$x} $size
     .. from:hsv(0.4,0.7,0.9) to:hsv(0.5,0.7,0.4)] width:8.0
 
 /*
@@ -662,7 +679,7 @@ group ends.</p>
 bounds 0,0,300,300
 
 // Wipe the canvas with a gradient, to begin with.
-WIPE gradient:[linear 0,0,200,200 from:black to:gray]
+WIPE gradient:[linear 0 0 200 200 from:black to:gray]
 
 // Setup fill, pen, and an initial transform of x2.
 pen black width:3
@@ -675,7 +692,7 @@ context [
     rotate 10 anchor:150,150
     
     // The fill and pen will be local to this context.
-    fill gradient:[linear 0,0,1,0 from:silver to:blue] relative:yes
+    fill gradient:[linear 0 0 1 0 from:silver to:blue] relative:yes
     pen none
     
     // Fill a rotated, masked gradient 3d cube silhouette.
@@ -717,8 +734,9 @@ displaying the image.</p>
 <h4 id="define-font">define font</h4>
 <p>You can use the <code>define font</code> directive to create and
 embed a font face within the <em>IVG</em> document. The font is defined
-using <em>ivgfont</em>, a format describing glyphs using SVG paths. Like
-<em>IVG</em>, <em>ivgfont</em> is also based on <em>ImpD</em>.</p>
+using <a href="ivgfont%20Documentation.md"><em>ivgfont</em></a>, a
+format describing glyphs using SVG paths. Like <em>IVG</em>,
+<em>ivgfont</em> is also based on <em>ImpD</em>.</p>
 <p>Syntax:</p>
 <pre><code>define font &lt;name&gt; &lt;definition&gt;</code></pre>
 <ul>
@@ -931,7 +949,7 @@ TEXT at:70,145 anchor:center &quot;C&quot;
 offset 150,0
 context [
     mask [
-        fill gradient:[linear 0,0,0.5,1 from:#00 to:#C0] relative:yes
+        fill gradient:[linear 0 0 0.5 1 from:#00 to:#C0] relative:yes
         ellipse $c2
     ]
     ellipse $c1
@@ -1025,7 +1043,7 @@ for resolution in:[1,2,4,8] [
         // Declare the pattern using a simple gradient-colored circle.
         fill pattern:[
             bounds 0,0,10,10
-            pen gradient:[linear 0,0,1,1 stops:[0,blue,0.5,yellow,0.8,blue]] relative:yes
+            pen gradient:[linear 0 0 1 1 stops:[0,blue,0.5,yellow,0.8,blue]] relative:yes
             ellipse 5,5,3
         ]
         
@@ -1234,8 +1252,14 @@ href="#paint-specification"><code>&lt;paint&gt;</code></a>
 specification, such as in the <a href="#pen"><code>pen</code></a> and <a
 href="#fill"><code>fill</code></a> directives. The syntax for specifying
 a gradient is as follows:</p>
-<pre><code>&lt;gradient&gt; = linear &lt;x0&gt;,&lt;y0&gt;,&lt;x1&gt;,&lt;y1&gt; | radial &lt;cx&gt;,&lt;cy&gt;,(&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;)
-             from:&lt;color&gt; to:&lt;color&gt; | stops:&lt;number&gt;,&lt;color&gt;,[&lt;number&gt;,&lt;color&gt;,...]</code></pre>
+<<<<<<< ours
+<pre><code>&lt;gradient&gt; = (linear &lt;x0&gt;,&lt;y0&gt;,&lt;x1&gt;,&lt;y1&gt; | radial &lt;cx&gt;,&lt;cy&gt;,(&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;))
+             (from:&lt;color&gt; to:&lt;color&gt; | stops:&lt;number&gt;,&lt;color&gt;,[&lt;number&gt;,&lt;color&gt;,...])</code></pre>
+=======
+<pre><code>&lt;gradient&gt; = (linear &lt;x0&gt;,&lt;y0&gt;,&lt;x1&gt;,&lt;y1&gt; | linear &lt;x0&gt; &lt;y0&gt; &lt;x1&gt; &lt;y1&gt; |
+        radial &lt;cx&gt;,&lt;cy&gt;,(&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;) | radial &lt;cx&gt; &lt;cy&gt; (&lt;r&gt;|&lt;rx&gt; &lt;ry&gt;))
+        (from:&lt;color&gt; to:&lt;color&gt; | stops:&lt;number&gt;,&lt;color&gt;,[&lt;number&gt;,&lt;color&gt;,...])</code></pre>
+>>>>>>> theirs
 <ul>
 <li><p>The <code>linear</code> alternative creates a linear gradient
 that transitions between colors along a straight line defined by two
@@ -1268,7 +1292,7 @@ bounds 0,0,500,500
 font serif size:16 color:white
 
 // Wipe the canvas with a simple Linear gradient from red to blue.
-WIPE gradient:[linear 0,0,500,500 from:red to:blue]
+WIPE gradient:[linear 0 0 500 500 from:red to:blue]
 RECT 0,0,500,500
 TEXT at:10,490 anchor:left &quot;linear gradient&quot;
 
@@ -1276,12 +1300,12 @@ TEXT at:10,490 anchor:left &quot;linear gradient&quot;
 fill relative:yes
 
 // Elliptic gradient with stops.
-fill gradient:[radial 0.5,0.5,0.7,0.5 stops:0,blue,0.25,yellow,0.5,blue,0.75,lime,1,blue]
+fill gradient:[radial 0.5 0.5 0.7 0.5 stops:0,blue,0.25,yellow,0.5,blue,0.75,lime,1,blue]
 RECT 200,200,250,250
 TEXT at:210,440 anchor:left &quot;radial gradient with stops&quot;
 
 // Linear gradient with stops.
-fill gradient:[linear 0,0.3,1,0.7 stops:0,red,0.5,lime,1,blue]
+fill gradient:[linear 0 0.3 1 0.7 stops:0,red,0.5,lime,1,blue]
 RECT 40,40,250,250
 TEXT at:50,280 anchor:left &quot;linear gradient with stops&quot;</code></pre>
 <p><img src="images/gradientDemo.png" /></p>
@@ -1358,7 +1382,7 @@ mask [
 ]
 
 // Fill the mask with a relative gradient.
-fill gradient:[ linear 0,0,1,1 stops:0.0,white,1.0,blue ] relative:yes
+fill gradient:[ linear 0 0 1 1 stops:0.0,white,1.0,blue ] relative:yes
 RECT 0,0,400,300</code></pre>
 <p><img src="images/paintDemo.png" /></p>
 <h3 id="transform-specification">Transform Specification</h3>

@@ -242,14 +242,14 @@ long as any derived renderer uses it.
 Even types that are trivially copyable still reference external data; treat renderers as views
 rather than owning objects.
 
-| Renderer | References | Ownership |
-|---|---|---|
-| Solid<T> | none | value |
-| Texture<T> | source `Raster<T>` | no |
-| PolygonMask | `Path`, `FillRule` | no |
-| Gradient<T> | copy of stops | table |
-| Gradient<T>::Lookup | gradient, ramp | no |
-| RLERaster<T> | none | owns span/pixel arrays |
+| Renderer            | References           | Ownership              |
+|---------------------|----------------------|------------------------|
+| Solid<T>            | none                 | value                  |
+| Texture<T>          | source `Raster<T>`   | no                     |
+| PolygonMask         | `Path`, `FillRule`   | no                     |
+| Gradient<T>         | copy of stops        | table                  |
+| Gradient<T>::Lookup | gradient, ramp       | no                     |
+| RLERaster<T>        | none                 | owns span/pixel arrays |
 
 ## Path Construction
 

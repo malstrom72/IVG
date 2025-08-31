@@ -1,0 +1,8 @@
+FORMAT IVG-1 requires:IMPD-1
+BOUNDS 0,0,200,100
+
+pen none
+fill red
+STAR 50,50 5 40
+fill blue
+STAR 150,50 5 40,20 rotation:18
