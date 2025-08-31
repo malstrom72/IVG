@@ -60,6 +60,10 @@
     img {
       max-width: 100%;
     }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
     h1, h2, h3, h4, h5, h6 {
       margin-top: 1.4em;
     }
@@ -103,8 +107,8 @@
      overflow: visible;
     }
     hr {
-      background-color: #1a1a1a;
       border: none;
+      border-top: 1px solid #1a1a1a;
       height: 1px;
       margin: 1em 0;
     }
@@ -252,14 +256,14 @@ WIPE maroon
 fill yellow
 
 // Draw the face.
-ELLIPSE 200 200 150
+ELLIPSE 200,200 150
 
 // Set the fill color to black.
 fill black
 
 // Draw the eyes.
-ELLIPSE 150 170 25
-ELLIPSE 250 170 25
+ELLIPSE 150,170 25
+ELLIPSE 250,170 25
 
 // Draw the mouth using a SVG path.
 PATH svg:[M 150,270 Q 200,320 250,270]</code></pre>
@@ -297,11 +301,7 @@ href="#fill"><code>fill</code></a> setting and outlined with the current
 <a href="#pen"><code>pen</code></a> setting.</p>
 <p>Syntax:</p>
 <pre><code>ELLIPSE &lt;cx&gt;,&lt;cy&gt;,(&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;)
-<<<<<<< ours
 ELLIPSE &lt;cx&gt;,&lt;cy&gt; (&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;)</code></pre>
-=======
-ELLIPSE &lt;cx&gt; &lt;cy&gt; (&lt;r&gt;|&lt;rx&gt; &lt;ry&gt;)</code></pre>
->>>>>>> theirs
 <ul>
 <li><p><code>&lt;cx&gt;,&lt;cy&gt;</code> is the center point of the
 ellipse.</p></li>
@@ -323,11 +323,7 @@ ELLIPSE 150,100 80
 fill none
 pen #802020 width:5
 rotate 10 anchor:150,100
-<<<<<<< ours
 ELLIPSE 150,100 140,30</code></pre>
-=======
-ELLIPSE 150 100 140 30</code></pre>
->>>>>>> theirs
 <p><img src="images/ellipseExample.png" /></p>
 <h3 id="image">IMAGE</h3>
 <p>You use the <code>IMAGE</code> instruction for drawing an image on
@@ -380,7 +376,7 @@ bounds 0,0,340,300
 options aa-gamma:1.5
 
 // Fill the canvas with a &quot;barber pole&quot; pattern
-WIPE pattern:[bounds 0,0,40,300; WIPE gradient:[linear 0 0 40 0 stops:[
+WIPE pattern:[bounds 0,0,40,300; WIPE gradient:[linear 0,0 40,0 stops:[
     0,gray,0.25,blue,0.5,gray,0.75,maroon,1,gray
 ] ] ] transform:[rotate 45]
 
@@ -400,48 +396,68 @@ pen red width:1
 
 // A: standard
 IMAGE 10,10 silly
-STAR 10 10 4 5
+STAR 10,10 4 5
 TEXT at:60,130 anchor:center A
 
 // B: showcasing alignment and transform
 IMAGE 170,70 silly align:[middle center] transform:[scale 0.7;rotate -20]
-STAR 170 70 4 5
+STAR 170,70 4 5
 TEXT at:170,130 anchor:center B
 
 // C: showcasing clipping and opacity
 IMAGE 230,10 silly clip:[25,25,50,50] opacity:0.6
-STAR 230 10 4 5
+STAR 230,10 4 5
 TEXT at:280,130 anchor:center C
 
 // D: showcasing clipping and scale to exact width
 IMAGE 10,160 silly align:[top left] clip:[25,25,50,50] width:100 stretch:no
-STAR 10 160 4 5
+STAR 10,160 4 5
 TEXT at:60,280 anchor:center D
 
 // E: showcasing a different aspect ratio 
 IMAGE 220,260 silly align:[bottom right] width:100 height:66
-STAR 220 260 4 5
+STAR 220,260 4 5
 TEXT at:170,280 anchor:center E
 
 // F: showcasing vertical flipping with transform
 IMAGE 230,160 silly align:[bottom right] transform:[scale -1]
-STAR 230 160 4 5
+STAR 230,160 4 5
 TEXT at:280,280 anchor:center F</code></pre>
 <p><img src="images/imageExample.png" /></p>
 <h3 id="path">PATH</h3>
-<p>The <code>PATH</code> instruction is used for drawing a path from SVG
-data. It will be filled with the current <a
-href="#fill"><code>fill</code></a> setting and outlined with the current
-<a href="#pen"><code>pen</code></a> setting.</p>
+<p>The <code>PATH</code> instruction draws an arbitrary vector path. It
+will be filled with the current <a href="#fill"><code>fill</code></a>
+setting and outlined with the current <a
+href="#pen"><code>pen</code></a> setting. Paths may be supplied as raw
+SVG data or as an instruction list.</p>
 <p>Syntax:</p>
-<pre><code>PATH svg:&lt;svg data&gt;</code></pre>
+<pre><code>PATH svg:&lt;svg data&gt;
+PATH [&lt;instructions&gt;] [closed:(yes|no)=no]</code></pre>
 <ul>
-<li><code>&lt;svg data&gt;</code> is a string containing the SVG path
-data.</li>
+<li><p><code>&lt;svg data&gt;</code> is a string containing SVG path
+data. See https://svgwg.org/specs/paths/ for details.</p></li>
+<li><p><code>&lt;instructions&gt;</code> is a semicolon-separated list
+of sub-commands:</p>
+<p>move-to <x>,<y> line-to <x>,<y> [<x>,<y> …] bezier-to <cx>,<cy>
+<x>,<y> bezier-to <c1x>,<c1y> <c2x>,<c2y> <x>,<y> arc-to <x>,<y>
+(<r>|<rx>,<ry>) [sweep:cw|ccw=cw] [large:yes|no=no] [rotate:<deg>=0]
+arc-sweep <cx>,<cy> <degrees></p></li>
 </ul>
-<p>See https://svgwg.org/specs/paths/ for documentation on the SVG path
-format.</p>
-<p>Example:</p>
+<p><code>closed:yes</code> closes the path automatically, connecting the
+final point back to the first and also closing any sub-paths begun with
+<code>move-to</code>.</p>
+<h4 id="examples">Examples</h4>
+<p>Using an instruction list:</p>
+<pre><code>fill lime
+pen black
+PATH [move-to 20,20; line-to 120,20 120,80 20,80] closed:yes</code></pre>
+<p>Quadratic and cubic Bézier curves:</p>
+<pre><code>PATH [move-to 20,20; bezier-to 60,20 60,80]
+PATH [move-to 20,20; bezier-to 40,20 80,60 100,80]</code></pre>
+<p>Arcs:</p>
+<pre><code>PATH [move-to 20,20; arc-to 120,20 40,40]
+PATH [move-to 60,60; arc-sweep 60,100 180]</code></pre>
+<p>Using raw SVG data:</p>
 <pre><code>format IVG-2 requires:ImpD-1
 bounds 0,0,400,380
 
@@ -457,8 +473,7 @@ rotate -135 anchor:200,200
 
 // Draw the heart path
 PATH svg:[M100,300 v-200 h200 a100,100,90,0,1,0,200 a100,100,90,0,1,-200,0 z]</code></pre>
-<p><img src="images/svgPathExample.png" /></p>
-<h3 id="line">LINE</h3>
+<p><img src="images/svgPathExample.png" /> ### LINE</p>
 <p>The <code>LINE</code> instruction draws an open polyline using the
 current <a href="#pen"><code>pen</code></a>.</p>
 <p>Syntax:</p>
@@ -514,7 +529,8 @@ href="#fill"><code>fill</code></a> setting and outlined with the current
 <a href="#pen"><code>pen</code></a> setting.</p>
 <p>Syntax:</p>
 <pre><code>STAR &lt;cx&gt;,&lt;cy&gt;,&lt;points&gt;,&lt;r1&gt;[,&lt;r2&gt;=&lt;r1&gt;] [rotation:&lt;angle&gt;]
-STAR &lt;cx&gt; &lt;cy&gt; &lt;points&gt; &lt;r1&gt;[ &lt;r2&gt;=&lt;r1&gt;] [rotation:&lt;angle&gt;]</code></pre>
+STAR &lt;cx&gt;,&lt;cy&gt; &lt;points&gt; &lt;r1&gt;[,&lt;r2&gt;=&lt;r1&gt;] [rotation:&lt;angle&gt;]</code></pre>
+<p>Both comma-separated and space-separated forms are accepted.</p>
 <ul>
 <li><p><code>&lt;cx&gt;, &lt;cy&gt;</code> are the x and y coordinates
 of the center of the star.</p></li>
@@ -557,7 +573,7 @@ for r2 in:[100,80,60,40,20,0] [
             offset 60,0
 
             // Draw a star with the current point count and radius values.
-            STAR 0 40 $c 20 {20*$r2%}
+            STAR 0,40 $c 20,{20*$r2%}
         ]
     ]
 
@@ -621,8 +637,8 @@ font serif size:$size color:hsv(0.47,0.3,0.9) outline:black
 TEXT at:$x,$y $s anchor:center caret:rx
 
 // Setup fill and pen gradients for the box.
-fill gradient:[linear 0 18 0 40 from:hsv(0.5,0.5,0.2) to:hsv(0.5,0.7,0.6)]
-pen gradient:[radial $x {$y-$size/3} {$rx-$x} $size
+fill gradient:[linear 0,18 0,40 from:hsv(0.5,0.5,0.2) to:hsv(0.5,0.7,0.6)]
+pen gradient:[radial $x,{$y-$size/3} {$rx-$x},$size
     .. from:hsv(0.4,0.7,0.9) to:hsv(0.5,0.7,0.4)] width:8.0
 
 /*
@@ -653,7 +669,7 @@ bounds 0,0,200,200
 
 // Wipe the full canvas with a radial rainbow gradient
 WIPE gradient:[
-    radial 100,100,100
+    radial 100,100 100
     stops:[0,red,0.25,yellow,0.5,lime,0.75,aqua,1,blue]
 ]</code></pre>
 <p><img src="images/wipeExample.png" /></p>
@@ -679,7 +695,7 @@ group ends.</p>
 bounds 0,0,300,300
 
 // Wipe the canvas with a gradient, to begin with.
-WIPE gradient:[linear 0 0 200 200 from:black to:gray]
+WIPE gradient:[linear 0,0 200,200 from:black to:gray]
 
 // Setup fill, pen, and an initial transform of x2.
 pen black width:3
@@ -692,7 +708,7 @@ context [
     rotate 10 anchor:150,150
     
     // The fill and pen will be local to this context.
-    fill gradient:[linear 0 0 1 0 from:silver to:blue] relative:yes
+    fill gradient:[linear 0,0 1,0 from:silver to:blue] relative:yes
     pen none
     
     // Fill a rotated, masked gradient 3d cube silhouette.
@@ -949,7 +965,7 @@ TEXT at:70,145 anchor:center &quot;C&quot;
 offset 150,0
 context [
     mask [
-        fill gradient:[linear 0 0 0.5 1 from:#00 to:#C0] relative:yes
+        fill gradient:[linear 0,0 0.5,1 from:#00 to:#C0] relative:yes
         ellipse $c2
     ]
     ellipse $c1
@@ -1043,7 +1059,7 @@ for resolution in:[1,2,4,8] [
         // Declare the pattern using a simple gradient-colored circle.
         fill pattern:[
             bounds 0,0,10,10
-            pen gradient:[linear 0 0 1 1 stops:[0,blue,0.5,yellow,0.8,blue]] relative:yes
+            pen gradient:[linear 0,0 1,1 stops:[0,blue,0.5,yellow,0.8,blue]] relative:yes
             ellipse 5,5,3
         ]
         
@@ -1252,14 +1268,11 @@ href="#paint-specification"><code>&lt;paint&gt;</code></a>
 specification, such as in the <a href="#pen"><code>pen</code></a> and <a
 href="#fill"><code>fill</code></a> directives. The syntax for specifying
 a gradient is as follows:</p>
-<<<<<<< ours
-<pre><code>&lt;gradient&gt; = (linear &lt;x0&gt;,&lt;y0&gt;,&lt;x1&gt;,&lt;y1&gt; | radial &lt;cx&gt;,&lt;cy&gt;,(&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;))
-             (from:&lt;color&gt; to:&lt;color&gt; | stops:&lt;number&gt;,&lt;color&gt;,[&lt;number&gt;,&lt;color&gt;,...])</code></pre>
-=======
-<pre><code>&lt;gradient&gt; = (linear &lt;x0&gt;,&lt;y0&gt;,&lt;x1&gt;,&lt;y1&gt; | linear &lt;x0&gt; &lt;y0&gt; &lt;x1&gt; &lt;y1&gt; |
-        radial &lt;cx&gt;,&lt;cy&gt;,(&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;) | radial &lt;cx&gt; &lt;cy&gt; (&lt;r&gt;|&lt;rx&gt; &lt;ry&gt;))
-        (from:&lt;color&gt; to:&lt;color&gt; | stops:&lt;number&gt;,&lt;color&gt;,[&lt;number&gt;,&lt;color&gt;,...])</code></pre>
->>>>>>> theirs
+<pre><code>&lt;gradient&gt; = (linear &lt;x0&gt;,&lt;y0&gt;,&lt;x1&gt;,&lt;y1&gt;
+ | linear &lt;x0&gt;,&lt;y0&gt; &lt;x1&gt;,&lt;y1&gt;
+ | radial &lt;cx&gt;,&lt;cy&gt;,(&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;)
+ | radial &lt;cx&gt;,&lt;cy&gt; (&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;))
+   (from:&lt;color&gt; to:&lt;color&gt; | stops:&lt;number&gt;,&lt;color&gt;,[&lt;number&gt;,&lt;color&gt;,...])</code></pre>
 <ul>
 <li><p>The <code>linear</code> alternative creates a linear gradient
 that transitions between colors along a straight line defined by two
@@ -1271,7 +1284,9 @@ that transitions between colors emanating from a single point
 further define the shape of the gradient by providing either the radius
 (<code>&lt;r&gt;</code>), which creates a circular shape or the x-radius
 and y-radius (<code>&lt;rx&gt;,&lt;ry&gt;</code>), which creates an
-elliptical shape.</p></li>
+elliptical shape. Examples using the spaced coordinate form:</p>
+<pre><code>WIPE gradient:[linear 0,0 10,0 from:red to:blue]
+WIPE gradient:[radial 5,5 5 from:white to:black]</code></pre></li>
 <li><p>The <code>from</code> alternative specifies the start and end
 colors of the gradient (see <a href="#color-specification">Color
 Specification</a>).</p></li>
@@ -1292,7 +1307,7 @@ bounds 0,0,500,500
 font serif size:16 color:white
 
 // Wipe the canvas with a simple Linear gradient from red to blue.
-WIPE gradient:[linear 0 0 500 500 from:red to:blue]
+WIPE gradient:[linear 0,0 500,500 from:red to:blue]
 RECT 0,0,500,500
 TEXT at:10,490 anchor:left &quot;linear gradient&quot;
 
@@ -1300,12 +1315,12 @@ TEXT at:10,490 anchor:left &quot;linear gradient&quot;
 fill relative:yes
 
 // Elliptic gradient with stops.
-fill gradient:[radial 0.5 0.5 0.7 0.5 stops:0,blue,0.25,yellow,0.5,blue,0.75,lime,1,blue]
+fill gradient:[radial 0.5,0.5 0.7,0.5 stops:0,blue,0.25,yellow,0.5,blue,0.75,lime,1,blue]
 RECT 200,200,250,250
 TEXT at:210,440 anchor:left &quot;radial gradient with stops&quot;
 
 // Linear gradient with stops.
-fill gradient:[linear 0 0.3 1 0.7 stops:0,red,0.5,lime,1,blue]
+fill gradient:[linear 0,0.3 1,0.7 stops:0,red,0.5,lime,1,blue]
 RECT 40,40,250,250
 TEXT at:50,280 anchor:left &quot;linear gradient with stops&quot;</code></pre>
 <p><img src="images/gradientDemo.png" /></p>
@@ -1382,7 +1397,7 @@ mask [
 ]
 
 // Fill the mask with a relative gradient.
-fill gradient:[ linear 0 0 1 1 stops:0.0,white,1.0,blue ] relative:yes
+fill gradient:[ linear 0,0 1,1 stops:0.0,white,1.0,blue ] relative:yes
 RECT 0,0,400,300</code></pre>
 <p><img src="images/paintDemo.png" /></p>
 <h3 id="transform-specification">Transform Specification</h3>

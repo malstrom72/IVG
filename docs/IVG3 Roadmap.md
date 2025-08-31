@@ -120,11 +120,11 @@ PATH [move-to 10,50; arc-sweep 50,50 180]
 - [x] Parse the optional `closed:` argument in the PATH case; if set to `yes`, call `p.close()` after `buildPathFromInstructions` succeeds.
 - [x] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
 ## Milestone 6 – documentation
-- [ ] In `docs/IVG Documentation.md`, expand the PATH section (starts around line 230) to cover instruction lists, detailing each sub-command with short examples mirroring the ones above.
-- [ ] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
+- [x] In `docs/IVG Documentation.md`, expand the PATH section (starts around line 230) to cover instruction lists, detailing each sub-command with short examples mirroring the ones above.
+- [x] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
 ## Milestone 7 – regression test
-- [ ] Add `tests/ivg/pathInstructions.ivg` demonstrating all path sub-commands: `move-to`, `line-to`, both `bezier-to` forms, `arc-to`, `arc-sweep`, and a `closed:yes` path. Follow the style of existing tests in `tests/ivg/`.
-- [ ] Validate rendering with `bash tools/testIVG.sh tests/ivg/pathInstructions.ivg` and avoid committing generated `.png` files.
-- [ ] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
+- [x] Add `tests/ivg/pathInstructions.ivg` demonstrating all path sub-commands: `move-to`, `line-to`, both `bezier-to` forms, `arc-to`, `arc-sweep`, and a `closed:yes` path. Follow the style of existing tests in `tests/ivg/`.
+- [x] Validate rendering with `bash tools/testIVG.sh tests/ivg/pathInstructions.ivg` and avoid committing generated `.png` files.
+- [x] Run `timeout 300 ./tools/buildAndTest.sh beta native nosimd`.
 ## Final test
-- [ ] `timeout 600 ./tools/buildAndTest.sh beta native nosimd`
+- [x] `timeout 600 ./tools/buildAndTest.sh beta native nosimd`
