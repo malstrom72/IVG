@@ -762,8 +762,8 @@ static double calcCurveQualityForTransform(const AffineTransformation& xf) {
 /* --- Gradients --- */
 
 struct GradientSpec {
-	// FIX : reverseRadialStops is always true?
-	GradientSpec(const Interpreter& impd, const String& s, bool reverseRadialStops = false);
+// FIX : reverseRadialStops is always true?
+GradientSpec(const Interpreter& impd, IVGExecutor::FormatVersion version, const String& s, bool reverseRadialStops = false);
 	struct StopSpec {
 		double position;
 		String color;
@@ -773,12 +773,12 @@ struct GradientSpec {
 	vector<StopSpec> stops;
 };
 
-GradientSpec::GradientSpec(const Interpreter& impd, const String& source, bool reverseRadialStops) {
-	ArgumentsContainer gradientArgs(ArgumentsContainer::parse(impd, source));
+GradientSpec::GradientSpec(const Interpreter& impd, IVGExecutor::FormatVersion version, const String& source, bool reverseRadialStops) {
+ArgumentsContainer gradientArgs(ArgumentsContainer::parse(impd, source));
 
-	isRadial = false;
-	const String gradientType = gradientArgs.fetchRequired(0);
-	const String gradientTypeLower = impd.toLower(gradientType);
+isRadial = false;
+const String gradientType = gradientArgs.fetchRequired(0);
+const String gradientTypeLower = impd.toLower(gradientType);
 	if (gradientTypeLower == "radial") {
 		isRadial = true;
 	} else if (gradientTypeLower != "linear") {
@@ -786,23 +786,29 @@ GradientSpec::GradientSpec(const Interpreter& impd, const String& source, bool r
 	}
 	reverseRadialStops = reverseRadialStops && isRadial;
 
-	const String& arg1 = gradientArgs.fetchRequired(1);
-	const String* arg2 = gradientArgs.fetchOptional(2);
-	if (arg2 != 0) {
-		parseNumberList(impd, arg1, coords, 2, 2);
-		int count2 = parseNumberList(impd, *arg2, coords + 2, 1, 2);
-		if (!isRadial && count2 != 2) {
-			impd.throwBadSyntax(String("Invalid linear gradient coordinates: ") + *arg2);
-		}
-		if (count2 == 1) {
-			coords[3] = coords[2];
-		}
-	} else {
-		const int count = parseNumberList(impd, arg1, coords, (isRadial ? 3 : 4), 4);
-		if (count == 3) {
-			coords[3] = coords[2];
-		}
-	}
+const String& arg1 = gradientArgs.fetchRequired(1);
+const String* arg2 = gradientArgs.fetchOptional(2);
+if (arg2 != 0) {
+if (version == IVGExecutor::IVG_1 || version == IVGExecutor::IVG_2) {
+impd.throwBadSyntax("IVG-1 and IVG-2 require comma-separated gradient coordinates");
+}
+parseNumberList(impd, arg1, coords, 2, 2);
+int count2 = parseNumberList(impd, *arg2, coords + 2, 1, 2);
+if (!isRadial && count2 != 2) {
+impd.throwBadSyntax(String("Invalid linear gradient coordinates: ") + *arg2);
+}
+if (count2 == 1) {
+coords[3] = coords[2];
+}
+} else {
+if (version == IVGExecutor::IVG_3) {
+impd.throwBadSyntax("IVG-3 requires space-separated gradient coordinates");
+}
+const int count = parseNumberList(impd, arg1, coords, (isRadial ? 3 : 4), 4);
+if (count == 3) {
+coords[3] = coords[2];
+}
+}
 	if (isRadial && (coords[2] < 0.0 || coords[3] < 0.0)) {
 		impd.throwRunTimeError(String("Negative radial gradient radius: ")
 			        + impd.toString(coords[coords[2] < 0.0 ? 2 : 3]));
@@ -887,7 +893,7 @@ template<class PIXEL_TYPE> void Canvas::parsePaintOfType(Interpreter& impd, IVGE
 		patternPainter->makePattern(impd, executor, context, *s);
 		paint.painter = patternPainter.release();
 	} else if ((s = args.fetchOptional("gradient")) != 0) {
-		GradientSpec spec(impd, *s, true);
+		GradientSpec spec(impd, executor.getFormatVersion(), *s, true);
 		vector< typename Gradient<PIXEL_TYPE>::Stop > stops(spec.stops.size());
 		typename vector< typename Gradient<PIXEL_TYPE>::Stop >::iterator outIt = stops.begin();
 		vector< GradientSpec::StopSpec >::const_iterator e = spec.stops.end();
@@ -1012,7 +1018,7 @@ enum IVGInstruction {
 /* --- IVGExecutor --- */
 
 IVGExecutor::IVGExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform)
-		: rootContext(canvas, initialTransform), currentContext(&rootContext) { }
+		: rootContext(canvas, initialTransform), currentContext(&rootContext), formatVersion(ANY) { }
 
 void IVGExecutor::parseStroke(Interpreter& impd, ArgumentsContainer& args, Stroke& stroke) {
 	const String* s;
@@ -1081,7 +1087,11 @@ void IVGExecutor::runInNewContext(Interpreter& interpreter, Context& context, co
 bool IVGExecutor::format(Interpreter& impd, const String& identifier, const vector<String>& uses
 		, const vector<String>& requires) {
 	(void)impd; (void)uses;
-	return ((identifier == "ivg-1" || identifier == "ivg-2" || identifier == "ivg-3") && requires.empty());
+	if (!requires.empty()) return false;
+	if (identifier == "ivg-1") { formatVersion = IVG_1; return true; }
+	if (identifier == "ivg-2") { formatVersion = IVG_2; return true; }
+	if (identifier == "ivg-3") { formatVersion = IVG_3; return true; }
+	return false;
 }
 
 void IVGExecutor::trace(Interpreter& impd, const WideString& s) {
@@ -1392,6 +1402,19 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 	double numbers[6];
 
 	IVGInstruction ivgInstruction = static_cast<IVGInstruction>(foundInstruction);
+	if (formatVersion == IVG_1) {
+		if (ivgInstruction == DEFINE_INSTRUCTION || ivgInstruction == FONT_INSTRUCTION
+				|| ivgInstruction == TEXT_INSTRUCTION || ivgInstruction == IMAGE_INSTRUCTION
+				|| ivgInstruction == PATH_INSTRUCTION || ivgInstruction == LINE_INSTRUCTION
+				|| ivgInstruction == POLYGON_INSTRUCTION) {
+			impd.throwBadSyntax(String("Instruction not allowed in IVG-1: ") + instruction);
+		}
+	} else if (formatVersion == IVG_2) {
+		if (ivgInstruction == PATH_INSTRUCTION || ivgInstruction == LINE_INSTRUCTION
+				|| ivgInstruction == POLYGON_INSTRUCTION) {
+			impd.throwBadSyntax(String("Instruction not allowed in IVG-2: ") + instruction);
+		}
+	}
 	switch (ivgInstruction) {
 		case RECT_INSTRUCTION: {
 			parseNumberList(impd, args.fetchRequired(0), numbers, 4, 4);
@@ -1543,6 +1566,11 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		
 		case ELLIPSE_INSTRUCTION: {
 			const String* secondArg = args.fetchOptional(1);
+			if (formatVersion == IVG_3) {
+				if (secondArg == 0) impd.throwBadSyntax("IVG-3 requires space-separated ellipse syntax");
+			} else if (formatVersion == IVG_1 || formatVersion == IVG_2) {
+				if (secondArg != 0) impd.throwBadSyntax("IVG-1 and IVG-2 require comma-separated ellipse syntax");
+			}
 			double cx;
 			double cy;
 			double rx;
@@ -1584,6 +1612,11 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			const String& arg0 = args.fetchRequired(0);
 			const String* arg2 = args.fetchOptional(2);
 			const String* s = args.fetchOptional("rotation");
+			if (formatVersion == IVG_3) {
+				if (arg2 == 0) impd.throwBadSyntax("IVG-3 requires space-separated star syntax");
+			} else if (formatVersion == IVG_1 || formatVersion == IVG_2) {
+				if (arg2 != 0) impd.throwBadSyntax("IVG-1 and IVG-2 require comma-separated star syntax");
+			}
 
 			const double rotation = (s != 0 ? impd.toDouble(*s) * DEGREES : 0.0);
 			double cx, cy, r1, r2;

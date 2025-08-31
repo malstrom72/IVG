@@ -311,8 +311,11 @@ struct Image {
        Executes IVG drawing instructions within a rendering context.
 **/
 class IVGExecutor : public IMPD::Executor {
+	public:
+		enum FormatVersion { ANY, IVG_1, IVG_2, IVG_3 };
 	public:		IVGExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform
 						= NuXPixels::AffineTransformation());
+	public:		FormatVersion getFormatVersion() const { return formatVersion; }
 	public:		virtual bool format(IMPD::Interpreter& interpreter, const IMPD::String& identifier
 						, const std::vector<IMPD::String>& uses, const std::vector<IMPD::String>& requires);
 	public:		virtual bool execute(IMPD::Interpreter& interpreter, const IMPD::String& instruction
@@ -364,6 +367,7 @@ class IVGExecutor : public IMPD::Executor {
 	protected:	std::vector<const Font*> lastFontPointers; // empty = must look up
 	protected:	typedef std::map<IMPD::WideString, Image> ImageMap;
 	protected:	ImageMap definedImages;
+	protected:	FormatVersion formatVersion;
 };
 
 /**
