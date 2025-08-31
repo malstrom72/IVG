@@ -1,4 +1,4 @@
-FORMAT IVG-2 requires:IMPD-1
+FORMAT IVG-3 requires:IMPD-1
 
 define font futura [
 	metrics ascent:1900  descent:-500 linegap:0 upm:1000
@@ -216,7 +216,7 @@ krumelur=context [
 		w={$w+(1.9/18)}
 	]
 	pen width:0.5
-	ellipse 0,0,25
+    ellipse 0,0 25
 ]
 
 threeRows = context [

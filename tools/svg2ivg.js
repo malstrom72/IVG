@@ -1997,7 +1997,7 @@ function convertFile(svgPath, ivgPath, defaultDimArg) {
 	       throw new Error("Failed to read " + svgPath + ": " + err.message);
 	}
 	const svg = parseXML(svgSource);
-	output("format IVG-1 requires:IMPD-1");
+   output("format IVG-3 requires:IMPD-1");
 	convertSVGContainer(svg);
 	if (ivgPath) {
 	       try {

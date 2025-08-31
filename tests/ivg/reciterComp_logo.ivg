@@ -1,4 +1,4 @@
-format IVG-1 requires:IMPD-1; bounds 0,0,100,40
+bounds 0,0,100,40
 matrix 0.7,-0.05,0.05,0.7,10,10.6
 options aa-gamma:1.3
 pen caps:butt joints:miter miter-limit:10

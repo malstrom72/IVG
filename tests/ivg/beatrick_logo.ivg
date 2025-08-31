@@ -1,4 +1,4 @@
-format IVG-1 requires:IMPD-1; bounds 0,0,100,40
+bounds 0,0,100,40
 
 rotate 3; scale 0.14; offset -2275,-110
 pen caps:butt joints:miter miter-limit:10

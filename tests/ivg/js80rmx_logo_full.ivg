@@ -1,5 +1,5 @@
 //
-//  JS80RMX Logo - Created by Fredrik Lidström on 2020-02-26.
+bounds 0,0,100,40
 //
 format IVG-1 requires:IMPD-1; bounds 0,0,100,40
 

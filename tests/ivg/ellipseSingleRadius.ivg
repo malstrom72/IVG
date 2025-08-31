@@ -5,4 +5,4 @@ RESET
 WIPE white
 FILL none
 PEN black width:1
-ELLIPSE 150,100 80
+ELLIPSE 150,100,80

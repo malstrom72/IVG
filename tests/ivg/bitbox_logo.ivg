@@ -1,5 +1,5 @@
 //
-//  Bitbox Logo - Created by Fredrik Lidström on 2013-07-04.
+bounds 0,0,400,160
 //
 format IVG-1 requires:IMPD-1; bounds 0,0,400,160
 

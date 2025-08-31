@@ -1,6 +1,4 @@
 //
-//  Flakes Logo - Created by Fredrik Lidström on 2015-12-14.
-//
 format IVG-1 requires:IMPD-1;
 
 bounds 0,0,400,160
