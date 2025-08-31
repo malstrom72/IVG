@@ -1133,7 +1133,7 @@ std::vector<const Font*> IVGExecutor::lookupExternalOrInternalFonts(Interpreter&
 }
 
 void IVGExecutor::versionRequired(Interpreter& impd, FormatVersion required, const String& instruction) {
-	if (formatVersion < required) {
+	if (formatVersion != UNKNOWN && formatVersion < required) {
 		const char* requiredString = (required == IVG_3 ? "IVG-3" : "IVG-2");
 		impd.throwBadSyntax(String("Instruction requires ") + requiredString + ": " + instruction);
 	}
