@@ -1,4 +1,4 @@
-bounds 0,0,100,40
+format IVG-1 requires:IMPD-1; bounds 0,0,100,40
 JS80=[
 [ . . X X X X . . . X X X X . . . . X X X X . . . . X X X X . ]
 [ . . . X X . . . X X . . X X . . X X . . X X . . X X . . X X ]
