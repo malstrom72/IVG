@@ -7,8 +7,8 @@
 	- Run `timeout 600 ./build.sh` to ensure compilation still succeeds.
 - [ ] Reject version-specific instructions
 	- In `IVGExecutor::execute`, gate features based on `formatVersion`; skip these checks if no format was declared:
-		- IVG-1: allow only instructions defined in IVG-1 and reject everything introduced later, including `DEFINE`, `FONT`, `TEXT`, `IMAGE`, `PATH`, `LINE`, and `POLYGON`.
-		- IVG-2: reject IVG-3-only instructions (`PATH`, `LINE`, `POLYGON`).
+- IVG-1: allow only instructions defined in IVG-1 and reject everything introduced later, including `DEFINE`, `FONT`, `TEXT`, `IMAGE`, `LINE`, `POLYGON`, and `PATH` without `svg:`.
+- IVG-2: reject IVG-3-only instructions (`LINE`, `POLYGON`, and `PATH` without `svg:`).
 	- Emit `Interpreter::throwBadSyntax` with a helpful message when an instruction is disallowed.
 	- Run `timeout 600 ./build.sh` and verify regression tests.
 - [ ] Restrict syntax of geometry instructions

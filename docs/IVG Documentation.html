@@ -433,6 +433,7 @@ SVG data or as an instruction list.</p>
 <p>Syntax:</p>
 <pre><code>PATH svg:&lt;svg data&gt;
 PATH [&lt;instructions&gt;] [closed:(yes|no)=no]</code></pre>
+<p>The <code>PATH svg:</code> form is available in all IVG versions. The instruction-list variant requires IVG-3.</p>
 <ul>
 <li><p><code>&lt;svg data&gt;</code> is a string containing SVG path
 data. See https://svgwg.org/specs/paths/ for details.</p></li>
@@ -458,7 +459,7 @@ PATH [move-to 20,20; bezier-to 40,20 80,60 100,80]</code></pre>
 <pre><code>PATH [move-to 20,20; arc-to 120,20 40,40]
 PATH [move-to 60,60; arc-sweep 60,100 180]</code></pre>
 <p>Using raw SVG data:</p>
-<pre><code>format IVG-3 requires:ImpD-1
+<pre><code>format IVG-1 requires:ImpD-1
 bounds 0,0,400,380
 
 // Wipe the canvas with a very dark purple
