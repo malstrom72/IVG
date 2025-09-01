@@ -16,3 +16,7 @@ if command -v emcc >/dev/null 2>&1; then
 else
     echo "Warning: skipping ivgfiddle build; requires Emscripten" >&2
 fi
+
+echo
+echo ALL GOOD!!
+echo
