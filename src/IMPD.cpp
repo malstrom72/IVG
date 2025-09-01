@@ -25,6 +25,7 @@
 #include <cerrno>
 #include <cstring>
 #include <algorithm>
+#include <limits>
 #include "IMPD.h"
 
 namespace IMPD {
@@ -64,7 +65,7 @@ static size_t calcUTF16ToUTF32Size(size_t utf16Size, const uint16_t* utf16Chars)
 	for (size_t i = 0; i < utf16Size; ++i) {
 		const uint16_t c = utf16Chars[i];
 		if (c >= 0xD800 && c <= 0xDBFF) {
-			assert(i + 1 < utf16Size && utf16Chars[i + 1] >= 0xDC00 && utf16Chars[i + 1] < 0xE000);  // Next should be low surrogate.
+			assert(i + 1 < utf16Size && utf16Chars[i + 1] >= 0xDC00 && utf16Chars[i + 1] < 0xE000);	 // Next should be low surrogate.
 			++i;
 			--n;
 		}
@@ -79,7 +80,7 @@ static size_t convertUTF16ToUTF32(size_t utf16Size, const uint16_t* utf16Chars, 
 		if (c >= 0xD800 && c <= 0xDBFF) {
 			assert(i + 1 < utf16Size);
 			const uint16_t d = utf16Chars[i + 1];
-			assert(d >= 0xDC00 && d < 0xE000);  // Next should be low surrogate.
+			assert(d >= 0xDC00 && d < 0xE000);	// Next should be low surrogate.
 			c = 0x10000 + ((c - 0xD800) << 10) + (d - 0xDC00);
 			++i;
 		}
@@ -251,7 +252,7 @@ double (*Interpreter::MATH_FUNCTION_POINTERS[MATH_FUNCTION_COUNT])(double) = {
 	, (double (*)(double))(tan), (double (*)(double))(tanh), (double (*)(double))(round)
 };
 
-const Char Interpreter::ESCAPE_CHARS[ESCAPE_CODE_COUNT] = {  'a',  'b',  'f',  'n',  'r',  't',  'v' };
+const Char Interpreter::ESCAPE_CHARS[ESCAPE_CODE_COUNT] = {	 'a',  'b',	 'f',  'n',	 'r',  't',	 'v' };
 const Char Interpreter::ESCAPE_CODES[ESCAPE_CODE_COUNT] = { '\a', '\b', '\f', '\n', '\r', '\t', '\v' };
 
 /* Built with QuickHashGen */
@@ -675,7 +676,7 @@ String Interpreter::toString(double d, int precision) {
 	*pp = '.';
 	if (ep > pp) while (ep[-1] == '0') --ep;
 	if (ep - 1 == pp) --ep;
-	if (d < 0) *--bp = '-';	
+	if (d < 0) *--bp = '-'; 
 	return String(bp, ep - bp);
 }
 
@@ -1058,12 +1059,12 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 				}
 			} else if (funcIndex == MATH_FUNCTION_COUNT) {			// pi
 				v = 3.1415926535897932384626433;
-			} else if (funcIndex == MATH_FUNCTION_COUNT + 1) { 		// len
+			} else if (funcIndex == MATH_FUNCTION_COUNT + 1) {		// len
 				q = evaluateInner(q, e, v, FUNCTION, dry);
 				if (!dry) {
 					v = static_cast<double>(static_cast<String>(v).size());
 				}
-			} else if (funcIndex == MATH_FUNCTION_COUNT + 2) { 		// def
+			} else if (funcIndex == MATH_FUNCTION_COUNT + 2) {		// def
 				q = evaluateInner(q, e, v, FUNCTION, dry);
 				if (!dry) {
 					String dummyValue;

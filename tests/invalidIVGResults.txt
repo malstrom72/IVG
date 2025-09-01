@@ -1,29 +1,29 @@
-context_missing_bounds: ok
-define_unknown_type: ok
-font_duplicate_glyph: ok
-font_duplicate_kerning_pair: ok
-font_duplicate_metrics: ok
-font_glyph_before_metrics: ok
-font_long_glyph_name: ok
-gradient_stop_position: ok
-gradient_stops_odd_count: ok
-invalid_arc_large: ok
-invalid_arc_sweep: ok
-invalid_color_name: ok
-invalid_ellipse_separator: ok
-invalid_fill_rule: ok
-invalid_hex_color: ok
-invalid_image_alignment: ok
-invalid_line_arguments: ok
-invalid_pen_caps: ok
-invalid_star_separator: ok
-invalid_stroke_joints: ok
-ivg3_comma_gradient: ok
-missing_format: ok
-pattern_unknown_reference: ok
-text_invalid_anchor: ok
-text_missing_font: ok
-unknown_feature: ok
-unknown_path_instruction: ok
-unrecognized_gradient_type: ok
-unsupported_version: ok
+Testing context_missing_bounds: expecting "Too few list elements (got 1, expected at least 2)" ... PASS
+Testing define_unknown_type: expecting "Invalid define instruction type: foo" ... PASS
+Testing font_duplicate_glyph: expecting "Duplicate glyph definition in font definition (unicode: 97)" ... PASS
+Testing font_duplicate_kerning_pair: expecting "Duplicate kerning pair in font definition: 97,98" ... PASS
+Testing font_duplicate_metrics: expecting "Duplicate metrics instruction in font definition" ... PASS
+Testing font_glyph_before_metrics: expecting "Missing metrics before glyph instruction in font definition" ... PASS
+Testing font_long_glyph_name: expecting "Invalid glyph character (length is not 1): ab" ... PASS
+Testing gradient_stop_position: expecting "Invalid stops for gradient (invalid position: 2)" ... PASS
+Testing gradient_stops_odd_count: expecting "Invalid stops for gradient (odd number of elements): 0,#000,#fff" ... PASS
+Testing invalid_arc_large: expecting "Invalid large for arc-to: maybe" ... PASS
+Testing invalid_arc_sweep: expecting "Invalid sweep for arc-to: fast" ... PASS
+Testing invalid_color_name: expecting "Invalid color name: blurple" ... PASS
+Testing invalid_ellipse_separator: expecting "IVG-3 requires space-separated ellipse syntax" ... PASS
+Testing invalid_fill_rule: expecting "Unrecognized fill rule: zigzag" ... PASS
+Testing invalid_hex_color: expecting "Invalid color: GGGGGG" ... PASS
+Testing invalid_image_alignment: expecting "Unrecognized alignment: side" ... PASS
+Testing invalid_line_arguments: expecting "Too few list elements (got 1, expected at least 2)" ... PASS
+Testing invalid_pen_caps: expecting "Unrecognized stroke caps: squiggle" ... PASS
+Testing invalid_star_separator: expecting "IVG-3 requires space-separated star syntax" ... PASS
+Testing invalid_stroke_joints: expecting "Unrecognized stroke joints: curvy" ... PASS
+Testing ivg3_comma_gradient: expecting "IVG-3 requires space-separated gradient coordinates" ... PASS
+Testing missing_format: expecting "Too few list elements (got 1, expected at least 2)" ... PASS
+Testing pattern_unknown_reference: expecting "Unrecognized instruction: missing" ... PASS
+Testing text_invalid_anchor: expecting "Unrecognized anchor: upside" ... PASS
+Testing text_missing_font: expecting "Need to set font before writing" ... PASS
+Testing unknown_feature: expecting "Unsupported data format" ... PASS
+Testing unknown_path_instruction: expecting "Unrecognized instruction: zap" ... PASS
+Testing unrecognized_gradient_type: expecting "Unrecognized gradient type: bogus" ... PASS
+Testing unsupported_version: expecting "Unsupported data format" ... PASS
