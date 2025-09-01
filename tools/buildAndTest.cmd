@@ -76,7 +76,10 @@ CALL .\tools\BuildCpp.cmd %1 %2 .\output\PolygonMaskTest ^
 ECHO Testing...
 CD tests
 ECHO Invalid IVG tests...
-CALL ..\tools\testInvalidIVG.cmd ..\output\InvalidIVGTest >invalidIVGCheck.txt || GOTO error
+CALL ..\tools\testInvalidIVG.cmd ..\output\InvalidIVGTest >invalidIVGCheck.txt
+SET err=%ERRORLEVEL%
+TYPE invalidIVGCheck.txt
+IF NOT "%err%"=="0" GOTO error
 fc invalidIVGCheck.txt invalidIVGResults.txt || GOTO error
 DEL invalidIVGCheck.txt
 CALL ..\tools\testIVG.cmd ..\output\IVG2PNG || GOTO error

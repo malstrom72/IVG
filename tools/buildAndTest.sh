@@ -82,10 +82,13 @@ done
 echo Testing...
 cd tests
 echo Invalid IVG tests...
-bash ../tools/testInvalidIVG.sh ../output/InvalidIVGTest | diff --strip-trailing-cr invalidIVGResults.txt -
+tmp=$(mktemp)
+bash ../tools/testInvalidIVG.sh ../output/InvalidIVGTest | tee "$tmp"
+diff --strip-trailing-cr invalidIVGResults.txt "$tmp"
+rm "$tmp"
 bash ../tools/testIVG.sh ../output/IVG2PNG
 if [ -n "${SKIP_SVG:-}" ]; then
-	echo "Skipping SVG tests"
+		echo "Skipping SVG tests"
 elif command -v node >/dev/null 2>&1; then
 	bash ../tools/testSVG.sh
 else
