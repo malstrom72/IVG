@@ -65,6 +65,7 @@
 namespace IVG {
 
 using NuXPixels::Rect; // Rect is a typedef in Carbon which can confuse the compiler so we do an explicit using for it.
+using NuXPixels::Path;
 
 inline double square(double d) { return d * d; }
 
@@ -355,6 +356,8 @@ class IVGExecutor : public IMPD::Executor {
 	public:		virtual ~IVGExecutor();
 	protected:	void executeImage(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args);
 	protected:	void executeDefine(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args);
+	protected:	void buildPath(IMPD::Interpreter& impd, const IMPD::String* blockArg, const IMPD::String* svg
+			, IMPD::ArgumentsContainer& args, const IMPD::String& instruction, Path& path);
 	protected:	void parseStroke(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args, Stroke& stroke);
 	protected:	void versionRequired(IMPD::Interpreter& impd, FormatVersion required, const IMPD::String& instruction);
 	protected:	std::vector<const Font*> lookupExternalOrInternalFonts(IMPD::Interpreter& impd
@@ -367,6 +370,8 @@ class IVGExecutor : public IMPD::Executor {
 	protected:	std::vector<const Font*> lastFontPointers; // empty = must look up
 	protected:	typedef std::map<IMPD::WideString, Image> ImageMap;
 	protected:	ImageMap definedImages;
+	protected:	typedef std::map<IMPD::WideString, Path> PathMap;
+	protected:	PathMap definedPaths;
 	protected:	FormatVersion formatVersion;
 };
 

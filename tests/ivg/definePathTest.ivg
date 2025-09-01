@@ -1,0 +1,6 @@
+FORMAT IVG-3 requires:IMPD-1
+BOUNDS 0,0,20,20
+WIPE white
+define path tri [move-to 2,18; line-to 10,2 18,18 2,18]
+fill yellow
+PATH tri transform:[offset 2,0]

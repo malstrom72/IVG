@@ -428,12 +428,17 @@ TEXT at:280,280 anchor:center F</code></pre>
 will be filled with the current <a href="#fill"><code>fill</code></a>
 setting and outlined with the current <a
 href="#pen"><code>pen</code></a> setting. Paths may be supplied as raw
-SVG data or as an instruction list.</p>
+SVG data, as an instruction list, or by referencing a previously defined
+path name.</p>
 <p>Syntax:</p>
-<p>PATH svg:<svg data> PATH [<instructions>] [closed:(yes|no)=no]</p>
+<p>PATH <name> [transform:<transform>] PATH svg:<svg data>
+[transform:<transform>] PATH [<instructions>] [transform:<transform>]
+[closed:(yes|no)=no]</p>
 <p>The <code>PATH svg:</code> form is available in all IVG versions. The
 instruction-list variant requires IVG-3.</p>
 <ul>
+<li><p><code>&lt;name&gt;</code> is a path defined with <a
+href="#define-path"><code>define path</code></a>.</p></li>
 <li><p><code>&lt;svg data&gt;</code> is a string containing SVG path
 data. See https://svgwg.org/specs/paths/ for details.</p></li>
 <li><p><code>&lt;instructions&gt;</code> is a semicolon-separated list
@@ -446,6 +451,8 @@ arc-sweep <cx>,<cy> <degrees></p></li>
 <p><code>closed:yes</code> closes the path automatically, connecting the
 final point back to the first and also closing any sub-paths begun with
 <code>move-to</code>.</p>
+<p><code>transform:</code> applies a transformation before drawing,
+using the same syntax as <a href="#image"><code>IMAGE</code></a>.</p>
 <h4 id="examples">Examples</h4>
 <p>Using an instruction list:</p>
 <pre><code>fill lime
@@ -528,8 +535,7 @@ regular polygon. It will be filled with the current <a
 href="#fill"><code>fill</code></a> setting and outlined with the current
 <a href="#pen"><code>pen</code></a> setting.</p>
 <p>Syntax:</p>
-<pre><code>STAR &lt;cx&gt;,&lt;cy&gt;,&lt;points&gt;,&lt;r1&gt;[,&lt;r2&gt;=&lt;r1&gt;] [rotation:&lt;angle&gt;]
-STAR &lt;cx&gt;,&lt;cy&gt; &lt;points&gt; &lt;r1&gt;[,&lt;r2&gt;=&lt;r1&gt;] [rotation:&lt;angle&gt;]</code></pre>
+<pre><code>STAR &lt;cx&gt;,&lt;cy&gt; &lt;points&gt; &lt;r1&gt;[,&lt;r2&gt;=&lt;r1&gt;] [rotation:&lt;angle&gt;]</code></pre>
 <p>Both comma-separated and space-separated forms are accepted.</p>
 <ul>
 <li><p><code>&lt;cx&gt;, &lt;cy&gt;</code> are the x and y coordinates
@@ -790,6 +796,18 @@ wipe yellow
 font myEmbeddedFont size:100 color:red outline:[black width:5] tracking:0.1
 TEXT at:40,110 &quot;IVG&quot;</code></pre>
 <p><img src="images/defineFontExample.png" /></p>
+<h4 id="define-path">define path</h4>
+<p>You can define a reusable path and draw it later with the <a
+href="#path"><code>PATH</code></a> instruction.</p>
+<p>Syntax:</p>
+<pre><code>define path &lt;name&gt; &lt;path-definition&gt;
+
+-       `&lt;name&gt;` is a unique identifier for the path. Path names are case-sensitive and may only be defined once.
+-       `&lt;path-definition&gt;` follows the same syntax as [`PATH`](#path), using either `svg:` data or path instructions inside brackets.</code></pre>
+<p>Example:</p>
+<pre><code>define path star [svg:[M0,0 L10,0 L5,8 z]]
+fill gold
+PATH star transform:[rotate 45]</code></pre>
 <h3 id="fill">fill</h3>
 <p>The fill directive sets the fill style for subsequent drawing
 operations in the current <a href="#context">context</a>.</p>
@@ -1268,11 +1286,8 @@ href="#paint-specification"><code>&lt;paint&gt;</code></a>
 specification, such as in the <a href="#pen"><code>pen</code></a> and <a
 href="#fill"><code>fill</code></a> directives. The syntax for specifying
 a gradient is as follows:</p>
-<pre><code>&lt;gradient&gt; = (linear &lt;x0&gt;,&lt;y0&gt;,&lt;x1&gt;,&lt;y1&gt;
- | linear &lt;x0&gt;,&lt;y0&gt; &lt;x1&gt;,&lt;y1&gt;
- | radial &lt;cx&gt;,&lt;cy&gt;,(&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;)
- | radial &lt;cx&gt;,&lt;cy&gt; (&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;))
-   (from:&lt;color&gt; to:&lt;color&gt; | stops:&lt;number&gt;,&lt;color&gt;,[&lt;number&gt;,&lt;color&gt;,...])</code></pre>
+<pre><code>&lt;gradient&gt; = (linear &lt;x0&gt;,&lt;y0&gt; &lt;x1&gt;,&lt;y1&gt; | radial &lt;cx&gt;,&lt;cy&gt; (&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;))
+             (from:&lt;color&gt; to:&lt;color&gt; | stops:&lt;number&gt;,&lt;color&gt;,[&lt;number&gt;,&lt;color&gt;,...])</code></pre>
 <ul>
 <li><p>The <code>linear</code> alternative creates a linear gradient
 that transitions between colors along a straight line defined by two

@@ -230,16 +230,18 @@ Demonstration:
 ### PATH
 
 The `PATH` instruction draws an arbitrary vector path. It will be filled with the current [`fill`](#fill)
-setting and outlined with the current [`pen`](#pen) setting. Paths may be supplied as raw SVG data or
-as an instruction list.
+setting and outlined with the current [`pen`](#pen) setting. Paths may be supplied as raw SVG data,
+as an instruction list, or by referencing a previously defined path name.
 
 Syntax:
 
-PATH svg:<svg data>
-PATH [<instructions>] [closed:(yes|no)=no]
+PATH <name> [transform:<transform>]
+PATH svg:<svg data> [transform:<transform>]
+PATH [<instructions>] [transform:<transform>] [closed:(yes|no)=no]
 
 The `PATH svg:` form is available in all IVG versions. The instruction-list variant requires IVG-3.
 
+- `<name>` is a path defined with [`define path`](#define-path).
 - `<svg data>` is a string containing SVG path data. See https://svgwg.org/specs/paths/ for details.
 - `<instructions>` is a semicolon-separated list of sub-commands:
 
@@ -252,6 +254,8 @@ The `PATH svg:` form is available in all IVG versions. The instruction-list vari
 
 `closed:yes` closes the path automatically, connecting the final point back to the first and
 also closing any sub-paths begun with `move-to`.
+
+`transform:` applies a transformation before drawing, using the same syntax as [`IMAGE`](#image).
 
 #### Examples
 
@@ -628,6 +632,23 @@ Example:
 	font myEmbeddedFont size:100 color:red outline:[black width:5] tracking:0.1
 	TEXT at:40,110 "IVG"
 ![](images/defineFontExample.png)
+
+#### define path
+
+You can define a reusable path and draw it later with the [`PATH`](#path) instruction.
+
+Syntax:
+
+	define path <name> <path-definition>
+
+	-       `<name>` is a unique identifier for the path. Path names are case-sensitive and may only be defined once.
+	-       `<path-definition>` follows the same syntax as [`PATH`](#path), using either `svg:` data or path instructions inside brackets.
+
+Example:
+
+	define path star [svg:[M0,0 L10,0 L5,8 z]]
+	fill gold
+	PATH star transform:[rotate 45]
 
 ### fill
 

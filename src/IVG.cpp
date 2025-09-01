@@ -1178,6 +1178,21 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		image.xResolution = resolution;
 		image.yResolution = resolution;
 		image.raster = offscreenCanvas.relinquishRaster();
+	} else if (typeLower == "path") {
+		const WideString name = impd.unescapeToWide(args.fetchRequired(1, true));
+		const String& definition = args.fetchRequired(2, false);
+		args.throwIfAnyUnfetched();
+
+		if (definedPaths.find(name) != definedPaths.end()) {
+			Interpreter::throwRunTimeError(String("Duplicate path definition: ") + String(name.begin(), name.end()));
+		}
+
+		ArgumentsContainer pathArgs(ArgumentsContainer::parse(impd, definition));
+		Path path;
+		const String* svg = pathArgs.fetchOptional("svg");
+		buildPath(impd, 0, svg, pathArgs, type, path);
+		pathArgs.throwIfAnyUnfetched();
+		definedPaths[name] = path;
 	} else {
 		Interpreter::throwBadSyntax(String("Invalid define instruction type: ") + type);
 	}
@@ -1199,12 +1214,33 @@ static int findAlignmentKeyword(size_t n /* string length */, const char* s /* s
 }
 
 static IntRect expandToIntRect(const Rect<double>& floatRect) {
-	IntRect r;
-	r.left = static_cast<int>(floor(floatRect.left));
-	r.top = static_cast<int>(floor(floatRect.top));
-	r.width = static_cast<int>(ceil(floatRect.calcRight())) - r.left;
-	r.height = static_cast<int>(ceil(floatRect.calcBottom())) - r.top;
-	return r;
+	   IntRect r;
+	   r.left = static_cast<int>(floor(floatRect.left));
+	   r.top = static_cast<int>(floor(floatRect.top));
+	   r.width = static_cast<int>(ceil(floatRect.calcRight())) - r.left;
+	   r.height = static_cast<int>(ceil(floatRect.calcBottom())) - r.top;
+	   return r;
+}
+
+void IVGExecutor::buildPath(Interpreter& impd, const String* blockArg, const String* svg
+			   , ArgumentsContainer& args, const String& instruction, Path& path) {
+	   const double curveQuality = currentContext->calcCurveQuality();
+	   if (svg != 0) {
+			   const char* errorString;
+			   if (!buildPathFromSVG(*svg, curveQuality, path, errorString)) {
+					   impd.throwBadSyntax(errorString);
+			   }
+	   } else {
+			   versionRequired(impd, IVG_3, instruction);
+			   const String* closed = args.fetchOptional("closed");
+			   const String& block = (blockArg != 0 ? *blockArg : args.fetchRequired(0, false));
+			   PathInstructionExecutor pathExecutor(impd.getExecutor(), path, curveQuality);
+			   Interpreter pathInterpreter(pathExecutor, impd);
+			   pathInterpreter.run(block);
+			   if (closed != 0 && impd.toBool(*closed)) {
+					   path.closeAll();
+			   }
+	   }
 }
 
 void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
@@ -1461,31 +1497,38 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 
-		case PATH_INSTRUCTION: {
-			Path path;
-			const double curveQuality = currentContext->calcCurveQuality();
-			const String* svg = args.fetchOptional("svg");
-			if (svg != 0) {
-				const char* errorString;
-				if (!buildPathFromSVG(*svg, curveQuality, path, errorString)) {
-					impd.throwBadSyntax(errorString);
+			case PATH_INSTRUCTION: {
+				const String* nameArg = args.fetchOptional(0, false);
+				const String* svg = args.fetchOptional("svg");
+				const String* transform = args.fetchOptional("transform");
+				AffineTransformation pathXF;
+				if (transform != 0) {
+					pathXF = parseTransformationBlock(impd, *transform);
 				}
-			} else {
-				versionRequired(impd, IVG_3, instruction);
-				const String* closed = args.fetchOptional("closed");
-				const bool doClose = (closed != 0 && impd.toBool(*closed));
-				const String& block = args.fetchRequired(0, false);
-				PathInstructionExecutor pathExecutor(impd.getExecutor(), path, curveQuality);
-				Interpreter pathInterpreter(pathExecutor, impd);
-				pathInterpreter.run(block);
-				if (doClose) {
-					path.closeAll();
+				if (svg == 0 && nameArg != 0 && !nameArg->empty() && (*nameArg)[0] != '[') {
+					const WideString name = impd.unescapeToWide(impd.expand(*nameArg));
+					PathMap::const_iterator it = definedPaths.find(name);
+					if (it == definedPaths.end()) {
+						Interpreter::throwRunTimeError(String("Undefined path: ") + String(name.begin(), name.end()));
+					}
+					Path path(it->second);
+					if (transform != 0) {
+						path.transform(pathXF);
+					}
+					args.throwIfAnyUnfetched();
+					currentContext->draw(path);
+					break;
 				}
+				Path path;
+				buildPath(impd, nameArg, svg, args, instruction, path);
+				if (transform != 0) {
+					path.transform(pathXF);
+				}
+				args.throwIfAnyUnfetched();
+				currentContext->draw(path);
+				break;
 			}
-			args.throwIfAnyUnfetched();
-			currentContext->draw(path);
-			break;
-		}
+
 			
 		case MATRIX_INSTRUCTION:
 		case SCALE_INSTRUCTION:
