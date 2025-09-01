@@ -17,7 +17,11 @@ for f in ./ivg/*.ivg; do
 	n=${n%.ivg}
 	echo Doing "$n"
 	echo
-	$EXE --fonts "$FONTS" "$f" "$tmp/$n.png"
+	args=""
+	if [ "$n" = "huge" ]; then
+		args="--fast"
+	fi
+	$EXE $args --fonts "$FONTS" "$f" "$tmp/$n.png"
 	cmp "$tmp/$n.png" "./png/$n.png"
 	echo
 	echo

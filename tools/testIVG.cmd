@@ -14,12 +14,16 @@ ECHO Using temporary dir: %tempDir%
 MKDIR %tempDir%
 
 FOR %%f IN (ivg\*.ivg) DO (
-    ECHO Doing %%f
-    ECHO.
-    %exe% --fonts %fonts% "%%f" "%tempDir%\%%~nf.png" || GOTO error
-    fc "%tempDir%\%%~nf.png" "png\%%~nf.png" || GOTO error
-    ECHO.
-    ECHO.
+	ECHO Doing %%f
+	ECHO.
+	IF "%%~nf"=="huge" (
+		%exe% --fast --fonts %fonts% "%%f" "%tempDir%\%%~nf.png" || GOTO error
+	) ELSE (
+		%exe% --fonts %fonts% "%%f" "%tempDir%\%%~nf.png" || GOTO error
+	)
+	fc "%tempDir%\%%~nf.png" "png\%%~nf.png" || GOTO error
+	ECHO.
+	ECHO.
 )
 ECHO.
 ECHO ALL GOOD!!
