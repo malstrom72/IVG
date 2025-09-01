@@ -55,7 +55,7 @@ This document describes how to create a regression suite that ensures malformed 
 - [x] Record expected messages in a results file similar to `tests/badResults.txt`.
 - [x] Document the workflow for adding new invalid cases.
 - Create `<name>.ivg` and `<name>.err` under `tests/ivg/invalid/`.
-- Run `../output/InvalidIVGTest | sort > invalidIVGResults.txt` inside `tests` to update expected output.
+- Run `bash ../../tools/testInvalidIVG.sh update` inside `tests` to update expected output.
 - Verify with `timeout 600 ./build.sh`.
 
 ## Future Work

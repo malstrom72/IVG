@@ -2,11 +2,13 @@
 set -e -o pipefail -u
 cd "$(dirname "$0")"/../tests/svg
 
-EXE=../../output/IVG2PNG
-FONTS=../../fonts
-if [ $# -gt 0 ]; then
-		EXE=$1
+UPDATE=0
+if [ "${1-}" = "update" ]; then
+	UPDATE=1
+	shift
 fi
+EXE=${1:-../../output/IVG2PNG}
+FONTS=../../fonts
 TMP=$(mktemp -d)
 
 echo Using temporary dir: "$TMP"
@@ -19,14 +21,19 @@ for NAME in circle rect ellipse line path group color-names stroke-fill viewbox 
 				resvg_tests_painting_stroke-dasharray_on-a-circle resvg_tests_painting_stroke-dashoffset_default \
 				resvg_tests_painting_stroke-dashoffset_negative-value blossom blossomCSS blossomStyles; do
 		echo Testing "$NAME"
-		node ../../tools/svg2ivg.js "supported/$NAME.svg" 500,500 | tail -n +2 > "$TMP/$NAME.ivg"
+	node ../../tools/svg2ivg.js "supported/$NAME.svg" 500,500 | tail -n +2 > "$TMP/$NAME.ivg"
+	$EXE --fonts "$FONTS" --background white "$TMP/$NAME.ivg" "$TMP/$NAME.png"
+	if [ "$UPDATE" -eq 1 ]; then
+		cp "$TMP/$NAME.ivg" "supported/$NAME.ivg"
+		cp "$TMP/$NAME.png" "supported/$NAME.png"
+	else
 		cmp "$TMP/$NAME.ivg" "supported/$NAME.ivg"
 		if [ ! -f "supported/$NAME.png" ]; then
-				echo "Missing golden PNG: supported/$NAME.png" >&2
-				exit 1
+			echo "Missing golden PNG: supported/$NAME.png" >&2
+			exit 1
 		fi
-		$EXE --fonts "$FONTS" --background white "$TMP/$NAME.ivg" "$TMP/$NAME.png"
 		cmp "$TMP/$NAME.png" "supported/$NAME.png"
+	fi
 		echo
 		echo
 done
