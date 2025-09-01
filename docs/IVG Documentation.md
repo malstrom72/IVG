@@ -252,13 +252,18 @@ Syntax:
 - `<svg data>` is a string containing SVG path data. See https://svgwg.org/specs/paths/ for details.
 
 - `<instructions>` is a semicolon-separated list of sub-commands:
-
-		move-to <x>,<y>
-		line-to <x>,<y> [<x>,<y> ...]
-		bezier-to <cx>,<cy> <x>,<y>
-		bezier-to <c1x>,<c1y> <c2x>,<c2y> <x>,<y>
-		arc-to <x>,<y> (<r>|<rx>,<ry>) [sweep:cw|ccw=cw] [large:yes|no=no] [rotate:<deg>=0]
-		arc-sweep <cx>,<cy> <degrees>
+	- `move-to <x>,<y>` sets the starting point for a new sub-path.
+	- `line-to <x>,<y> [<x>,<y> ...]` draws one or more line segments.
+	- `bezier-to <cx>,<cy> <x>,<y>` draws a quadratic Bézier curve.
+	- `bezier-to <c1x>,<c1y> <c2x>,<c2y> <x>,<y>` draws a cubic Bézier curve.
+	- `arc-to <x>,<y> (<r>|<rx>,<ry>) [sweep:cw|ccw=cw] [large:yes|no=no] [rotate:<deg>=0]` draws an elliptical arc.
+	- `arc-sweep <cx>,<cy> <degrees>` sweeps an arc around a center point.
+	- `line <x0>,<y0> <x1>,<y1> [<x2>,<y2> ...]` appends an open polyline.
+	- `rect <x>,<y>,<w>,<h> [rounded:<r>|<rx>,<ry>]` appends an axis-aligned rectangle.
+	- `ellipse <cx>,<cy> (<r>|<rx>,<ry>)` appends an ellipse or circle.
+	- `star <cx>,<cy> <points> <r1>[,<r2>=<r1>] [rotation:<angle>]` appends a star or regular polygon.
+	- `polygon <x0>,<y0> <x1>,<y1> [<x2>,<y2> ...]` appends a closed polygon.
+	- `text [at:<x,y>] [anchor:left|center|right=left] <text>` appends a text outline.
 
 `closed:yes` closes the path automatically, connecting the final point back to the first and
 also closing any sub-paths begun with `move-to`.
@@ -667,8 +672,8 @@ Syntax:
 
 	define path <name> <path-definition>
 
-	-       `<name>` is a unique identifier for the path. Path names are case-sensitive and may only be defined once.
-	-       `<path-definition>` follows the same syntax as [`PATH`](#path), using either `svg:` data or path instructions inside brackets.
+	-		`<name>` is a unique identifier for the path. Path names are case-sensitive and may only be defined once.
+	-		`<path-definition>` follows the same syntax as [`PATH`](#path), using either `svg:` data or path instructions inside brackets.
 
 Example:
 
@@ -1150,7 +1155,7 @@ as in the [`pen`](#pen) and [`fill`](#fill) directives. The syntax for specifyin
 -	The `linear` alternative creates a linear gradient that transitions between colors along a straight line defined by
 	two points (`<x0>,<y0>` and `<x1>,<y1>`).
 
--   The `radial` alternative creates a radial gradient that transitions between colors emanating from a single point
+-	The `radial` alternative creates a radial gradient that transitions between colors emanating from a single point
 	(`<cx>,<cy>`) and spreading outward. You can further define the shape of the gradient by providing either the radius
 	(`<r>`), which creates a circular shape or the x-radius and y-radius (`<rx>,<ry>`), which creates an elliptical
 	shape.
