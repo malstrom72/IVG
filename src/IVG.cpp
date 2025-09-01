@@ -1497,38 +1497,32 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 
-			case PATH_INSTRUCTION: {
-				const String* nameArg = args.fetchOptional(0, false);
-				const String* svg = args.fetchOptional("svg");
-				const String* transform = args.fetchOptional("transform");
-				AffineTransformation pathXF;
-				if (transform != 0) {
-					pathXF = parseTransformationBlock(impd, *transform);
+		case PATH_INSTRUCTION: {
+			const String* nameArg = args.fetchOptional(0, false);
+			const String* svg = args.fetchOptional("svg");
+			Path builtPath;
+			const Path* pathPointer;
+			if (svg == 0 && nameArg != 0 && !nameArg->empty() && (*nameArg)[0] != '[') {
+				const WideString name = impd.unescapeToWide(impd.expand(*nameArg));
+				PathMap::const_iterator it = definedPaths.find(name);
+				if (it == definedPaths.end()) {
+					Interpreter::throwRunTimeError(String("Undefined path: ") + String(name.begin(), name.end()));
 				}
-				if (svg == 0 && nameArg != 0 && !nameArg->empty() && (*nameArg)[0] != '[') {
-					const WideString name = impd.unescapeToWide(impd.expand(*nameArg));
-					PathMap::const_iterator it = definedPaths.find(name);
-					if (it == definedPaths.end()) {
-						Interpreter::throwRunTimeError(String("Undefined path: ") + String(name.begin(), name.end()));
-					}
-					Path path(it->second);
-					if (transform != 0) {
-						path.transform(pathXF);
-					}
-					args.throwIfAnyUnfetched();
-					currentContext->draw(path);
-					break;
-				}
-				Path path;
-				buildPath(impd, nameArg, svg, args, instruction, path);
-				if (transform != 0) {
-					path.transform(pathXF);
-				}
-				args.throwIfAnyUnfetched();
-				currentContext->draw(path);
-				break;
+				pathPointer = &it->second;
+			} else {
+				buildPath(impd, nameArg, svg, args, instruction, builtPath);
+				pathPointer = &builtPath;
 			}
-
+			const String* transform = args.fetchOptional("transform");
+			if (transform != 0) {
+				builtPath = *pathPointer;
+				builtPath.transform(parseTransformationBlock(impd, *transform));
+				pathPointer = &builtPath;
+			}
+			args.throwIfAnyUnfetched();
+			currentContext->draw(*pathPointer);
+			break;
+		}
 			
 		case MATRIX_INSTRUCTION:
 		case SCALE_INSTRUCTION:
