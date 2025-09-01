@@ -20,7 +20,7 @@ This document describes how to create a regression suite that ensures malformed 
 
 ## Test Batches
 1. **Format Directive**
-		- [ ] missing `format` line
+		- [x] missing `format` line
 		- [x] `format IVG-4` reports unsupported version
 		- [x] `requires:` listing an unknown feature
 2. **Paint and Color**
@@ -42,14 +42,14 @@ This document describes how to create a regression suite that ensures malformed 
 	- [x] invalid alignment token in an `image` instruction
 	- [x] `text` referencing an undefined font
 6. **Font Definitions**
-	- [ ] duplicate `metrics` instruction in a `font` block
-	- [ ] `glyph` appearing before `metrics`
-	- [ ] glyph name longer than one character
-	- [ ] duplicate glyph or kerning pair
+	- [x] duplicate `metrics` instruction in a `font` block
+	- [x] `glyph` appearing before `metrics`
+	- [x] glyph name longer than one character
+	- [x] duplicate glyph or kerning pair
 7. **Definitions and References**
-	- [ ] `define` with an unsupported type
+	- [x] `define` with an unsupported type
 	- [ ] `fill pattern:id` referencing an undefined pattern or mask
-	- [ ] `context` block missing required `bounds` when drawing an image
+	- [x] `pattern` block missing required `bounds`
 
 ## Integration
 - [x] Extend `build.sh` to invoke the new program as part of the test run.

@@ -1,0 +1,9 @@
+format IVG-3
+// duplicate kerning pair
+define font f [
+	metrics ascent:1 descent:-1 upm:1000
+	glyph a 0 []
+	glyph b 0 []
+	kern 0 a b
+	kern 0 a b
+]

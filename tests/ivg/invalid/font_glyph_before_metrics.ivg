@@ -1,0 +1,6 @@
+format IVG-3
+// glyph before metrics
+define font f [
+	glyph a 0 []
+	metrics ascent:1 descent:-1 upm:1000
+]
