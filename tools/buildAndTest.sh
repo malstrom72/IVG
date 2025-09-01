@@ -3,7 +3,7 @@ set -e -o pipefail -u
 cd "$(dirname "$0")"/..
 
 if [ $# -lt 3 ]; then
-    echo "buildAndTest.sh debug|beta|release x64|x86|arm64|native|fat nosimd|simd"
+	echo "buildAndTest.sh debug|beta|release x64|x86|arm64|native|fat nosimd|simd"
 	exit 1
 fi
 
@@ -32,10 +32,10 @@ cd ..
 
 # Build libpng and zlib objects separately to avoid Mac clang fp.h issues
 LIBPNG_SRCS=(./externals/libpng/png.c ./externals/libpng/pngerror.c ./externals/libpng/pngget.c \
-        ./externals/libpng/pngmem.c ./externals/libpng/pngpread.c ./externals/libpng/pngread.c \
-        ./externals/libpng/pngrio.c ./externals/libpng/pngrtran.c ./externals/libpng/pngrutil.c \
-        ./externals/libpng/pngset.c ./externals/libpng/pngtrans.c ./externals/libpng/pngwio.c \
-        ./externals/libpng/pngwrite.c ./externals/libpng/pngwtran.c ./externals/libpng/pngwutil.c)
+		./externals/libpng/pngmem.c ./externals/libpng/pngpread.c ./externals/libpng/pngread.c \
+		./externals/libpng/pngrio.c ./externals/libpng/pngrtran.c ./externals/libpng/pngrutil.c \
+		./externals/libpng/pngset.c ./externals/libpng/pngtrans.c ./externals/libpng/pngwio.c \
+		./externals/libpng/pngwrite.c ./externals/libpng/pngwtran.c ./externals/libpng/pngwutil.c)
 LIBPNG_OBJS=()
 for src_file in "${LIBPNG_SRCS[@]}"; do
 		obj_file="output/$(basename "$src_file" .c).o"
@@ -49,9 +49,9 @@ for src_file in "${LIBPNG_SRCS[@]}"; do
 done
 
 ZLIB_SRCS=(./externals/zlib/adler32.c ./externals/zlib/compress.c ./externals/zlib/crc32.c \
-        ./externals/zlib/deflate.c ./externals/zlib/infback.c ./externals/zlib/inffast.c \
-        ./externals/zlib/inflate.c ./externals/zlib/inftrees.c ./externals/zlib/trees.c \
-        ./externals/zlib/uncompr.c ./externals/zlib/zutil.c)
+		./externals/zlib/deflate.c ./externals/zlib/infback.c ./externals/zlib/inffast.c \
+		./externals/zlib/inflate.c ./externals/zlib/inftrees.c ./externals/zlib/trees.c \
+		./externals/zlib/uncompr.c ./externals/zlib/zutil.c)
 ZLIB_OBJS=()
 for src_file in "${ZLIB_SRCS[@]}"; do
 		obj_file="output/$(basename "$src_file" .c).o"
@@ -70,6 +70,10 @@ done
 -I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib \
 ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp \
 "${LIBPNG_OBJS[@]}" "${ZLIB_OBJS[@]}"
+./tools/BuildCpp.sh $1 $2 ./output/InvalidIVGTest \
+-std=c++17 -DNUXPIXELS_SIMD=$simd -I ./ -I ./externals \
+./tests/invalid_ivg.cpp ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp
+
 
 ./tools/BuildCpp.sh $1 $2 ./output/PolygonMaskTest \
 -DNUXPIXELS_SIMD=$simd -I ./ -I ./externals \
@@ -77,6 +81,8 @@ done
 
 echo Testing...
 cd tests
+echo Invalid IVG tests...
+../output/InvalidIVGTest
 bash ../tools/testIVG.sh ../output/IVG2PNG
 if [ -n "${SKIP_SVG:-}" ]; then
 	echo "Skipping SVG tests"
