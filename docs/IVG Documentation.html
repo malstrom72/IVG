@@ -60,10 +60,6 @@
     img {
       max-width: 100%;
     }
-    svg {
-      height: auto;
-      max-width: 100%;
-    }
     h1, h2, h3, h4, h5, h6 {
       margin-top: 1.4em;
     }
@@ -107,8 +103,8 @@
      overflow: visible;
     }
     hr {
+      background-color: #1a1a1a;
       border: none;
-      border-top: 1px solid #1a1a1a;
       height: 1px;
       margin: 1em 0;
     }
@@ -445,16 +441,38 @@ path name.</p>
 <p>The <code>PATH svg:</code> form is available in all IVG versions. The
 instruction-list variant requires IVG-3.</p>
 <ul>
-<li><p><code>&lt;name&gt;</code> is a path defined with <a
-href="#define-path"><code>define path</code></a>.</p></li>
-<li><p><code>&lt;svg data&gt;</code> is a string containing SVG path
-data. See https://svgwg.org/specs/paths/ for details.</p></li>
-<li><p><code>&lt;instructions&gt;</code> is a semicolon-separated list
-of sub-commands:</p>
-<p>move-to <x>,<y> line-to <x>,<y> [<x>,<y> …] bezier-to <cx>,<cy>
-<x>,<y> bezier-to <c1x>,<c1y> <c2x>,<c2y> <x>,<y> arc-to <x>,<y>
-(<r>|<rx>,<ry>) [sweep:cw|ccw=cw] [large:yes|no=no] [rotate:<deg>=0]
-arc-sweep <cx>,<cy> <degrees></p></li>
+<li><code>&lt;name&gt;</code> is a path defined with <a
+href="#define-path"><code>define path</code></a>.</li>
+<li><code>&lt;svg data&gt;</code> is a string containing SVG path data.
+See https://svgwg.org/specs/paths/ for details.</li>
+<li><code>&lt;instructions&gt;</code> is a semicolon-separated list of
+sub-commands:
+<ul>
+<li><code>move-to &lt;x&gt;,&lt;y&gt;</code> sets the starting point for
+a new sub-path.</li>
+<li><code>line-to &lt;x&gt;,&lt;y&gt; [&lt;x&gt;,&lt;y&gt; ...]</code>
+draws one or more line segments.</li>
+<li><code>bezier-to &lt;cx&gt;,&lt;cy&gt; &lt;x&gt;,&lt;y&gt;</code>
+draws a quadratic Bézier curve.</li>
+<li><code>bezier-to &lt;c1x&gt;,&lt;c1y&gt; &lt;c2x&gt;,&lt;c2y&gt; &lt;x&gt;,&lt;y&gt;</code>
+draws a cubic Bézier curve.</li>
+<li><code>arc-to &lt;x&gt;,&lt;y&gt; (&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;) [sweep:cw|ccw=cw] [large:yes|no=no] [rotate:&lt;deg&gt;=0]</code>
+draws an elliptical arc.</li>
+<li><code>arc-sweep &lt;cx&gt;,&lt;cy&gt; &lt;degrees&gt;</code> sweeps
+an arc around a center point.</li>
+<li><code>line &lt;x0&gt;,&lt;y0&gt; &lt;x1&gt;,&lt;y1&gt; [&lt;x2&gt;,&lt;y2&gt; ...]</code>
+appends an open polyline.</li>
+<li><code>rect &lt;x&gt;,&lt;y&gt;,&lt;w&gt;,&lt;h&gt; [rounded:&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;]</code>
+appends an axis-aligned rectangle.</li>
+<li><code>ellipse &lt;cx&gt;,&lt;cy&gt; (&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;)</code>
+appends an ellipse or circle.</li>
+<li><code>star &lt;cx&gt;,&lt;cy&gt; &lt;points&gt; &lt;r1&gt;[,&lt;r2&gt;=&lt;r1&gt;] [rotation:&lt;angle&gt;]</code>
+appends a star or regular polygon.</li>
+<li><code>polygon &lt;x0&gt;,&lt;y0&gt; &lt;x1&gt;,&lt;y1&gt; [&lt;x2&gt;,&lt;y2&gt; ...]</code>
+appends a closed polygon.</li>
+<li><code>text [at:&lt;x,y&gt;] [anchor:left|center|right=left] &lt;text&gt;</code>
+appends a text outline.</li>
+</ul></li>
 </ul>
 <p><code>closed:yes</code> closes the path automatically, connecting the
 final point back to the first and also closing any sub-paths begun with
