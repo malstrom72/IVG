@@ -3,4 +3,4 @@ BOUNDS 0,0,400,400
 RESET
 WIPE white
 
-IMAGE 200,200 "external_sample.png" align:"middle center"
+IMAGE 200,200 "externalSample.png" align:"middle center"
