@@ -118,15 +118,20 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 #ifndef LIBFUZZ
 int main(int argc, const char* argv[]) {
 	try {
-		const char* usage = "Usage: IVG2PNG [--fonts <dir>] [--background <color>] <input.ivg> <output.png>\n\nVery simple!\n\n";
+		const char* usage = "Usage: IVG2PNG [--fast] [--fonts <dir>] [--background <color>] <input.ivg> <output.png>\n\nVery simple!\n\n";
 		const char* inputPath = 0;
                 const char* outputPath = 0;
                 ARGB32::Pixel background = 0;
                 bool haveBackground = false;
                 std::string fontPath;
+                int compressionLevel = Z_BEST_COMPRESSION;
+                bool fast = false;
 		for (int i = 1; i < argc; ++i) {
 			std::string arg(argv[i]);
-			if (arg == "--fonts") {
+			if (arg == "--fast") {
+                                fast = true;
+                                compressionLevel = Z_NO_COMPRESSION;
+			} else if (arg == "--fonts") {
                                 if (++i == argc) { std::cerr << usage; return 1; }
                                 fontPath = argv[i];
 			} else if (arg == "--background") {
@@ -216,7 +221,8 @@ int main(int argc, const char* argv[]) {
 				info_ptr = png_create_info_struct(png_ptr);
 				if (info_ptr == 0) throw std::runtime_error("Error writing PNG image : could not initialize");
 
-				png_set_compression_level(png_ptr, Z_BEST_COMPRESSION);
+				png_set_compression_level(png_ptr, compressionLevel);
+				if (fast) png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, PNG_FILTER_NONE);
 				png_init_io(png_ptr, f);
 
 				png_set_IHDR(png_ptr, info_ptr, bounds.width, bounds.height, 8, PNG_COLOR_TYPE_RGB_ALPHA
