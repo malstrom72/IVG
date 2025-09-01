@@ -54,12 +54,12 @@ static bool isLittleEndian() {
 
 class IVGExecutorWithExternalFiles : public IVGExecutor {
 	public:
-		IVGExecutorWithExternalFiles(Canvas& canvas, const std::string& fontPath,
-				const AffineTransformation& xform = AffineTransformation())
-				: IVGExecutor(canvas, xform), fontPath(fontPath) {
+		IVGExecutorWithExternalFiles(Canvas& canvas, const std::string& fontPath, const std::string& imagePath
+				, const AffineTransformation& xform = AffineTransformation())
+				: IVGExecutor(canvas, xform), fontPath(fontPath), imagePath(imagePath) {
 		}
-		virtual std::vector<const Font*> lookupFonts(IMPD::Interpreter& interpreter, const IMPD::WideString& fontName,
-				const IMPD::UniString& forString) {
+		virtual std::vector<const Font*> lookupFonts(IMPD::Interpreter& interpreter, const IMPD::WideString& fontName
+				, const IMPD::UniString& forString) {
 			(void)interpreter;
 			std::pair< FontMap::iterator, bool > insertResult = loadedFonts.insert(std::make_pair(fontName, Font()));
 			if (insertResult.second) {
@@ -85,9 +85,9 @@ class IVGExecutorWithExternalFiles : public IVGExecutor {
 			}
 			return std::vector<const Font*>(1, &insertResult.first->second);
 		}
-		virtual Image loadImage(IMPD::Interpreter& interpreter, const IMPD::WideString& imageSource,
-				const IntRect* sourceRectangle, bool forStretching, double forXSize, bool xSizeIsRelative,
-				double forYSize, bool ySizeIsRelative) {
+		virtual Image loadImage(IMPD::Interpreter& interpreter, const IMPD::WideString& imageSource
+				, const IntRect* sourceRectangle, bool forStretching, double forXSize, bool xSizeIsRelative
+				, double forYSize, bool ySizeIsRelative) {
 			(void)interpreter;
 			(void)sourceRectangle;
 			(void)forStretching;
@@ -96,7 +96,8 @@ class IVGExecutorWithExternalFiles : public IVGExecutor {
 			(void)forYSize;
 			(void)ySizeIsRelative;
 			const std::string imageName8Bit(imageSource.begin(), imageSource.end());
-			FILE* f = fopen(imageName8Bit.c_str(), "rb");
+			std::string path = imagePath.empty() ? imageName8Bit : (imagePath + "/" + imageName8Bit);
+			FILE* f = fopen(path.c_str(), "rb");
 			if (f == 0) return Image();
 			png_structp png_ptr = 0;
 			png_infop info_ptr = 0;
@@ -150,6 +151,7 @@ class IVGExecutorWithExternalFiles : public IVGExecutor {
 	protected:
 		FontMap loadedFonts;
 		std::string fontPath;
+		std::string imagePath;
 		SelfContainedRaster<ARGB32> loadedImage;
 };
 
@@ -182,7 +184,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 #ifndef LIBFUZZ
 int main(int argc, const char* argv[]) {
 	try {
-		const char* usage = "Usage: IVG2PNG [--fast] [--fonts <dir>] [--background <color>] <input.ivg> <output.png>\n\nVery simple!\n\n";
+		const char* usage = "Usage: IVG2PNG [--fonts <dir>] [--images <dir>] [--background <color>] <input.ivg> <output.png>\n";
 		const char* inputPath = 0;
 		const char* outputPath = 0;
 		ARGB32::Pixel background = 0;
@@ -190,6 +192,7 @@ int main(int argc, const char* argv[]) {
 		std::string fontPath;
 		int compressionLevel = Z_BEST_COMPRESSION;
 		bool fast = false;
+		std::string imagePath;
 		for (int i = 1; i < argc; ++i) {
 			std::string arg(argv[i]);
 			if (arg == "--fast") {
@@ -198,6 +201,9 @@ int main(int argc, const char* argv[]) {
 			} else if (arg == "--fonts") {
 				if (++i == argc) { std::cerr << usage; return 1; }
 				fontPath = argv[i];
+			} else if (arg == "--images") {
+				if (++i == argc) { std::cerr << usage; return 1; }
+				imagePath = argv[i];
 			} else if (arg == "--background") {
 				if (++i == argc) { std::cerr << usage; return 1; }
 				background = parseColor(argv[i]);
@@ -229,7 +235,7 @@ int main(int argc, const char* argv[]) {
 		SelfContainedARGB32Canvas canvas;
 		{
 			STLMapVariables topVars;
-			IVGExecutorWithExternalFiles ivgExecutor(canvas, fontPath);
+			IVGExecutorWithExternalFiles ivgExecutor(canvas, fontPath, imagePath);
 			Interpreter impd(ivgExecutor, topVars);
 			impd.run(ivgContents);
 		}
