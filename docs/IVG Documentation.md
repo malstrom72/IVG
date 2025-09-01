@@ -4,7 +4,7 @@
 
 -	[Intro](#intro)
 -	[Case conventions](#case-conventions)
--	[IVG-1 vs IVG-2](#ivg-1-vs-ivg-2)
+-	[IVG-1 vs IVG-2 vs IVG-3](#ivg-1-vs-ivg-2-vs-ivg-3)
 -	[Instructions](#instructions)
 	-	[ELLIPSE](#ellipse)
 	-	[IMAGE](#image)
@@ -73,8 +73,8 @@ To give you a better idea of how _IVG_ works, here's an example of a simple sour
 	ELLIPSE 150,170 25
 	ELLIPSE 250,170 25
 	
-	// Draw the mouth using a SVG path.
-	PATH svg:[M 150,270 Q 200,320 250,270]
+	// Draw the mouth using a path instruction list.
+	PATH [move-to 150,270; bezier-to 200,320 250,270]
 ![](images/smiley.png)
 
 This is just a simple example, but it demonstrates the basic structure and syntax of an _IVG_ document. As you continue
@@ -97,13 +97,13 @@ written in lowercase and drawing instructions in uppercase. Segment commands ins
 `move-to` and `line-to`—also appear in lowercase. In short, any instruction in uppercase produces visible output,
 while lowercase forms configure state or describe geometry for later use.
 
-## IVG-1 vs IVG-2
+## IVG-1 vs IVG-2 vs IVG-3
 
 `IVG-1` covers core vector drawing and styling.
 `IVG-2` adds text, fonts, and raster image support through `define image` and `IMAGE`.
+`IVG-3` standardizes space-separated argument syntax and introduces an instruction-list form for `PATH` as well as `define path`.
 
-The interpreter processes both versions identically, but readers that only understand `IVG-1`
-will reject documents marked `IVG-2`.
+The interpreter processes all versions identically, but readers that only understand `IVG-1` or `IVG-2` will reject documents marked `IVG-3`.
 
 ## Instructions
 
@@ -238,19 +238,19 @@ Demonstration:
 ### PATH
 
 The `PATH` instruction draws an arbitrary vector path. It will be filled with the current [`fill`](#fill)
-setting and outlined with the current [`pen`](#pen) setting. Paths may be supplied as raw SVG data,
-as an instruction list, or by referencing a previously defined path name.
+setting and outlined with the current [`pen`](#pen) setting. Paths may be supplied as as an instruction list,
+raw SVG data,, or by referencing a previously defined path name.
 
 Syntax:
 
-PATH <name> [transform:<transform>]
-PATH svg:<svg data> [transform:<transform>]
-PATH [<instructions>] [transform:<transform>] [closed:(yes|no)=no]
-
-The `PATH svg:` form is available in all IVG versions. The instruction-list variant requires IVG-3.
+	PATH [<instructions>] [transform:<transform>] [closed:(yes|no)=no]
+		 | svg:<svg data> [transform:<transform>]
+		 | <name> [transform:<transform>]
 
 - `<name>` is a path defined with [`define path`](#define-path).
+
 - `<svg data>` is a string containing SVG path data. See https://svgwg.org/specs/paths/ for details.
+
 - `<instructions>` is a semicolon-separated list of sub-commands:
 	- `move-to <x>,<y>` sets the starting point for a new sub-path.
 	- `line-to <x>,<y> [<x>,<y> ...]` draws one or more line segments.
@@ -270,23 +270,34 @@ also closing any sub-paths begun with `move-to`.
 
 `transform:` applies a transformation before drawing, using the same syntax as [`IMAGE`](#image).
 
+_The `PATH svg:` form is available in all IVG versions. The instruction-list variant requires IVG-3._
+
 #### Examples
 
 Using an instruction list:
 
+	format IVG-3 requires:ImpD-1
+	bounds 0,0,340,300
 	fill lime
 	pen black
 	PATH [move-to 20,20; line-to 120,20 120,80 20,80] closed:yes
+![](images/pathLineToExample.png)
 
 Quadratic and cubic Bézier curves:
 
+	format IVG-3 requires:ImpD-1
+	bounds 0,0,340,300
 	PATH [move-to 20,20; bezier-to 60,20 60,80]
 	PATH [move-to 20,20; bezier-to 40,20 80,60 100,80]
+![](images/pathBeziersExample.png)
 
 Arcs:
 
+	format IVG-3 requires:ImpD-1
+	bounds 0,0,340,300
 	PATH [move-to 20,20; arc-to 120,20 40,40]
 	PATH [move-to 60,60; arc-sweep 60,100 180]
+![](images/pathArcsExample.png)
 
 Using raw SVG data:
 
@@ -305,7 +316,8 @@ Using raw SVG data:
 
 	// Draw the heart path
 	PATH svg:[M100,300 v-200 h200 a100,100,90,0,1,0,200 a100,100,90,0,1,-200,0 z]
-![](images/svgPathExample.png)
+![](images/pathSVGExample.png)
+
 ### LINE
 
 The `LINE` instruction draws an open polyline using the current [`pen`](#pen).
@@ -318,8 +330,11 @@ At least two points (four coordinates) are required. Two points draw a single li
 
 Example:
 
+	format IVG-3 requires:ImpD-1
+	bounds 0,0,340,300
 	pen black width:2
 	LINE 10,10 80,40 40,80
+![](images/lineExample.png)
 
 ### POLYGON
 
@@ -333,9 +348,12 @@ At least three points (six coordinates) are required. The polygon is automatical
 
 Example:
 
+	format IVG-3 requires:ImpD-1
+	bounds 0,0,340,300
 	fill lime
 	pen black
 	POLYGON 20,20 120,20 120,80 20,80
+![](images/polygonExample.png)
 
 ### RECT
 
@@ -455,7 +473,7 @@ Syntax:
 
 Demonstration:
 
-	FORMAT IVG-3 requires:ImpD-1
+	format IVG-3 requires:ImpD-1
 	options aa-gamma:1.5
 	
 	bounds 0,0,440,80
