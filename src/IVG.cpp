@@ -633,6 +633,10 @@ static Path makeEllipsePath(Interpreter& impd, ArgumentsContainer& args, int for
 static Path makeStarPath(Interpreter& impd, ArgumentsContainer& args, int formatVersion);
 static Path makePolygonPath(Interpreter& impd, ArgumentsContainer& args);
 
+enum TextAnchor { LEFT_ANCHOR, CENTER_ANCHOR, RIGHT_ANCHOR };
+static TextAnchor parseAnchor(Interpreter& impd, const String* s);
+static double anchorOffset(TextAnchor anchor, double advance);
+
 class PathInstructionExecutor : public Executor {
 	public:		PathInstructionExecutor(Executor& parentExecutor, Path& path, double curveQuality)
 						: parentExecutor(parentExecutor), path(path), curveQuality(curveQuality) { };
@@ -759,38 +763,15 @@ class PathInstructionExecutor : public Executor {
 						case PATH_TEXT_INSTRUCTION: {
 							const String* s;
 							double at[2] = {0.0, 0.0};
-							enum { LEFT_ANCHOR, CENTER_ANCHOR, RIGHT_ANCHOR } anchor = LEFT_ANCHOR;
 							if ((s = args.fetchOptional("at", true)) != 0) parseNumberList(impd, *s, at, 2, 2);
-							if ((s = args.fetchOptional("anchor", true)) != 0) {
-								const String anchorString = impd.toLower(*s);
-								if (anchorString == "left") anchor = LEFT_ANCHOR;
-								else if (anchorString == "center") anchor = CENTER_ANCHOR;
-								else if (anchorString == "right") anchor = RIGHT_ANCHOR;
-								else impd.throwBadSyntax(String("Unrecognized anchor: ") + *s);
-							}
+							TextAnchor anchor = parseAnchor(impd, args.fetchOptional("anchor", true));
 							const UniString text = impd.unescapeToUni(args.fetchRequired(0, true));
 							args.throwIfAnyUnfetched();
 							IVGExecutor& ivg = static_cast<IVGExecutor&>(parentExecutor);
-							State& state = ivg.currentContext->accessState();
-							if (state.textStyle.fontName.empty()) {
-								Interpreter::throwRunTimeError("Need to set font before writing");
-							}
-							std::vector<const Font*> fonts = ivg.lookupExternalOrInternalFonts(impd, state.textStyle.fontName, text);
-							if (fonts.empty()) {
-								Interpreter::throwRunTimeError(String("Missing font: ") + String(state.textStyle.fontName.begin(), state.textStyle.fontName.end()));
-							}
+							const State& state = ivg.currentContext->accessState();
 							double advance;
-							const char* errorString;
-							Path textPath;
-							bool success = buildPathForString(text, fonts, state.textStyle.size, state.textStyle.glyphTransform
-									, state.textStyle.letterSpacing, ivg.currentContext->calcCurveQuality(), textPath, advance
-									, errorString);
-							if (!success) trace(impd, WideString(errorString, errorString + strlen(errorString)));
-							switch (anchor) {
-								case LEFT_ANCHOR: break;
-								case CENTER_ANCHOR: at[0] -= advance * 0.5; break;
-								case RIGHT_ANCHOR: at[0] -= advance; break;
-							}
+							Path textPath = ivg.makeTextPath(impd, state, text, advance);
+							at[0] -= anchorOffset(anchor, advance);
 							textPath.transform(AffineTransformation().translate(at[0], at[1]));
 							path.append(textPath);
 							return true;
@@ -1617,6 +1598,50 @@ static Path makePolygonPath(Interpreter& impd, ArgumentsContainer& args) {
 	return path;
 }
 
+static TextAnchor parseAnchor(Interpreter& impd, const String* s) {
+	TextAnchor anchor = LEFT_ANCHOR;
+	if (s != 0) {
+		const String anchorString = impd.toLower(*s);
+		if (anchorString == "left") {
+			anchor = LEFT_ANCHOR;
+		} else if (anchorString == "center") {
+			anchor = CENTER_ANCHOR;
+		} else if (anchorString == "right") {
+			anchor = RIGHT_ANCHOR;
+		} else {
+			impd.throwBadSyntax(String("Unrecognized anchor: ") + *s);
+		}
+	}
+	return anchor;
+}
+
+static double anchorOffset(TextAnchor anchor, double advance) {
+	switch (anchor) {
+		case LEFT_ANCHOR: return 0.0;
+		case CENTER_ANCHOR: return advance * 0.5;
+		case RIGHT_ANCHOR: return advance;
+	}
+	return 0.0;
+}
+
+Path IVGExecutor::makeTextPath(Interpreter& impd, const State& state, const UniString& text, double& advance) {
+	if (state.textStyle.fontName.empty()) {
+		Interpreter::throwRunTimeError("Need to set font before writing");
+	}
+	std::vector<const Font*> fonts = lookupExternalOrInternalFonts(impd, state.textStyle.fontName, text);
+	if (fonts.empty()) {
+		Interpreter::throwRunTimeError(String("Missing font: ")
+			+ String(state.textStyle.fontName.begin(), state.textStyle.fontName.end()));
+	}
+	const char* errorString;
+	Path textPath;
+	bool success = buildPathForString(text, fonts, state.textStyle.size, state.textStyle.glyphTransform
+		, state.textStyle.letterSpacing, currentContext->calcCurveQuality(), textPath, advance
+		, errorString);
+	if (!success) trace(impd, WideString(errorString, errorString + strlen(errorString)));
+	return textPath;
+}
+
 
 bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const String& arguments) {
 	int foundInstruction = findIVGInstruction(instruction.size(), instruction.c_str());
@@ -1846,63 +1871,27 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 
-		 case TEXT_INSTRUCTION: {
+		case TEXT_INSTRUCTION: {
 			versionRequired(impd, IVG_2, instruction);
 			const String* s;
-			enum { LEFT_ANCHOR, CENTER_ANCHOR, RIGHT_ANCHOR } anchor = LEFT_ANCHOR;
 			State& state = currentContext->accessState();
 			if ((s = args.fetchOptional("at", true)) != 0) {
 				parseNumberList(impd, *s, numbers, 2, 2);
 				state.textCaret = Vertex(numbers[0], numbers[1]);
 			}
-			if ((s = args.fetchOptional("anchor", true)) != 0) {
-				const String anchorString = impd.toLower(*s);
-				if (anchorString == "left") {
-					anchor = LEFT_ANCHOR;
-				} else if (anchorString == "center") {
-					anchor = CENTER_ANCHOR;
-				} else if (anchorString == "right") {
-					anchor = RIGHT_ANCHOR;
-				} else {
-					impd.throwBadSyntax(String("Unrecognized anchor: ") + *s);
-				}
-			}
+			TextAnchor anchor = parseAnchor(impd, args.fetchOptional("anchor", true));
 			const UniString text = impd.unescapeToUni(args.fetchRequired(0, true));
 			const String* caretVariable = args.fetchOptional("caret", true);
 			args.throwIfAnyUnfetched();
-			
-			if (state.textStyle.fontName.empty()) {
-				Interpreter::throwRunTimeError("Need to set font before writing");
-			}
-			std::vector<const Font*> fonts = lookupExternalOrInternalFonts(impd, state.textStyle.fontName, text);
-			if (fonts.empty()) {
-				Interpreter::throwRunTimeError(String("Missing font: ")
-						+ String(state.textStyle.fontName.begin(), state.textStyle.fontName.end()));
-			}
-			
 			double advance;
-			const char* errorString;
-			Path textPath;
-			bool success = buildPathForString(text, fonts, state.textStyle.size, state.textStyle.glyphTransform
-					, state.textStyle.letterSpacing, currentContext->calcCurveQuality(), textPath, advance
-					, errorString);
-			if (!success) {
-				trace(impd, WideString(errorString, errorString + strlen(errorString)));
-			}
-			switch (anchor) {
-				case LEFT_ANCHOR: break;
-				case CENTER_ANCHOR: state.textCaret.x -= advance * 0.5; break;
-				case RIGHT_ANCHOR: state.textCaret.x -= advance; break;
-			}
+			Path textPath = makeTextPath(impd, state, text, advance);
+			const double offset = anchorOffset(anchor, advance);
+			state.textCaret.x -= offset;
 			textPath.transform(AffineTransformation().translate(state.textCaret.x, state.textCaret.y));
 			const Rect<double> pathBounds(textPath.calcFloatBounds());
 			currentContext->stroke(textPath, state.textStyle.outline, pathBounds, 2.0);
 			currentContext->fill(textPath, state.textStyle.fill, false, pathBounds);
-			switch (anchor) {
-				case LEFT_ANCHOR: // Fall through
-				case CENTER_ANCHOR: state.textCaret.x += advance; break;
-				case RIGHT_ANCHOR: break;
-			}
+			state.textCaret.x += (anchor == RIGHT_ANCHOR ? 0.0 : advance);
 			if (caretVariable != 0) {
 				impd.set(*caretVariable, impd.toString(state.textCaret.x));
 			}

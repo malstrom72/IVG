@@ -3,9 +3,9 @@ SETLOCAL ENABLEEXTENSIONS
 CD /D "%~dp0\..\tests"
 
 IF "%~1"=="" (
-    SET exe="../output/IVG2PNG"
+	SET exe="../output/IVG2PNG"
 ) ELSE (
-    SET exe="%~1"
+	SET exe="%~1"
 )
 SET fonts=..\fonts
 

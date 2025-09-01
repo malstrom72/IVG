@@ -25,6 +25,7 @@
 #include <fstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 #include "src/IVG.h"
 #include "png.h"
 #include "zlib.h"
@@ -51,42 +52,105 @@ static bool isLittleEndian() {
 	}
 }
 
-class IVGExecutorWithExternalFonts : public IVGExecutor {
+class IVGExecutorWithExternalFiles : public IVGExecutor {
 	public:
-		IVGExecutorWithExternalFonts(Canvas& canvas, const std::string& fontPath,
-			    const AffineTransformation& xform = AffineTransformation())
-			    : IVGExecutor(canvas, xform), fontPath(fontPath) {
+		IVGExecutorWithExternalFiles(Canvas& canvas, const std::string& fontPath,
+				const AffineTransformation& xform = AffineTransformation())
+				: IVGExecutor(canvas, xform), fontPath(fontPath) {
 		}
 		virtual std::vector<const Font*> lookupFonts(IMPD::Interpreter& interpreter, const IMPD::WideString& fontName,
-			    const IMPD::UniString& forString) {
+				const IMPD::UniString& forString) {
 			(void)interpreter;
 			std::pair< FontMap::iterator, bool > insertResult = loadedFonts.insert(std::make_pair(fontName, Font()));
 			if (insertResult.second) {
-			    const std::string fontName8Bit(fontName.begin(), fontName.end());
-			    String fontCode;
-			    {
-			        std::string path = fontPath.empty() ? (fontName8Bit + ".ivgfont") : (fontPath + "/" + fontName8Bit + ".ivgfont");
-			        std::ifstream fileStream(path.c_str());
-			        if (!fileStream.good()) {
-			            return std::vector<const Font*>();
-			        }
-			        fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-			        const std::istreambuf_iterator<Char> it(fileStream);
-			        const std::istreambuf_iterator<Char> end;
-			        fontCode = std::string(it, end);
-			    }
-			    std::wcerr << "parsing external font " << fontName << std::endl;
-			    FontParser fontParser;
-			    STLMapVariables vars;
-			    Interpreter impd(fontParser, vars);
-			    impd.run(fontCode);
-			    insertResult.first->second = fontParser.finalizeFont();
+				const std::string fontName8Bit(fontName.begin(), fontName.end());
+				String fontCode;
+				{
+					std::string path = fontPath.empty() ? (fontName8Bit + ".ivgfont") : (fontPath + "/" + fontName8Bit + ".ivgfont");
+					std::ifstream fileStream(path.c_str());
+					if (!fileStream.good()) {
+						return std::vector<const Font*>();
+					}
+					fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+					const std::istreambuf_iterator<Char> it(fileStream);
+					const std::istreambuf_iterator<Char> end;
+					fontCode = std::string(it, end);
+				}
+				std::wcerr << "parsing external font " << fontName << std::endl;
+				FontParser fontParser;
+				STLMapVariables vars;
+				Interpreter impd(fontParser, vars);
+				impd.run(fontCode);
+				insertResult.first->second = fontParser.finalizeFont();
 			}
 			return std::vector<const Font*>(1, &insertResult.first->second);
+		}
+		virtual Image loadImage(IMPD::Interpreter& interpreter, const IMPD::WideString& imageSource,
+				const IntRect* sourceRectangle, bool forStretching, double forXSize, bool xSizeIsRelative,
+				double forYSize, bool ySizeIsRelative) {
+			(void)interpreter;
+			(void)sourceRectangle;
+			(void)forStretching;
+			(void)forXSize;
+			(void)xSizeIsRelative;
+			(void)forYSize;
+			(void)ySizeIsRelative;
+			const std::string imageName8Bit(imageSource.begin(), imageSource.end());
+			FILE* f = fopen(imageName8Bit.c_str(), "rb");
+			if (f == 0) return Image();
+			png_structp png_ptr = 0;
+			png_infop info_ptr = 0;
+			try {
+				png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, myPNGErrorFunction, 0);
+				if (png_ptr == 0) throw std::runtime_error("Error reading PNG image : could not initialize");
+				info_ptr = png_create_info_struct(png_ptr);
+				if (info_ptr == 0) throw std::runtime_error("Error reading PNG image : could not initialize");
+				png_init_io(png_ptr, f);
+				png_set_add_alpha(png_ptr, 0xFF, PNG_FILLER_AFTER);
+				if (isLittleEndian()) {
+					png_set_bgr(png_ptr);
+				} else {
+					png_set_swap_alpha(png_ptr);
+				}
+				png_read_png(png_ptr, info_ptr, PNG_TRANSFORM_EXPAND, 0);
+				png_uint_32 width = png_get_image_width(png_ptr, info_ptr);
+				png_uint_32 height = png_get_image_height(png_ptr, info_ptr);
+				png_bytep* rows = png_get_rows(png_ptr, info_ptr);
+				loadedImage = SelfContainedRaster<ARGB32>(IntRect(0, 0, static_cast<int>(width), static_cast<int>(height)));
+				for (png_uint_32 y = 0; y < height; ++y) {
+					ARGB32::Pixel* dest = loadedImage.getPixelPointer() + y * loadedImage.getStride();
+					png_bytep src = rows[y];
+					for (png_uint_32 x = 0; x < width; ++x) {
+						unsigned int b = src[x * 4 + 0];
+						unsigned int g = src[x * 4 + 1];
+						unsigned int r = src[x * 4 + 2];
+						unsigned int a = src[x * 4 + 3];
+						if (a != 0xFF) {
+							r = (r * a + 0x7F) >> 8;
+							g = (g * a + 0x7F) >> 8;
+							b = (b * a + 0x7F) >> 8;
+						}
+						dest[x] = (a << 24) | (r << 16) | (g << 8) | b;
+					}
+				}
+				png_destroy_read_struct(&png_ptr, &info_ptr, 0);
+				fclose(f);
+				f = 0;
+				Image img;
+				img.raster = &loadedImage;
+				img.xResolution = 1.0;
+				img.yResolution = 1.0;
+				return img;
+			} catch (...) {
+				png_destroy_read_struct(&png_ptr, &info_ptr, 0);
+				if (f != 0) fclose(f);
+				return Image();
+			}
 		}
 	protected:
 		FontMap loadedFonts;
 		std::string fontPath;
+		SelfContainedRaster<ARGB32> loadedImage;
 };
 
 
@@ -165,7 +229,7 @@ int main(int argc, const char* argv[]) {
 		SelfContainedARGB32Canvas canvas;
 		{
 			STLMapVariables topVars;
-			IVGExecutorWithExternalFonts ivgExecutor(canvas, fontPath);
+			IVGExecutorWithExternalFiles ivgExecutor(canvas, fontPath);
 			Interpreter impd(ivgExecutor, topVars);
 			impd.run(ivgContents);
 		}

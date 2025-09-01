@@ -1,0 +1,8 @@
+FORMAT IVG-3 requires:IMPD-1
+BOUNDS 0,0,400,400
+RESET
+WIPE white
+
+FILL none
+PEN red width:15 joints:bevel dash:30,15 dash-offset:10
+POLYGON 50,200 200,50 350,200 200,350

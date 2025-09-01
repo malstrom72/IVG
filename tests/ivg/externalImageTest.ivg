@@ -1,0 +1,6 @@
+FORMAT IVG-3 requires:IMPD-1
+BOUNDS 0,0,400,400
+RESET
+WIPE white
+
+IMAGE 200,200 "external_sample.png" align:"middle center"
