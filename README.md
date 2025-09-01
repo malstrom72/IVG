@@ -13,13 +13,13 @@ vector graphics.
 
 ## Features
 
-- Graphics are described using **ImpD**, a minimal imperative language for image construction.  
-- Built-in **NuXPixels** rasterizer provides high-quality, gamma-correcting anti-aliasing.  
-- Renderer written in **portable, dependency-free C++**, with no reliance on third-party libraries.  
+- Graphics are described using **ImpD**, a minimal imperative language for image construction.	
+- Built-in **NuXPixels** rasterizer provides high-quality, gamma-correcting anti-aliasing.	
+- Renderer written in **portable, dependency-free C++**, with no reliance on third-party libraries.	 
 - Supports **paths, shapes, images, text, styling, transformations**, and nesting.
 - SVG path commands are fully supported.
 - Simple `.ivgfont` format for embedded vector fonts, converted from standard font formats.
-- **Standalone HTML editor** (IVGFiddle) for live editing and previewing IVG code.  
+- **Standalone HTML editor** (IVGFiddle) for live editing and previewing IVG code.	
 - Built-in **test suite** with regression output compared to golden PNGs.  
 - Self-contained format and tools designed for experimentation and integration.
 
@@ -79,10 +79,13 @@ instructions when available.
 
 ## Helper Scripts
 
-- `build.sh` / `build.cmd` – build both the **beta** and **release** targets and run all tests
-- `tools/updateIVGTests.sh` / `.cmd` – regenerate golden PNGs from all `.ivg` test files
-- `tools/updateDocumentation.sh` – rebuild HTML documentation using Pandoc and PikaScript
-	(Mac / Linux only)
+ - `build.sh` / `build.cmd` – build both the **beta** and **release** targets and run all tests
+ - `tools/testSVG.sh` / `.cmd` – run SVG conversion tests; pass `update` to refresh golden IVG and PNG files
+ - `tools/testIVG.sh` / `.cmd` – run IVG rasterization tests; pass `update` to regenerate PNG goldens
+ - `tools/testInvalidIVG.sh` / `.cmd` – run invalid IVG parser tests; pass `update` to rewrite `invalidIVGResults.txt`
+ - `tools/testIMPD.sh` / `.cmd` – run ImpD interpreter tests; pass `update` to update expected outputs
+ - `tools/updateDocumentation.sh` – rebuild HTML documentation using Pandoc and PikaScript
+(Mac / Linux only)
 
 ## svg2ivg
 
@@ -104,7 +107,7 @@ in your browser to write IVG code and see the output rendered in real time.
 
 - File location: `tools/ivgfiddle/output/ivgfiddle.html`
 
-You can also try it live without cloning the repo:  
+You can also try it live without cloning the repo:	
 [IVGFiddle](https://htmlpreview.github.io/?https://github.com/malstrom72/IVG/blob/main/tools/ivgfiddle/output/ivgfiddle.html)
 
 ## Fonts

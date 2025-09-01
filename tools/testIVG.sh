@@ -2,7 +2,12 @@
 set -e -o pipefail -u
 cd "$(dirname "$0")"/../tests
 
-if [ -z "$1" ]; then
+UPDATE=0
+if [ "${1-}" = "update" ]; then
+	UPDATE=1
+	shift
+fi
+if [ -z "${1-}" ]; then
 	EXE="../output/IVG2PNG"
 else
 	EXE=$1
@@ -23,7 +28,11 @@ for f in ./ivg/*.ivg; do
 		args="--fast"
 	fi
 	$EXE $args --images "$IMAGES" --fonts "$FONTS" "$f" "$tmp/$n.png"
-	cmp "$tmp/$n.png" "./png/$n.png"
+	if [ "$UPDATE" -eq 1 ]; then
+		cp "$tmp/$n.png" "./png/$n.png"
+	else
+		cmp "$tmp/$n.png" "./png/$n.png"
+	fi
 	echo
 	echo
 done
