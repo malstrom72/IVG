@@ -51,11 +51,11 @@ Applications typically subclass `IVGExecutor` to supply images and fonts from cu
 ```cpp
 class MyExecutor : public IVG::IVGExecutor {
 public:
-    MyExecutor(Canvas& canvas) : IVGExecutor(canvas) {}
-    Image loadImage(IMPD::Interpreter&, const IMPD::WideString& source,
-                    const NuXPixels::IntRect* rect, double scale) override {
-        // Provide image data from your own asset system
-    }
+	MyExecutor(Canvas& canvas) : IVGExecutor(canvas) {}
+	Image loadImage(IMPD::Interpreter&, const IMPD::WideString& source,
+					const NuXPixels::IntRect* rect, double scale) override {
+		// Provide image data from your own asset system
+	}
 };
 ```
 
@@ -64,7 +64,7 @@ Instantiate your derived executor when creating the interpreter so that image an
 ## Reference files
 
 - `src/IVG.h` – public declarations for canvases, paint objects and `IVGExecutor`.
-- `tools/IVG2PNG.cpp` – minimal example program that converts an IVG file to PNG. The tool accepts optional `--fonts` and `--background` arguments to locate fonts and fill an opaque background color.
+- `tools/IVG2PNG.cpp` – minimal example program that converts an IVG file to PNG. The tool accepts optional `--fonts`, `--images`, and `--background` arguments to locate fonts, external images, and fill an opaque background color.
 - `docs/ImpD Documentation.md` – specification of the ImpD scripting language.
 - `docs/IVG Documentation.md` – detailed description of available drawing instructions.
 - `docs/NuXPixels Documentation.md` – overview of the low-level rendering library.

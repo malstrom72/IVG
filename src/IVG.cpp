@@ -500,7 +500,7 @@ ARGB32::Pixel parseColor(const String& color) {
 		public:		virtual bool progress(Interpreter&, int) { return true; }
 		public:		virtual bool load(Interpreter&, const WideString&, String&) { return false; }
 		public:		virtual void trace(Interpreter&, const WideString&) { }
-};
+	};
 	DummyExecutor executor;
 	STLMapVariables vars;
 	Interpreter impd(executor, vars);

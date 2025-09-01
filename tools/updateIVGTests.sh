@@ -4,6 +4,7 @@ cd "$(dirname "$0")"/../tests
 
 EXE=${1:-../output/IVG2PNG}
 FONTS=../fonts
+IMAGES=.
 
 for f in ivg/*.ivg; do
 	n=${f#ivg/}
@@ -14,7 +15,7 @@ for f in ivg/*.ivg; do
 	if [ "$n" = "huge" ]; then
 		args="--fast"
 	fi
-	"$EXE" $args --fonts "$FONTS" "$f" "png/$n.png"
+	"$EXE" $args --images "$IMAGES" --fonts "$FONTS" "$f" "png/$n.png"
 	echo
 	echo
 done

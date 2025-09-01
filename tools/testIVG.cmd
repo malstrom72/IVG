@@ -8,6 +8,7 @@ IF "%~1"=="" (
 	SET exe="%~1"
 )
 SET fonts=..\fonts
+SET images=.
 
 SET tempDir=%TEMP%\temp%RANDOM%
 ECHO Using temporary dir: %tempDir%
@@ -17,9 +18,9 @@ FOR %%f IN (ivg\*.ivg) DO (
 	ECHO Doing %%f
 	ECHO.
 	IF "%%~nf"=="huge" (
-		%exe% --fast --fonts %fonts% "%%f" "%tempDir%\%%~nf.png" || GOTO error
+		%exe% --fast --images %images% --fonts %fonts% "%%f" "%tempDir%\%%~nf.png" || GOTO error
 	) ELSE (
-		%exe% --fonts %fonts% "%%f" "%tempDir%\%%~nf.png" || GOTO error
+		%exe% --images %images% --fonts %fonts% "%%f" "%tempDir%\%%~nf.png" || GOTO error
 	)
 	fc "%tempDir%\%%~nf.png" "png\%%~nf.png" || GOTO error
 	ECHO.

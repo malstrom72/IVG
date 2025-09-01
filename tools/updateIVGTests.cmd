@@ -8,14 +8,15 @@ IF "%~1"=="" (
     SET exe=%~1
 )
 SET fonts=..\fonts
+SET images=.
 
 FOR %%f IN (ivg\*.ivg) DO (
 	ECHO Doing %%f
 	ECHO.
 	IF "%%~nf"=="huge" (
-		%exe% --fast --fonts %fonts% "%%f" "png\%%~nf.png" || GOTO BAD
+		%exe% --fast --images %images% --fonts %fonts% "%%f" "png\%%~nf.png" || GOTO BAD
 	) ELSE (
-		%exe% --fonts %fonts% "%%f" "png\%%~nf.png" || GOTO BAD
+		%exe% --images %images% --fonts %fonts% "%%f" "png\%%~nf.png" || GOTO BAD
 	)
 	ECHO.
 	ECHO.
