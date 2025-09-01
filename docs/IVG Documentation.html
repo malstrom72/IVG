@@ -188,6 +188,7 @@
 <h2 id="table-of-contents">Table of Contents</h2>
 <ul>
 <li><a href="#intro">Intro</a></li>
+<li><a href="#case-conventions">Case conventions</a></li>
 <li><a href="#ivg-1-vs-ivg-2">IVG-1 vs IVG-2</a></li>
 <li><a href="#instructions">Instructions</a>
 <ul>
@@ -232,6 +233,8 @@ no dependencies on other libraries or operating system function calls.
 It uses a low-level 2D rendering C++ library called <em>NuXPixels</em>
 (included in the distribution), which is light on the CPU and provides
 high-quality anti-aliasing.</p>
+<p>This document describes the <strong>IVG-3</strong> format. Legacy
+IVG-1/IVG-2 syntax is considered deprecated.</p>
 <p>In <em>IVG</em>, the graphics are described using a set of drawing
 instructions, which are interpreted by <em>ImpD</em> and then sent to
 the <em>NuXPixels</em> engine to produce the final pixel raster. These
@@ -283,9 +286,14 @@ to create dynamic and interactive graphics.</p>
 <code>IVG-3</code>. Therefore, the <code>format</code> instruction
 should be as follows:</p>
 <pre><code>format IVG-3 requires:ImpD-1</code></pre>
-<p>Notice that <em>ImpD</em> is case-insensitive, but in this document,
-we follow a convention where we have written “directives” (defining
-settings, etc.) in lowercase and drawing instructions in uppercase.</p>
+<h2 id="case-conventions">Case conventions</h2>
+<p><em>ImpD</em> is case-insensitive, but this documentation follows a
+convention: “directives” (defining settings, etc.) are written in
+lowercase and drawing instructions in uppercase. Segment commands inside
+<code>PATH</code> compounds—such as <code>move-to</code> and
+<code>line-to</code>—also appear in lowercase. In short, any instruction
+in uppercase produces visible output, while lowercase forms configure
+state or describe geometry for later use.</p>
 <h2 id="ivg-1-vs-ivg-2">IVG-1 vs IVG-2</h2>
 <p><code>IVG-1</code> covers core vector drawing and styling.
 <code>IVG-2</code> adds text, fonts, and raster image support through
