@@ -247,6 +247,7 @@ class State {
 };
 
 class IVGExecutor;
+class PathInstructionExecutor;
 /**
 	   Abstract drawing surface that accepts blended pixel data.
 **/
@@ -312,6 +313,7 @@ struct Image {
 	   Executes IVG drawing instructions within a rendering context.
 **/
 class IVGExecutor : public IMPD::Executor {
+		friend class PathInstructionExecutor;
 	public:		enum FormatVersion { UNKNOWN, IVG_1, IVG_2, IVG_3 };
 	public:		IVGExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform
 						= NuXPixels::AffineTransformation());

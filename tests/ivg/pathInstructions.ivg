@@ -5,6 +5,7 @@ reset
 WIPE white
 fill none
 pen black width:2
+font serif size:20
 
 // line-to and closed path
 PATH [move-to 10,10; line-to 70,10 70,70 10,70] closed:yes
@@ -20,3 +21,21 @@ PATH [move-to 130,90; arc-to 190,90 30,40 sweep:ccw]
 
 // arc-sweep
 PATH [move-to 210,90; arc-sweep 210,150 180]
+
+// line
+PATH [line 10,150 70,210]
+
+// rect
+PATH [rect 90,150,60,40 rounded:10]
+
+// ellipse
+PATH [ellipse 190,170 20,15]
+
+// star
+PATH [star 250,170 5 20,10 rotation:18]
+
+// polygon
+PATH [polygon 270,150 330,150 300,210]
+
+// text
+PATH [text at:300,210 anchor:center "Hi"]
