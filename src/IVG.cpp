@@ -627,8 +627,7 @@ enum PathInstructionType {
 
 class PathInstructionExecutor : public Executor {
 	public:		PathInstructionExecutor(Executor& parentExecutor, Path& path, double curveQuality)
-					: parentExecutor(parentExecutor), path(path), curveQuality(curveQuality)
-					, moveToSeen(false) { };
+: parentExecutor(parentExecutor), path(path), curveQuality(curveQuality) { };
 	public:		virtual bool format(Interpreter& impd, const String& identifier, const vector<String>& uses
 						, const vector<String>& requires) {
 					(void)impd; (void)identifier; (void)uses; (void)requires;
@@ -644,11 +643,10 @@ class PathInstructionExecutor : public Executor {
 						case MOVE_TO_INSTRUCTION: {
 							double numbers[2];
 							parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
-							path.moveTo(numbers[0], numbers[1]);
-							args.throwIfAnyUnfetched();
-							moveToSeen = true;
-							return true;
-						}
+path.moveTo(numbers[0], numbers[1]);
+args.throwIfAnyUnfetched();
+return true;
+}
 						case LINE_TO_INSTRUCTION: {
 							checkHasMoveTo();
 							double numbers[2];
@@ -737,14 +735,13 @@ class PathInstructionExecutor : public Executor {
 	public:		virtual bool progress(Interpreter& impd, int maxStatementsLeft) { return parentExecutor.progress(impd, maxStatementsLeft); }
 	public:		virtual bool load(Interpreter& impd, const WideString& filename, String& contents) { return parentExecutor.load(impd, filename, contents); }
 	protected:	void checkHasMoveTo() const {
-					if (!moveToSeen) {
+					if (path.empty() || path.begin()->first != Path::MOVE) {
 						Interpreter::throwRunTimeError("move-to must appear first in path instructions");
 					}
 				}
 	protected:	Executor& parentExecutor;
 	protected:	Path& path;
 	protected:	const double curveQuality;
-	protected:	bool moveToSeen;
 };
 
 static AffineTransformation parseTransformationBlock(Interpreter& impd, const String& source) {

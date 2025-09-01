@@ -2,6 +2,8 @@
 
 We plan to add support for the following instructions in path definitions without requiring an initial `move-to`: `line`, `rect`, `ellipse`, `star`, `polygon`, and `text`.
 
+The guiding goal is minimal source code: factor shared logic and keep the number of statements as low as possible.
+
 ## QuickHashGen lookup table
 - [ ] Maintain `findPathInstructionType` using [QuickHashGen](../externals/QuickHashGen/README.md) for constant-time string lookup.
 - [ ] Create a newline-delimited list of all path instruction names and run `node externals/QuickHashGen/QuickHashGenCLI.node.js --seed 1 < list.txt > tmp.c`.
