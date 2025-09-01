@@ -43,10 +43,14 @@ C_SRCS=(./externals/libpng/png.c ./externals/libpng/pngerror.c ./externals/libpn
 
 # -ffp-contract=off is necessary to avoid issues with floating point optimizations that can cause differences in results
 ./tools/BuildCpp.sh $1 $2 ./output/IVG2PNG \
-		-ffp-contract=off -UTARGET_OS_MAC ./tools/IVG2PNG.cpp -DNUXPIXELS_SIMD=$simd \
-		-I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib \
-		./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp \
-		"${C_SRCS[@]}"
+				-ffp-contract=off -UTARGET_OS_MAC ./tools/IVG2PNG.cpp -DNUXPIXELS_SIMD=$simd \
+				-I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib \
+				./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp \
+				"${C_SRCS[@]}"
+
+./tools/BuildCpp.sh $1 $2 ./output/InvalidIVGTest \
+				-DNUXPIXELS_SIMD=$simd -I ./ -I ./externals \
+				./tests/invalidIVG.cpp ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp
 
 ./tools/BuildCpp.sh $1 $2 ./output/PolygonMaskTest \
 		-DNUXPIXELS_SIMD=$simd -I ./ -I ./externals \
