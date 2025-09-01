@@ -1,0 +1,8 @@
+format IVG-3
+// define minimal font for text
+define font f [
+	metrics ascent:1 descent:0 linegap:0 upm:1
+	glyph a 1 []
+]
+font f size:1
+text 0,0 "a" anchor:upside

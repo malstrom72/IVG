@@ -20,26 +20,27 @@ This document describes how to create a regression suite that ensures malformed 
 
 ## Test Batches
 1. **Format Directive**
-        - [ ] missing `format` line
-        - [x] `format IVG-4` reports unsupported version
-        - [x] `requires:` listing an unknown feature
+		- [ ] missing `format` line
+		- [x] `format IVG-4` reports unsupported version
+		- [x] `requires:` listing an unknown feature
 2. **Paint and Color**
-        - [x] `fill` with invalid hex color or pre-multiplied value
-        - [x] `fill` with invalid color name
-        - [x] gradient with unrecognized type
-        - [x] IVG-3 file using comma-separated gradient coordinates
-        - [x] gradient stops with an odd element count or out-of-range position
+		- [x] `fill` with invalid hex color or pre-multiplied value
+		- [x] `fill` with invalid color name
+		- [x] gradient with unrecognized type
+		- [x] IVG-3 file using comma-separated gradient coordinates
+		- [x] gradient stops with an odd element count or out-of-range position
 3. **Geometry Instructions**
-        - [x] `PATH` arc-to with invalid `sweep`/`large` flags
-        - [ ] `ELLIPSE` or `STAR` syntax using the wrong separator for the IVG version
-        - [ ] unknown command letter inside a `PATH` instruction
-        - [x] `LINE` with missing coordinate pair
+		- [x] `PATH` arc-to with invalid `sweep`/`large` flags
+		- [x] `ELLIPSE` or `STAR` syntax using the wrong separator for the IVG version
+		- [x] unknown command letter inside a `PATH` instruction
+		- [x] `LINE` with missing coordinate pair
 4. **Stroke and Fill**
-        - [x] unrecognized stroke caps or joints
-        - [x] unrecognized fill rule
+		- [x] unrecognized stroke caps or joints
+		- [x] unrecognized fill rule
 5. **Text and Alignment**
-	- [ ] invalid or duplicate alignment tokens in a `text` instruction
-	- [ ] `text` referencing an undefined font
+	- [x] invalid `anchor` token in a `text` instruction
+	- [x] invalid alignment token in an `image` instruction
+	- [x] `text` referencing an undefined font
 6. **Font Definitions**
 	- [ ] duplicate `metrics` instruction in a `font` block
 	- [ ] `glyph` appearing before `metrics`
