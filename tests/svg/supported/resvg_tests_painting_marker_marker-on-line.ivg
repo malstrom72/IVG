@@ -5,7 +5,7 @@ pen miter-limit:4
 scale 2.5
 context [
 	pen green
-	path svg:[M40,40L160,160]
+	LINE 40,40 160,160
 	context [
 		pen none
 		offset 40,40
@@ -13,7 +13,7 @@ context [
 		context [
 			pen green opacity:0.75
 			fill blue opacity:0.75
-			path svg:[M 10 0 16 20 H 4 Z]
+			PATH svg:[M 10 0 16 20 H 4 Z]
 		]
 	]
 	context [
@@ -23,13 +23,13 @@ context [
 		context [
 			pen green opacity:0.75
 			fill blue opacity:0.75
-			path svg:[M 10 0 16 20 H 4 Z]
+			PATH svg:[M 10 0 16 20 H 4 Z]
 		]
 	]
 ]
 context [
 	pen black
 	fill none
-	rect 1,1,198,198
+	RECT 1,1,198,198
 ]
 

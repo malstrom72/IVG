@@ -3,7 +3,7 @@ bounds 0,0,100,100
 fill black
 pen miter-limit:4
 context [
-	fill gradient:[linear 0,0,1,0 stops:[0,red,0.25,yellow,0.5,green,0.75,#00ffff,1,blue]] relative:yes
-	rect 10,10,80,80
+	fill gradient:[linear 0,0 1,0 stops:[0,red,0.25,yellow,0.5,green,0.75,#00ffff,1,blue]] relative:yes
+	RECT 10,10,80,80
 ]
 

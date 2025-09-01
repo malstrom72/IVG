@@ -4,6 +4,6 @@ fill black
 pen miter-limit:4
 context [
 	fill #ffc0cb
-	rect 10,10,80,80
+	RECT 10,10,80,80
 ]
 

@@ -12,15 +12,15 @@ context [
 			context [
 				pen 0
 				fill 1
-				rect 0.2,0.2,0.6,0.6 rounded:0.1,0.1
+				RECT 0.2,0.2,0.6,0.6 rounded:0.1,0.1
 			]
 		]
 	]
-	rect 0,0,200,200
+	RECT 0,0,200,200
 ]
 context [
 	pen black
 	fill none
-	rect 1,1,198,198
+	RECT 1,1,198,198
 ]
 

@@ -4,6 +4,9 @@ IVG (Imperative Vector Graphics) is a compact, dependency-free 2D vector format 
 written in standard C++. Graphics are described using the small imperative language **ImpD**, which
 supports variables and control flow for defining procedural images.
 
+The repository targets the latest **IVG-3** specification. Older IVG-1/IVG-2 files may require
+updating their headers and instruction casing to load correctly.
+
 The renderer is built on the included **NuXPixels** rasterizer and provides high-quality
 gamma-correct anti-aliasing. The format is concise and designed for both hand-written and generated
 vector graphics.

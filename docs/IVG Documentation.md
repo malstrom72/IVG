@@ -3,6 +3,7 @@
 ## Table of Contents
 
 -	[Intro](#intro)
+-	[Case conventions](#case-conventions)
 -	[IVG-1 vs IVG-2](#ivg-1-vs-ivg-2)
 -	[Instructions](#instructions)
 	-	[ELLIPSE](#ellipse)
@@ -39,6 +40,8 @@ parameters rather than just describing static images.
 _IVG_ is easy to integrate into existing C++ projects and has no dependencies on other libraries or operating system
 function calls. It uses a low-level 2D rendering C++ library called _NuXPixels_ (included in the distribution), which is
 light on the CPU and provides high-quality anti-aliasing.
+
+This document describes the **IVG-3** format. Legacy IVG-1/IVG-2 syntax is considered deprecated.
 
 In _IVG_, the graphics are described using a set of drawing instructions, which are interpreted by _ImpD_ and then sent
 to the _NuXPixels_ engine to produce the final pixel raster. These instructions include basic shapes like rectangles,
@@ -82,12 +85,17 @@ It's worth noting that basic knowledge of the _ImpD_ language is necessary to un
 For more information on _ImpD_, please refer to the separate [_ImpD documentation_](ImpD%20Documentation.html) provided.
 It will cover how to use variables and control flow statements to create dynamic and interactive graphics.
 
+
 The _IVG_ format used in this documentation is `IVG-3`. Therefore, the `format` instruction should be as follows:
 
 	format IVG-3 requires:ImpD-1
 
-Notice that _ImpD_ is case-insensitive, but in this document, we follow a convention where we have written "directives"
-(defining settings, etc.) in lowercase and drawing instructions in uppercase.
+## Case conventions
+
+_ImpD_ is case-insensitive, but this documentation follows a convention: "directives" (defining settings, etc.) are
+written in lowercase and drawing instructions in uppercase. Segment commands inside `PATH` compounds—such as
+`move-to` and `line-to`—also appear in lowercase. In short, any instruction in uppercase produces visible output,
+while lowercase forms configure state or describe geometry for later use.
 
 ## IVG-1 vs IVG-2
 

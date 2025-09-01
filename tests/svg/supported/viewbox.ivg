@@ -5,6 +5,6 @@ pen miter-limit:4
 scale 2
 context [
 	fill #ff00ff
-	rect 0,0,100,50
+	RECT 0,0,100,50
 ]
 

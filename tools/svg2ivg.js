@@ -536,7 +536,7 @@ function parseDashArray(value) {
 	if (nums.length > 2) {
 		warning("Too many dash values; using first two");
 	}
-	return nums.slice(0, 2).join(",");
+	return nums.slice(0, 2).join(" ");
 }
 
 function parsePoints(str) {
@@ -667,9 +667,9 @@ function parseGradientStops(element) {
 function buildGradient(g) {
 	let s;
 	if (g.type === "linear") {
-		s = `gradient:[linear ${g.x1},${g.y1},${g.x2},${g.y2}`;
+		s = `gradient:[linear ${g.x1},${g.y1} ${g.x2},${g.y2}`;
 	} else {
-		s = `gradient:[radial ${g.cx},${g.cy},${g.r}`;
+		s = `gradient:[radial ${g.cx},${g.cy} ${g.r}`;
 	}
 	if (g.stops.length === 2 && g.stops[0].offset === 0 && g.stops[1].offset === 1) {
 		s += ` from:${g.stops[0].color} to:${g.stops[1].color}`;
@@ -888,7 +888,7 @@ function outputPresentationAttributes(attribs) {
 		}
 		if (hasStrokeDasharray) {
 			const dash = parseDashArray(attribs["stroke-dasharray"]);
-			s += " dash:" + dash;
+			s += " dash:[" + dash + "]";
 		}
 		if (hasStrokeDashoffset) {
 			s += " dash-offset:" + convertUnits(attribs["stroke-dashoffset"], "x");
@@ -1288,18 +1288,18 @@ converters.g = function (element, attribs) {
 };
 
 converters.path = function (element, attribs) {
-	const ctx = createContextMaybe(attribs);
-	if ("d" in attribs) {
-	       output("path svg:[" + attribs.d + "]");
-	} else {
-	       warning("Missing 'd' attribute in 'path' element.");
-	}
-	if (ctx.needs) output("]");
-	if (ctx.hasColor) currentColor = ctx.oldColor;
-	if (ctx.hasFont) {
-	       defaultFontSize = ctx.oldFontSize;
-	       defaultFontFamily = ctx.oldFontFamily;
-	}
+        const ctx = createContextMaybe(attribs);
+        if ("d" in attribs) {
+               output("PATH svg:[" + attribs.d + "]");
+        } else {
+               warning("Missing 'd' attribute in 'path' element.");
+        }
+        if (ctx.needs) output("]");
+        if (ctx.hasColor) currentColor = ctx.oldColor;
+        if (ctx.hasFont) {
+               defaultFontSize = ctx.oldFontSize;
+               defaultFontFamily = ctx.oldFontFamily;
+        }
 };
 
 converters.circle = function (element, attribs) {
@@ -1309,7 +1309,7 @@ converters.circle = function (element, attribs) {
 	const r = convertUnits(attribs.r, "x");
 	const bbox = { left: cx - r, top: cy - r, width: r * 2, height: r * 2 };
 	const ctx = createContextMaybe(attribs, bbox);
-	output(`ellipse ${cx},${cy},${r}`);
+	output(`ELLIPSE ${cx},${cy} ${r}`);
 	if (ctx.needs) output("]");
 	if (ctx.hasColor) currentColor = ctx.oldColor;
 	if (ctx.hasFont) {
@@ -1326,7 +1326,7 @@ converters.ellipse = function (element, attribs) {
 	const ry = convertUnits(attribs.ry, "y");
 	const bbox = { left: cx - rx, top: cy - ry, width: rx * 2, height: ry * 2 };
 	const ctx = createContextMaybe(attribs, bbox);
-	output(`ellipse ${cx},${cy},${rx},${ry}`);
+	output(`ELLIPSE ${cx},${cy} ${rx},${ry}`);
 	if (ctx.needs) output("]");
 	if (ctx.hasColor) currentColor = ctx.oldColor;
 	if (ctx.hasFont) {
@@ -1347,18 +1347,18 @@ converters.line = function (element, attribs) {
 		width: Math.abs(x2 - x1),
 		height: Math.abs(y2 - y1),
 	};
-	const ctx = createContextMaybe(attribs, bbox);
-	output(`path svg:[M${x1},${y1}L${x2},${y2}]`);
-	processMarkers(attribs, [
-		[x1, y1],
-		[x2, y2],
-	]);
-	if (ctx.needs) output("]");
-	if (ctx.hasColor) currentColor = ctx.oldColor;
-	if (ctx.hasFont) {
-	       defaultFontSize = ctx.oldFontSize;
-	       defaultFontFamily = ctx.oldFontFamily;
-	}
+       const ctx = createContextMaybe(attribs, bbox);
+       output(`LINE ${x1},${y1} ${x2},${y2}`);
+       processMarkers(attribs, [
+               [x1, y1],
+               [x2, y2],
+       ]);
+       if (ctx.needs) output("]");
+       if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.hasFont) {
+              defaultFontSize = ctx.oldFontSize;
+              defaultFontFamily = ctx.oldFontFamily;
+       }
 };
 
 converters.rect = function (element, attribs) {
@@ -1369,7 +1369,7 @@ converters.rect = function (element, attribs) {
 	const h = convertUnits(attribs.height, "y");
 	const bbox = { left: x, top: y, width: w, height: h };
 	const ctx = createContextMaybe(attribs, bbox);
-	let s = `rect ${x},${y},${w},${h}`;
+        let s = `RECT ${x},${y},${w},${h}`;
 	const hasRX = "rx" in attribs;
 	const hasRY = "ry" in attribs;
 	if (hasRX && hasRY) {
@@ -1409,24 +1409,20 @@ converters.polygon = function (element, attribs) {
 		}
 		bbox = { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
 	}
-	const ctx = createContextMaybe(attribs, bbox);
-	if (pts.length < 2) {
-		warning("Not enough points in 'polygon'.");
-	} else {
-		let s = `M${pts[0][0]},${pts[0][1]}`;
-		for (let i = 1; i < pts.length; i++) {
-			s += `L${pts[i][0]},${pts[i][1]}`;
-		}
-		s += "Z";
-		output("path svg:[" + s + "]");
-	}
-	processMarkers(attribs, pts);
-	if (ctx.needs) output("]");
-	if (ctx.hasColor) currentColor = ctx.oldColor;
-	if (ctx.hasFont) {
-	       defaultFontSize = ctx.oldFontSize;
-	       defaultFontFamily = ctx.oldFontFamily;
-	}
+       const ctx = createContextMaybe(attribs, bbox);
+       if (pts.length < 2) {
+               warning("Not enough points in 'polygon'.");
+       } else {
+               const s = pts.map((p) => `${p[0]},${p[1]}`).join(" ");
+               output(`POLYGON ${s}`);
+       }
+       processMarkers(attribs, pts);
+       if (ctx.needs) output("]");
+       if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.hasFont) {
+              defaultFontSize = ctx.oldFontSize;
+              defaultFontFamily = ctx.oldFontFamily;
+       }
 };
 
 converters.polyline = function (element, attribs) {
@@ -1446,23 +1442,20 @@ converters.polyline = function (element, attribs) {
 		}
 		bbox = { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
 	}
-	const ctx = createContextMaybe(attribs, bbox);
-	if (pts.length < 2) {
-		warning("Not enough points in 'polyline'.");
-	} else {
-		let s = `M${pts[0][0]},${pts[0][1]}`;
-		for (let i = 1; i < pts.length; i++) {
-			s += `L${pts[i][0]},${pts[i][1]}`;
-		}
-		output("path svg:[" + s + "]");
-	}
-	processMarkers(attribs, pts);
-	if (ctx.needs) output("]");
-	if (ctx.hasColor) currentColor = ctx.oldColor;
-	if (ctx.hasFont) {
-	       defaultFontSize = ctx.oldFontSize;
-	       defaultFontFamily = ctx.oldFontFamily;
-	}
+       const ctx = createContextMaybe(attribs, bbox);
+       if (pts.length < 2) {
+               warning("Not enough points in 'polyline'.");
+       } else {
+               const s = pts.map((p) => `${p[0]},${p[1]}`).join(" ");
+               output(`LINE ${s}`);
+       }
+       processMarkers(attribs, pts);
+       if (ctx.needs) output("]");
+       if (ctx.hasColor) currentColor = ctx.oldColor;
+       if (ctx.hasFont) {
+              defaultFontSize = ctx.oldFontSize;
+              defaultFontFamily = ctx.oldFontFamily;
+       }
 };
 
 function applyTextAttributes(base, attribs) {
@@ -1634,7 +1627,7 @@ converters.text = function (element, attribs) {
 					if (seg.attribs.strokeDash === "none") {
 						opts += " dash:none";
 					} else {
-						opts += ` dash:${seg.attribs.strokeDash}`;
+						opts += ` dash:[${seg.attribs.strokeDash}]`;
 					}
 				}
 				if (seg.attribs.strokeDashOffset) {

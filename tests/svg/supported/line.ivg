@@ -4,6 +4,6 @@ fill black
 pen miter-limit:4
 context [
 	pen purple
-	path svg:[M10,10L90,90]
+	LINE 10,10 90,90
 ]
 

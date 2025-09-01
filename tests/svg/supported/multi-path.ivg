@@ -4,6 +4,6 @@ fill black
 pen miter-limit:4
 context [
 	pen black
-	path svg:[M10 10 H110 M10 30 H110 M10 50 H110]
+	PATH svg:[M10 10 H110 M10 30 H110 M10 50 H110]
 ]
 

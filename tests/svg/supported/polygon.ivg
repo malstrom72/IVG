@@ -4,6 +4,6 @@ fill black
 pen miter-limit:4
 context [
 	fill #ffa500
-	path svg:[M50,10L90,90L10,90Z]
+	POLYGON 50,10 90,90 10,90
 ]
 
