@@ -47,14 +47,17 @@ This document describes how to create a regression suite that ensures malformed 
 	- [x] glyph name longer than one character
 	- [x] duplicate glyph or kerning pair
 7. **Definitions and References**
-	- [x] `define` with an unsupported type
-	- [ ] `fill pattern:id` referencing an undefined pattern or mask
-	- [x] `pattern` block missing required `bounds`
+- [x] `define` with an unsupported type
+- [x] `fill pattern:id` referencing an undefined pattern or mask
+- [x] `pattern` block missing required `bounds`
 
 ## Integration
 - [x] Extend `build.sh` to invoke the new program as part of the test run.
-- [ ] Record expected messages in a results file similar to `tests/badResults.txt`.
-- [ ] Document the workflow for adding new invalid cases.
+- [x] Record expected messages in a results file similar to `tests/badResults.txt`.
+- [x] Document the workflow for adding new invalid cases.
+- Create `<name>.ivg` and `<name>.err` under `tests/ivg/invalid/`.
+- Run `../output/InvalidIVGTest | sort > invalidIVGResults.txt` inside `tests` to update expected output.
+- Verify with `timeout 600 ./build.sh`.
 
 ## Future Work
 - [ ] Add runtime validation cases that require execution beyond parsing.

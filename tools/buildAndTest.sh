@@ -82,7 +82,7 @@ done
 echo Testing...
 cd tests
 echo Invalid IVG tests...
-../output/InvalidIVGTest
+../output/InvalidIVGTest | diff --strip-trailing-cr invalidIVGResults.txt -
 bash ../tools/testIVG.sh ../output/IVG2PNG
 if [ -n "${SKIP_SVG:-}" ]; then
 	echo "Skipping SVG tests"
