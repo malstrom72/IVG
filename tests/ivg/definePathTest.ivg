@@ -1,6 +1,8 @@
 FORMAT IVG-3 requires:IMPD-1
-BOUNDS 0,0,20,20
+BOUNDS 0,0,200,120
 WIPE white
-define path tri [move-to 2,18; line-to 10,2 18,18 2,18]
+define path star [move-to 60,5; line-to 73,45 115,45 80,70 90,105 60,85 30,105 40,70 5,45 47,45 60,5]
 fill yellow
-PATH tri transform:[offset 2,0]
+PATH star
+fill navy
+PATH star transform:[scale 0.5; offset 90,0]
