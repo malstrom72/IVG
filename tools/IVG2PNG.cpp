@@ -120,20 +120,20 @@ int main(int argc, const char* argv[]) {
 	try {
 		const char* usage = "Usage: IVG2PNG [--fast] [--fonts <dir>] [--background <color>] <input.ivg> <output.png>\n\nVery simple!\n\n";
 		const char* inputPath = 0;
-                const char* outputPath = 0;
-                ARGB32::Pixel background = 0;
-                bool haveBackground = false;
-                std::string fontPath;
-                int compressionLevel = Z_BEST_COMPRESSION;
-                bool fast = false;
+		const char* outputPath = 0;
+		ARGB32::Pixel background = 0;
+		bool haveBackground = false;
+		std::string fontPath;
+		int compressionLevel = Z_BEST_COMPRESSION;
+		bool fast = false;
 		for (int i = 1; i < argc; ++i) {
 			std::string arg(argv[i]);
 			if (arg == "--fast") {
-                                fast = true;
-                                compressionLevel = Z_NO_COMPRESSION;
+				fast = true;
+				compressionLevel = Z_BEST_SPEED;
 			} else if (arg == "--fonts") {
-                                if (++i == argc) { std::cerr << usage; return 1; }
-                                fontPath = argv[i];
+				if (++i == argc) { std::cerr << usage; return 1; }
+				fontPath = argv[i];
 			} else if (arg == "--background") {
 				if (++i == argc) { std::cerr << usage; return 1; }
 				background = parseColor(argv[i]);
@@ -164,8 +164,8 @@ int main(int argc, const char* argv[]) {
 
 		SelfContainedARGB32Canvas canvas;
 		{
-                        STLMapVariables topVars;
-                        IVGExecutorWithExternalFonts ivgExecutor(canvas, fontPath);
+			STLMapVariables topVars;
+			IVGExecutorWithExternalFonts ivgExecutor(canvas, fontPath);
 			Interpreter impd(ivgExecutor, topVars);
 			impd.run(ivgContents);
 		}
