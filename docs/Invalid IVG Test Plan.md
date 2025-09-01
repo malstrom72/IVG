@@ -20,17 +20,17 @@ This document describes how to create a regression suite that ensures malformed 
 
 ## Test Batches
 1. **Format Directive**
-	- [ ] missing `format` line
-	- [x] `format IVG-4` reports unsupported version
-	- [ ] `requires:` listing an unknown feature
+        - [ ] missing `format` line
+        - [x] `format IVG-4` reports unsupported version
+        - [x] `requires:` listing an unknown feature
 2. **Paint and Color**
         - [x] `fill` with invalid hex color or pre-multiplied value
         - [x] `fill` with invalid color name
-        - [ ] gradient with unrecognized type
-        - [ ] IVG-3 file using comma-separated gradient coordinates
-        - [ ] gradient stops with an odd element count or out-of-range position
+        - [x] gradient with unrecognized type
+        - [x] IVG-3 file using comma-separated gradient coordinates
+        - [x] gradient stops with an odd element count or out-of-range position
 3. **Geometry Instructions**
-        - [ ] `PATH` arc-to with invalid `sweep`/`large` flags
+        - [x] `PATH` arc-to with invalid `sweep`/`large` flags
         - [ ] `ELLIPSE` or `STAR` syntax using the wrong separator for the IVG version
         - [ ] unknown command letter inside a `PATH` instruction
         - [x] `LINE` with missing coordinate pair
