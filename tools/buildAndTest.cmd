@@ -67,8 +67,7 @@ SET C_SRCS=^
 	.\externals\zlib\zutil.c
 
 CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVG2PNG ^
-	"-ffp-contract=off" "-UTARGET_OS_MAC" "-DNUXPIXELS_SIMD=%simd%" ^
-	/I"." /I"externals" /I"externals\libpng" /I"externals\zlib" ^
+	"-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" /I"externals\libpng" /I"externals\zlib" ^
 	.\tools\IVG2PNG.cpp .\src\IVG.cpp .\src\IMPD.cpp .\externals\NuX\NuXPixels.cpp ^
 	%C_SRCS% || EXIT /B 1
 
