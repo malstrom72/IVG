@@ -7,10 +7,9 @@ This document describes how to create a regression suite that ensures malformed 
 - [ ] Verify that each failure reports a predictable error message or code.
 
 ## Test Harness
-1. [x] Add a small C++ test program `tests/invalid_ivg.cpp`.
-	- [x] Program iterates over files in `tests/ivg/invalid/`.
-	- [x] Each file is loaded through the existing IVG loader.
-	- [x] The loader must throw `SyntaxException` or `FormatException`.
+1. [x] Add a small C++ test program `tests/invalidIVG.cpp`.
+	- [x] Program loads a single file through the existing IVG loader and compares the thrown message with a companion `.err` file.
+	- [x] Shell and CMD scripts iterate over `tests/ivg/invalid/` and invoke the program for each sample.
 2. [x] Implement helper to compare the thrown message with a reference `.err` file.
 
 ## Test Data

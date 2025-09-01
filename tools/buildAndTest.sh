@@ -71,8 +71,8 @@ done
 ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp \
 "${LIBPNG_OBJS[@]}" "${ZLIB_OBJS[@]}"
 ./tools/BuildCpp.sh $1 $2 ./output/InvalidIVGTest \
--std=c++17 -DNUXPIXELS_SIMD=$simd -I ./ -I ./externals \
-./tests/invalid_ivg.cpp ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp
+-std=c++11 -DNUXPIXELS_SIMD=$simd -I ./ -I ./externals \
+./tests/invalidIVG.cpp ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp
 
 
 ./tools/BuildCpp.sh $1 $2 ./output/PolygonMaskTest \
@@ -82,7 +82,7 @@ done
 echo Testing...
 cd tests
 echo Invalid IVG tests...
-../output/InvalidIVGTest | diff --strip-trailing-cr invalidIVGResults.txt -
+bash ../tools/testInvalidIVG.sh ../output/InvalidIVGTest | diff --strip-trailing-cr invalidIVGResults.txt -
 bash ../tools/testIVG.sh ../output/IVG2PNG
 if [ -n "${SKIP_SVG:-}" ]; then
 	echo "Skipping SVG tests"
