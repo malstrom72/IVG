@@ -26,10 +26,5 @@ for f in ./ivg/*.ivg; do
 	echo
 	echo
 done
-
-echo
-echo ALL GOOD!!
-echo
-
 rm -rf "$tmp"/*.png
 rmdir "$tmp"

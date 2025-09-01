@@ -30,9 +30,4 @@ for NAME in circle rect ellipse line path group color-names stroke-fill viewbox 
 	echo
 	echo
 done
-
-echo
-echo ALL GOOD!!
-echo
-
 rm -rf "$TMP"

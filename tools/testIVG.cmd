@@ -25,9 +25,6 @@ FOR %%f IN (ivg\*.ivg) DO (
 	ECHO.
 	ECHO.
 )
-ECHO.
-ECHO ALL GOOD!!
-ECHO.
 DEL /q %tempDir%\*.png
 RMDIR %tempDir%
 
