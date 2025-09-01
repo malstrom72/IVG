@@ -44,7 +44,7 @@ Key style points:
 	void blahblah(int blah);	/// brief description of `blahblah`
 - Inside comment text, wrap any variable, parameter, class or function names in back-ticks, e.g. `blah` is the temporary buffer.
 
-When handling files with command-line tools:
+When editing text files with command-line tools:
 - Always run `expand -t 4` on the file before processing.
 - Always run `unexpand -t 4` on the file after processing.
 
