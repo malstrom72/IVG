@@ -1,0 +1,7 @@
+format IVG-3
+// duplicate glyph definition
+define font f [
+	metrics ascent:1 descent:-1 upm:1000
+	glyph a 0 []
+	glyph a 0 []
+]

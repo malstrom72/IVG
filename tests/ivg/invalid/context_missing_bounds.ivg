@@ -1,0 +1,6 @@
+format IVG-3
+// pattern without bounds
+fill pattern:[
+	line 0 0 1 1
+]
+rect 0 0 1 1

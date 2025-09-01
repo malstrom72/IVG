@@ -1,0 +1,6 @@
+format IVG-3
+// glyph name longer than one character
+define font f [
+	metrics ascent:1 descent:-1 upm:1000
+	glyph ab 0 []
+]

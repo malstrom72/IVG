@@ -1,0 +1,6 @@
+format IVG-3
+// duplicate metrics in font
+define font f [
+	metrics ascent:1 descent:-1 upm:1000
+	metrics ascent:1 descent:-1 upm:1000
+]

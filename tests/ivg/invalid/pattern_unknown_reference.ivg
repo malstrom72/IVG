@@ -1,0 +1,4 @@
+format IVG-3
+// fill references non-existent pattern
+fill pattern:missing
+rect 0 0 1 1
