@@ -13,7 +13,9 @@ IF ERRORLEVEL 1 (
 ) ELSE (
     CALL .\tools\ivgfiddle\buildIVGFiddle.cmd || GOTO error
 )
-
+ECHO.
+ECHO ALL GOOD!!
+ECHO.
 EXIT /b 0
 :error
 EXIT /b %ERRORLEVEL%

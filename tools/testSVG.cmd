@@ -27,9 +27,6 @@ FOR %%n IN (
 	ECHO.
 	ECHO.
 )
-ECHO.
-ECHO ALL GOOD!!
-ECHO.
 DEL /q "%tempDir%\*" >NUL 2>NUL
 RMDIR "%tempDir%"
 EXIT /b 0
