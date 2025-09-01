@@ -58,20 +58,20 @@ shift
 
 args=()
 for arg in "$@"; do
-	if [[ "$arg" == *.c ]]; then
-		args+=(-x c "$arg" -x none)
-	else
-		args+=("$arg")
-	fi
+	   if [[ "$arg" == *.c ]]; then
+			   args+=(-x c "$arg" -x none)
+	   else
+			   args+=("$arg")
+	   fi
 done
 
 echo "Compiling $output $CPP_TARGET $CPP_MODEL using $CPP_COMPILER"
 echo "$CPP_OPTIONS -o $output ${args[*]}"
 
 if ! $CPP_COMPILER -pipe $CPP_OPTIONS -o "$output" "${args[@]}" 2>&1; then
-	echo "Compilation of $output failed"
-	exit 1
+	   echo "Compilation of $output failed"
+	   exit 1
 else
-	echo "Compiled $output successfully"
-	exit 0
+	   echo "Compiled $output successfully"
+	   exit 0
 fi
