@@ -8,6 +8,11 @@ We plan to add support for the following instructions in path definitions withou
 - [ ] Copy the generated `STRINGS` and `QUICK_HASH_TABLE` arrays into `src/IVG.cpp`'s `findPathInstructionType` and keep the `/* Built with QuickHashGen */` header.
 - [ ] Re-run QuickHashGen whenever instructions are added or removed so the table stays collision free.
 
+## Path start tracking
+- [ ] Remove the `moveToSeen` flag from `PathInstructionExecutor`.
+- [ ] Have `checkHasMoveTo` inspect the `Path` directly (e.g. `path.empty()` or verifying the first instruction is `MOVE`).
+- [ ] Adjust callers so instructions that construct their own starting point (like `line` or `rect`) work without extra bookkeeping.
+
 ## Milestone 1 – Refactor shape builders
 - [ ] Extract reusable path-building helpers from drawing instructions in `src/IVG.cpp`:
 	- [ ] `makeLinePath` for poly-lines.
@@ -21,8 +26,8 @@ We plan to add support for the following instructions in path definitions withou
 - [ ] Extend `enum PathInstructionType` in `src/IVG.cpp` with `LINE_INSTRUCTION` and `RECT_INSTRUCTION` values.
 - [ ] Add `"line"` and `"rect"` to the QuickHashGen list and regenerate `findPathInstructionType`.
 - [ ] In `PathInstructionExecutor::execute`:
-	- [ ] `LINE_INSTRUCTION`: parse point pairs and append the `makeLinePath` result, setting `moveToSeen = true` automatically.
-	- [ ] `RECT_INSTRUCTION`: parse `x y w h` plus optional `rounded`; call rectangle helper to append to the current path.
+       - [ ] `LINE_INSTRUCTION`: parse point pairs and append the `makeLinePath` result; the helper issues its own `moveTo` so a prior `move-to` isn't required.
+       - [ ] `RECT_INSTRUCTION`: parse `x y w h` plus optional `rounded`; call rectangle helper to append to the current path.
 - [ ] Add regression tests demonstrating `line` and `rect` within path definitions.
 - [ ] Run `timeout 600 ./build.sh`.
 
