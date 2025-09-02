@@ -700,6 +700,7 @@ StringIt Interpreter::parseInt(StringIt p, const StringIt& e, int32_t& i) {
 
 StringIt Interpreter::parseDouble(StringIt p, const StringIt& e, double& v) {
 	assert(p <= e);
+	v = 0.0;
 	double d = 0;
 	StringIt q = p;
 	double sign = (e - q > 1 && (*q == '+' || *q == '-') ? (*q++ == '-' ? -1.0 : 1.0) : 1.0);
