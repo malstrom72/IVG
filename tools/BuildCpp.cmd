@@ -1,10 +1,39 @@
 @ECHO OFF
 SETLOCAL ENABLEEXTENSIONS ENABLEDELAYEDEXPANSION
+CD /D "%~dp0\.."
 
 IF "%CPP_TARGET%"=="" SET CPP_TARGET=release
 IF "%CPP_MODEL%"=="" SET CPP_MODEL=x64
 IF "%C_OPTIONS%"=="" SET C_OPTIONS=
 IF "%CPP_OPTIONS%"=="" SET CPP_OPTIONS=
+
+REM Extract /std or -std flags
+SET CPP_STD=
+SET tmp=
+FOR %%i IN (%CPP_OPTIONS%) DO (
+	SET "opt=%%i"
+	IF /I "!opt:~0,5!"=="-std=" (
+		SET CPP_STD=%%i
+	) ELSE IF /I "!opt:~0,5!"=="/std:" (
+		SET CPP_STD=%%i
+	) ELSE (
+		SET "tmp=!tmp! %%i"
+	)
+)
+SET "CPP_OPTIONS=%tmp%"
+SET tmp=
+SET C_STD=
+FOR %%i IN (%C_OPTIONS%) DO (
+	SET "opt=%%i"
+	IF /I "!opt:~0,5!"=="-std=" (
+		SET C_STD=%%i
+	) ELSE IF /I "!opt:~0,5!"=="/std:" (
+		SET C_STD=%%i
+	) ELSE (
+		SET "tmp=!tmp! %%i"
+	)
+)
+SET "C_OPTIONS=%tmp%"
 
 IF "%~1"=="debug" (
 	SET CPP_TARGET=debug
@@ -69,7 +98,7 @@ IF "%name%"=="" (
 	EXIT /B 1
 )
 
-SET args=%CPP_OPTIONS%
+SET args=%CPP_OPTIONS% %CPP_STD%
 SET mode=cpp
 :argLoop
 	IF "%~1"=="" GOTO argLoopEnd
@@ -81,12 +110,12 @@ SET mode=cpp
 	) ELSE (
 		IF /I "!arg:~-2!"==".c" (
 			IF /I NOT "!mode!"=="c" (
-				SET "args=!args! %C_OPTIONS%"
+				SET "args=!args! %C_OPTIONS% %C_STD%"
 				SET mode=c
 			)
 		) ELSE (
 			IF /I "!mode!"=="c" (
-				SET "args=!args! %CPP_OPTIONS%"
+				SET "args=!args! %CPP_OPTIONS% %CPP_STD%"
 				SET mode=cpp
 			)
 		)
@@ -95,6 +124,8 @@ SET mode=cpp
 	SHIFT
 GOTO argLoop
 :argLoopEnd
+
+IF /I "%mode%"=="c" SET "args=!args! %CPP_OPTIONS% %CPP_STD%"
 
 SET pfpath=%ProgramFiles(x86)%
 IF NOT DEFINED pfpath SET pfpath=%ProgramFiles%

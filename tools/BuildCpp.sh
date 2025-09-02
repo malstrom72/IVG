@@ -1,18 +1,42 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -e -o pipefail -u
+
+cd "$(dirname "$0")"/..
 
 CPP_COMPILER="${CPP_COMPILER:-g++}"
-CPP_OPTIONS="${CPP_OPTIONS:-}"
-C_OPTIONS="${C_OPTIONS:--std=gnu11}"
 CPP_TARGET="${CPP_TARGET:-release}"
 CPP_MODEL="${CPP_MODEL:-native}"
 
+# Split options into arrays and separate out -std flags
+read -r -a _cpp_opts <<< "${CPP_OPTIONS:-}"
+CPP_OPTIONS=()
+cpp_std=""
+for opt in "${_cpp_opts[@]}"; do
+	if [[ $opt == -std=* ]]; then
+		cpp_std=$opt
+	else
+		CPP_OPTIONS+=("$opt")
+	fi
+done
+
+read -r -a _c_opts <<< "${C_OPTIONS:-}"
+C_OPTIONS=()
+c_std=""
+for opt in "${_c_opts[@]}"; do
+	if [[ $opt == -std=* ]]; then
+		c_std=$opt
+	else
+		C_OPTIONS+=("$opt")
+	fi
+done
+
 # Parsing build target and model
-if [[ "$1" =~ ^(debug|beta|release)$ ]]; then
+if [[ ${1:-} =~ ^(debug|beta|release)$ ]]; then
 	CPP_TARGET="$1"
 	shift
 fi
 
-if [[ "$1" =~ ^(x64|x86|arm64|native|fat)$ ]]; then
+if [[ ${1:-} =~ ^(x64|x86|arm64|native|fat)$ ]]; then
 	CPP_MODEL="$1"
 	shift
 fi
@@ -20,44 +44,54 @@ fi
 # Setting compilation options based on the target
 case "$CPP_TARGET" in
 	debug)
-		C_OPTIONS="-O0 -DDEBUG -g $C_OPTIONS"
-		CPP_OPTIONS="-O0 -DDEBUG -g $CPP_OPTIONS" ;;
+		C_OPTIONS=(-O0 -DDEBUG -g "${C_OPTIONS[@]}")
+		CPP_OPTIONS=(-O0 -DDEBUG -g "${CPP_OPTIONS[@]}")
+		;;
 	beta)
-		C_OPTIONS="-Os -DDEBUG -g $C_OPTIONS"
-		CPP_OPTIONS="-Os -DDEBUG -g $CPP_OPTIONS" ;;
+		C_OPTIONS=(-Os -DDEBUG -g "${C_OPTIONS[@]}")
+		CPP_OPTIONS=(-Os -DDEBUG -g "${CPP_OPTIONS[@]}")
+		;;
 	release)
-		C_OPTIONS="-Os -DNDEBUG $C_OPTIONS"
-		CPP_OPTIONS="-Os -DNDEBUG $CPP_OPTIONS" ;;
-	*) echo "Unrecognized CPP_TARGET: $CPP_TARGET"; exit 1 ;;
+		C_OPTIONS=(-Os -DNDEBUG "${C_OPTIONS[@]}")
+		CPP_OPTIONS=(-Os -DNDEBUG "${CPP_OPTIONS[@]}")
+		;;
+	*)
+		echo "Unrecognized CPP_TARGET: $CPP_TARGET"
+		exit 1
+		;;
 esac
 
 # Setting compilation options based on the model and platform
 unameOut="$(uname -s)"
 macFlags() {
 	case "$1" in
-	x64) echo "-m64 -arch x86_64 -target x86_64-apple-macos" ;;
-	x86) echo "-m32 -arch i386 -target i386-apple-macos" ;;
-	arm64) echo "-m64 -arch arm64 -target arm64-apple-macos" ;;
-	fat) echo "-m64 -arch x86_64 -arch arm64" ;;
+		x64) echo "-m64 -arch x86_64 -target x86_64-apple-macos" ;;
+		x86) echo "-m32 -arch i386 -target i386-apple-macos" ;;
+		arm64) echo "-m64 -arch arm64 -target arm64-apple-macos" ;;
+		fat) echo "-m64 -arch x86_64 -arch arm64" ;;
 	esac
 }
+
 case "$CPP_MODEL" in
 	x64|x86|arm64|fat)
 		if [[ "$unameOut" == "Darwin" ]]; then
-			flags="$(macFlags "$CPP_MODEL")"
-			C_OPTIONS="$flags $C_OPTIONS"
-			CPP_OPTIONS="$flags $CPP_OPTIONS"
+			read -r -a flags <<< "$(macFlags "$CPP_MODEL")"
 		else
-			[[ "$CPP_MODEL" == "x86" ]] && flags="-m32" || flags="-m64"
-			C_OPTIONS="$flags $C_OPTIONS"
-			CPP_OPTIONS="$flags $CPP_OPTIONS"
-		fi ;;
-	native) ;; # No flags
-	*) echo "Unrecognized CPP_MODEL: $CPP_MODEL"; exit 1 ;;
+			[[ "$CPP_MODEL" == x86 ]] && flags=(-m32) || flags=(-m64)
+		fi
+		C_OPTIONS=("${flags[@]}" "${C_OPTIONS[@]}")
+		CPP_OPTIONS=("${flags[@]}" "${CPP_OPTIONS[@]}")
+		;;
+	native) ;;
+	*)
+		echo "Unrecognized CPP_MODEL: $CPP_MODEL"
+		exit 1
+		;;
 esac
-common_flags="-fvisibility=hidden -fvisibility-inlines-hidden -Wno-trigraphs -Wreturn-type -Wunused-variable"
-C_OPTIONS="$common_flags $C_OPTIONS"
-CPP_OPTIONS="$common_flags $CPP_OPTIONS"
+
+common_flags=(-fvisibility=hidden -fvisibility-inlines-hidden -Wno-trigraphs -Wreturn-type -Wunused-variable)
+C_OPTIONS=("${common_flags[@]}" "${C_OPTIONS[@]}")
+CPP_OPTIONS=("${common_flags[@]}" "${CPP_OPTIONS[@]}")
 
 if [ $# -lt 2 ]; then
 	echo "BuildCpp.sh [debug|beta|release*] [x86|x64|arm64|native*|fat] <output> <source files and other compiler arguments>"
@@ -71,16 +105,19 @@ shift
 args=()
 for arg in "$@"; do
 	if [[ "$arg" == *.c ]]; then
-		args+=(-x c $C_OPTIONS "$arg" -x none)
+		args+=(-x c "${C_OPTIONS[@]}")
+		[[ -n $c_std ]] && args+=("$c_std")
+		args+=("$arg" -x none)
+		[[ -n $cpp_std ]] && args+=("$cpp_std")
 	else
 		args+=("$arg")
 	fi
 done
 
 echo "Compiling $output $CPP_TARGET $CPP_MODEL using $CPP_COMPILER"
-echo "$CPP_OPTIONS -o $output ${args[*]}"
+echo "${CPP_OPTIONS[*]} ${cpp_std:+$cpp_std} -o $output ${args[*]}"
 
-if ! $CPP_COMPILER -pipe $CPP_OPTIONS -o "$output" "${args[@]}" 2>&1; then
+if ! "$CPP_COMPILER" -pipe "${CPP_OPTIONS[@]}" ${cpp_std:+$cpp_std} -o "$output" "${args[@]}" 2>&1; then
 	echo "Compilation of $output failed"
 	exit 1
 else
