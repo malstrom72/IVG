@@ -74,7 +74,7 @@ To give you a better idea of how _IVG_ works, here's an example of a simple sour
 	ELLIPSE 250,170,25
 	
 	// Draw the mouth using a path instruction list.
-PATH [move-to 150,270; bezier-to 200,320,250,270]
+	PATH [move-to 150,270; bezier-to 200,320,250,270]
 ![](images/smiley.png)
 
 This is just a simple example, but it demonstrates the basic structure and syntax of an _IVG_ document. As you continue
@@ -101,7 +101,7 @@ while lowercase forms configure state or describe geometry for later use.
 
 `IVG-1` covers core vector drawing and styling.
 `IVG-2` adds text, fonts, and raster image support through `define image` and `IMAGE`.
-`IVG-3` standardizes comma-separated argument syntax and introduces an instruction-list form for `PATH` as well as `define path`.
+`IVG-3` adds `LINE`, `POLYGON`, and an instruction-list form for `PATH` (including `define path`).
 
 The interpreter processes all versions identically, but readers that only understand `IVG-1` or `IVG-2` will reject documents marked `IVG-3`.
 
@@ -194,9 +194,9 @@ Demonstration:
 	define image silly [
 		bounds 0,0,100,100
 		pen white; RECT 0.5,0.5,99,99
-fill aqua; pen black; ELLIPSE 50,50,35,45
-fill white; pen black; ELLIPSE 37,40,10; ELLIPSE 62,45,10
-fill black; ELLIPSE 39,42,4; ELLIPSE 60,42,4
+		fill aqua; pen black; ELLIPSE 50,50,35,45
+		fill white; pen black; ELLIPSE 37,40,10; ELLIPSE 62,45,10
+		fill black; ELLIPSE 39,42,4; ELLIPSE 60,42,4
 		fill red; PATH svg:[M 27,65 Q 70,85 72,60 z]
 	]
 	
@@ -280,23 +280,23 @@ Using an instruction list:
 	bounds 0,0,340,300
 	fill lime
 	pen black
-PATH [move-to 20,20; line-to 120,20,120,80,20,80] closed:yes
+	PATH [move-to 20,20; line-to 120,20,120,80,20,80] closed:yes
 ![](images/pathLineToExample.png)
 
 Quadratic and cubic Bézier curves:
 
 	format IVG-3 requires:ImpD-1
 	bounds 0,0,340,300
-PATH [move-to 20,20; bezier-to 60,20,60,80]
-PATH [move-to 20,20; bezier-to 40,20,80,60,100,80]
+	PATH [move-to 20,20; bezier-to 60,20,60,80]
+	PATH [move-to 20,20; bezier-to 40,20,80,60,100,80]
 ![](images/pathBeziersExample.png)
 
 Arcs:
 
 	format IVG-3 requires:ImpD-1
 	bounds 0,0,340,300
-PATH [move-to 20,20; arc-to 120,20,40,40]
-PATH [move-to 60,60; arc-sweep 60,100,180]
+	PATH [move-to 20,20; arc-to 120,20,40,40]
+	PATH [move-to 60,60; arc-sweep 60,100,180]
 ![](images/pathArcsExample.png)
 
 Using raw SVG data:
@@ -434,7 +434,7 @@ This example shows the effect of varying the number of points and the proportion
 				offset 60,0
 	
 				// Draw a star with the current point count and radius values.
-STAR 0,40,$c,20,{20*$r2%}
+				STAR 0,40,$c,20,{20*$r2%}
 			]
 		]
 	
@@ -587,7 +587,7 @@ Demonstration:
 		pen none
 		
 		// Fill a rotated, masked gradient 3d cube silhouette.
-STAR 150,150,6,90,110
+		STAR 150,150,6,90,110
 	]
 	// This rect will have the same style and transformation as the first.
 	RECT 60,60,180,180
@@ -808,8 +808,8 @@ Demonstration:
 	font serif size:18 color:yellow
 	
 	// Define two circles.
-c1=70,70,50
-c2=110,70,30
+	c1=70,70,50
+	c2=110,70,30
 	
 	// A macro to outline them.
 	outline=context [
@@ -898,11 +898,11 @@ the current [context](#context).
 	for gamma in:[0.6,0.7,0.8,0.9,1.0,1.2,1.5,2.0,3.0,4.0] [
 		// Set current gamma option.
 		options aa-gamma:$gamma
-	
+
 		// Draw white and black circles.
-pen white; ELLIPSE 0,20,14; ELLIPSE 0,20,4
-pen black; ELLIPSE 0,60,14; ELLIPSE 0,60,4
-	
+		pen white; ELLIPSE 0,20,14; ELLIPSE 0,20,4
+		pen black; ELLIPSE 0,60,14; ELLIPSE 0,60,4
+
 		// Write gamma value under circles.
 		text at:0,110 $gamma anchor:center
 		offset 40,0
@@ -949,7 +949,7 @@ pen black; ELLIPSE 0,60,14; ELLIPSE 0,60,4
 			fill pattern:[
 				bounds 0,0,10,10
 				pen gradient:[linear 0,0 1,1 stops:[0,blue,0.5,yellow,0.8,blue]] relative:yes
-ELLIPSE 5,5,3
+				ELLIPSE 5,5,3
 			]
 			
 			// Scale the pattern up by 8x after the pattern definition to
@@ -1032,9 +1032,9 @@ Demonstration of different stroke styles:
 			
 			// Show the three coordinates defining the shape.
 			fill #7070C0
-ELLIPSE -100,100,3
-ELLIPSE 0,0,3
-ELLIPSE 100,100,3
+			ELLIPSE -100,100,3
+			ELLIPSE 0,0,3
+			ELLIPSE 100,100,3
 			
 			// Write out the <pen instruction> but cut out "[pen " and "]".
 			TEXT at:0,140 anchor:center [{$2{5:len($2)-6}}]
@@ -1255,8 +1255,8 @@ Demonstration:
 	mask [
 		WIPE pattern:[
 			bounds 0,0,100,100
-ELLIPSE 40,45,30
-ELLIPSE 80,80,20
+			ELLIPSE 40,45,30
+			ELLIPSE 80,80,20
 		] transform:[scale 0.75; rotate 10 anchor:200,150]
 	]
 	
