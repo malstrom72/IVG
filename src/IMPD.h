@@ -32,6 +32,8 @@
 #include <vector>
 #include <map>
 
+#include "uint32_char_traits.h"
+
 namespace IMPD {
 
 template<typename T, typename U> T lossless_cast(U x) {
