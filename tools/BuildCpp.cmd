@@ -124,7 +124,6 @@ SET mode=
 		SHIFT
 GOTO argLoop
 :argLoopEnd
-IF /I NOT "%mode%"=="cpp" SET "args=!args! %CPP_OPTIONS% %CPP_STD%"
 
 SET pfpath=%ProgramFiles(x86)%
 IF NOT DEFINED pfpath SET pfpath=%ProgramFiles%

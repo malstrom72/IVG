@@ -53,16 +53,16 @@ fi
 # Setting compilation options based on the target
 case "$CPP_TARGET" in
 	debug)
-		C_OPTIONS=(-O0 -DDEBUG -g "${C_OPTIONS[@]}")
-		CPP_OPTIONS=(-O0 -DDEBUG -g "${CPP_OPTIONS[@]}")
+		C_OPTIONS=(-O0 -DDEBUG -g ${C_OPTIONS+"${C_OPTIONS[@]}"})
+		CPP_OPTIONS=(-O0 -DDEBUG -g ${CPP_OPTIONS+"${CPP_OPTIONS[@]}"})
 		;;
 	beta)
-		C_OPTIONS=(-Os -DDEBUG -g "${C_OPTIONS[@]}")
-		CPP_OPTIONS=(-Os -DDEBUG -g "${CPP_OPTIONS[@]}")
+		C_OPTIONS=(-Os -DDEBUG -g ${C_OPTIONS+"${C_OPTIONS[@]}"})
+		CPP_OPTIONS=(-Os -DDEBUG -g ${CPP_OPTIONS+"${CPP_OPTIONS[@]}"})
 		;;
 	release)
-		C_OPTIONS=(-Os -DNDEBUG "${C_OPTIONS[@]}")
-		CPP_OPTIONS=(-Os -DNDEBUG "${CPP_OPTIONS[@]}")
+		C_OPTIONS=(-Os -DNDEBUG ${C_OPTIONS+"${C_OPTIONS[@]}"})
+		CPP_OPTIONS=(-Os -DNDEBUG ${CPP_OPTIONS+"${CPP_OPTIONS[@]}"})
 		;;
 	*)
 		echo "Unrecognized CPP_TARGET: $CPP_TARGET"
@@ -88,8 +88,8 @@ case "$CPP_MODEL" in
 		else
 			[[ "$CPP_MODEL" == x86 ]] && flags=(-m32) || flags=(-m64)
 		fi
-		C_OPTIONS=("${flags[@]}" "${C_OPTIONS[@]}")
-		CPP_OPTIONS=("${flags[@]}" "${CPP_OPTIONS[@]}")
+		C_OPTIONS=("${flags[@]}" ${C_OPTIONS+"${C_OPTIONS[@]}"})
+		CPP_OPTIONS=("${flags[@]}" ${CPP_OPTIONS+"${CPP_OPTIONS[@]}"})
 		;;
 	native) ;;
 	*)
@@ -99,8 +99,8 @@ case "$CPP_MODEL" in
 esac
 
 common_flags=(-fvisibility=hidden -fvisibility-inlines-hidden -Wno-trigraphs -Wreturn-type -Wunused-variable)
-C_OPTIONS=("${common_flags[@]}" "${C_OPTIONS[@]}")
-CPP_OPTIONS=("${common_flags[@]}" "${CPP_OPTIONS[@]}")
+C_OPTIONS=("${common_flags[@]}" ${C_OPTIONS+"${C_OPTIONS[@]}"})
+CPP_OPTIONS=("${common_flags[@]}" ${CPP_OPTIONS+"${CPP_OPTIONS[@]}"})
 
 if [ $# -lt 2 ]; then
 	echo "BuildCpp.sh [debug|beta|release*] [x86|x64|arm64|native*|fat] <output> <source files and other compiler arguments>"
@@ -115,7 +115,7 @@ args=()
 need_cpp_std=1
 for arg in "$@"; do
 	if [[ "$arg" == *.c ]]; then
-		args+=(-x c "${C_OPTIONS[@]}")
+		args+=(-x c ${C_OPTIONS[@]})
 		if [[ -n $c_std ]]; then
 			if [[ $CPP_COMPILER == *clang++* ]]; then
 				args+=(-Xclang "$c_std")
@@ -133,10 +133,6 @@ for arg in "$@"; do
 		need_cpp_std=0
 	fi
 done
-
-if ((need_cpp_std)) && [[ -n $cpp_std ]]; then
-	args+=("$cpp_std")
-fi
 
 if [[ ${#args[@]} -ge 2 && ${args[-2]} == -x && ${args[-1]} == none ]]; then
 	unset 'args[-1]'
