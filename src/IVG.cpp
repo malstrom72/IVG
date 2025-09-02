@@ -45,6 +45,7 @@ using IMPD::UniChar;
 const double DEGREES = PI2 / 360.0;
 const double MIN_CURVE_QUALITY = 0.001;
 const double MAX_CURVE_QUALITY = 100.0;
+const double COORDINATE_LIMIT = double(INT_MAX) / 256.0;
 
 static StringIt eatSpace(StringIt p, const StringIt& e) {
 	while (p != e && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')) ++p;
@@ -99,6 +100,7 @@ static bool parseDouble(StringIt& p, const StringIt& e, double& v) {
 		if (parseInt(++q, e, i)) d *= pow(10, static_cast<double>(i));
 	}
 	v = d * sign;
+	if (fabs(v) > COORDINATE_LIMIT) return false;
 	p = q;
 	return true;
 }
@@ -352,11 +354,11 @@ MaskMakerCanvas::MaskMakerCanvas(const IntRect& bounds) : mask8RLE(new RLERaster
 
 void MaskMakerCanvas::parsePaint(Interpreter& impd, IVGExecutor& executor, Context& context, ArgumentsContainer& args
 		, Paint& paint) const {
-    parsePaintOfType<Mask8>(impd, executor, context, args, paint);
+	parsePaintOfType<Mask8>(impd, executor, context, args, paint);
 }
 
 void MaskMakerCanvas::blendWithARGB32(const Renderer<ARGB32>& source) {
-    (*mask8RLE) |= Converter<ARGB32, Mask8>(source);
+	(*mask8RLE) |= Converter<ARGB32, Mask8>(source);
 }
 
 void MaskMakerCanvas::blendWithMask8(const Renderer<Mask8>& source) { (*mask8RLE) |= source; }
@@ -485,7 +487,7 @@ template<> ARGB32::Pixel parseColor<ARGB32>(Interpreter& impd, const StringRange
 			impd.throwBadSyntax(String("Invalid color name: ") + String(r.b, r.e));
 		}
 		return STANDARD_COLORS[i];
-        }
+	}
 }
 
 ARGB32::Pixel parseColor(const String& color) {
@@ -1024,7 +1026,7 @@ static IntRect expandToIntRect(const Rect<double>& floatRect) {
 
 void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	double numbers[4];
- 	parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
+	parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
 	const Vertex atPosition = Vertex(numbers[0], numbers[1]);
 	const WideString imageName = impd.unescapeToWide(args.fetchRequired(1));
 	const String* s;
@@ -1187,8 +1189,8 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	if (opacity != 255) {
 		renderer = &opacityMultiplier;
 	}
- 	// dummy argument if no mask
- 	Multiplier<ARGB32, Mask8> maskMultiplier(*renderer
+	// dummy argument if no mask
+	Multiplier<ARGB32, Mask8> maskMultiplier(*renderer
 			, (state.mask != 0 ? static_cast< const Renderer<Mask8>& >(*state.mask) : opacitySolid));
 	if (state.mask != 0) {
 		renderer = &maskMultiplier;
