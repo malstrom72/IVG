@@ -32,8 +32,6 @@
 #include <vector>
 #include <map>
 
-#include "uint32_char_traits.h"
-
 namespace IMPD {
 
 template<typename T, typename U> T lossless_cast(U x) {
@@ -43,10 +41,11 @@ template<typename T, typename U> T lossless_cast(U x) {
 
 typedef char Char;
 typedef wchar_t WideChar;																								// UTF16 or UTF32 depending on platform
-typedef uint32_t UniChar;																								// UTF32
+using UniChar = char32_t;																								// UTF32
+static_assert(sizeof(UniChar) == 4, "UniChar must be 32-bit");
 typedef std::basic_string<Char> String;
 typedef std::basic_string<WideChar> WideString;
-typedef std::basic_string<UniChar> UniString;
+using UniString = std::basic_string<UniChar>;
 typedef String::const_iterator StringIt;
 typedef std::vector<String> StringVector;
 typedef std::map<String, String> StringStringMap;
@@ -64,7 +63,7 @@ WideString convertUniToWideString(const UniString& s);
 UniString convertWideToUniString(const WideString& s);
 
 /**
-       Helper representing a pair of iterators into a string.
+	   Helper representing a pair of iterators into a string.
 **/
 struct StringRange {
 	StringRange(const StringIt& b, const StringIt& e) : b(b), e(e) { }
@@ -76,7 +75,7 @@ struct StringRange {
 };
 
 /**
-       Base class for all IMPD specific exceptions carrying an optional statement.
+	   Base class for all IMPD specific exceptions carrying an optional statement.
 **/
 class Exception : public std::exception {
 	friend class Interpreter;
@@ -108,7 +107,7 @@ struct Argument {
 typedef std::vector<Argument> ArgumentVector;
 
 /**
-       Stores and validates instruction arguments during parsing.
+	   Stores and validates instruction arguments during parsing.
 **/
 class ArgumentsContainer {
 	public:		static ArgumentsContainer parse(const Interpreter& interpreter, const StringRange& range);
@@ -136,7 +135,7 @@ class ArgumentsContainer {
 };
 
 /**
-       Interface representing a storage backend for interpreter variables.
+	   Interface representing a storage backend for interpreter variables.
 **/
 class Variables {
 	public:		virtual bool declare(const String& var, const String& value) = 0;										///< Create a new variable and assign value. Variable must not already exist. Return false if it does exist.
@@ -146,7 +145,7 @@ class Variables {
 };
 
 /**
-       Simple variable store implemented using an STL map.
+	   Simple variable store implemented using an STL map.
 **/
 class STLMapVariables : public Variables {
 	public:		virtual bool declare(const String& var, const String& value);
@@ -156,12 +155,12 @@ class STLMapVariables : public Variables {
 };
 
 /**
-       Abstract interface for executing instructions and loading resources.
+	   Abstract interface for executing instructions and loading resources.
 **/
 class Executor {
 	public:		virtual bool format(Interpreter& interpreter, const String& identifier, const StringVector& uses	
 						, const StringVector& requires) = 0;															///< Return false to throw FormatException if "identifier" is not correct or any element in "requires" is unknown / not supported. Empty requirements and requirements of 'IMPD-1' etc are removed from the list before this call. All strings are passed in lower case.
-	public:		virtual bool execute(Interpreter& interpreter, const String& instruction, const String& arguments) = 0;	///< Return false to throw SyntaxException if instruction is unrecognized. \p instruction is passed in lower case.
+	public:		virtual bool execute(Interpreter& interpreter, const String& instruction, const String& arguments) = 0; ///< Return false to throw SyntaxException if instruction is unrecognized. \p instruction is passed in lower case.
 	public:		virtual bool progress(Interpreter& interpreter, int maxStatementsLeft) = 0;								///< Called before every statement is executed. Return false to stop processing and throw AbortedException.
 	public:		virtual bool load(Interpreter& interpreter, const WideString& filename, String& contents) = 0;			///< Called by the INCLUDE instruction. Load contents of file into \p contents. Return false to throw a RunTimeException.
 	public:		virtual void trace(Interpreter& interpreter, const WideString& s) = 0;									///< Used for debugging. Trace \p s to standard out, any log-files etc...
@@ -169,7 +168,7 @@ class Executor {
 };
 
 /**
-       Executes IMPD scripts using an external Executor and variable store.
+	   Executes IMPD scripts using an external Executor and variable store.
 **/
 class Interpreter {
 	public:		static const String CURRENT_IMPD_REQUIRES_ID;
