@@ -8,7 +8,11 @@ CPP_TARGET="${CPP_TARGET:-release}"
 CPP_MODEL="${CPP_MODEL:-native}"
 
 # Split options into arrays and separate out -std flags
-read -r -a _cpp_opts <<< "${CPP_OPTIONS:-}"
+declare -a _cpp_opts=()
+if [[ -n "${CPP_OPTIONS:-}" ]]; then
+	# read returns non-zero on empty input; ignore to keep -e from exiting
+	read -r -a _cpp_opts <<< "${CPP_OPTIONS}" || true
+fi
 CPP_OPTIONS=()
 cpp_std=""
 for opt in "${_cpp_opts[@]}"; do
@@ -19,7 +23,10 @@ for opt in "${_cpp_opts[@]}"; do
 	fi
 done
 
-read -r -a _c_opts <<< "${C_OPTIONS:-}"
+declare -a _c_opts=()
+if [[ -n "${C_OPTIONS:-}" ]]; then
+	read -r -a _c_opts <<< "${C_OPTIONS}" || true
+fi
 C_OPTIONS=()
 c_std=""
 for opt in "${_c_opts[@]}"; do
