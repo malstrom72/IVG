@@ -41,11 +41,15 @@ template<typename T, typename U> T lossless_cast(U x) {
 
 typedef char Char;
 typedef wchar_t WideChar;																								// UTF16 or UTF32 depending on platform
-using UniChar = char32_t;																								// UTF32
+#if defined(__cpp_unicode_characters) || __cplusplus >= 201103L
+typedef char32_t UniChar;																								// UTF32
+#else
+typedef uint32_t UniChar;																								// Fallback if char32_t unavailable
+#endif
 static_assert(sizeof(UniChar) == 4, "UniChar must be 32-bit");
 typedef std::basic_string<Char> String;
 typedef std::basic_string<WideChar> WideString;
-using UniString = std::basic_string<UniChar>;
+typedef std::basic_string<UniChar> UniString;
 typedef String::const_iterator StringIt;
 typedef std::vector<String> StringVector;
 typedef std::map<String, String> StringStringMap;
