@@ -13,12 +13,11 @@ mkdir -p "$target"
 abs_target="$(cd "$target" && pwd)"
 repo_root="$(pwd)"
 
-find . -name '*.ivg' -print0 | while IFS= read -r -d '' file; do
-	abs_file="$repo_root/${file#./}"
-	case "$abs_file" in
-		"$abs_target"/*) continue ;;
-	esac
-	dest="$abs_target/${file#./}"
-	mkdir -p "$(dirname "$dest")"
-	cp "$abs_file" "$dest"
-done
+find . -type d \( -path './output' -o -path '*/.*' \) -prune -o -type f -name '*.ivg' -print0 |
+	while IFS= read -r -d '' file; do
+		abs_file="$repo_root/${file#./}"
+		case "$abs_file" in
+			"$abs_target"/*) continue ;;
+		esac
+		cp "$abs_file" "$abs_target/$(basename "$file")"
+	done
