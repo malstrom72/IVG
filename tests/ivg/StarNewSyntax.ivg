@@ -3,6 +3,6 @@ BOUNDS 0,0,200,100
 
 pen none
 fill red
-STAR 50,50 5 40
+STAR 50,50,5,40
 fill blue
-STAR 150,50 5 40,20 rotation:18
+STAR 150,50,5,40,20 rotation:18

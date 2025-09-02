@@ -4,6 +4,6 @@ fill black
 pen miter-limit:4
 context [
 	fill #ffa500
-	POLYGON 50,10 90,90 10,90
+	POLYGON 50,10,90,90,10,90
 ]
 

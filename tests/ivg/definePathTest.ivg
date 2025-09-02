@@ -1,7 +1,7 @@
 FORMAT IVG-3 requires:IMPD-1
 BOUNDS 0,0,200,120
 WIPE white
-define path star [move-to 60,5; line-to 73,45 115,45 80,70 90,105 60,85 30,105 40,70 5,45 47,45 60,5]
+define path star [move-to 60,5; line-to 73,45,115,45,80,70,90,105,60,85,30,105,40,70,5,45,47,45,60,5]
 fill yellow
 PATH star
 fill navy

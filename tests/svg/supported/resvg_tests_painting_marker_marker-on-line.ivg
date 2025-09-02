@@ -5,7 +5,7 @@ pen miter-limit:4
 scale 2.5
 context [
 	pen green
-	LINE 40,40 160,160
+	LINE 40,40,160,160
 	context [
 		pen none
 		offset 40,40

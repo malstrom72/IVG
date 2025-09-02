@@ -8,34 +8,34 @@ pen black width:2
 font serif size:20
 
 // line-to and closed path
-PATH [move-to 10,10; line-to 70,10 70,70 10,70] closed:yes
+PATH [move-to 10,10; line-to 70,10,70,70,10,70] closed:yes
 
 // quadratic bezier
-PATH [move-to 90,10; bezier-to 130,70 170,10]
+PATH [move-to 90,10; bezier-to 130,70,170,10]
 
 // cubic bezier
-PATH [move-to 10,90; bezier-to 40,130 80,50 110,90]
+PATH [move-to 10,90; bezier-to 40,130,80,50,110,90]
 
 // arc-to
-PATH [move-to 130,90; arc-to 190,90 30,40 sweep:ccw]
+PATH [move-to 130,90; arc-to 190,90,30,40 sweep:ccw]
 
 // arc-sweep
-PATH [move-to 210,90; arc-sweep 210,150 180]
+PATH [move-to 210,90; arc-sweep 210,150,180]
 
 // line
-PATH [line 10,150 70,210]
+PATH [line 10,150,70,210]
 
 // rect
 PATH [rect 90,150,60,40 rounded:10]
 
 // ellipse
-PATH [ellipse 190,170 20,15]
+PATH [ellipse 190,170,20,15]
 
 // star
-PATH [star 250,170 5 20,10 rotation:18]
+PATH [star 250,170,5,20,10 rotation:18]
 
 // polygon
-PATH [polygon 270,150 330,150 300,210]
+PATH [polygon 270,150,330,150,300,210]
 
 // text
 PATH [text at:300,210 anchor:center "Hi"]

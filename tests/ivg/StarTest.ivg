@@ -23,7 +23,7 @@ STAR-R = CALL [
 PQ-STAR = CALL [
 	LOCAL r
 	$STAR-R r $3 $4
-STAR {$0},{$1} {$3*2} $2,{$2*$r}
+	STAR {$0},{$1},{$3*2},$2,{$2*$r}
 ]
 
 LINE-STAR = CALL [
@@ -57,7 +57,7 @@ q=4
 IF {$q > $p / 2} [ q = {$p - $q} ]
 $LINE-STAR 200 200 100 $p $q
 $STAR-R r $p $q
-STAR 500,200 {$p*2} $r1,{$r1*$r}
+STAR 500,200,{$p*2},$r1,{$r1*$r}
 
 $PQ-STAR 200 450 100 12 5
 
@@ -67,7 +67,7 @@ $PQ-STAR 200 450 100 12 5
 // dx,dy of 0 to 1 == (sin(t)*ratio,-cos(t)*ratio)-(0,-1)
 // dx,dy of -1 to 0 == dx0,-dy0
 // dx,dy of q*2-1->q*2 == dx0,-dy0 rotated t*q*2
-// == 	dx0 * cos(t*q*2) - -dy0 * sin(t*q*2);
+// ==	dx0 * cos(t*q*2) - -dy0 * sin(t*q*2);
 //		dx0 * sin(t*q*2) + -dy0 * cos(t*q*2);
 //
 // Solved and simplified by Mathematica to:

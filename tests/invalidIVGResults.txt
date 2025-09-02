@@ -1,4 +1,4 @@
-Testing context_missing_bounds: expecting "Too few list elements (got 1, expected at least 2)" ... PASS
+Testing context_missing_bounds: expecting "Too few list elements (got 1, expected at least 4)" ... PASS
 Testing define_unknown_type: expecting "Invalid define instruction type: foo" ... PASS
 Testing font_duplicate_glyph: expecting "Duplicate glyph definition in font definition (unicode: 97)" ... PASS
 Testing font_duplicate_kerning_pair: expecting "Duplicate kerning pair in font definition: 97,98" ... PASS
@@ -10,16 +10,16 @@ Testing gradient_stops_odd_count: expecting "Invalid stops for gradient (odd num
 Testing invalid_arc_large: expecting "Invalid large for arc-to: maybe" ... PASS
 Testing invalid_arc_sweep: expecting "Invalid sweep for arc-to: fast" ... PASS
 Testing invalid_color_name: expecting "Invalid color name: blurple" ... PASS
-Testing invalid_ellipse_separator: expecting "IVG-3 requires space-separated ellipse syntax" ... PASS
+Testing invalid_ellipse_separator: expecting "Too few list elements (got 2, expected at least 3)" ... PASS
 Testing invalid_fill_rule: expecting "Unrecognized fill rule: zigzag" ... PASS
 Testing invalid_hex_color: expecting "Invalid color: GGGGGG" ... PASS
 Testing invalid_image_alignment: expecting "Unrecognized alignment: side" ... PASS
-Testing invalid_line_arguments: expecting "Too few list elements (got 1, expected at least 2)" ... PASS
+Testing invalid_line_arguments: expecting "Too few list elements (got 1, expected at least 4)" ... PASS
 Testing invalid_pen_caps: expecting "Unrecognized stroke caps: squiggle" ... PASS
-Testing invalid_star_separator: expecting "IVG-3 requires space-separated star syntax" ... PASS
+Testing invalid_star_separator: expecting "Too few list elements (got 2, expected at least 4)" ... PASS
 Testing invalid_stroke_joints: expecting "Unrecognized stroke joints: curvy" ... PASS
 Testing ivg3_comma_gradient: expecting "IVG-3 requires space-separated gradient coordinates" ... PASS
-Testing missing_format: expecting "Too few list elements (got 1, expected at least 2)" ... PASS
+Testing missing_format: expecting "Too few list elements (got 1, expected at least 4)" ... PASS
 Testing pattern_unknown_reference: expecting "Unrecognized instruction: missing" ... PASS
 Testing text_invalid_anchor: expecting "Unrecognized anchor: upside" ... PASS
 Testing text_missing_font: expecting "Need to set font before writing" ... PASS

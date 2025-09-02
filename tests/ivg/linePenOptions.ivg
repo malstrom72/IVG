@@ -5,4 +5,4 @@ WIPE white
 
 FILL none
 PEN blue width:10 joints:bevel dash:40,20 dash-offset:20
-LINE 50,50 350,50 350,350 50,350 50,50
+LINE 50,50,350,50,350,350,50,350,50,50

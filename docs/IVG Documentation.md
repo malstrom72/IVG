@@ -64,14 +64,14 @@ To give you a better idea of how _IVG_ works, here's an example of a simple sour
 	fill yellow
 	
 	// Draw the face.
-	ELLIPSE 200,200 150
+	ELLIPSE 200,200,150
 	
 	// Set the fill color to black.
 	fill black
 	
 	// Draw the eyes.
-	ELLIPSE 150,170 25
-	ELLIPSE 250,170 25
+	ELLIPSE 150,170,25
+	ELLIPSE 250,170,25
 	
 	// Draw the mouth using a path instruction list.
 	PATH [move-to 150,270; bezier-to 200,320 250,270]
@@ -114,7 +114,7 @@ The `ELLIPSE` instruction draws an ellipse or circle shape on the canvas. It wil
 
 Syntax:
 
-	ELLIPSE <cx>,<cy> (<r>|<rx>,<ry>)
+		ELLIPSE <cx>,<cy>,<r>[,<ry>=<r>]
 
 -	`<cx>,<cy>` is the center point of the ellipse.
 
@@ -130,13 +130,13 @@ Example:
 	
 	// Fill a red circle.
 	fill #802020
-	ELLIPSE 150,100 80
+		ELLIPSE 150,100,80
 
 	// Outline a flat ellipse, rotated 10 degrees clockwise around its center.
 	fill none
 	pen #802020 width:5
 	rotate 10 anchor:150,100
-	ELLIPSE 150,100 140,30
+		ELLIPSE 150,100,140,30
 ![](images/ellipseExample.png)
 
 ### IMAGE
@@ -147,13 +147,13 @@ with the [`define image`](#define-image) directive or an external resource speci
 Syntax:
 
 	IMAGE <x>,<y> <name>
-		  [ align:top|middle|bottom left|center|right="top left" ]
-		  [ clip:<x>,<y>,<w>,<h> ]
-		  [ width:<width> ]
-		  [ height:<height> ]
-		  [ stretch:(yes|no)=yes ]
-		  [ transform:<transform> ]
-		  [ opacity:<opacity> ]
+		[ align:top|middle|bottom left|center|right="top left" ]
+		[ clip:<x>,<y>,<w>,<h> ]
+		[ width:<width> ]
+		[ height:<height> ]
+		[ stretch:(yes|no)=yes ]
+		[ transform:<transform> ]
+		[ opacity:<opacity> ]
 
 -	The `<x>,<y>` coordinates specify the position of the image. By default, the image's top-left corner is placed on
 	these coordinates, but you can choose the alignment with the 'align' option.
@@ -206,32 +206,32 @@ Demonstration:
 	
 	// A: standard
 	IMAGE 10,10 silly
-	STAR 10,10 4 5
+	STAR 10,10,4,5
 	TEXT at:60,130 anchor:center A
 	
 	// B: showcasing alignment and transform
 	IMAGE 170,70 silly align:[middle center] transform:[scale 0.7;rotate -20]
-	STAR 170,70 4 5
+	STAR 170,70,4,5
 	TEXT at:170,130 anchor:center B
 	
 	// C: showcasing clipping and opacity
 	IMAGE 230,10 silly clip:[25,25,50,50] opacity:0.6
-	STAR 230,10 4 5
+	STAR 230,10,4,5
 	TEXT at:280,130 anchor:center C
 	
 	// D: showcasing clipping and scale to exact width
 	IMAGE 10,160 silly align:[top left] clip:[25,25,50,50] width:100 stretch:no
-	STAR 10,160 4 5
+	STAR 10,160,4,5
 	TEXT at:60,280 anchor:center D
 	
 	// E: showcasing a different aspect ratio 
 	IMAGE 220,260 silly align:[bottom right] width:100 height:66
-	STAR 220,260 4 5
+	STAR 220,260,4,5
 	TEXT at:170,280 anchor:center E
 	
 	// F: showcasing vertical flipping with transform
 	IMAGE 230,160 silly align:[bottom right] transform:[scale -1]
-	STAR 230,160 4 5
+	STAR 230,160,4,5
 	TEXT at:280,280 anchor:center F
 ![](images/imageExample.png)
 
@@ -244,8 +244,8 @@ raw SVG data,, or by referencing a previously defined path name.
 Syntax:
 
 	PATH [<instructions>] [transform:<transform>] [closed:(yes|no)=no]
-		 | svg:<svg data> [transform:<transform>]
-		 | <name> [transform:<transform>]
+		| svg:<svg data> [transform:<transform>]
+		| <name> [transform:<transform>]
 
 - `<name>` is a path defined with [`define path`](#define-path).
 
@@ -324,7 +324,7 @@ The `LINE` instruction draws an open polyline using the current [`pen`](#pen).
 
 Syntax:
 
-	LINE <x0>,<y0> <x1>,<y1> [<x2>,<y2> ...]
+		LINE <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]
 
 At least two points (four coordinates) are required. Two points draw a single line segment; additional points extend the polyline.
 
@@ -333,7 +333,7 @@ Example:
 	format IVG-3 requires:ImpD-1
 	bounds 0,0,340,300
 	pen black width:2
-	LINE 10,10 80,40 40,80
+		LINE 10,10,80,40,40,80
 ![](images/lineExample.png)
 
 ### POLYGON
@@ -342,7 +342,7 @@ The `POLYGON` instruction draws a closed polygon using the current [`fill`](#fil
 
 Syntax:
 
-	POLYGON <x0>,<y0> <x1>,<y1> [<x2>,<y2> ...]
+		POLYGON <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]
 
 At least three points (six coordinates) are required. The polygon is automatically closed.
 
@@ -352,7 +352,7 @@ Example:
 	bounds 0,0,340,300
 	fill lime
 	pen black
-	POLYGON 20,20 120,20 120,80 20,80
+		POLYGON 20,20,120,20,120,80,20,80
 ![](images/polygonExample.png)
 
 ### RECT
@@ -391,9 +391,9 @@ The `STAR` instruction is used for drawing a star shape or regular polygon. It w
 
 Syntax:
 
-	STAR <cx>,<cy> <points> <r1>[,<r2>=<r1>] [rotation:<angle>]
+		STAR <cx>,<cy>,<points>,<r1>[,<r2>=<r1>] [rotation:<angle>]
 
-Both comma-separated and space-separated forms are accepted.
+	All numeric parameters are supplied in one comma-separated list.
 
 -	`<cx>, <cy>` are the x and y coordinates of the center of the star.
 
@@ -478,7 +478,7 @@ Demonstration:
 	
 	bounds 0,0,440,80
 	WIPE hsv(0.5,0.8,0.1)
-	 
+	
 	// Setup parameters for drawing the text.
 	s="Lorem Ipsum Dolor Sit Amet"
 	size=24
@@ -686,7 +686,7 @@ Example:
 The fill directive sets the fill style for subsequent drawing operations in the current [context](#context).
 
 	fill <paint>
-		 [ rule:(non-zero|even-odd)=non-zero]
+		[ rule:(non-zero|even-odd)=non-zero]
 
 -	`<paint>` sets the color, gradient, or pattern. See [Paint Specification](#paint-specification) for more
 	information.
@@ -737,11 +737,11 @@ drawing operations and will be active until they are changed or the current [con
 Syntax:
 
 	font [ <name> ]
-		 [ size:<number> ]
-		 [ color:<paint> ]
-		 [ outline:<stroke> ]
-		 [ transform:<transform> ]
-		 [ tracking:<number> ]
+		[ size:<number> ]
+		[ color:<paint> ]
+		[ outline:<stroke> ]
+		[ transform:<transform> ]
+		[ tracking:<number> ]
 
 -	`<name>` is the name of the font face to be used. Before drawing text, you are required to set the font name. It can
 	be a font previously defined using the [`define font`](#define-font) directive or a font provided by the hosting
@@ -1073,12 +1073,12 @@ applying a series of transformations or other modifications to the context.
 specifying a color is as follows:
 
 	<color> = rgb(<r>,<g>,<b>[,<opacity>])
-			  | hsv(<h>,<s>,<v>[,<opacity>])
-			  | #<hex><hex><hex>
-			  | #<hex><hex><hex><hex>
-			  | none
-			  | ( aqua|black|blue|fuchsia|gray|green|lime|maroon
-				  |navy|olive|purple|red|silver|teal|white|yellow )
+			| hsv(<h>,<s>,<v>[,<opacity>])
+			| #<hex><hex><hex>
+			| #<hex><hex><hex><hex>
+			| none
+			| ( aqua|black|blue|fuchsia|gray|green|lime|maroon
+				|navy|olive|purple|red|silver|teal|white|yellow )
 
 -	The `rgb` alternative specifies the color using the red, green, and blue components. The values for `<r>`, `<g>`,
 	and `<b>` are decimal numbers between 0 and 1, representing the intensity of each component. The optional
@@ -1150,7 +1150,7 @@ ending color or multiple color stops. `<gradient>` is used by the [`<paint>`](#p
 as in the [`pen`](#pen) and [`fill`](#fill) directives. The syntax for specifying a gradient is as follows:
 
 	<gradient> = (linear <x0>,<y0> <x1>,<y1> | radial <cx>,<cy> (<r>|<rx>,<ry>))
-				 (from:<color> to:<color> | stops:<number>,<color>,[<number>,<color>,...])
+				(from:<color> to:<color> | stops:<number>,<color>,[<number>,<color>,...])
 
 -	The `linear` alternative creates a linear gradient that transitions between colors along a straight line defined by
 	two points (`<x0>,<y0>` and `<x1>,<y1>`).
@@ -1207,9 +1207,9 @@ solid [`<color>`](#color-specification) specification, a [gradient](#gradient-sp
 look like. You can select a solid color, a gradient of colors, or a pattern.
 
 	<paint> = <color> | gradient:<gradient> | pattern:<instructions>
-			  [ transform:<transform> ]
-			  [ relative:yes|no ]
-			  [ opacity:<opacity> ]
+			[ transform:<transform> ]
+			[ relative:yes|no ]
+			[ opacity:<opacity> ]
 
 -	The `<color>` paint type specifies a solid color using either RGB, HSV, hexadecimal, or name. See [Color
 	Specification](#color-specification).
@@ -1282,11 +1282,11 @@ two ways:
 The syntax for specifying a transformation is as follows:
 
 	<transform> = offset <x>,<y>
-				  | scale <n>[,<n>]
-				  | rotate <degrees>
-				  | shear <x>,<y>
-				  | matrix <n>,<n>,<n>,<n>,<n>,<n>
-				  [ anchor:<x>,<y> ]
+				| scale <n>[,<n>]
+				| rotate <degrees>
+				| shear <x>,<y>
+				| matrix <n>,<n>,<n>,<n>,<n>,<n>
+				[ anchor:<x>,<y> ]
 
 -	The `offset` alternative moves the context/object by the specified `<x>` and `<y>` amount.
 

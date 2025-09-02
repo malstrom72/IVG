@@ -4,6 +4,6 @@ fill black
 pen miter-limit:4
 context [
 	pen purple
-	LINE 10,10 90,90
+	LINE 10,10,90,90
 ]
 

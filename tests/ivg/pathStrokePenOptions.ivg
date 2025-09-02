@@ -3,7 +3,7 @@ BOUNDS 0,0,400,400
 RESET
 WIPE white
 
-define path tri [ move-to 50,350; line-to 200,50 350,350 50,350 ]
+define path tri [ move-to 50,350; line-to 200,50,350,350,50,350 ]
 FILL none
 PEN green width:12 joints:bevel dash:25,10 dash-offset:5
 PATH tri

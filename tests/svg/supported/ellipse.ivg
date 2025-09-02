@@ -4,6 +4,6 @@ fill black
 pen miter-limit:4
 context [
 	fill #00ff00
-	ELLIPSE 60,40 50,30
+	ELLIPSE 60,40,50,30
 ]
 

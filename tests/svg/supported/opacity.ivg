@@ -20,10 +20,10 @@ context [
 ]
 context [
 	fill rgb(1,0,0) opacity:0.5
-	ELLIPSE 20,30 10
+	ELLIPSE 20,30,10
 ]
 context [
 	fill rgb(0,1,0) opacity:0.25
-	ELLIPSE 60,30 10
+	ELLIPSE 60,30,10
 ]
 

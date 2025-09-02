@@ -34,9 +34,9 @@ CONTEXT [
 		FOR i from:1 to:$C [ s=$s {$x$i*800} {$y$i*800} ]
 		PATH svg:[$s]
 		
-		FILL $color opacity:{$o*0.4}
-		PEN width:10.0 opacity:{$o}
-            FOR i from:1 to:$C [ ELLIPSE {$x$i*800},{$y$i*800} {$r$i*1000} ]
+			FILL $color opacity:{$o*0.4}
+			PEN width:10.0 opacity:{$o}
+		FOR i from:1 to:$C [ ELLIPSE {$x$i*800},{$y$i*800},{$r$i*1000} ]
 
 		o = {$o*75%}
 		ROTATE 20; OFFSET 10,0; SCALE 0.7

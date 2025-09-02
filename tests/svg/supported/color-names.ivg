@@ -8,6 +8,6 @@ context [
 ]
 context [
 	fill #006400
-	ELLIPSE 70,70 20
+	ELLIPSE 70,70,20
 ]
 
