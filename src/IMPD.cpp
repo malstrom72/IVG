@@ -698,18 +698,18 @@ StringIt Interpreter::parseInt(StringIt p, const StringIt& e, int32_t& i) {
 	return p;
 }
 
-bool Interpreter::parseDouble(StringIt& p, const StringIt& e, double& v) {
+StringIt Interpreter::parseDouble(StringIt p, const StringIt& e, double& v) {
 	assert(p <= e);
 	double d = 0;
 	StringIt q = p;
 	double sign = (e - q > 1 && (*q == '+' || *q == '-') ? (*q++ == '-' ? -1.0 : 1.0) : 1.0);
-	if (q == e || (*q != '.' && (*q < '0' || *q > '9'))) return false;
+	if (q == e || (*q != '.' && (*q < '0' || *q > '9'))) return p;
 	StringIt b = q;
 	while (q != e && *q >= '0' && *q <= '9') d = d * 10.0 + (*q++ - '0');
 	if (q != e && *q == '.') {
 		double f = 1.0;
 		while (++q != e && *q >= '0' && *q <= '9') d += (*q - '0') * (f *= 0.1);
-		if (q == b + 1) return false;
+		if (q == b + 1) return p;
 	}
 	if (q != e && (*q == 'E' || *q == 'e')) {
 		int32_t i;
@@ -717,8 +717,7 @@ bool Interpreter::parseDouble(StringIt& p, const StringIt& e, double& v) {
 		if (t != q + 1) { d *= pow(10, static_cast<double>(i)); q = t; }
 	}
 	v = d * sign;
-	p = q;
-	return true;
+	return q;
 }
 
 int Interpreter::toInt(const StringRange& r) {
@@ -729,11 +728,11 @@ int Interpreter::toInt(const StringRange& r) {
 }
 
 double Interpreter::toDouble(const StringRange& r) {
-	double v;
-	StringIt p = r.b;
-	if (!parseDouble(p, r.e, v) || p != r.e) throwRunTimeError(String("Invalid number: ") + String(r.b, r.e));
-	if (!isFinite(v)) throwRunTimeError("Number overflow");
-	return v;
+double v;
+StringIt q = parseDouble(r.b, r.e, v);
+if (q == r.b || q != r.e) throwRunTimeError(String("Invalid number: ") + String(r.b, r.e));
+if (!isFinite(v)) throwRunTimeError("Number overflow");
+return v;
 }
 
 bool Interpreter::toBool(const String& s) {
@@ -842,12 +841,11 @@ bool Interpreter::evaluationValueToNumber(const EvaluationValue& v, double& d, S
 		if (!isFinite(d)) throwRunTimeError("Number overflow");
 	} else {
 		s = static_cast<String>(v);
-		StringIt q = s.begin();
-		bool parsed = parseDouble(q, s.end(), d);
-		if (parsed && q == s.end()) {
-			if (!isFinite(d)) throwRunTimeError("Number overflow");
-			isNumeric = true;
-		}
+StringIt q = parseDouble(s.begin(), s.end(), d);
+if (q != s.begin() && q == s.end()) {
+if (!isFinite(d)) throwRunTimeError("Number overflow");
+isNumeric = true;
+}
 	}
 	return isNumeric;
 }
@@ -1031,18 +1029,18 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 			break;
 		}
 		
-		case '.': case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
-						 double d;
-						 StringIt q = p;
-						 if (parseDouble(q, e, d)) {
-							 if (!isFinite(d)) throwRunTimeError("Number overflow");
-							 p = q;
-							 if (!dry) {
-								 v = d;
-							 }
-							 break;
-						 }
-		}
+case '.': case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
+ double d;
+ StringIt q = parseDouble(p, e, d);
+ if (q != p) {
+ if (!isFinite(d)) throwRunTimeError("Number overflow");
+ p = q;
+ if (!dry) {
+ v = d;
+ }
+ break;
+ }
+ }
 		/* else continue */
 		
 		default: {

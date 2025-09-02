@@ -80,20 +80,23 @@ static bool parseInt(StringIt& p, const StringIt& e, int32_t& v) {
 	}
 }
 
-static bool parseDouble(StringIt& p, const StringIt& e, double& v) {
-		assert(p <= e);
-		if (!Interpreter::parseDouble(p, e, v)) return false;
-		if (!isfinite(v) || v > 1e9 || v < -1e9) return false;
-		return true;
+static StringIt parseDouble(StringIt p, const StringIt& e, double& v) {
+assert(p <= e);
+StringIt q = Interpreter::parseDouble(p, e, v);
+if (q == p) return p;
+if (!isfinite(v) || v > 1e9 || v < -1e9) return p;
+return q;
 }
 
 static bool parseCoordinatePair(StringIt& p, const StringIt& e, Vertex& vertex, bool acceptLeadingComma) {
-	StringIt q = (acceptLeadingComma ? eatSpaceAndComma(p, e) : eatSpace(p, e));
-	if (!parseDouble(q, e, vertex.x)) return false;
-	q = eatSpaceAndComma(q, e);
-	if (!parseDouble(q, e, vertex.y)) return false;
-	p = q;
-	return true;
+StringIt q = (acceptLeadingComma ? eatSpaceAndComma(p, e) : eatSpace(p, e));
+StringIt r = parseDouble(q, e, vertex.x);
+if (r == q) return false;
+q = eatSpaceAndComma(r, e);
+r = parseDouble(q, e, vertex.y);
+if (r == q) return false;
+p = r;
+return true;
 }
 
 static int parseNumberList(const Interpreter& impd, const StringRange& r, double numbers[], int minElems, int maxElems) {
@@ -175,20 +178,21 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 
 				case 'H': case 'V': { // FIX : is H and V without arguments allowed here?
 					Vertex pos(path.getPosition());
-					double v;
-					StringIt q = eatSpace(p, e);
-					while (parseDouble(q, e, v)) {
-						p = q;
-						if (c == 'H') {
-							if (isRelative) pos.x += v;
-							else pos.x = v;
-						} else {
-							if (isRelative) pos.y += v;
-							else pos.y = v;
-						}
-						path.lineTo(pos.x, pos.y);
-						q = eatSpaceAndComma(p, e);
-					}
+double v;
+StringIt q = eatSpace(p, e);
+StringIt r;
+while ((r = parseDouble(q, e, v)) != q) {
+p = r;
+if (c == 'H') {
+if (isRelative) pos.x += v;
+else pos.x = v;
+} else {
+if (isRelative) pos.y += v;
+else pos.y = v;
+}
+path.lineTo(pos.x, pos.y);
+q = eatSpaceAndComma(p, e);
+}
 					break;
 				}
 
@@ -267,11 +271,17 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 					int32_t sweepFlag;
 					Vertex v;
 					StringIt q = p;
-					while (parseCoordinatePair(q, e, radii, !first)
-							&& ((void)(q = eatSpaceAndComma(q, e)), parseDouble(q, e, xAxisRotation))
-							&& ((void)(q = eatSpaceAndComma(q, e)), parseInt(q, e, largeArcFlag))
-							&& ((void)(q = eatSpaceAndComma(q, e)), parseInt(q, e, sweepFlag))
-							&& parseCoordinatePair(q, e, v, true)) {
+					while (true) {
+						if (!parseCoordinatePair(q, e, radii, !first)) break;
+						q = eatSpaceAndComma(q, e);
+						StringIt r = parseDouble(q, e, xAxisRotation);
+						if (r == q) break;
+						q = eatSpaceAndComma(r, e);
+						if (!parseInt(q, e, largeArcFlag)) break;
+						q = eatSpaceAndComma(q, e);
+						if (!parseInt(q, e, sweepFlag)) break;
+						q = eatSpaceAndComma(q, e);
+						if (!parseCoordinatePair(q, e, v, true)) break;
 						first = false;
 						p = q;
 						v = toAbsoluteVertex(path, isRelative, v);
