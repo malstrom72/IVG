@@ -114,7 +114,7 @@ The `ELLIPSE` instruction draws an ellipse or circle shape on the canvas. It wil
 
 Syntax:
 
-		ELLIPSE <cx>,<cy>,<r>[,<ry>=<r>]
+	ELLIPSE <cx>,<cy>,<r>[,<ry>=<r>]
 
 -	`<cx>,<cy>` is the center point of the ellipse.
 
@@ -130,13 +130,13 @@ Example:
 	
 	// Fill a red circle.
 	fill #802020
-		ELLIPSE 150,100,80
+	ELLIPSE 150,100,80
 
 	// Outline a flat ellipse, rotated 10 degrees clockwise around its center.
 	fill none
 	pen #802020 width:5
 	rotate 10 anchor:150,100
-		ELLIPSE 150,100,140,30
+	ELLIPSE 150,100,140,30
 ![](images/ellipseExample.png)
 
 ### IMAGE
@@ -147,13 +147,13 @@ with the [`define image`](#define-image) directive or an external resource speci
 Syntax:
 
 	IMAGE <x>,<y> <name>
-		[ align:top|middle|bottom left|center|right="top left" ]
-		[ clip:<x>,<y>,<w>,<h> ]
-		[ width:<width> ]
-		[ height:<height> ]
-		[ stretch:(yes|no)=yes ]
-		[ transform:<transform> ]
-		[ opacity:<opacity> ]
+		  [ align:top|middle|bottom left|center|right="top left" ]
+		  [ clip:<x>,<y>,<w>,<h> ]
+		  [ width:<width> ]
+		  [ height:<height> ]
+		  [ stretch:(yes|no)=yes ]
+		  [ transform:<transform> ]
+		  [ opacity:<opacity> ]
 
 -	The `<x>,<y>` coordinates specify the position of the image. By default, the image's top-left corner is placed on
 	these coordinates, but you can choose the alignment with the 'align' option.
@@ -324,7 +324,7 @@ The `LINE` instruction draws an open polyline using the current [`pen`](#pen).
 
 Syntax:
 
-		LINE <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]
+	LINE <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]
 
 At least two points (four coordinates) are required. Two points draw a single line segment; additional points extend the polyline.
 
@@ -333,7 +333,7 @@ Example:
 	format IVG-3 requires:ImpD-1
 	bounds 0,0,340,300
 	pen black width:2
-		LINE 10,10,80,40,40,80
+	LINE 10,10,80,40,40,80
 ![](images/lineExample.png)
 
 ### POLYGON
@@ -342,7 +342,7 @@ The `POLYGON` instruction draws a closed polygon using the current [`fill`](#fil
 
 Syntax:
 
-		POLYGON <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]
+	POLYGON <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]
 
 At least three points (six coordinates) are required. The polygon is automatically closed.
 
@@ -352,7 +352,7 @@ Example:
 	bounds 0,0,340,300
 	fill lime
 	pen black
-		POLYGON 20,20,120,20,120,80,20,80
+	POLYGON 20,20,120,20,120,80,20,80
 ![](images/polygonExample.png)
 
 ### RECT
@@ -391,9 +391,9 @@ The `STAR` instruction is used for drawing a star shape or regular polygon. It w
 
 Syntax:
 
-		STAR <cx>,<cy>,<points>,<r1>[,<r2>=<r1>] [rotation:<angle>]
+	STAR <cx>,<cy>,<points>,<r1>[,<r2>=<r1>] [rotation:<angle>]
 
-	All numeric parameters are supplied in one comma-separated list.
+All numeric parameters are supplied in one comma-separated list.
 
 -	`<cx>, <cy>` are the x and y coordinates of the center of the star.
 

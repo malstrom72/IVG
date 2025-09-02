@@ -659,80 +659,80 @@ class PathInstructionExecutor : public Executor {
 							args.throwIfAnyUnfetched();
 							return true;
 						}
-											case PATH_LINE_TO_INSTRUCTION: {
-													checkHasMoveTo(instruction);
-													StringVector elems;
-													int count = impd.parseList(args.fetchRequired(0), elems, true, false, 2, 20000);
-													args.throwIfAnyUnfetched();
-													if ((count & 1) != 0) {
-															impd.throwBadSyntax("line-to requires an even number of coordinates");
-													}
-													for (int i = 0; i < count; i += 2) {
-															path.lineTo(impd.toDouble(elems[i]), impd.toDouble(elems[i + 1]));
-													}
-													return true;
-											}
-											case PATH_BEZIER_TO_INSTRUCTION: {
-													checkHasMoveTo(instruction);
-													StringVector elems;
-													int count = impd.parseList(args.fetchRequired(0), elems, true, false, 4, 6);
-													args.throwIfAnyUnfetched();
-													if (count != 4 && count != 6) {
-															impd.throwBadSyntax("bezier-to requires four or six numbers");
-													}
-													double n[6];
-													for (int i = 0; i < count; ++i) n[i] = impd.toDouble(elems[i]);
-													if (count == 4) {
-															path.quadraticTo(n[0], n[1], n[2], n[3], curveQuality);
-													} else {
-															path.cubicTo(n[0], n[1], n[2], n[3], n[4], n[5], curveQuality);
-													}
-													return true;
-											}
-											case PATH_ARC_TO_INSTRUCTION: {
-													checkHasMoveTo(instruction);
-													StringVector elems;
-													int count = impd.parseList(args.fetchRequired(0), elems, true, false, 3, 4);
-													double end[2];
-													end[0] = impd.toDouble(elems[0]);
-													end[1] = impd.toDouble(elems[1]);
-													double rx = impd.toDouble(elems[2]);
-													double ry = (count == 4 ? impd.toDouble(elems[3]) : rx);
-													int sweepFlag = 1;
-													int largeFlag = 0;
-													double rotate = 0.0;
-													const String* sweep = args.fetchOptional("sweep");
-													if (sweep != 0) {
-															const String sweepLower = impd.toLower(*sweep);
-															if (sweepLower == "cw") sweepFlag = 1;
-															else if (sweepLower == "ccw") sweepFlag = 0;
-															else impd.throwBadSyntax(String("Invalid sweep for arc-to: ") + *sweep);
-													}
-													const String* large = args.fetchOptional("large");
-													if (large != 0) {
-															const String largeLower = impd.toLower(*large);
-															if (largeLower == "yes") largeFlag = 1;
-															else if (largeLower == "no") largeFlag = 0;
-															else impd.throwBadSyntax(String("Invalid large for arc-to: ") + *large);
-													}
-													const String* rotateArg = args.fetchOptional("rotate");
-													if (rotateArg != 0) rotate = impd.toDouble(*rotateArg);
-													args.throwIfAnyUnfetched();
-													Vertex startPos(path.getPosition());
-													Vertex endPos(end[0], end[1]);
-													appendArcSegment(startPos, endPos, rx, ry, rotate, sweepFlag, largeFlag, curveQuality, path);
-													path.lineTo(endPos.x, endPos.y);
-													return true;
-											}
-											case PATH_ARC_SWEEP_INSTRUCTION: {
-													checkHasMoveTo(instruction);
-													double nums[3];
-													parseNumberList(impd, args.fetchRequired(0), nums, 3, 3);
-													args.throwIfAnyUnfetched();
-													double sweepRadians = min(max(nums[2] * DEGREES, -PI2), PI2);
-													path.arcSweep(nums[0], nums[1], sweepRadians, 1.0, curveQuality);
-													return true;
-											}
+						case PATH_LINE_TO_INSTRUCTION: {
+							checkHasMoveTo(instruction);
+							StringVector elems;
+							int count = impd.parseList(args.fetchRequired(0), elems, true, false, 2, 20000);
+							args.throwIfAnyUnfetched();
+							if ((count & 1) != 0) {
+								impd.throwBadSyntax("line-to requires an even number of coordinates");
+							}
+							for (int i = 0; i < count; i += 2) {
+								path.lineTo(impd.toDouble(elems[i]), impd.toDouble(elems[i + 1]));
+							}
+							return true;
+						}
+						case PATH_BEZIER_TO_INSTRUCTION: {
+							checkHasMoveTo(instruction);
+							StringVector elems;
+							int count = impd.parseList(args.fetchRequired(0), elems, true, false, 4, 6);
+							args.throwIfAnyUnfetched();
+							if (count != 4 && count != 6) {
+								impd.throwBadSyntax("bezier-to requires four or six numbers");
+							}
+							double n[6];
+							for (int i = 0; i < count; ++i) n[i] = impd.toDouble(elems[i]);
+							if (count == 4) {
+								path.quadraticTo(n[0], n[1], n[2], n[3], curveQuality);
+							} else {
+								path.cubicTo(n[0], n[1], n[2], n[3], n[4], n[5], curveQuality);
+							}
+							return true;
+						}
+						case PATH_ARC_TO_INSTRUCTION: {
+							checkHasMoveTo(instruction);
+							StringVector elems;
+							int count = impd.parseList(args.fetchRequired(0), elems, true, false, 3, 4);
+							double end[2];
+							end[0] = impd.toDouble(elems[0]);
+							end[1] = impd.toDouble(elems[1]);
+							double rx = impd.toDouble(elems[2]);
+							double ry = (count == 4 ? impd.toDouble(elems[3]) : rx);
+							int sweepFlag = 1;
+							int largeFlag = 0;
+							double rotate = 0.0;
+							const String* sweep = args.fetchOptional("sweep");
+							if (sweep != 0) {
+								const String sweepLower = impd.toLower(*sweep);
+								if (sweepLower == "cw") sweepFlag = 1;
+								else if (sweepLower == "ccw") sweepFlag = 0;
+								else impd.throwBadSyntax(String("Invalid sweep for arc-to: ") + *sweep);
+							}
+							const String* large = args.fetchOptional("large");
+							if (large != 0) {
+								const String largeLower = impd.toLower(*large);
+								if (largeLower == "yes") largeFlag = 1;
+								else if (largeLower == "no") largeFlag = 0;
+								else impd.throwBadSyntax(String("Invalid large for arc-to: ") + *large);
+							}
+							const String* rotateArg = args.fetchOptional("rotate");
+							if (rotateArg != 0) rotate = impd.toDouble(*rotateArg);
+							args.throwIfAnyUnfetched();
+							Vertex startPos(path.getPosition());
+							Vertex endPos(end[0], end[1]);
+							appendArcSegment(startPos, endPos, rx, ry, rotate, sweepFlag, largeFlag, curveQuality, path);
+							path.lineTo(endPos.x, endPos.y);
+							return true;
+						}
+						case PATH_ARC_SWEEP_INSTRUCTION: {
+							checkHasMoveTo(instruction);
+							double nums[3];
+							parseNumberList(impd, args.fetchRequired(0), nums, 3, 3);
+							args.throwIfAnyUnfetched();
+							double sweepRadians = min(max(nums[2] * DEGREES, -PI2), PI2);
+							path.arcSweep(nums[0], nums[1], sweepRadians, 1.0, curveQuality);
+							return true;
+						}
 						case PATH_LINE_INSTRUCTION: {
 							path.append(makeLinePath(impd, args));
 							return true;
@@ -741,14 +741,14 @@ class PathInstructionExecutor : public Executor {
 							path.append(makeRectPath(impd, args, curveQuality));
 							return true;
 						}
-											case PATH_ELLIPSE_INSTRUCTION: {
-													path.append(makeEllipsePath(impd, args, curveQuality));
-													return true;
-											}
-											case PATH_STAR_INSTRUCTION: {
-													path.append(makeStarPath(impd, args));
-													return true;
-											}
+						case PATH_ELLIPSE_INSTRUCTION: {
+							path.append(makeEllipsePath(impd, args, curveQuality));
+							return true;
+						}
+						case PATH_STAR_INSTRUCTION: {
+							path.append(makeStarPath(impd, args));
+							return true;
+						}
 						case PATH_POLYGON_INSTRUCTION: {
 							path.append(makePolygonPath(impd, args));
 							return true;
@@ -1461,12 +1461,12 @@ static Path makeLinePath(Interpreter& impd, ArgumentsContainer& args, int minPai
 	int count = impd.parseList(args.fetchRequired(0), elems, true, false, minPairs * 2, 20000);
 	args.throwIfAnyUnfetched();
 	if ((count & 1) != 0) {
-			impd.throwBadSyntax("LINE requires an even number of coordinates");
+		impd.throwBadSyntax("LINE requires an even number of coordinates");
 	}
 	Path path;
 	path.moveTo(impd.toDouble(elems[0]), impd.toDouble(elems[1]));
 	for (int i = 2; i < count; i += 2) {
-			path.lineTo(impd.toDouble(elems[i]), impd.toDouble(elems[i + 1]));
+		path.lineTo(impd.toDouble(elems[i]), impd.toDouble(elems[i + 1]));
 	}
 	return path;
 }
@@ -1508,13 +1508,13 @@ static Path makeEllipsePath(Interpreter& impd, ArgumentsContainer& args, double 
 	double rx = parsed[2];
 	double ry = (count == 4 ? parsed[3] : parsed[2]);
 	if (rx < 0.0 || ry < 0.0) {
-			impd.throwRunTimeError(String("Negative ellipse radius: ") + impd.toString(rx < 0.0 ? rx : ry));
+		impd.throwRunTimeError(String("Negative ellipse radius: ") + impd.toString(rx < 0.0 ? rx : ry));
 	}
 	Path p;
 	if (rx == ry) {
-			p.addCircle(cx, cy, rx, curveQuality);
+		p.addCircle(cx, cy, rx, curveQuality);
 	} else {
-			p.addEllipse(cx, cy, rx, ry, curveQuality);
+		p.addEllipse(cx, cy, rx, ry, curveQuality);
 	}
 	return p;
 }
@@ -1531,10 +1531,10 @@ static Path makeStarPath(Interpreter& impd, ArgumentsContainer& args) {
 	double r2 = (count == 5 ? numbers[4] : r1);
 	double rotation = (s != 0 ? impd.toDouble(*s) * DEGREES : 0.0);
 	if (points <= 0 || points > 10000) {
-			impd.throwRunTimeError(String("star points out of range [1..10000]: ") + impd.toString(points));
+		impd.throwRunTimeError(String("star points out of range [1..10000]: ") + impd.toString(points));
 	}
 	if (r1 < 0.0 || r2 < 0.0) {
-			impd.throwRunTimeError(String("Negative star radius: ") + impd.toString(r1 < 0.0 ? r1 : r2));
+		impd.throwRunTimeError(String("Negative star radius: ") + impd.toString(r1 < 0.0 ? r1 : r2));
 	}
 	Path p;
 	p.addStar(cx, cy, points, r1, r2, rotation);
