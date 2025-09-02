@@ -6,19 +6,18 @@ cd "$(dirname "$0")"/..
 CPP_COMPILER="${CPP_COMPILER:-g++}"
 CPP_TARGET="${CPP_TARGET:-release}"
 CPP_MODEL="${CPP_MODEL:-native}"
-# ensure option variables are defined to avoid unbound errors
-: "${CPP_OPTIONS:=}"
-: "${C_OPTIONS:=}"
 
-# Split options into arrays and separate out -std flags
-declare -a _cpp_opts=()
-if [[ -n "${CPP_OPTIONS:-}" ]]; then
-	# read returns non-zero on empty input; ignore to keep -e from exiting
-	read -r -a _cpp_opts <<< "${CPP_OPTIONS}" || true
-fi
-CPP_OPTIONS=()
+# capture option variables and ensure arrays exist
+cpp_opts_env="${CPP_OPTIONS-}"
+c_opts_env="${C_OPTIONS-}"
+declare -a CPP_OPTIONS=()
+declare -a C_OPTIONS=()
 cpp_std=""
-if ((${#_cpp_opts[@]})); then
+c_std=""
+
+# split CPP_OPTIONS into array and separate out -std flag
+if [[ -n "$cpp_opts_env" ]]; then
+	read -r -a _cpp_opts <<< "$cpp_opts_env" || true
 	for opt in "${_cpp_opts[@]}"; do
 		if [[ $opt == -std=* ]]; then
 			cpp_std=$opt
@@ -28,13 +27,9 @@ if ((${#_cpp_opts[@]})); then
 	done
 fi
 
-declare -a _c_opts=()
-if [[ -n "${C_OPTIONS:-}" ]]; then
-	read -r -a _c_opts <<< "${C_OPTIONS}" || true
-fi
-C_OPTIONS=()
-c_std=""
-if ((${#_c_opts[@]})); then
+# split C_OPTIONS into array and separate out -std flag
+if [[ -n "$c_opts_env" ]]; then
+	read -r -a _c_opts <<< "$c_opts_env" || true
 	for opt in "${_c_opts[@]}"; do
 		if [[ $opt == -std=* ]]; then
 			c_std=$opt
