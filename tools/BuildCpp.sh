@@ -15,13 +15,16 @@ if [[ -n "${CPP_OPTIONS:-}" ]]; then
 fi
 CPP_OPTIONS=()
 cpp_std=""
-for opt in "${_cpp_opts[@]}"; do
-	if [[ $opt == -std=* ]]; then
-		cpp_std=$opt
-	else
-		CPP_OPTIONS+=("$opt")
-	fi
-done
+if ((${#_cpp_opts[@]})); then
+	for opt in "${_cpp_opts[@]}"; do
+		if [[ $opt == -std=* ]]; then
+			cpp_std=$opt
+		else
+			CPP_OPTIONS+=("$opt")
+		fi
+	done
+fi
+[[ -n $cpp_std ]] || cpp_std=-std=c++11
 
 declare -a _c_opts=()
 if [[ -n "${C_OPTIONS:-}" ]]; then
@@ -29,13 +32,16 @@ if [[ -n "${C_OPTIONS:-}" ]]; then
 fi
 C_OPTIONS=()
 c_std=""
-for opt in "${_c_opts[@]}"; do
-	if [[ $opt == -std=* ]]; then
-		c_std=$opt
-	else
-		C_OPTIONS+=("$opt")
-	fi
-done
+if ((${#_c_opts[@]})); then
+	for opt in "${_c_opts[@]}"; do
+		if [[ $opt == -std=* ]]; then
+			c_std=$opt
+		else
+			C_OPTIONS+=("$opt")
+		fi
+	done
+fi
+[[ -n $c_std ]] || c_std=-std=gnu11
 
 # Parsing build target and model
 if [[ ${1:-} =~ ^(debug|beta|release)$ ]]; then
