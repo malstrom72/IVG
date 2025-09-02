@@ -1,17 +1,17 @@
 /**
 	IMPD is released under the BSD 2-Clause License.
-
+	
 	Copyright (c) 2013-2025, Magnus Lidström
-
+	
 	Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
 	following conditions are met:
-
+	
 	1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following
 	disclaimer.
-
+	
 	2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following
 	disclaimer in the documentation and/or other materials provided with the distribution.
-
+	
 	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
 	INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
 	DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
@@ -67,7 +67,7 @@ WideString convertUniToWideString(const UniString& s);
 UniString convertWideToUniString(const WideString& s);
 
 /**
-	   Helper representing a pair of iterators into a string.
+	Helper representing a pair of iterators into a string.
 **/
 struct StringRange {
 	StringRange(const StringIt& b, const StringIt& e) : b(b), e(e) { }
@@ -79,7 +79,7 @@ struct StringRange {
 };
 
 /**
-	   Base class for all IMPD specific exceptions carrying an optional statement.
+	Base class for all IMPD specific exceptions carrying an optional statement.
 **/
 class Exception : public std::exception {
 	friend class Interpreter;
@@ -111,7 +111,7 @@ struct Argument {
 typedef std::vector<Argument> ArgumentVector;
 
 /**
-	   Stores and validates instruction arguments during parsing.
+	Stores and validates instruction arguments during parsing.
 **/
 class ArgumentsContainer {
 	public:		static ArgumentsContainer parse(const Interpreter& interpreter, const StringRange& range);
@@ -139,7 +139,7 @@ class ArgumentsContainer {
 };
 
 /**
-	   Interface representing a storage backend for interpreter variables.
+	Interface representing a storage backend for interpreter variables.
 **/
 class Variables {
 	public:		virtual bool declare(const String& var, const String& value) = 0;										///< Create a new variable and assign value. Variable must not already exist. Return false if it does exist.
@@ -149,7 +149,7 @@ class Variables {
 };
 
 /**
-	   Simple variable store implemented using an STL map.
+	Simple variable store implemented using an STL map.
 **/
 class STLMapVariables : public Variables {
 	public:		virtual bool declare(const String& var, const String& value);
@@ -159,7 +159,7 @@ class STLMapVariables : public Variables {
 };
 
 /**
-	   Abstract interface for executing instructions and loading resources.
+	Abstract interface for executing instructions and loading resources.
 **/
 class Executor {
 	public:		virtual bool format(Interpreter& interpreter, const String& identifier, const StringVector& uses	
@@ -172,7 +172,7 @@ class Executor {
 };
 
 /**
-	   Executes IMPD scripts using an external Executor and variable store.
+	Executes IMPD scripts using an external Executor and variable store.
 **/
 class Interpreter {
 	public:		static const String CURRENT_IMPD_REQUIRES_ID;
