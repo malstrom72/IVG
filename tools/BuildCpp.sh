@@ -106,13 +106,24 @@ args=()
 for arg in "$@"; do
 	if [[ "$arg" == *.c ]]; then
 		args+=(-x c "${C_OPTIONS[@]}")
-		[[ -n $c_std ]] && args+=("$c_std")
+		if [[ -n $c_std ]]; then
+			if [[ $CPP_COMPILER == *clang++* ]]; then
+				args+=(-Xclang "$c_std")
+			else
+				args+=("$c_std")
+			fi
+		fi
 		args+=("$arg" -x none)
 		[[ -n $cpp_std ]] && args+=("$cpp_std")
 	else
 		args+=("$arg")
 	fi
 done
+
+if [[ ${#args[@]} -ge 2 && ${args[-2]} == -x && ${args[-1]} == none ]]; then
+unset 'args[-1]'
+unset 'args[-1]'
+fi
 
 echo "Compiling $output $CPP_TARGET $CPP_MODEL using $CPP_COMPILER"
 echo "${CPP_OPTIONS[*]} ${cpp_std:+$cpp_std} -o $output ${args[*]}"
