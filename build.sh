@@ -18,5 +18,5 @@ else
 fi
 
 echo
-echo ALL GOOD!!
+echo "=== ALL BUILDS AND TESTS COMPLETED SUCCESSFULLY ==="
 echo
