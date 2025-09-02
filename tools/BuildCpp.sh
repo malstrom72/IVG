@@ -6,6 +6,9 @@ cd "$(dirname "$0")"/..
 CPP_COMPILER="${CPP_COMPILER:-g++}"
 CPP_TARGET="${CPP_TARGET:-release}"
 CPP_MODEL="${CPP_MODEL:-native}"
+# ensure option variables are defined to avoid unbound errors
+: "${CPP_OPTIONS:=}"
+: "${C_OPTIONS:=}"
 
 # Split options into arrays and separate out -std flags
 declare -a _cpp_opts=()
