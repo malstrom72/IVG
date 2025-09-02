@@ -1,17 +1,17 @@
 /**
 	IVG is released under the BSD 2-Clause License.
-
+	
 	Copyright (c) 2013-2025, Magnus Lidström
-
+	
 	Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
 	following conditions are met:
-
+	
 	1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following
 	disclaimer.
-
+	
 	2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following
 	disclaimer in the documentation and/or other materials provided with the distribution.
-
+	
 	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
 	INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
 	DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
@@ -80,27 +80,10 @@ static bool parseInt(StringIt& p, const StringIt& e, int32_t& v) {
 	}
 }
 
-// FIX : use IMPD's
-
 static bool parseDouble(StringIt& p, const StringIt& e, double& v) {
 	assert(p <= e);
-	double d = 0;
-	StringIt q = p;
-	double sign = (e - q > 1 && (*q == '+' || *q == '-') ? (*q++ == '-' ? -1.0 : 1.0) : 1.0);
-	if (q == e || (*q != '.' && (*q < '0' || *q > '9'))) return false;
-	StringIt b = q;
-	while (q != e && *q >= '0' && *q <= '9') d = d * 10.0 + (*q++ - '0');
-	if (q != e && *q == '.') {
-		double f = 1.0;
-		while (++q != e && *q >= '0' && *q <= '9') d += (*q - '0') * (f *= 0.1);
-		if (q == b + 1) return false;
-	}
-	if (e - q > 1 && (*q == 'E' || *q == 'e')) {
-		int32_t i;
-		if (parseInt(++q, e, i)) d *= pow(10, static_cast<double>(i));
-	}
-	v = d * sign;
-	if (fabs(v) > COORDINATE_LIMIT) return false;
+	StringIt q = Interpreter::parseDouble(p, e, v);
+	if (q == p || !isfinite(v) || fabs(v) > COORDINATE_LIMIT) return false;
 	p = q;
 	return true;
 }
@@ -1285,7 +1268,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			State& state = currentContext->accessState();
 			AffineTransformation thisXF = parseSingleTransformation(impd, static_cast<TransformType>(ivgInstruction - MATRIX_INSTRUCTION), args);
 			args.throwIfAnyUnfetched();
-			 // FIX : should reverse concat order as standard in new AffineTransform class?
+			// FIX : should reverse concat order as standard in new AffineTransform class?
 			state.transformation = thisXF.transform(state.transformation);
 			break;
 		}

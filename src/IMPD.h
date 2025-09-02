@@ -1,17 +1,17 @@
 /**
 	IMPD is released under the BSD 2-Clause License.
-
+	
 	Copyright (c) 2013-2025, Magnus Lidström
-
+	
 	Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
 	following conditions are met:
-
+	
 	1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following
 	disclaimer.
-
+	
 	2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following
 	disclaimer in the documentation and/or other materials provided with the distribution.
-
+	
 	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
 	INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
 	DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
@@ -63,7 +63,7 @@ WideString convertUniToWideString(const UniString& s);
 UniString convertWideToUniString(const WideString& s);
 
 /**
-	   Helper representing a pair of iterators into a string.
+	Helper representing a pair of iterators into a string.
 **/
 struct StringRange {
 	StringRange(const StringIt& b, const StringIt& e) : b(b), e(e) { }
@@ -75,7 +75,7 @@ struct StringRange {
 };
 
 /**
-	   Base class for all IMPD specific exceptions carrying an optional statement.
+	Base class for all IMPD specific exceptions carrying an optional statement.
 **/
 class Exception : public std::exception {
 	friend class Interpreter;
@@ -107,7 +107,7 @@ struct Argument {
 typedef std::vector<Argument> ArgumentVector;
 
 /**
-	   Stores and validates instruction arguments during parsing.
+	Stores and validates instruction arguments during parsing.
 **/
 class ArgumentsContainer {
 	public:		static ArgumentsContainer parse(const Interpreter& interpreter, const StringRange& range);
@@ -135,17 +135,17 @@ class ArgumentsContainer {
 };
 
 /**
-	   Interface representing a storage backend for interpreter variables.
+	Interface representing a storage backend for interpreter variables.
 **/
 class Variables {
 	public:		virtual bool declare(const String& var, const String& value) = 0;										///< Create a new variable and assign value. Variable must not already exist. Return false if it does exist.
 	public:		virtual bool assign(const String& var, const String& value) = 0;										///< Assign value to an existing variable. Variable must exist. Return false if variable does not exist.
-	public:		virtual bool lookup(const String& var, String& value) const = 0;										///< Load value of an existing variable into \p value. Return false (and do not touch \p value) if the variable does not exist.
+	public:		virtual bool lookup(const String& var, String& value) const = 0;										///< Load value of an existing variable into `value`. Return false (and do not touch `value`) if the variable does not exist.
 	public:		virtual ~Variables() { }
 };
 
 /**
-	   Simple variable store implemented using an STL map.
+	Simple variable store implemented using an STL map.
 **/
 class STLMapVariables : public Variables {
 	public:		virtual bool declare(const String& var, const String& value);
@@ -155,20 +155,20 @@ class STLMapVariables : public Variables {
 };
 
 /**
-	   Abstract interface for executing instructions and loading resources.
+	Abstract interface for executing instructions and loading resources.
 **/
 class Executor {
 	public:		virtual bool format(Interpreter& interpreter, const String& identifier, const StringVector& uses	
 						, const StringVector& requires) = 0;															///< Return false to throw FormatException if "identifier" is not correct or any element in "requires" is unknown / not supported. Empty requirements and requirements of 'IMPD-1' etc are removed from the list before this call. All strings are passed in lower case.
-	public:		virtual bool execute(Interpreter& interpreter, const String& instruction, const String& arguments) = 0; ///< Return false to throw SyntaxException if instruction is unrecognized. \p instruction is passed in lower case.
+	public:		virtual bool execute(Interpreter& interpreter, const String& instruction, const String& arguments) = 0; ///< Return false to throw SyntaxException if instruction is unrecognized. `instruction` is passed in lower case.
 	public:		virtual bool progress(Interpreter& interpreter, int maxStatementsLeft) = 0;								///< Called before every statement is executed. Return false to stop processing and throw AbortedException.
-	public:		virtual bool load(Interpreter& interpreter, const WideString& filename, String& contents) = 0;			///< Called by the INCLUDE instruction. Load contents of file into \p contents. Return false to throw a RunTimeException.
-	public:		virtual void trace(Interpreter& interpreter, const WideString& s) = 0;									///< Used for debugging. Trace \p s to standard out, any log-files etc...
+	public:		virtual bool load(Interpreter& interpreter, const WideString& filename, String& contents) = 0;			///< Called by the INCLUDE instruction. Load contents of file into `contents`. Return false to throw a RunTimeException.
+	public:		virtual void trace(Interpreter& interpreter, const WideString& s) = 0;									///< Used for debugging. Trace `s` to standard out, any log-files etc...
 	public:		virtual ~Executor() { }
 };
 
 /**
-	   Executes IMPD scripts using an external Executor and variable store.
+	Executes IMPD scripts using an external Executor and variable store.
 **/
 class Interpreter {
 	public:		static const String CURRENT_IMPD_REQUIRES_ID;
@@ -181,7 +181,7 @@ class Interpreter {
 	public:		static void throwRunTimeError(const char* how);
 
 	public:		static String toString(bool b);																			///< Returns "yes" or "no".
-	public:		static String toString(int32_t i, int radix = 10, int minLength = 1);									///< Converts integer to string with choosable \p radix (from 2 to 16). \p minLength should be between 0 and 8 * sizeof (int).
+	public:		static String toString(int32_t i, int radix = 10, int minLength = 1);									///< Converts integer to string with choosable `radix` (from 2 to 16). `minLength` should be between 0 and 8 * sizeof (int).
 	public:		static String toString(double d, int precision = NUMBER_PRECISION_DIGITS);								///< Converts double to string in scientific e notation, e.g. -12.34e-3.
 
 	public:		static bool toBool(const String& s);																	///< Tries to convert string (either "yes" or "no") to boolean. Throws a run-time error if the string isn't "yes" or "no".
@@ -191,19 +191,19 @@ class Interpreter {
 	public:		static UniString unescapeToUni(const StringRange& r);													///< Converts any escaped characters in a string to their unicode values. Special escape sequences are: @code \a \b \f \n \r \t \v \xHH \uHHHH \UHHHHHHHH \<decimal> @endcode. Any other escaped character is simply replaced by itself (without the backslash). Notice that a StringRange can be implicitly constructed from String, so you can pass a String as the argument to this function as well. Returned format is UTF32.
 	public:		static WideString unescapeToWide(const StringRange& r);													///< Like unescapeToUni(), but returned type is std::wstring, which may be UTF32 or UTF16 depending on target platform.
 
-	public:		static StringIt parseHex(StringIt p, const StringIt& e, uint32_t& i);									///< Parses and converts as much as possible of hexadecimal string starting at \p p and ending at \p e into an unsigned int. Returns an iterator pointing to the first character that could not be parsed.
-	public:		static StringIt parseUnsignedInt(StringIt p, const StringIt& e, uint32_t& i);							///< Parses and converts as much as possible of decimal string starting at \p p and ending at \p e into an unsigned int (does not accept leading '+' or '-'). Returns an iterator pointing to the first character that could not be parsed.
-	public:		static StringIt parseInt(StringIt p, const StringIt& e, int& i);										///< Parses and converts as much as possible of decimal string starting at \p p and ending at \p e into a signed int (accepts leading '+' or '-'). Returns an iterator pointing to the first character that could not be parsed.
-	public:		static StringIt parseDouble(StringIt p, const StringIt& e, double& d);									///< Parses and converts as much as possible of floating point string starting at \p p and ending at \p e to a double (supports scientific e notation). Returns an iterator pointing to the first character that could not be parsed.
+	public:		static StringIt parseHex(StringIt p, const StringIt& e, uint32_t& i);									///< Parses and converts as much as possible of hexadecimal string starting at `p` and ending at `e` into an unsigned int. Returns an iterator pointing to the first character that could not be parsed.
+	public:		static StringIt parseUnsignedInt(StringIt p, const StringIt& e, uint32_t& i);							///< Parses and converts as much as possible of decimal string starting at `p` and ending at `e` into an unsigned int (does not accept leading '+' or '-'). Returns an iterator pointing to the first character that could not be parsed.
+	public:		static StringIt parseInt(StringIt p, const StringIt& e, int& i);										///< Parses and converts as much as possible of decimal string starting at `p` and ending at `e` into a signed int (accepts leading '+' or '-'). Returns an iterator pointing to the first character that could not be parsed.
+	public:		static StringIt parseDouble(StringIt p, const StringIt& e, double& d);			/// Parses a floating point string starting at `p` and ending at `e` (supports scientific e notation). Returns an iterator pointing to the first character that could not be parsed. Returns `p` on failure.
 		
 	public:		Interpreter(Executor& executor, Variables& vars, int statementsLimit = DEFAULT_STATEMENTS_LIMIT
-						, int recursionLimit = DEFAULT_RECURSION_LIMIT);												///< Constructs a root interpreter. The root interpreter uses the global variables referenced to by \p vars.
+						, int recursionLimit = DEFAULT_RECURSION_LIMIT);												///< Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`.
 	public:		Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame);
 	public:		Interpreter(Executor& executor, Interpreter& enclosingInterpreter);
 	public:		Executor& getExecutor() const { return executor; }
 	public:		Variables& getVariables() const { return vars; }
 	public:		int mapArguments(const ArgumentVector& allArguments, StringStringMap& labeledArguments
-						, StringVector& indexedArguments);																///< \p labeledArguments will map the labels converted to all lower case
+						, StringVector& indexedArguments);																///< `labeledArguments` will map the labels converted to all lower case
 	public:		void parseArguments(const StringRange& r, ArgumentVector& arguments) const;
 	public:		int parseList(const StringRange& r, StringVector& elements, bool expandAll = false
 						, bool removeEmpty = false, int minElements = 0, int maxElements = INT_MAX) const;
