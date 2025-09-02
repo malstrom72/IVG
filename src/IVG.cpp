@@ -45,6 +45,7 @@ using IMPD::UniChar;
 const double DEGREES = PI2 / 360.0;
 const double MIN_CURVE_QUALITY = 0.001;
 const double MAX_CURVE_QUALITY = 100.0;
+const double COORDINATE_LIMIT = double(INT_MAX) / 256.0;
 
 static StringIt eatSpace(StringIt p, const StringIt& e) {
 	while (p != e && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')) ++p;
@@ -82,7 +83,7 @@ static bool parseInt(StringIt& p, const StringIt& e, int32_t& v) {
 static bool parseDouble(StringIt& p, const StringIt& e, double& v) {
 	assert(p <= e);
 	StringIt q = Interpreter::parseDouble(p, e, v);
-	if (q == p || !isfinite(v) || v > 1e9 || v < -1e9) return false;
+	if (q == p || !isfinite(v) || fabs(v) > COORDINATE_LIMIT) return false;
 	p = q;
 	return true;
 }

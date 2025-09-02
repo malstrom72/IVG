@@ -42,11 +42,7 @@ template<typename T, typename U> T lossless_cast(U x) {
 
 typedef char Char;
 typedef wchar_t WideChar;																								// UTF16 or UTF32 depending on platform
-#if defined(__cpp_unicode_characters) || __cplusplus >= 201103L
 typedef char32_t UniChar;																								// UTF32
-#else
-typedef uint32_t UniChar;																								// Fallback if char32_t unavailable
-#endif
 typedef std::basic_string<Char> String;
 typedef std::basic_string<WideChar> WideString;
 typedef std::basic_string<UniChar> UniString;
