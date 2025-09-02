@@ -116,6 +116,7 @@ output="$1"
 shift
 
 args=()
+need_cpp_std=1
 for arg in "$@"; do
 	if [[ "$arg" == *.c ]]; then
 		args+=(-x c "${C_OPTIONS[@]}")
@@ -127,21 +128,25 @@ for arg in "$@"; do
 			fi
 		fi
 		args+=("$arg" -x none)
-		[[ -n $cpp_std ]] && args+=("$cpp_std")
+		need_cpp_std=1
 	else
+		if ((need_cpp_std)) && [[ -n $cpp_std ]]; then
+			args+=("$cpp_std")
+		fi
 		args+=("$arg")
+		need_cpp_std=0
 	fi
 done
 
 if [[ ${#args[@]} -ge 2 && ${args[-2]} == -x && ${args[-1]} == none ]]; then
-unset 'args[-1]'
-unset 'args[-1]'
+	unset 'args[-1]'
+	unset 'args[-1]'
 fi
 
 echo "Compiling $output $CPP_TARGET $CPP_MODEL using $CPP_COMPILER"
-echo "${CPP_OPTIONS[*]} ${cpp_std:+$cpp_std} -o $output ${args[*]}"
+echo "${CPP_OPTIONS[*]} -o $output ${args[*]}"
 
-if ! "$CPP_COMPILER" -pipe "${CPP_OPTIONS[@]}" ${cpp_std:+$cpp_std} -o "$output" "${args[@]}" 2>&1; then
+if ! "$CPP_COMPILER" -pipe "${CPP_OPTIONS[@]}" -o "$output" "${args[@]}" 2>&1; then
 	echo "Compilation of $output failed"
 	exit 1
 else

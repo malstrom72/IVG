@@ -100,34 +100,33 @@ IF "%name%"=="" (
 	EXIT /B 1
 )
 
-SET args=%CPP_OPTIONS% %CPP_STD%
-SET mode=cpp
+SET args=
+SET mode=
 :argLoop
-	IF "%~1"=="" GOTO argLoopEnd
-	SET "arg=%~1"
-	IF "!arg:~0,1!"=="-" (
-		SET "args=!args! !arg!"
-	) ELSE IF "!arg:~0,1!"=="/" (
-		SET "args=!args! !arg!"
-	) ELSE (
-		IF /I "!arg:~-2!"==".c" (
-			IF /I NOT "!mode!"=="c" (
-				SET "args=!args! %C_OPTIONS% %C_STD%"
-				SET mode=c
-			)
+		IF "%~1"=="" GOTO argLoopEnd
+		SET "arg=%~1"
+		IF "!arg:~0,1!"=="-" (
+				SET "args=!args! !arg!"
+		) ELSE IF "!arg:~0,1!"=="/" (
+				SET "args=!args! !arg!"
 		) ELSE (
-			IF /I "!mode!"=="c" (
-				SET "args=!args! %CPP_OPTIONS% %CPP_STD%"
-				SET mode=cpp
-			)
+				IF /I "!arg:~-2!"==".c" (
+						IF /I NOT "!mode!"=="c" (
+								SET "args=!args! %C_OPTIONS% %C_STD%"
+								SET mode=c
+						)
+				) ELSE (
+						IF /I NOT "!mode!"=="cpp" (
+								SET "args=!args! %CPP_OPTIONS% %CPP_STD%"
+								SET mode=cpp
+						)
+				)
+				SET "args=!args! !arg!"
 		)
-		SET "args=!args! !arg!"
-	)
-	SHIFT
+		SHIFT
 GOTO argLoop
 :argLoopEnd
-
-IF /I "%mode%"=="c" SET "args=!args! %CPP_OPTIONS% %CPP_STD%"
+IF /I NOT "%mode%"=="cpp" SET "args=!args! %CPP_OPTIONS% %CPP_STD%"
 
 SET pfpath=%ProgramFiles(x86)%
 IF NOT DEFINED pfpath SET pfpath=%ProgramFiles%
