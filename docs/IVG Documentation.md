@@ -101,7 +101,7 @@ while lowercase forms configure state or describe geometry for later use.
 
 `IVG-1` covers core vector drawing and styling.
 `IVG-2` adds text, fonts, and raster image support through `define image` and `IMAGE`.
-`IVG-3` standardizes space-separated argument syntax and introduces an instruction-list form for `PATH` as well as `define path`.
+`IVG-3` standardizes comma-separated argument syntax and introduces an instruction-list form for `PATH` as well as `define path`.
 
 The interpreter processes all versions identically, but readers that only understand `IVG-1` or `IVG-2` will reject documents marked `IVG-3`.
 
