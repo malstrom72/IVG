@@ -469,7 +469,7 @@ template<> ARGB32::Pixel parseColor<ARGB32>(Interpreter& impd, const StringRange
 			impd.throwBadSyntax(String("Invalid color name: ") + String(r.b, r.e));
 		}
 		return STANDARD_COLORS[i];
-		}
+	}
 }
 
 ARGB32::Pixel parseColor(const String& color) {
@@ -1267,7 +1267,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			State& state = currentContext->accessState();
 			AffineTransformation thisXF = parseSingleTransformation(impd, static_cast<TransformType>(ivgInstruction - MATRIX_INSTRUCTION), args);
 			args.throwIfAnyUnfetched();
-				// FIX : should reverse concat order as standard in new AffineTransform class?
+			// FIX : should reverse concat order as standard in new AffineTransform class?
 			state.transformation = thisXF.transform(state.transformation);
 			break;
 		}

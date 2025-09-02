@@ -368,8 +368,8 @@ StringIt Interpreter::eatWhite(StringIt p, const StringIt& e) {
 			case '\r': if (p + 1 != e && p[1] == '\n') ++p;
 			case '\n': {																								// Eat leading .. on a new line
 				while (++p != e && (*p == ' ' || *p == '\t')) { }
-				if (e - p >= 2 && p[0] == '.' && p[1] == '.') p += 2;
-		break;
+			if (e - p >= 2 && p[0] == '.' && p[1] == '.') p += 2;
+			break;
 			}
 			case '/': if (isComment(p, e)) { p = eatComment(p, e); break; }
 			/* else continue */
@@ -646,7 +646,7 @@ String Interpreter::toString(double d, int precision) {
 	Char* pp = dp + 1;
 	Char* ep = pp + precision;
 	
-	double y = x;   
+	double y = x;	
 	for (; x >= 10.0 && pp < ep; x *= 0.1) ++pp;																		// Normalize values > 10 and move period position.
 
 	if (pp >= ep || y <= SMALL || y >= LARGE) {																		   // Exponential treatment of very small or large values.
@@ -835,21 +835,20 @@ StringIt Interpreter::booleanOperation(StringIt p, const StringIt& e, Evaluation
 }
 
 bool Interpreter::evaluationValueToNumber(const EvaluationValue& v, double& d, String& s) const {
-bool isNumeric = (v.getType() == EvaluationValue::NUMERIC);
-if (isNumeric) {
-d = v;
-if (!isFinite(d)) throwRunTimeError("Number overflow");
-} else {
-s = static_cast<String>(v);
-StringIt q = parseDouble(s.begin(), s.end(), d);
-if (q != s.begin() && q == s.end()) {
-if (!isFinite(d)) throwRunTimeError("Number overflow");
-isNumeric = true;
+	bool isNumeric = (v.getType() == EvaluationValue::NUMERIC);
+	if (isNumeric) {
+		d = v;
+		if (!isFinite(d)) throwRunTimeError("Number overflow");
+	} else {
+		s = static_cast<String>(v);
+		StringIt q = parseDouble(s.begin(), s.end(), d);
+		if (q != s.begin() && q == s.end()) {
+			if (!isFinite(d)) throwRunTimeError("Number overflow");
+			isNumeric = true;
+		}
+	}
+	return isNumeric;
 }
-}
-return isNumeric;
-}
-
 StringIt Interpreter::comparisonOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence, bool dry) const {
 	if (precedence < COMPARE) {
 		EvaluationValue r;
@@ -985,14 +984,14 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 	p = t;
 	if (p == e) throwBadSyntax("Unexpected end");
 	switch (*p) {
-		case '[': {
-			StringIt q = eatBlock(p, e);
-			if (!dry) {
-				v = performExpansion(StringRange(p + 1, q - 1));
+			case '[': {
+				StringIt q = eatBlock(p, e);
+				if (!dry) {
+					v = performExpansion(StringRange(p + 1, q - 1));
+				}
+				p = q;
+				break;
 			}
-			p = q;
-		break;
-		}
 		
 		case '"': {
 			StringIt q = eatQuotedString(p, e);
@@ -1037,10 +1036,10 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 				p = q;
 				if (!dry) {
 					v = d;
-					}
-				break;
 				}
+				break;
 			}
+		}
 		/* else continue */
 		
 		default: {
