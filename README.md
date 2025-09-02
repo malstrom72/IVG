@@ -10,13 +10,13 @@ vector graphics.
 
 ## Features
 
-- Graphics are described using **ImpD**, a minimal imperative language for image construction.  
-- Built-in **NuXPixels** rasterizer provides high-quality, gamma-correcting anti-aliasing.  
-- Renderer written in **portable, dependency-free C++**, with no reliance on third-party libraries.  
+- Graphics are described using **ImpD**, a minimal imperative language for image construction.	
+- Built-in **NuXPixels** rasterizer provides high-quality, gamma-correcting anti-aliasing.	
+- Renderer written in **portable, dependency-free C++**, with no reliance on third-party libraries.	 
 - Supports **paths, shapes, images, text, styling, transformations**, and nesting.
 - SVG path commands are fully supported.
 - Simple `.ivgfont` format for embedded vector fonts, converted from standard font formats.
-- **Standalone HTML editor** (IVGFiddle) for live editing and previewing IVG code.  
+- **Standalone HTML editor** (IVGFiddle) for live editing and previewing IVG code.	
 - Built-in **test suite** with regression output compared to golden PNGs.  
 - Self-contained format and tools designed for experimentation and integration.
 
@@ -74,6 +74,18 @@ build additionally has assertions turned on.
 On **macOS** and **Linux**, the build script also compiles a SIMD-enabled variant using SSE or NEON
 instructions when available.
 
+### Testing different C++ standards
+
+To experiment with various language standards on macOS, set `CPP_COMPILER` and provide a `-std=` flag
+via `CPP_OPTIONS` before running the build script:
+
+```
+CPP_COMPILER=clang++ CPP_OPTIONS="-std=c++03" timeout 600 ./build.sh
+CPP_COMPILER=clang++ CPP_OPTIONS="-std=c++11" timeout 600 ./build.sh
+```
+
+Each invocation rebuilds the project and runs the regression tests with the chosen C++ standard.
+
 ## Helper Scripts
 
 - `build.sh` / `build.cmd` – build both the **beta** and **release** targets and run all tests
@@ -101,7 +113,7 @@ in your browser to write IVG code and see the output rendered in real time.
 
 - File location: `tools/ivgfiddle/output/ivgfiddle.html`
 
-You can also try it live without cloning the repo:  
+You can also try it live without cloning the repo:	
 [IVGFiddle](https://htmlpreview.github.io/?https://github.com/malstrom72/IVG/blob/main/tools/ivgfiddle/output/ivgfiddle.html)
 
 ## Fonts
