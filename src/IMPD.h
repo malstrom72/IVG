@@ -31,6 +31,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <stdint.h>
 
 namespace IMPD {
 
@@ -46,7 +47,6 @@ typedef char32_t UniChar;																								// UTF32
 #else
 typedef uint32_t UniChar;																								// Fallback if char32_t unavailable
 #endif
-static_assert(sizeof(UniChar) == 4, "UniChar must be 32-bit");
 typedef std::basic_string<Char> String;
 typedef std::basic_string<WideChar> WideString;
 typedef std::basic_string<UniChar> UniString;

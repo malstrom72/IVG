@@ -1570,6 +1570,14 @@ void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
 				, newBounds.top * rescaleBounds, newBounds.width * rescaleBounds, newBounds.height * rescaleBounds));
 	}
 	if (raster.get() != 0) Interpreter::throwRunTimeError("Multiple bounds declarations");
+	if (scaledBounds.left < -32768 || scaledBounds.left >= 32768) {
+		Interpreter::throwRunTimeError(String("bounds left out of range [-32768..32767]: ")
+				+ Interpreter::toString(scaledBounds.left));
+	}
+	if (scaledBounds.top < -32768 || scaledBounds.top >= 32768) {
+		Interpreter::throwRunTimeError(String("bounds top out of range [-32768..32767]: ")
+				+ Interpreter::toString(scaledBounds.top));
+	}
 	if (scaledBounds.width <= 0 || scaledBounds.width >= 32768) {
 		Interpreter::throwRunTimeError(String("bounds width out of range [1..32767]: ")
 				+ Interpreter::toString(scaledBounds.width));
@@ -1578,6 +1586,7 @@ void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
 		Interpreter::throwRunTimeError(String("bounds height out of range [1..32767]: ")
 				+ Interpreter::toString(scaledBounds.height));
 	}
+
 	raster.reset(new SelfContainedRaster<ARGB32>(scaledBounds));
 	(*raster) = Solid<ARGB32>(ARGB32::transparent());
 }
