@@ -34,6 +34,7 @@ FOR %%i IN (%C_OPTIONS%) DO (
 	)
 )
 SET "C_OPTIONS=%tmp%"
+IF "%C_STD%"=="" SET C_STD=/std:c11
 
 IF "%~1"=="debug" (
 	SET CPP_TARGET=debug

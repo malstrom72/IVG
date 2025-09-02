@@ -39,6 +39,10 @@ if [[ -n "$c_opts_env" ]]; then
 	done
 fi
 
+if [[ -z "$c_std" ]]; then
+	c_std=-std=gnu89
+fi
+
 # Parsing build target and model
 if [[ ${1:-} =~ ^(debug|beta|release)$ ]]; then
 	CPP_TARGET="$1"
@@ -98,9 +102,9 @@ case "$CPP_MODEL" in
 		;;
 esac
 
-common_flags=(-fvisibility=hidden -fvisibility-inlines-hidden -Wno-trigraphs -Wreturn-type -Wunused-variable)
+common_flags=(-fvisibility=hidden -Wno-trigraphs -Wreturn-type -Wunused-variable)
 C_OPTIONS=("${common_flags[@]}" ${C_OPTIONS+"${C_OPTIONS[@]}"})
-CPP_OPTIONS=("${common_flags[@]}" ${CPP_OPTIONS+"${CPP_OPTIONS[@]}"})
+CPP_OPTIONS=("${common_flags[@]}" -fvisibility-inlines-hidden ${CPP_OPTIONS+"${CPP_OPTIONS[@]}"})
 
 if [ $# -lt 2 ]; then
 	echo "BuildCpp.sh [debug|beta|release*] [x86|x64|arm64|native*|fat] <output> <source files and other compiler arguments>"
@@ -113,31 +117,38 @@ shift
 
 args=()
 need_cpp_std=1
-for arg in "$@"; do
-	if [[ "$arg" == *.c ]]; then
-		args+=(-x c ${C_OPTIONS[@]})
-		if [[ -n $c_std ]]; then
-			if [[ $CPP_COMPILER == *clang++* ]]; then
-				args+=(-Xclang "$c_std")
-			else
-				args+=("$c_std")
+while [[ $# -gt 0 ]]; do
+	arg="$1"
+	shift
+	case "$arg" in
+		-I|-L|-F|-include)
+			args+=("$arg")
+			if [[ $# -gt 0 ]]; then
+				args+=("$1")
+				shift
 			fi
-		fi
-		args+=("$arg" -x none)
-		need_cpp_std=1
-	else
-		if ((need_cpp_std)) && [[ -n $cpp_std ]]; then
-			args+=("$cpp_std")
-		fi
-		args+=("$arg")
-		need_cpp_std=0
-	fi
+			;;
+		-*)
+			args+=("$arg")
+			;;
+		*.c)
+			args+=(-x c ${C_OPTIONS[@]} "$c_std" "$arg" -x none)
+			need_cpp_std=1
+			;;
+		*)
+			if (( need_cpp_std )) && [[ -n $cpp_std ]]; then
+				args+=("$cpp_std")
+			fi
+			args+=("$arg")
+			need_cpp_std=0
+			;;
+	esac
 done
 
 len=${#args[@]}
 if (( len >= 2 )); then
-	last=$((len - 1))
 	prev=$((len - 2))
+	last=$((len - 1))
 	if [[ ${args[$prev]} == -x && ${args[$last]} == none ]]; then
 		unset "args[$last]"
 		unset "args[$prev]"
@@ -145,9 +156,9 @@ if (( len >= 2 )); then
 fi
 
 echo "Compiling $output $CPP_TARGET $CPP_MODEL using $CPP_COMPILER"
-echo "${CPP_OPTIONS[*]} -o $output ${args[*]}"
+echo "${args[*]} -o $output"
 
-if ! "$CPP_COMPILER" -pipe "${CPP_OPTIONS[@]}" -o "$output" "${args[@]}" 2>&1; then
+if ! "$CPP_COMPILER" -pipe -o "$output" "${args[@]}" 2>&1; then
 	echo "Compilation of $output failed"
 	exit 1
 else
