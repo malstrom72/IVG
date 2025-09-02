@@ -80,7 +80,7 @@ static bool parseInt(StringIt& p, const StringIt& e, int32_t& v) {
 	}
 }
 
-static bool parseDouble(StringIt& p, const StringIt& e, double& v) {
+static bool parseSingleCoordinate(StringIt& p, const StringIt& e, double& v) {
 	assert(p <= e);
 	StringIt q = Interpreter::parseDouble(p, e, v);
 	if (q == p || !isfinite(v) || fabs(v) > COORDINATE_LIMIT) return false;
@@ -90,9 +90,9 @@ static bool parseDouble(StringIt& p, const StringIt& e, double& v) {
 
 static bool parseCoordinatePair(StringIt& p, const StringIt& e, Vertex& vertex, bool acceptLeadingComma) {
 	StringIt q = (acceptLeadingComma ? eatSpaceAndComma(p, e) : eatSpace(p, e));
-	if (!parseDouble(q, e, vertex.x)) return false;
+	if (!parseSingleCoordinate(q, e, vertex.x)) return false;
 	q = eatSpaceAndComma(q, e);
-	if (!parseDouble(q, e, vertex.y)) return false;
+	if (!parseSingleCoordinate(q, e, vertex.y)) return false;
 	p = q;
 	return true;
 }
@@ -178,7 +178,7 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 					Vertex pos(path.getPosition());
 					double v;
 					StringIt q = eatSpace(p, e);
-					while (parseDouble(q, e, v)) {
+					while (parseSingleCoordinate(q, e, v)) {
 						p = q;
 						if (c == 'H') {
 							if (isRelative) pos.x += v;
@@ -269,7 +269,7 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 					Vertex v;
 					StringIt q = p;
 					while (parseCoordinatePair(q, e, radii, !first)
-							&& ((void)(q = eatSpaceAndComma(q, e)), parseDouble(q, e, xAxisRotation))
+							&& ((void)(q = eatSpaceAndComma(q, e)), parseSingleCoordinate(q, e, xAxisRotation))
 							&& ((void)(q = eatSpaceAndComma(q, e)), parseInt(q, e, largeArcFlag))
 							&& ((void)(q = eatSpaceAndComma(q, e)), parseInt(q, e, sweepFlag))
 							&& parseCoordinatePair(q, e, v, true)) {
