@@ -25,6 +25,7 @@
 #include <iostream>
 #include <cstring>
 #include <locale>
+#include <cmath>
 #include "IVG.h"
 
 namespace IVG {
@@ -1058,10 +1059,16 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	if ((s = args.fetchOptional("width")) != 0) {
 		doFitWidth = true;
 		fitWidth = impd.toDouble(*s);
+		if (fitWidth < 0.0 || fitWidth > COORDINATE_LIMIT) {
+			impd.throwRunTimeError(String("Invalid image width: ") + impd.toString(fitWidth));
+		}
 	}
 	if ((s = args.fetchOptional("height")) != 0) {
 		doFitHeight = true;
 		fitHeight = impd.toDouble(*s);
+		if (fitHeight < 0.0 || fitHeight > COORDINATE_LIMIT) {
+			impd.throwRunTimeError(String("Invalid image height: ") + impd.toString(fitHeight));
+		}
 	}
 	if (doFitWidth || doFitHeight) {
 		const String* s = args.fetchOptional("stretch");
@@ -1155,6 +1162,17 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 		}
 	}
 	
+	const AffineTransformation textureTransform = AffineTransformation().translate(alignX, alignY)
+			.scale(scaleX, scaleY).transform(imageXF).translate(atPosition.x, atPosition.y)
+			.transform(state.transformation);
+	const double totalXScale = sqrt(square(textureTransform.matrix[0][0]) + square(textureTransform.matrix[1][0]));
+	const double totalYScale = sqrt(square(textureTransform.matrix[0][1]) + square(textureTransform.matrix[1][1]));
+	if (!isfinite(totalXScale) || !isfinite(totalYScale)
+			|| totalXScale * subRasterBounds.width > COORDINATE_LIMIT
+			|| totalYScale * subRasterBounds.height > COORDINATE_LIMIT) {
+		impd.throwRunTimeError("Image scale out of range");
+	}
+	
 	// FIX : sub in nuxpixels for making a sub-raster?
 	const Raster<ARGB32>* raster = image.raster;
 	Raster<ARGB32> subRaster(raster->getPixelPointer(), raster->getStride()
@@ -1163,9 +1181,7 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 		raster = &subRaster;
 	}
 	
-	Texture<ARGB32> texture(*raster, false, AffineTransformation().translate(alignX, alignY)
-			.scale(scaleX, scaleY).transform(imageXF).translate(atPosition.x, atPosition.y)
-			.transform(state.transformation));
+	Texture<ARGB32> texture(*raster, false, textureTransform);
 	Renderer<ARGB32>* renderer = &texture;
 	Solid<Mask8> opacitySolid(opacity);
 	Multiplier<ARGB32, Mask8> opacityMultiplier(*renderer, opacitySolid);

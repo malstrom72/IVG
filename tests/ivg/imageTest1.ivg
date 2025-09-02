@@ -46,7 +46,7 @@ context [
 	image 100,10 "enannanbild" opacity:0.7 align:"middle center" transform:[rotate 30]
 ]
 
-image 400,400 enannanbild align:"middle center" width:-150 stretch:no transform:[rotate 30]
+image 400,400 enannanbild align:"middle center" width:150 stretch:no transform:[rotate 30]
 
 image 600,200 enannanbild align:"top left" transform:[scale 2] clip:[25,25,50,50]
 image 600,300 enannanbild align:"top left" transform:[scale 2] clip:[50 25 50 50]
