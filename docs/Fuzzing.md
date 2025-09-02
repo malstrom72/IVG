@@ -24,3 +24,13 @@ bash tools/BuildCpp.sh beta native output/IVGFuzz -I . -I externals/ -I external
 tools/IVG2PNG.cpp src/IVG.cpp src/IMPD.cpp externals/NuX/NuXPixels.cpp
 ```
 
+If above doesn't work, try this:
+
+```bash
+CPP_COMPILER="$(brew --prefix llvm)/bin/clang++" CPP_OPTIONS="-fsanitize=fuzzer,address -DLIBFUZZ \
+-isysroot $(xcrun --sdk macosx --show-sdk-path) -stdlib=libc++ \
+-L$(brew --prefix llvm)/lib/c++ -L$(brew --prefix llvm)/lib/unwind -L$(brew --prefix llvm)/lib \
+-Wl,-rpath,$(brew --prefix llvm)/lib/c++ -Wl,-rpath,$(brew --prefix llvm)/lib -lunwind -lc++ -lc++abi" \
+bash tools/BuildCpp.sh beta native output/IVGFuzz -I . -I externals/ -I externals/libpng \
+tools/IVG2PNG.cpp src/IVG.cpp src/IMPD.cpp externals/NuX/NuXPixels.cpp
+```
