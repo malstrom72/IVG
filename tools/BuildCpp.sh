@@ -134,9 +134,14 @@ for arg in "$@"; do
 	fi
 done
 
-if [[ ${#args[@]} -ge 2 && ${args[-2]} == -x && ${args[-1]} == none ]]; then
-	unset 'args[-1]'
-	unset 'args[-1]'
+len=${#args[@]}
+if (( len >= 2 )); then
+	last=$((len - 1))
+	prev=$((len - 2))
+	if [[ ${args[$prev]} == -x && ${args[$last]} == none ]]; then
+		unset "args[$last]"
+		unset "args[$prev]"
+	fi
 fi
 
 echo "Compiling $output $CPP_TARGET $CPP_MODEL using $CPP_COMPILER"
