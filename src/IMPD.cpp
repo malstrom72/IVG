@@ -64,7 +64,7 @@ static size_t calcUTF16ToUTF32Size(size_t utf16Size, const uint16_t* utf16Chars)
 	for (size_t i = 0; i < utf16Size; ++i) {
 		const uint16_t c = utf16Chars[i];
 		if (c >= 0xD800 && c <= 0xDBFF) {
-			assert(i + 1 < utf16Size && utf16Chars[i + 1] >= 0xDC00 && utf16Chars[i + 1] < 0xE000);  // Next should be low surrogate.
+			assert(i + 1 < utf16Size && utf16Chars[i + 1] >= 0xDC00 && utf16Chars[i + 1] < 0xE000);	 // Next should be low surrogate.
 			++i;
 			--n;
 		}
@@ -79,7 +79,7 @@ static size_t convertUTF16ToUTF32(size_t utf16Size, const uint16_t* utf16Chars, 
 		if (c >= 0xD800 && c <= 0xDBFF) {
 			assert(i + 1 < utf16Size);
 			const uint16_t d = utf16Chars[i + 1];
-			assert(d >= 0xDC00 && d < 0xE000);  // Next should be low surrogate.
+			assert(d >= 0xDC00 && d < 0xE000);	// Next should be low surrogate.
 			c = 0x10000 + ((c - 0xD800) << 10) + (d - 0xDC00);
 			++i;
 		}
@@ -251,7 +251,7 @@ double (*Interpreter::MATH_FUNCTION_POINTERS[MATH_FUNCTION_COUNT])(double) = {
 	, (double (*)(double))(tan), (double (*)(double))(tanh), (double (*)(double))(round)
 };
 
-const Char Interpreter::ESCAPE_CHARS[ESCAPE_CODE_COUNT] = {  'a',  'b',  'f',  'n',  'r',  't',  'v' };
+const Char Interpreter::ESCAPE_CHARS[ESCAPE_CODE_COUNT] = {	 'a',  'b',	 'f',  'n',	 'r',  't',	 'v' };
 const Char Interpreter::ESCAPE_CODES[ESCAPE_CODE_COUNT] = { '\a', '\b', '\f', '\n', '\r', '\t', '\v' };
 
 /* Built with QuickHashGen */
@@ -675,7 +675,7 @@ String Interpreter::toString(double d, int precision) {
 	*pp = '.';
 	if (ep > pp) while (ep[-1] == '0') --ep;
 	if (ep - 1 == pp) --ep;
-	if (d < 0) *--bp = '-';	
+	if (d < 0) *--bp = '-'; 
 	return String(bp, ep - bp);
 }
 
@@ -698,24 +698,18 @@ StringIt Interpreter::parseInt(StringIt p, const StringIt& e, int32_t& i) {
 	return p;
 }
 
-StringIt Interpreter::parseDouble(StringIt p, const StringIt& e, double& v) {
+bool Interpreter::parseDouble(StringIt& p, const StringIt& e, double& v) {
 	assert(p <= e);
 	double d = 0;
 	StringIt q = p;
 	double sign = (e - q > 1 && (*q == '+' || *q == '-') ? (*q++ == '-' ? -1.0 : 1.0) : 1.0);
-	if (q == e || (*q != '.' && (*q < '0' || *q > '9'))) {
-		v = 0.0;
-		return p;
-	}
+	if (q == e || (*q != '.' && (*q < '0' || *q > '9'))) return false;
 	StringIt b = q;
 	while (q != e && *q >= '0' && *q <= '9') d = d * 10.0 + (*q++ - '0');
 	if (q != e && *q == '.') {
 		double f = 1.0;
 		while (++q != e && *q >= '0' && *q <= '9') d += (*q - '0') * (f *= 0.1);
-		if (q == b + 1) {
-			v = 0.0;
-			return p;
-		}
+		if (q == b + 1) return false;
 	}
 	if (q != e && (*q == 'E' || *q == 'e')) {
 		int32_t i;
@@ -723,8 +717,8 @@ StringIt Interpreter::parseDouble(StringIt p, const StringIt& e, double& v) {
 		if (t != q + 1) { d *= pow(10, static_cast<double>(i)); q = t; }
 	}
 	v = d * sign;
-	if (!isFinite(v)) throwRunTimeError("Number overflow");
-	return q;
+	p = q;
+	return true;
 }
 
 int Interpreter::toInt(const StringRange& r) {
@@ -736,8 +730,9 @@ int Interpreter::toInt(const StringRange& r) {
 
 double Interpreter::toDouble(const StringRange& r) {
 	double v;
-	StringIt p = parseDouble(r.b, r.e, v);
-	if (p == r.b || p != r.e) throwRunTimeError(String("Invalid number: ") + String(r.b, r.e));
+	StringIt p = r.b;
+	if (!parseDouble(p, r.e, v) || p != r.e) throwRunTimeError(String("Invalid number: ") + String(r.b, r.e));
+	if (!isFinite(v)) throwRunTimeError("Number overflow");
 	return v;
 }
 
@@ -842,11 +837,17 @@ StringIt Interpreter::booleanOperation(StringIt p, const StringIt& e, Evaluation
 
 bool Interpreter::evaluationValueToNumber(const EvaluationValue& v, double& d, String& s) const {
 	bool isNumeric = (v.getType() == EvaluationValue::NUMERIC);
-	if (isNumeric) d = v;
-	else {
+	if (isNumeric) {
+		d = v;
+		if (!isFinite(d)) throwRunTimeError("Number overflow");
+	} else {
 		s = static_cast<String>(v);
-		StringIt q = parseDouble(s.begin(), s.end(), d);
-		isNumeric = (q != s.begin() && q == s.end());
+		StringIt q = s.begin();
+		bool parsed = parseDouble(q, s.end(), d);
+		if (parsed && q == s.end()) {
+			if (!isFinite(d)) throwRunTimeError("Number overflow");
+			isNumeric = true;
+		}
 	}
 	return isNumeric;
 }
@@ -1031,15 +1032,16 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 		}
 		
 		case '.': case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
-			double d;
-			StringIt q = parseDouble(p, e, d);
-			if (q != p) {
-				p = q;
-				if (!dry) {
-					v = d;
-				}
-				break;
-			}
+						 double d;
+						 StringIt q = p;
+						 if (parseDouble(q, e, d)) {
+							 if (!isFinite(d)) throwRunTimeError("Number overflow");
+							 p = q;
+							 if (!dry) {
+								 v = d;
+							 }
+							 break;
+						 }
 		}
 		/* else continue */
 		
@@ -1058,12 +1060,12 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 				}
 			} else if (funcIndex == MATH_FUNCTION_COUNT) {			// pi
 				v = 3.1415926535897932384626433;
-			} else if (funcIndex == MATH_FUNCTION_COUNT + 1) { 		// len
+			} else if (funcIndex == MATH_FUNCTION_COUNT + 1) {		// len
 				q = evaluateInner(q, e, v, FUNCTION, dry);
 				if (!dry) {
 					v = static_cast<double>(static_cast<String>(v).size());
 				}
-			} else if (funcIndex == MATH_FUNCTION_COUNT + 2) { 		// def
+			} else if (funcIndex == MATH_FUNCTION_COUNT + 2) {		// def
 				q = evaluateInner(q, e, v, FUNCTION, dry);
 				if (!dry) {
 					String dummyValue;

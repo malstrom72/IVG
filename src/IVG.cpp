@@ -25,6 +25,7 @@
 #include <iostream>
 #include <cstring>
 #include <locale>
+#include <cmath>
 #include "IVG.h"
 
 namespace IVG {
@@ -79,28 +80,11 @@ static bool parseInt(StringIt& p, const StringIt& e, int32_t& v) {
 	}
 }
 
-// FIX : use IMPD's
-
 static bool parseDouble(StringIt& p, const StringIt& e, double& v) {
-	assert(p <= e);
-	double d = 0;
-	StringIt q = p;
-	double sign = (e - q > 1 && (*q == '+' || *q == '-') ? (*q++ == '-' ? -1.0 : 1.0) : 1.0);
-	if (q == e || (*q != '.' && (*q < '0' || *q > '9'))) return false;
-	StringIt b = q;
-	while (q != e && *q >= '0' && *q <= '9') d = d * 10.0 + (*q++ - '0');
-	if (q != e && *q == '.') {
-		double f = 1.0;
-		while (++q != e && *q >= '0' && *q <= '9') d += (*q - '0') * (f *= 0.1);
-		if (q == b + 1) return false;
-	}
-	if (e - q > 1 && (*q == 'E' || *q == 'e')) {
-		int32_t i;
-		if (parseInt(++q, e, i)) d *= pow(10, static_cast<double>(i));
-	}
-	v = d * sign;
-	p = q;
-	return true;
+		assert(p <= e);
+		if (!Interpreter::parseDouble(p, e, v)) return false;
+		if (!isfinite(v) || v > 1e9 || v < -1e9) return false;
+		return true;
 }
 
 static bool parseCoordinatePair(StringIt& p, const StringIt& e, Vertex& vertex, bool acceptLeadingComma) {
@@ -352,11 +336,11 @@ MaskMakerCanvas::MaskMakerCanvas(const IntRect& bounds) : mask8RLE(new RLERaster
 
 void MaskMakerCanvas::parsePaint(Interpreter& impd, IVGExecutor& executor, Context& context, ArgumentsContainer& args
 		, Paint& paint) const {
-    parsePaintOfType<Mask8>(impd, executor, context, args, paint);
+	parsePaintOfType<Mask8>(impd, executor, context, args, paint);
 }
 
 void MaskMakerCanvas::blendWithARGB32(const Renderer<ARGB32>& source) {
-    (*mask8RLE) |= Converter<ARGB32, Mask8>(source);
+	(*mask8RLE) |= Converter<ARGB32, Mask8>(source);
 }
 
 void MaskMakerCanvas::blendWithMask8(const Renderer<Mask8>& source) { (*mask8RLE) |= source; }
@@ -485,7 +469,7 @@ template<> ARGB32::Pixel parseColor<ARGB32>(Interpreter& impd, const StringRange
 			impd.throwBadSyntax(String("Invalid color name: ") + String(r.b, r.e));
 		}
 		return STANDARD_COLORS[i];
-        }
+		}
 }
 
 ARGB32::Pixel parseColor(const String& color) {
@@ -1024,7 +1008,7 @@ static IntRect expandToIntRect(const Rect<double>& floatRect) {
 
 void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	double numbers[4];
- 	parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
+	parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
 	const Vertex atPosition = Vertex(numbers[0], numbers[1]);
 	const WideString imageName = impd.unescapeToWide(args.fetchRequired(1));
 	const String* s;
@@ -1187,8 +1171,8 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	if (opacity != 255) {
 		renderer = &opacityMultiplier;
 	}
- 	// dummy argument if no mask
- 	Multiplier<ARGB32, Mask8> maskMultiplier(*renderer
+	// dummy argument if no mask
+	Multiplier<ARGB32, Mask8> maskMultiplier(*renderer
 			, (state.mask != 0 ? static_cast< const Renderer<Mask8>& >(*state.mask) : opacitySolid));
 	if (state.mask != 0) {
 		renderer = &maskMultiplier;
