@@ -77,14 +77,13 @@ instructions when available.
 ### Testing different C++ standards
 
 To experiment with various language standards on macOS, set `CPP_COMPILER` and provide a `-std=` flag
-via `CPP_OPTIONS` before running the build script:
+via `CPP_OPTIONS` before running the build script. The project requires at least C++11:
 
 ```
-CPP_COMPILER=clang++ CPP_OPTIONS="-std=c++03" timeout 600 ./build.sh
 CPP_COMPILER=clang++ CPP_OPTIONS="-std=c++11" timeout 600 ./build.sh
 ```
 
-Each invocation rebuilds the project and runs the regression tests with the chosen C++ standard.
+Omitting `CPP_OPTIONS` uses the compiler's default standard.
 
 ## Helper Scripts
 

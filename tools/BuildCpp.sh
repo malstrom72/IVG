@@ -24,7 +24,6 @@ if ((${#_cpp_opts[@]})); then
 		fi
 	done
 fi
-[[ -n $cpp_std ]] || cpp_std=-std=c++11
 
 declare -a _c_opts=()
 if [[ -n "${C_OPTIONS:-}" ]]; then
@@ -41,7 +40,6 @@ if ((${#_c_opts[@]})); then
 		fi
 	done
 fi
-[[ -n $c_std ]] || c_std=-std=gnu11
 
 # Parsing build target and model
 if [[ ${1:-} =~ ^(debug|beta|release)$ ]]; then
@@ -137,6 +135,10 @@ for arg in "$@"; do
 		need_cpp_std=0
 	fi
 done
+
+if ((need_cpp_std)) && [[ -n $cpp_std ]]; then
+	args+=("$cpp_std")
+fi
 
 if [[ ${#args[@]} -ge 2 && ${args[-2]} == -x && ${args[-1]} == none ]]; then
 	unset 'args[-1]'
