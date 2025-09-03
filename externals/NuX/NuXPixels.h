@@ -566,7 +566,7 @@ template<class T> class SpanBuffer {
 	public:		typename T::Pixel* preallocatePixels() const;
 	public:		typename T::Pixel* addVariable(int length, bool opaque);
 	public:		void addReference(int length, const typename T::Pixel* pixels, bool opaque);
-	public:		void split(iterator it, int splitPoint); ///< This method is a low-level method used for "merging" two SpanBuffers. It only splits for "forward iteration", but if you would iterate backwards the array would still be invariant since the split doesn't modify any pixel contents.
+	public:		void split(iterator it, int splitPoint); /// This method is a low-level method used for "merging" two SpanBuffers. It only splits for "forward iteration", but if you would iterate backwards the array would still be invariant since the split doesn't modify any pixel contents.
 	protected:	Span<T>* spans;
 	protected:	typename T::Pixel* pixels;
 	protected:	Span<T>* endSpan;
@@ -604,7 +604,7 @@ template<class T> class Renderer {
 	Raster represents an in-memory pixel buffer that can be rendered to. It does not own the memory.
 **/
 template<class T> class Raster : public Renderer<T> {
-	public:		Raster(typename T::Pixel* pixels, int stride, const IntRect& bounds, bool opaque);	///< Warning! If opaque is true you must never have transparent pixels in this raster.
+	public:		Raster(typename T::Pixel* pixels, int stride, const IntRect& bounds, bool opaque);	/// Warning! If opaque is true you must never have transparent pixels in this raster.
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<T>& output) const;
 	public:		void fill(const Renderer<T>& source, const IntRect& area);
@@ -620,9 +620,9 @@ template<class T> class Raster : public Renderer<T> {
 	public:		int getStride() const { return stride; }
 	public:		bool isOpaque() const { return opaque; }
 	protected:	Raster(); // for SelfContainedRaster
-	protected:	typename T::Pixel* pixels;	///< The address of the topmost scanline. The 0,0 coordinate should point to this pixel.
-	protected:	int stride;					///< The stride with which one should offset the pointer for every increasing row (often referred to as "row bytes", although this value is not a byte count but an int count). Can be negative in case the offscreen orientation is upside down (in this case the base address should actually point to the last scanline in memory, which is now the topmost line).
-	protected:	IntRect bounds;				///< Access outside this rect is illegal as it might be outside allocated memory bounds.
+	protected:	typename T::Pixel* pixels;	/// The address of the topmost scanline. The 0,0 coordinate should point to this pixel.
+	protected:	int stride;					/// The stride with which one should offset the pointer for every increasing row (often referred to as "row bytes", although this value is not a byte count but an int count). Can be negative in case the offscreen orientation is upside down (in this case the base address should actually point to the last scanline in memory, which is now the topmost line).
+	protected:	IntRect bounds;				/// Access outside this rect is illegal as it might be outside allocated memory bounds.
 	protected:	bool opaque;
 };
 template<class T> typename T::Pixel Raster<T>::getPixel(int x, int y) const {
@@ -639,7 +639,7 @@ template<class T> void Raster<T>::setPixel(int x, int y, const typename T::Pixel
 **/
 template<class T> class SelfContainedRaster : public Raster<T> {
 	public:		SelfContainedRaster();
-	public:		SelfContainedRaster(const IntRect& bounds, bool opaque = false);	///< Warning! If opaque is true you must never have transparent pixels in this raster.
+	public:		SelfContainedRaster(const IntRect& bounds, bool opaque = false);	/// Warning! If opaque is true you must never have transparent pixels in this raster.
 	public:		SelfContainedRaster(const SelfContainedRaster& that);
 	public:		SelfContainedRaster& operator=(const SelfContainedRaster& that);
 	public:		Raster<T>& operator=(const Renderer<T>& source) { return Raster<T>::operator=(source); }
@@ -857,7 +857,7 @@ template<class A, class B> class BinaryOperator : public Renderer<A> {
 **/
 template<class T> class Blender : public BinaryOperator<T, T> {
 	public:		typedef BinaryOperator<T, T> super;
-	public:		Blender(const Renderer<T>& rendererA, const Renderer<T>& rendererB); ///< rendererA is background, rendererB is overlay
+	public:		Blender(const Renderer<T>& rendererA, const Renderer<T>& rendererB); /// rendererA is background, rendererB is overlay
 	public:		virtual IntRect calcBounds() const;
 	public:		void render(int x, int y, int length, SpanBuffer<T>& output) const;
 	protected:	IntRect boundsA;
@@ -927,8 +927,6 @@ class EvenOddFillRule : public FillRule {
 	public:		virtual void processCoverage(int span, const Int32* source, Mask8::Pixel* destination) const;
 };
 
-// FIX : needs some updating, shouldn't require bounds as an argument for example, also I don't like the class-bloating of the various fill-rules. Non-zero or even-odd is the only ones needed.
-// Also: this is (I believe) the only renderer that doesn't allow random access coordinates. It needs to render from top to bottom, left to right. Once only.
 /**
 	PolygonMask rasterizes a path into a coverage mask using a fill rule.
 
@@ -939,18 +937,23 @@ class EvenOddFillRule : public FillRule {
 		3. For each row, accumulating edge coverage per column to build a span buffer.
 		4. Applying the selected fill rule to turn accumulated coverage into mask pixels.
 	
-	Renders must request rows in ascending order; calling `render` with a `y` lower than any previously rendered row returns
-	transparent coverage.
+	The clip rectangle is clamped to the numeric limits handled by the rasterizer. After construction callers may
+	query `isValid()`; it returns `false` if any vertex falls outside the fixed-point range and the mask will produce
+	no coverage.
+
+	Rendering rows in ascending order is most efficient. Calling `render` with a `y` lower than a prior call rewinds
+	the mask so scanning restarts from the top.
 **/
 class PolygonMask : public Renderer<Mask8> {
 	public:		static NonZeroFillRule nonZeroFillRule;
 	public:		static EvenOddFillRule evenOddFillRule;
 	public:		PolygonMask(const Path& path,
-			const IntRect& clipBounds = FULL_RECT,
-			const FillRule& fillRule = nonZeroFillRule);   ///< `clipBounds` is clamped; must cover destination raster.
+						const IntRect& clipBounds = FULL_RECT,
+						const FillRule& fillRule = nonZeroFillRule);   /// `clipBounds` is clamped; must cover destination raster.
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<Mask8>& output) const;
-		public:		void rewind() const;
+	public:		void rewind() const;
+	public: 	bool isValid() const;	/// false if path had out-of-range vertices
 	
 	protected:	struct Segment {
 					int topY;			/// Starting y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
@@ -973,7 +976,9 @@ class PolygonMask : public Renderer<Mask8> {
 	protected:	mutable std::vector<Int32> coverageDelta;
 	protected:	mutable std::vector<Segment*> segsVertically;
 	protected:	mutable std::vector<Segment*> segsHorizontally;
+	protected:	bool valid;
 };
+
 
 /**
 	LookupTable holds 256 entries for mapping mask values to colors.

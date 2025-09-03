@@ -763,6 +763,9 @@ void Context::stroke(const Path& path, Stroke& stroke, const Rect<double>& paint
 				, calcCurveQuality());
 		strokePath.transform(state.transformation);
 		PolygonMask polygonMask(strokePath, canvas.getBounds());
+		if (!polygonMask.isValid()) {
+			Interpreter::throwRunTimeError("Vertices outside valid coordinate range");
+		}
 		stroke.paint.doPaint(*this, paintSourceBounds, CombinedMask(polygonMask, state.mask, state.options.gammaTable));
 	}
 }
@@ -776,6 +779,9 @@ void Context::fill(const Path& path, Paint& fill, bool evenOddFillRule, const Re
 		fillPath.closeAll();
 		fillPath.transform(state.transformation);
 		PolygonMask polygonMask(fillPath, canvas.getBounds(), *fillRule);
+		if (!polygonMask.isValid()) {
+			Interpreter::throwRunTimeError("Vertices outside valid coordinate range");
+		}
 		fill.doPaint(*this, paintSourceBounds, CombinedMask(polygonMask, state.mask, state.options.gammaTable));
 	}
 }
