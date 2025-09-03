@@ -927,8 +927,6 @@ class EvenOddFillRule : public FillRule {
 	public:		virtual void processCoverage(int span, const Int32* source, Mask8::Pixel* destination) const;
 };
 
-// FIX : needs some updating, shouldn't require bounds as an argument for example, also I don't like the class-bloating of the various fill-rules. Non-zero or even-odd is the only ones needed.
-// Also: this is (I believe) the only renderer that doesn't allow random access coordinates. It needs to render from top to bottom, left to right. Once only.
 /**
 	PolygonMask rasterizes a path into a coverage mask using a fill rule.
 
@@ -939,8 +937,12 @@ class EvenOddFillRule : public FillRule {
 		3. For each row, accumulating edge coverage per column to build a span buffer.
 		4. Applying the selected fill rule to turn accumulated coverage into mask pixels.
 	
-	Renders must request rows in ascending order; calling `render` with a `y` lower than any previously rendered row returns
-	transparent coverage.
+	The clip rectangle is clamped to the numeric limits handled by the rasterizer. After construction callers may
+	query `isValid()`; it returns `false` if any vertex falls outside the fixed-point range and the mask will produce
+	no coverage.
+
+		Rendering rows in ascending order is most efficient. Calling `render` with a `y` lower than a prior call rewinds
+		the mask so scanning restarts from the top.
 **/
 class PolygonMask : public Renderer<Mask8> {
 	public:		static NonZeroFillRule nonZeroFillRule;
@@ -951,6 +953,7 @@ class PolygonMask : public Renderer<Mask8> {
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<Mask8>& output) const;
 		public:		void rewind() const;
+	public: bool isValid() const;		   /// false if path had out-of-range vertices
 	
 	protected:	struct Segment {
 					int topY;			/// Starting y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).
@@ -973,7 +976,9 @@ class PolygonMask : public Renderer<Mask8> {
 	protected:	mutable std::vector<Int32> coverageDelta;
 	protected:	mutable std::vector<Segment*> segsVertically;
 	protected:	mutable std::vector<Segment*> segsHorizontally;
+	protected:	bool valid;
 };
+
 
 /**
 	LookupTable holds 256 entries for mapping mask values to colors.
