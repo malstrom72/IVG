@@ -46,7 +46,7 @@ using IMPD::UniChar;
 const double DEGREES = PI2 / 360.0;
 const double MIN_CURVE_QUALITY = 0.001;
 const double MAX_CURVE_QUALITY = 100.0;
-const double COORDINATE_LIMIT = double(INT_MAX) / 256.0;
+const double COORDINATE_LIMIT = 1000000.0;
 
 static StringIt eatSpace(StringIt p, const StringIt& e) {
 	while (p != e && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')) ++p;
