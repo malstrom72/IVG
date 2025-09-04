@@ -1035,6 +1035,9 @@ static IntRect expandToIntRect(const Rect<double>& floatRect) {
 void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	double numbers[4];
 	parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
+	if (fabs(numbers[0]) > COORDINATE_LIMIT || fabs(numbers[1]) > COORDINATE_LIMIT) {
+		Interpreter::throwRunTimeError("Image coordinates out of range");
+	}
 	const Vertex atPosition = Vertex(numbers[0], numbers[1]);
 	const WideString imageName = impd.unescapeToWide(args.fetchRequired(1));
 	const String* s;
