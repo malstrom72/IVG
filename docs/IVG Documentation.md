@@ -238,8 +238,8 @@ Demonstration:
 ### PATH
 
 The `PATH` instruction draws an arbitrary vector path. It will be filled with the current [`fill`](#fill)
-setting and outlined with the current [`pen`](#pen) setting. Paths may be supplied as as an instruction list,
-raw SVG data,, or by referencing a previously defined path name.
+setting and outlined with the current [`pen`](#pen) setting. Paths may be supplied as an instruction list,
+raw SVG data, or by referencing a previously defined path name.
 
 Syntax:
 
@@ -251,7 +251,7 @@ Syntax:
 
 - `<svg data>` is a string containing SVG path data. See https://svgwg.org/specs/paths/ for details.
 
-- `<instructions>` is a semicolon-separated list of sub-commands:
+- `<instructions>` is a bracketed list of sub-commands:
 	- `move-to <x>,<y>` sets the starting point for a new sub-path.
 	- `line-to <x>,<y>[,<x>,<y> ...]` draws one or more line segments.
 	- `bezier-to <cx>,<cy>,<x>,<y>` draws a quadratic Bézier curve.
@@ -659,7 +659,7 @@ Example:
 	
 	// Show it off.
 	bounds 0,0,265,160
-	wipe yellow
+	WIPE yellow
 	font myEmbeddedFont size:100 color:red outline:[black width:5] tracking:0.1
 	TEXT at:40,110 "IVG"
 ![](images/defineFontExample.png)
@@ -868,7 +868,7 @@ the current [context](#context).
 			[ curve-quality:<number> ]
 			[ pattern-resolution:<number> ]
 
--	`aa-gamma` allows adjusting gamma correction applied to the edges of strokes and fills to improve anti-alias
+-	`aa-gamma` allows adjusting gamma correction applied to the edges of strokes and fills to improve anti-aliasing
 	quality. Note that the best quality gamma setting depends on your mixing colors. Settings higher than 1 usually make
 	light strokes on dark backgrounds look better, and settings lower than 1 can make drawing dark on light look better.
 	The initial value is 1, and the valid range is any number greater than 0.
@@ -990,7 +990,7 @@ Syntax:
 -	The `caps` option sets the shape at the end of open paths. The possible values are `butt`, `round`, and `square`.
 	The initial value is `butt`.
 
--	The `joints` option sets the shape at the corners of paths. The possible values are `bevel`, `miter`, and `round`.
+-	The `joints` option sets the shape at the corners of paths. The possible values are `bevel`, `curve`, and `miter`.
 	The initial value is `miter`.
 
 -	The `miter-limit` option controls the maximum ratio of the miter length to the stroke width. The initial value is 2,
@@ -1104,7 +1104,7 @@ Colors example:
 	format IVG-3 requires:ImpD-1
 	bounds 0,0,500,380
 	
-	// Wipe canvas with a checkboard pattern and setup styles.
+	// Wipe canvas with a checkerboard pattern and setup styles.
 	WIPE pattern:[
 		bounds 0,0,20,20
 		WIPE #202020
@@ -1309,7 +1309,7 @@ Demonstration:
 	format IVG-3 requires:ImpD-1
 	bounds 0,0,310,240
 	
-	wipe #403020
+	WIPE #403020
 	fill #C04030 opacity:0.8
 	pen #C090C0 width:2
 	font serif size:22 color:white
