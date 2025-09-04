@@ -131,6 +131,25 @@ Exception: Math error (log of 0 or less)
 in statement: TRACE {log(-1)} // Math error
 Exception: Math error (sqrt of negative)
 in statement: TRACE {sqrt(-1)} // Math error
+Exception: Missing argument(s)
+in statement: INCLUDE
+Exception: Unrecognized labels or too many arguments
+in statement: FORMAT foo extra:bar
+Exception: Missing "
+in statement: TRACE "unterminated
+
+Exception: Expected :
+in statement: TRACE {1?2}
+Exception: Expected =
+in statement: LOCAL x 5
+Exception: Missing )
+in statement: TRACE {(1+2}
+Exception: Number overflow
+in statement: TRACE {1e309}
+Exception: Invalid boolean (should be 'yes' or 'no'): maybe
+in statement: IF maybe []
+Exception: Could not include file: missing.impd
+in statement: INCLUDE missing.impd
 Exception: Statements limit reached
 in statement: []
 Exception: Statements limit reached

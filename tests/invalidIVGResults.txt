@@ -1,5 +1,12 @@
+Testing aagamma_out_of_range: expecting "aa-gamma out of range (0..100): 200" ... PASS
+Testing bounds_width_out_of_range: expecting "bounds width out of range [1..32767]: 0" ... PASS
 Testing context_missing_bounds: expecting "Too few list elements (got 1, expected at least 4)" ... PASS
 Testing define_unknown_type: expecting "Invalid define instruction type: foo" ... PASS
+Testing drawing_without_bounds: expecting "Undeclared bounds" ... PASS
+Testing duplicate_alignment_tokens: expecting "Duplicate horizontal alignment: left left" ... PASS
+Testing duplicate_font_definition: expecting "Duplicate font definition: f" ... PASS
+Testing duplicate_image_definition: expecting "Duplicate image definition: img" ... PASS
+Testing duplicate_path_definition: expecting "Duplicate path definition: p" ... PASS
 Testing font_duplicate_glyph: expecting "Duplicate glyph definition in font definition (unicode: 97)" ... PASS
 Testing font_duplicate_kerning_pair: expecting "Duplicate kerning pair in font definition: 97,98" ... PASS
 Testing font_duplicate_metrics: expecting "Duplicate metrics instruction in font definition" ... PASS
@@ -10,8 +17,10 @@ Testing gradient_stops_odd_count: expecting "Invalid stops for gradient (odd num
 Testing invalid_arc_large: expecting "Invalid large for arc-to: maybe" ... PASS
 Testing invalid_arc_sweep: expecting "Invalid sweep for arc-to: fast" ... PASS
 Testing invalid_color_name: expecting "Invalid color name: blurple" ... PASS
+Testing invalid_define_resolution: expecting "resolution out of range [0.0001..inf): 0" ... PASS
 Testing invalid_ellipse_separator: expecting "Too few list elements (got 2, expected at least 3)" ... PASS
 Testing invalid_fill_rule: expecting "Unrecognized fill rule: zigzag" ... PASS
+Testing invalid_font_metrics: expecting "Invalid metrics instruction in font definition" ... PASS
 Testing invalid_hex_color: expecting "Invalid color: GGGGGG" ... PASS
 Testing invalid_image_alignment: expecting "Unrecognized alignment: side" ... PASS
 Testing invalid_line_arguments: expecting "Too few list elements (got 1, expected at least 4)" ... PASS
@@ -19,10 +28,20 @@ Testing invalid_pen_caps: expecting "Unrecognized stroke caps: squiggle" ... PAS
 Testing invalid_star_separator: expecting "Too few list elements (got 2, expected at least 4)" ... PASS
 Testing invalid_stroke_joints: expecting "Unrecognized stroke joints: curvy" ... PASS
 Testing ivg3_comma_gradient: expecting "IVG-3 requires space-separated gradient coordinates" ... PASS
+Testing missing_font_name: expecting "Missing font: missing" ... PASS
 Testing missing_format: expecting "Too few list elements (got 1, expected at least 4)" ... PASS
+Testing multiple_bounds: expecting "Multiple bounds declarations" ... PASS
+Testing negative_clip_width: expecting "Negative clip width: -10" ... PASS
+Testing negative_ellipse_radius: expecting "Negative ellipse radius: -5" ... PASS
+Testing negative_glyph_advance: expecting "Negative glyph advance in font definition: -1" ... PASS
+Testing negative_rect_width: expecting "Negative rectangle width: -5" ... PASS
+Testing negative_rounded_radius: expecting "Negative rounded corner radius: -1" ... PASS
+Testing negative_star_radius: expecting "Negative star radius: -1" ... PASS
 Testing pattern_unknown_reference: expecting "Unrecognized instruction: missing" ... PASS
+Testing star_points_out_of_range: expecting "star points out of range [1..10000]: 0" ... PASS
 Testing text_invalid_anchor: expecting "Unrecognized anchor: upside" ... PASS
 Testing text_missing_font: expecting "Need to set font before writing" ... PASS
+Testing undefined_path: expecting "Undefined path: foo" ... PASS
 Testing unknown_feature: expecting "Unsupported data format" ... PASS
 Testing unknown_path_instruction: expecting "Unrecognized instruction: zap" ... PASS
 Testing unrecognized_gradient_type: expecting "Unrecognized gradient type: bogus" ... PASS
