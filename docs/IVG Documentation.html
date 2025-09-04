@@ -440,8 +440,8 @@ TEXT at:280,280 anchor:center F</code></pre>
 <p>The <code>PATH</code> instruction draws an arbitrary vector path. It
 will be filled with the current <a href="#fill"><code>fill</code></a>
 setting and outlined with the current <a
-href="#pen"><code>pen</code></a> setting. Paths may be supplied as as an
-instruction list, raw SVG data,, or by referencing a previously defined
+href="#pen"><code>pen</code></a> setting. Paths may be supplied as an
+instruction list, raw SVG data, or by referencing a previously defined
 path name.</p>
 <p>Syntax:</p>
 <pre><code>PATH [&lt;instructions&gt;] [transform:&lt;transform&gt;] [closed:(yes|no)=no]
@@ -452,8 +452,8 @@ path name.</p>
 href="#define-path"><code>define path</code></a>.</p></li>
 <li><p><code>&lt;svg data&gt;</code> is a string containing SVG path
 data. See https://svgwg.org/specs/paths/ for details.</p></li>
-<li><p><code>&lt;instructions&gt;</code> is a semicolon-separated list
-of sub-commands:</p>
+<li><p><code>&lt;instructions&gt;</code> is a bracketed list of
+sub-commands:</p>
 <ul>
 <li><code>move-to &lt;x&gt;,&lt;y&gt;</code> sets the starting point for
 a new sub-path.</li>
@@ -843,7 +843,7 @@ define font myEmbeddedFont [
 
 // Show it off.
 bounds 0,0,265,160
-wipe yellow
+WIPE yellow
 font myEmbeddedFont size:100 color:red outline:[black width:5] tracking:0.1
 TEXT at:40,110 &quot;IVG&quot;</code></pre>
 <p><img src="images/defineFontExample.png" /></p>
@@ -1051,7 +1051,7 @@ current <a href="#context">context</a>.</p>
         [ pattern-resolution:&lt;number&gt; ]</code></pre>
 <ul>
 <li><p><code>aa-gamma</code> allows adjusting gamma correction applied
-to the edges of strokes and fills to improve anti-alias quality. Note
+to the edges of strokes and fills to improve anti-aliasing quality. Note
 that the best quality gamma setting depends on your mixing colors.
 Settings higher than 1 usually make light strokes on dark backgrounds
 look better, and settings lower than 1 can make drawing dark on light
@@ -1170,8 +1170,8 @@ paths. The possible values are <code>butt</code>, <code>round</code>,
 and <code>square</code>. The initial value is
 <code>butt</code>.</p></li>
 <li><p>The <code>joints</code> option sets the shape at the corners of
-paths. The possible values are <code>bevel</code>, <code>miter</code>,
-and <code>round</code>. The initial value is
+paths. The possible values are <code>bevel</code>, <code>curve</code>,
+and <code>miter</code>. The initial value is
 <code>miter</code>.</p></li>
 <li><p>The <code>miter-limit</code> option controls the maximum ratio of
 the miter length to the stroke width. The initial value is 2, and the
@@ -1290,7 +1290,7 @@ predefined color names.</p></li>
 <pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,500,380
 
-// Wipe canvas with a checkboard pattern and setup styles.
+// Wipe canvas with a checkerboard pattern and setup styles.
 WIPE pattern:[
     bounds 0,0,20,20
     WIPE #202020
@@ -1521,7 +1521,7 @@ the transformation. By default, the anchor point is the origin
 <pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,310,240
 
-wipe #403020
+WIPE #403020
 fill #C04030 opacity:0.8
 pen #C090C0 width:2
 font serif size:22 color:white
