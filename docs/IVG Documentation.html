@@ -189,6 +189,9 @@
 <ul>
 <li><a href="#intro">Intro</a></li>
 <li><a href="#case-conventions">Case conventions</a></li>
+<li><a href="#rendering-model">Rendering model</a></li>
+<li><a href="#coordinate-system">Coordinate system</a></li>
+<li><a href="#error-handling">Error handling</a></li>
 <li><a href="#ivg-1-vs-ivg-2-vs-ivg-3">IVG-1 vs IVG-2 vs IVG-3</a></li>
 <li><a href="#instructions">Instructions</a>
 <ul>
@@ -221,6 +224,7 @@
 <li><a href="#paint-specification">Paint Specification</a></li>
 <li><a href="#transform-specification">Transform Specification</a></li>
 </ul></li>
+<li><a href="#defaults">Defaults</a></li>
 </ul>
 <h2 id="intro">Intro</h2>
 <p><em>IVG</em> (<em>Imperative Vector Graphics</em>) is a compact,
@@ -279,9 +283,9 @@ to create your vector graphics.</p>
 <p>It’s worth noting that basic knowledge of the <em>ImpD</em> language
 is necessary to understand and use the <em>IVG</em> format fully. For
 more information on <em>ImpD</em>, please refer to the separate <a
-href="ImpD%20Documentation.html"><em>ImpD documentation</em></a>
-provided. It will cover how to use variables and control flow statements
-to create dynamic and interactive graphics.</p>
+href="ImpD%20Documentation.md"><em>ImpD documentation</em></a> provided.
+It will cover how to use variables and control flow statements to create
+dynamic and interactive graphics.</p>
 <p>The <em>IVG</em> format used in this documentation is
 <code>IVG-3</code>. Therefore, the <code>format</code> instruction
 should be as follows:</p>
@@ -293,7 +297,21 @@ lowercase and drawing instructions in uppercase. Segment commands inside
 <code>PATH</code> compounds—such as <code>move-to</code> and
 <code>line-to</code>—also appear in lowercase. In short, any instruction
 in uppercase produces visible output, while lowercase forms configure
-state or describe geometry for later use.</p>
+state or describe geometry for later use. In all examples, drawing
+instructions appear in UPPERCASE.</p>
+<h2 id="rendering-model">Rendering model</h2>
+<p>Later drawing instructions paint over earlier ones. Compositing uses
+Porter–Duff <em>source-over</em> on premultiplied color. Any
+<code>opacity</code> modifier multiplies the alpha channel of its
+paint.</p>
+<h2 id="coordinate-system">Coordinate system</h2>
+<p>All coordinates are measured in pixels. The origin is at the top-left
+corner, <em>x</em> increases to the right, <em>y</em> increases
+downward, and fractional coordinates are allowed.</p>
+<h2 id="error-handling">Error handling</h2>
+<p>Malformed input—such as unknown directives, incorrect argument
+counts, or out-of-range values—triggers a run-time error and halts
+rendering.</p>
 <h2 id="ivg-1-vs-ivg-2-vs-ivg-3">IVG-1 vs IVG-2 vs IVG-3</h2>
 <ul>
 <li><code>IVG-1</code> covers core vector drawing and styling.</li>
@@ -317,9 +335,9 @@ href="#fill"><code>fill</code></a> setting and outlined with the current
 <ul>
 <li><p><code>&lt;cx&gt;,&lt;cy&gt;</code> is the center point of the
 ellipse.</p></li>
-<li><p><code>(&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;)</code> is the radius of
-the ellipse. If you only provide one value, it will be used as the
-radius for both the x and y axis, creating a circle.</p></li>
+<li><p><code>&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;]</code> is the radius of
+the ellipse. If you only provide one value, it will be used for both
+axes, creating a circle.</p></li>
 </ul>
 <p>Example:</p>
 <pre><code>bounds 0,0,300,200
@@ -378,10 +396,11 @@ href="#transform-specification">Transform Specification</a></p></li>
 opacity. A value of 1 (or <code>#FF</code>) is fully opaque, and 0 is
 fully transparent.</p></li>
 </ul>
-<p><code>IMAGE</code> uses <em>bilinear interpolation</em> when
-executing all transformations, resulting in efficient performance.
-However, it is important to note that large rescales may result in low
-image quality.</p>
+<p><code>IMAGE</code> uses <em>bilinear interpolation</em> on
+premultiplied linear RGBA values when executing all transformations.
+Images are expected to be premultiplied, and no resampling-quality
+option is available, so large rescales may result in low image
+quality.</p>
 <p>Demonstration:</p>
 <pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,340,300
@@ -458,20 +477,21 @@ sub-commands:</p>
 <li><code>move-to &lt;x&gt;,&lt;y&gt;</code> sets the starting point for
 a new sub-path.</li>
 <li><code>line-to &lt;x&gt;,&lt;y&gt;[,&lt;x&gt;,&lt;y&gt; ...]</code>
-draws one or more line segments.</li>
+draws one or more line segments from the current point.</li>
 <li><code>bezier-to &lt;cx&gt;,&lt;cy&gt;,&lt;x&gt;,&lt;y&gt;</code>
 draws a quadratic Bézier curve.</li>
 <li><code>bezier-to &lt;c1x&gt;,&lt;c1y&gt;,&lt;c2x&gt;,&lt;c2y&gt;,&lt;x&gt;,&lt;y&gt;</code>
 draws a cubic Bézier curve.</li>
-<li><code>arc-to &lt;x&gt;,&lt;y&gt;,&lt;r&gt;[,&lt;ry&gt;] [sweep:cw|ccw=cw] [large:yes|no=no] [rotate:&lt;deg&gt;=0]</code>
+<li><code>arc-to &lt;x&gt;,&lt;y&gt;,&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;] [sweep:cw|ccw=cw] [large:yes|no=no] [rotate:&lt;deg&gt;=0]</code>
 draws an elliptical arc.</li>
 <li><code>arc-sweep &lt;cx&gt;,&lt;cy&gt;,&lt;degrees&gt;</code> sweeps
 an arc around a center point.</li>
 <li><code>line &lt;x0&gt;,&lt;y0&gt;,&lt;x1&gt;,&lt;y1&gt;[,&lt;x2&gt;,&lt;y2&gt; ...]</code>
-appends an open polyline.</li>
+appends an open polyline starting at
+<code>&lt;x0&gt;,&lt;y0&gt;</code>.</li>
 <li><code>rect &lt;x&gt;,&lt;y&gt;,&lt;w&gt;,&lt;h&gt; [rounded:&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;]</code>
 appends an axis-aligned rectangle.</li>
-<li><code>ellipse &lt;cx&gt;,&lt;cy&gt;,&lt;r&gt;[,&lt;ry&gt;]</code>
+<li><code>ellipse &lt;cx&gt;,&lt;cy&gt;,&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;]</code>
 appends an ellipse or circle.</li>
 <li><code>star &lt;cx&gt;,&lt;cy&gt;,&lt;points&gt;,&lt;r1&gt;[,&lt;r2&gt;=&lt;r1&gt;] [rotation:&lt;angle&gt;]</code>
 appends a star or regular polygon.</li>
@@ -483,18 +503,22 @@ appends a text outline.</li>
 </ul>
 <p><code>closed:yes</code> closes the path automatically, connecting the
 final point back to the first and also closing any sub-paths begun with
-<code>move-to</code>.</p>
+<code>move-to</code>. A single instruction list may contain multiple
+sub-paths, all closed when <code>closed:yes</code> is specified.</p>
 <p><code>transform:</code> applies a transformation before drawing,
 using the same syntax as <a href="#image"><code>IMAGE</code></a>.</p>
 <p><em>The <code>PATH svg:</code> form is available in all IVG versions.
 The instruction-list variant requires IVG-3.</em></p>
 <h4 id="examples">Examples</h4>
 <p>Using an instruction list:</p>
-<pre><code>format IVG-3 requires:ImpD-1
-bounds 0,0,340,300
-fill lime
-pen black
-PATH [move-to 20,20; line-to 120,20,120,80,20,80] closed:yes</code></pre>
+<pre><code>    format IVG-3 requires:ImpD-1
+    bounds 0,0,340,300
+    fill lime
+    pen black
+    PATH [
+        move-to 20,20
+        line-to 120,20,120,80,20,80
+    ] closed:yes</code></pre>
 <p><img src="images/pathLineToExample.png" /></p>
 <p>Quadratic and cubic Bézier curves:</p>
 <pre><code>format IVG-3 requires:ImpD-1
@@ -593,10 +617,10 @@ href="#fill"><code>fill</code></a> setting and outlined with the current
 of the center of the star.</p></li>
 <li><p><code>&lt;points&gt;</code> is the number of points of the
 star.</p></li>
-<li><p><code>&lt;r1&gt; and &lt;r2&gt;</code> are the inner and outer
-radius of the star. If only <code>&lt;r1&gt;</code> is specified, it
-will be used for both the inner and outer radius (effectively creating a
-regular polygon).</p></li>
+<li><p><code>&lt;r1&gt;[,&lt;r2&gt;=&lt;r1&gt;]</code> are the inner and
+outer radius of the star. If <code>&lt;r2&gt;</code> is omitted,
+<code>&lt;r1&gt;</code> is used for both, creating a regular
+polygon.</p></li>
 <li><p>The <code>rotation</code> option specifies the angle of rotation
 for the star in degrees.</p></li>
 </ul>
@@ -665,6 +689,11 @@ next character would have been written.</p></li>
 <li><p><code>&lt;text&gt;</code> is the text to be drawn on the canvas.
 <code>TEXT</code> draws a single line of text only.</p></li>
 </ul>
+<p>The <code>y</code> coordinate specifies the baseline of the text.
+Font ascent and descent come from the font definition, and
+<code>size</code> maps one <em>em</em> to that many pixels. The
+<code>anchor</code> option only adjusts horizontal alignment; vertical
+placement always uses the baseline.</p>
 <p>Demonstration:</p>
 <pre><code>format IVG-3 requires:ImpD-1
 options aa-gamma:1.5
@@ -854,7 +883,9 @@ href="#path"><code>PATH</code></a> instruction.</p>
 <pre><code>define path &lt;name&gt; &lt;path-definition&gt;
 
 -       `&lt;name&gt;` is a unique identifier for the path. Path names are case-sensitive and may only be defined once.
--       `&lt;path-definition&gt;` follows the same syntax as [`PATH`](#path), using either `svg:` data or path instructions inside brackets.</code></pre>
+
+-       `&lt;path-definition&gt;` follows the same syntax as [`PATH`](#path), using either `svg:` data or path
+        instructions inside brackets.</code></pre>
 <p>Example:</p>
 <pre><code>define path star [svg:[M0,0 L10,0 L5,8 z]]
 fill gold
@@ -913,11 +944,11 @@ operations and will be active until they are changed or the current <a
 href="#context">context</a> ends or is <a href="#reset">reset</a>.</p>
 <p>Syntax:</p>
 <pre><code>font [ &lt;name&gt; ]
-    [ size:&lt;number&gt; ]
-    [ color:&lt;paint&gt; ]
-    [ outline:&lt;stroke&gt; ]
-    [ transform:&lt;transform&gt; ]
-    [ tracking:&lt;number&gt; ]</code></pre>
+     [ size:&lt;number&gt; ]
+     [ color:&lt;paint&gt; ]
+     [ outline:&lt;stroke&gt; ]
+     [ transform:&lt;transform&gt; ]
+     [ tracking:&lt;number&gt; ]</code></pre>
 <ul>
 <li><p><code>&lt;name&gt;</code> is the name of the font face to be
 used. Before drawing text, you are required to set the font name. It can
@@ -975,6 +1006,9 @@ will be fully visible, while lower values will result in more
 transparency.</p>
 <p>Initially, the pen (and font outline) is set to <code>none</code>,
 and the fill (and font color) to <code>#FF</code> (fully opaque).</p>
+<p>Mask operations multiply with any existing mask. Mask paints honor
+<code>opacity</code> and gradients, and colors are treated as
+single-channel coverage values.</p>
 <p>Demonstration:</p>
 <pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,310,320
@@ -999,12 +1033,12 @@ c2=110,70,30
 outline=context [
     fill none
     pen silver width:0.5 dash:4
-    ellipse $c2
-    ellipse $c1
+    ELLIPSE $c2
+    ELLIPSE $c1
 ]
 
 // A: no masking. Draw only circle 1.
-ellipse $c1
+ELLIPSE $c1
 $outline
 TEXT at:70,145 anchor:center &quot;A&quot;
 
@@ -1012,9 +1046,9 @@ TEXT at:70,145 anchor:center &quot;A&quot;
 offset 150,0
 context [
     mask [
-        ellipse $c2
+        ELLIPSE $c2
     ]
-    ellipse $c1
+    ELLIPSE $c1
 ]
 $outline
 TEXT at:70,145 anchor:center &quot;B&quot;
@@ -1023,9 +1057,9 @@ TEXT at:70,145 anchor:center &quot;B&quot;
 offset -150,150
 context [
     mask [
-        ellipse $c2
+        ELLIPSE $c2
     ] inverted:yes
-    ellipse $c1
+    ELLIPSE $c1
 ]
 $outline
 TEXT at:70,145 anchor:center &quot;C&quot;
@@ -1035,9 +1069,9 @@ offset 150,0
 context [
     mask [
         fill gradient:[linear 0,0 0.5,1 from:#00 to:#C0] relative:yes
-        ellipse $c2
+        ELLIPSE $c2
     ]
-    ellipse $c1
+    ELLIPSE $c1
 ]
 $outline
 TEXT at:70,145 anchor:center &quot;D&quot;</code></pre>
@@ -1073,7 +1107,7 @@ bounds 0,0,400,124
 // Draw a white rectangle on black background.
 WIPE black
 fill white
-rect 0,40,400,40
+RECT 0,40,400,40
 
 fill none
 font serif size:20 color:white
@@ -1089,7 +1123,7 @@ for gamma in:[0.6,0.7,0.8,0.9,1.0,1.2,1.5,2.0,3.0,4.0] [
     pen black; ELLIPSE 0,60,14; ELLIPSE 0,60,4
 
     // Write gamma value under circles.
-    text at:0,110 $gamma anchor:center
+    TEXT at:0,110 $gamma anchor:center
     offset 40,0
 ]</code></pre>
 <p><img src="images/gammaDemo.png" /></p>
@@ -1099,15 +1133,15 @@ bounds 0,0,410,100
 WIPE white
 pen black
 offset 40,40
-for quality in:[0.001 0.01 0.1 1.0 10.0] [
+for quality in:[0.001,0.01,0.1,1.0,10.0] [
     options curve-quality: $quality
 
     // Draw an SVG path with a high number of curve segments
-    path svg:[M0,0Q8,0,0,5Q-7,9-10,0Q-14-12,0-15Q17-19,20,0Q24,22,0,25Q-27,28-30,0Q-33-32,0-35Q37-38,40,0]
+    PATH svg:[M0,0Q8,0,0,5Q-7,9-10,0Q-14-12,0-15Q17-19,20,0Q24,22,0,25Q-27,28-30,0Q-33-32,0-35Q37-38,40,0]
 
     // Draw a label under the path indicating the current curve quality
     font serif size:20 color:black
-    text at:0,50 $quality anchor:center
+    TEXT at:0,50 $quality anchor:center
     offset 80,0
 ]</code></pre>
 <p><img src="images/curveQualityDemo.png" /></p>
@@ -1137,11 +1171,11 @@ for resolution in:[1,2,4,8] [
         scale 8
         
         // Draw a rectangle to show the pattern.
-        rect $x,0,10,10
+        RECT $x,0,10,10
         
         // Write the resolution value under the rectangle.
         font serif color:white size:2
-        text at:{$x+5},11 [$resolution x] anchor:center
+        TEXT at:{$x+5},11 [$resolution x] anchor:center
         
         x={$x+10}
     ]
@@ -1276,11 +1310,13 @@ specifies the color using a hexadecimal RGB value, where each color
 component is between <code>#00</code> and <code>#FF</code>. This is a
 common way to specify colors on the web.</p></li>
 <li><p>The <code>#&lt;hex&gt;&lt;hex&gt;&lt;hex&gt;&lt;hex&gt;</code>
-alternative specifies the color using a hexadecimal RGBA value where the
-RGB values need to be pre-multiplied with the alpha value. For example,
-the color yellow <code>#FFFF00</code> with a transparency of 0.75
-(decimal equivalent of <code>#C0</code>) becomes
-<code>#C0C000C0</code>.</p></li>
+alternative specifies the color using a hexadecimal AARRGGBB value where
+the RGB values must be pre-multiplied with the alpha value:
+<code>rgb' = round(rgb * alpha / 255)</code>. For example, the color
+yellow <code>#FFFF00</code> with a transparency of 0.75 (decimal
+equivalent of <code>#C0</code>) becomes <code>#C0C0C000</code>. A color
+<code>#4080C0</code> at 50% (<code>#80</code>) becomes
+<code>#80204060</code>.</p></li>
 <li><p><code>none</code> is a special color, meaning that no color will
 be used; it will be invisible.</p></li>
 <li><p>The last alternative specifies the color using one of the
@@ -1338,7 +1374,7 @@ specification, such as in the <a href="#pen"><code>pen</code></a> and <a
 href="#fill"><code>fill</code></a> directives. The syntax for specifying
 a gradient is as follows:</p>
 <pre><code>&lt;gradient&gt; = (linear &lt;x0&gt;,&lt;y0&gt; &lt;x1&gt;,&lt;y1&gt; | radial &lt;cx&gt;,&lt;cy&gt; (&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;))
-            (from:&lt;color&gt; to:&lt;color&gt; | stops:&lt;number&gt;,&lt;color&gt;,[&lt;number&gt;,&lt;color&gt;,...])</code></pre>
+             (from:&lt;color&gt; to:&lt;color&gt; | stops:&lt;number&gt;,&lt;color&gt;,[&lt;number&gt;,&lt;color&gt;,...])</code></pre>
 <ul>
 <li><p>The <code>linear</code> alternative creates a linear gradient
 that transitions between colors along a straight line defined by two
@@ -1420,8 +1456,8 @@ href="#pen"><code>pen</code></a>, <a href="#fill"><code>fill</code></a>,
 etc., except for the <a href="#mask"><code>mask</code></a> setting. A <a
 href="#bounds"><code>bounds</code></a> directive is required to define
 the pattern’s dimensions. The resolution used for rasterizing the
-pattern can be changed using the <a
-href="#options"><code>options</code></a> directive.</p></li>
+pattern can be changed using the [<code>options</code>] (#options)
+directive.</p></li>
 <li><p>The <code>transform</code> option allows you to apply a series of
 transformations on the paint. These transformations are relative to the
 current transformation of the active <a href="#context">context</a>. See
@@ -1475,17 +1511,14 @@ in two ways:</p>
 transform the current <a href="#context">context</a> and all subsequent
 drawing operations. The transformation is applied to the entire canvas
 when used in this way.</p></li>
-<li><p>Additionally, transformations can also be used in other
-directives such as <a
+<li><p>Transformations can also appear inside directives such as <a
 href="#paint-specification"><code>&lt;paint&gt;</code></a>, <a
 href="#font"><code>font</code></a>, and <a
 href="#image"><code>image</code></a> to transform specific objects. In
 these cases, you specify the transformation within square brackets
 <code>[</code> and <code>]</code>, and you can list multiple
-transformations separated with a semicolon <code>;</code>. It is
-important to note that the order of the transformations in the list
-matters, as transformations are applied in the order they
-appear.</p></li>
+transformations separated with a semicolon <code>;</code>.
+Transformations apply left to right in the order written.</p></li>
 </ol>
 <p>The syntax for specifying a transformation is as follows:</p>
 <pre><code>&lt;transform&gt; = offset &lt;x&gt;,&lt;y&gt;
@@ -1508,8 +1541,8 @@ the specified <code>&lt;degrees&gt;</code> amount.</p></li>
 the specified <code>&lt;x&gt;</code> and <code>&lt;y&gt;</code>
 amount.</p></li>
 <li><p>The <code>matrix</code> alternative applies a transformation
-matrix to the context/object. The six values provided represent the
-coefficients of the matrix.</p></li>
+matrix to the context/object. The six values correspond to an SVG-style
+matrix <code>[a c e; b d f; 0 0 1]</code>.</p></li>
 <li><p>You can provide an optional anchor point with any of the above
 alternatives (except <code>offset</code>) by appending
 <code>anchor</code> to the transformation. <code>anchor</code> will
@@ -1564,5 +1597,76 @@ context [
     TEXT at:25,65 &quot;matrix&quot;
 ]</code></pre>
 <p><img src="images/transformDemo.png" /></p>
+<h2 id="defaults">Defaults</h2>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Initial value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>pen paint</td>
+<td>none</td>
+</tr>
+<tr>
+<td>pen width</td>
+<td>1</td>
+</tr>
+<tr>
+<td>pen caps</td>
+<td>butt</td>
+</tr>
+<tr>
+<td>pen joints</td>
+<td>miter</td>
+</tr>
+<tr>
+<td>pen miter-limit</td>
+<td>2</td>
+</tr>
+<tr>
+<td>pen dash</td>
+<td>0 (solid)</td>
+</tr>
+<tr>
+<td>fill paint</td>
+<td>none</td>
+</tr>
+<tr>
+<td>font name</td>
+<td>(none; must set before <code>TEXT</code>)</td>
+</tr>
+<tr>
+<td>font size</td>
+<td>20</td>
+</tr>
+<tr>
+<td>font color</td>
+<td>black</td>
+</tr>
+<tr>
+<td>font outline</td>
+<td>none</td>
+</tr>
+<tr>
+<td>font tracking</td>
+<td>0</td>
+</tr>
+<tr>
+<td>options aa-gamma</td>
+<td>1</td>
+</tr>
+<tr>
+<td>options curve-quality</td>
+<td>1</td>
+</tr>
+<tr>
+<td>options pattern-resolution</td>
+<td>1</td>
+</tr>
+</tbody>
+</table>
 </body>
 </html>

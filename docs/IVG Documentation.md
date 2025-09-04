@@ -4,6 +4,9 @@
 
 -	[Intro](#intro)
 -	[Case conventions](#case-conventions)
+-	[Rendering model](#rendering-model)
+-	[Coordinate system](#coordinate-system)
+-	[Error handling](#error-handling)
 -	[IVG-1 vs IVG-2 vs IVG-3](#ivg-1-vs-ivg-2-vs-ivg-3)
 -	[Instructions](#instructions)
 	-	[ELLIPSE](#ellipse)
@@ -30,6 +33,7 @@
 	-	[Gradient Specification](#gradient-specification)
 	-	[Paint Specification](#paint-specification)
 	-	[Transform Specification](#transform-specification)
+-	[Defaults](#defaults)
 
 ## Intro
 
@@ -82,7 +86,7 @@ reading the documentation, you will learn about all the different instructions a
 use them to create your vector graphics.
 
 It's worth noting that basic knowledge of the _ImpD_ language is necessary to understand and use the _IVG_ format fully.
-For more information on _ImpD_, please refer to the separate [_ImpD documentation_](ImpD%20Documentation.html) provided.
+For more information on _ImpD_, please refer to the separate [_ImpD documentation_](ImpD%20Documentation.md) provided.
 It will cover how to use variables and control flow statements to create dynamic and interactive graphics.
 
 
@@ -93,9 +97,25 @@ The _IVG_ format used in this documentation is `IVG-3`. Therefore, the `format` 
 ## Case conventions
 
 _ImpD_ is case-insensitive, but this documentation follows a convention: "directives" (defining settings, etc.) are
-written in lowercase and drawing instructions in uppercase. Segment commands inside `PATH` compounds—such as
-`move-to` and `line-to`—also appear in lowercase. In short, any instruction in uppercase produces visible output,
-while lowercase forms configure state or describe geometry for later use.
+written in lowercase and drawing instructions in uppercase. Segment commands inside `PATH` compounds—such as `move-to`
+and `line-to`—also appear in lowercase. In short, any instruction in uppercase produces visible output, while
+lowercase forms configure state or describe geometry for later use. In all examples, drawing instructions appear in
+UPPERCASE.
+
+## Rendering model
+
+Later drawing instructions paint over earlier ones. Compositing uses Porter–Duff _source-over_ on premultiplied color.
+Any `opacity` modifier multiplies the alpha channel of its paint.
+
+## Coordinate system
+
+All coordinates are measured in pixels. The origin is at the top-left corner, _x_ increases to the right, _y_ increases
+downward, and fractional coordinates are allowed.
+
+## Error handling
+
+Malformed input—such as unknown directives, incorrect argument counts, or out-of-range values—triggers a run-time error
+and halts rendering.
 
 ## IVG-1 vs IVG-2 vs IVG-3
 
@@ -103,7 +123,8 @@ while lowercase forms configure state or describe geometry for later use.
 - `IVG-2` adds text, fonts, and raster image support through `define image` and `IMAGE`.
 - `IVG-3` adds `LINE`, `POLYGON`, and an instruction-list form for `PATH` (including `define path`).
 
-The interpreter processes all versions identically, but readers that only understand `IVG-1` or `IVG-2` will reject documents marked `IVG-3`.
+The interpreter processes all versions identically, but readers that only understand `IVG-1` or `IVG-2` will reject
+documents marked `IVG-3`.
 
 ## Instructions
 
@@ -118,8 +139,8 @@ Syntax:
 
 -	`<cx>,<cy>` is the center point of the ellipse.
 
--	`(<r>|<rx>,<ry>)` is the radius of the ellipse. If you only provide one value, it will be used as the radius for
-	both the x and y axis, creating a circle.
+-	`<r>[,<ry>=<r>]` is the radius of the ellipse. If you only provide one value, it will be used for both axes,
+ 	creating a circle.
 
 Example:
 
@@ -168,7 +189,8 @@ Syntax:
 
 -	The `width` and `height` options fit the source image into a specific width and height.
 
--	If `stretch` is `no` and `width` and/or `height` is supplied, the source image preserves its aspect ratio and fits within those dimensions. Otherwise, it stretches the image to fill the specified `width` and/or `height` exactly.
+-	If `stretch` is `no` and `width` and/or `height` is supplied, the source image preserves its aspect ratio and fits
+ 	within those dimensions. Otherwise, it stretches the image to fill the specified `width` and/or `height` exactly.
 
 -	The `transform` option is used to apply a transformation to the image when it is drawn. See [Transform
 	Specification](#transform-specification)
@@ -176,8 +198,9 @@ Syntax:
 -	The `opacity` option is used to set the image's opacity. A value of 1 (or `#FF`) is fully opaque, and 0 is fully
 	transparent.
 
-`IMAGE` uses _bilinear interpolation_ when executing all transformations, resulting in efficient performance. However,
-it is important to note that large rescales may result in low image quality.
+`IMAGE` uses _bilinear interpolation_ on premultiplied linear RGBA values when executing all transformations. Images are
+expected to be premultiplied, and no resampling-quality option is available, so large rescales may result in low image
+quality.
 
 Demonstration:
 
@@ -237,9 +260,9 @@ Demonstration:
 
 ### PATH
 
-The `PATH` instruction draws an arbitrary vector path. It will be filled with the current [`fill`](#fill)
-setting and outlined with the current [`pen`](#pen) setting. Paths may be supplied as an instruction list,
-raw SVG data, or by referencing a previously defined path name.
+The `PATH` instruction draws an arbitrary vector path. It will be filled with the current [`fill`](#fill) setting and
+outlined with the current [`pen`](#pen) setting. Paths may be supplied as an instruction list, raw SVG data, or by
+referencing a previously defined path name.
 
 Syntax:
 
@@ -253,20 +276,21 @@ Syntax:
 
 - `<instructions>` is a bracketed list of sub-commands:
 	- `move-to <x>,<y>` sets the starting point for a new sub-path.
-	- `line-to <x>,<y>[,<x>,<y> ...]` draws one or more line segments.
+	- `line-to <x>,<y>[,<x>,<y> ...]` draws one or more line segments from the current point.
 	- `bezier-to <cx>,<cy>,<x>,<y>` draws a quadratic Bézier curve.
 	- `bezier-to <c1x>,<c1y>,<c2x>,<c2y>,<x>,<y>` draws a cubic Bézier curve.
-	- `arc-to <x>,<y>,<r>[,<ry>] [sweep:cw|ccw=cw] [large:yes|no=no] [rotate:<deg>=0]` draws an elliptical arc.
+	- `arc-to <x>,<y>,<r>[,<ry>=<r>] [sweep:cw|ccw=cw] [large:yes|no=no] [rotate:<deg>=0]` draws an elliptical arc.
 	- `arc-sweep <cx>,<cy>,<degrees>` sweeps an arc around a center point.
-	- `line <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]` appends an open polyline.
+	- `line <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]` appends an open polyline starting at `<x0>,<y0>`.
 	- `rect <x>,<y>,<w>,<h> [rounded:<r>|<rx>,<ry>]` appends an axis-aligned rectangle.
-	- `ellipse <cx>,<cy>,<r>[,<ry>]` appends an ellipse or circle.
+	- `ellipse <cx>,<cy>,<r>[,<ry>=<r>]` appends an ellipse or circle.
 	- `star <cx>,<cy>,<points>,<r1>[,<r2>=<r1>] [rotation:<angle>]` appends a star or regular polygon.
 	- `polygon <x0>,<y0> <x1>,<y1> [<x2>,<y2> ...]` appends a closed polygon.
 	- `text [at:<x,y>] [anchor:left|center|right=left] <text>` appends a text outline.
 
-`closed:yes` closes the path automatically, connecting the final point back to the first and
-also closing any sub-paths begun with `move-to`.
+`closed:yes` closes the path automatically, connecting the final point back to the first and also closing any sub-paths
+begun with `move-to`. A single instruction list may contain multiple sub-paths, all closed when `closed:yes` is
+specified.
 
 `transform:` applies a transformation before drawing, using the same syntax as [`IMAGE`](#image).
 
@@ -276,11 +300,14 @@ _The `PATH svg:` form is available in all IVG versions. The instruction-list var
 
 Using an instruction list:
 
-	format IVG-3 requires:ImpD-1
-	bounds 0,0,340,300
-	fill lime
-	pen black
-	PATH [move-to 20,20; line-to 120,20,120,80,20,80] closed:yes
+		format IVG-3 requires:ImpD-1
+		bounds 0,0,340,300
+		fill lime
+		pen black
+		PATH [
+			move-to 20,20
+			line-to 120,20,120,80,20,80
+		] closed:yes
 ![](images/pathLineToExample.png)
 
 Quadratic and cubic Bézier curves:
@@ -326,7 +353,8 @@ Syntax:
 
 	LINE <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]
 
-At least two points (four coordinates) are required. Two points draw a single line segment; additional points extend the polyline.
+At least two points (four coordinates) are required. Two points draw a single line segment; additional points extend the
+polyline.
 
 Example:
 
@@ -399,8 +427,8 @@ All numeric parameters are supplied in one comma-separated list.
 
 -	`<points>` is the number of points of the star.
 
--	`<r1> and <r2>` are the inner and outer radius of the star. If only `<r1>` is specified, it will be used for both
-	the inner and outer radius (effectively creating a regular polygon).
+-	`<r1>[,<r2>=<r1>]` are the inner and outer radius of the star. If `<r2>` is omitted, `<r1>` is used for both,
+ 	creating a regular polygon.
 
 -	The `rotation` option specifies the angle of rotation for the star in degrees.
 
@@ -471,6 +499,10 @@ Syntax:
 
 -	`<text>` is the text to be drawn on the canvas. `TEXT` draws a single line of text only.
 
+The `y` coordinate specifies the baseline of the text. Font ascent and descent come from the font definition, and `size`
+maps one _em_ to that many pixels. The `anchor` option only adjusts horizontal alignment; vertical placement always
+uses the baseline.
+
 Demonstration:
 
 	format IVG-3 requires:ImpD-1
@@ -524,8 +556,8 @@ Syntax:
 
 	WIPE <paint>
 
--	`<paint>` is the paint used for the wipe. You specify it as a color, gradient, or pattern. See [Paint
-	Specification](#paint-specification) for more information. Note that _relative paint_ is not allowed for this
+-	`<paint>` is the paint used for the wipe. You specify it as a color, gradient, or pattern. See
+	[Paint Specification](#paint-specification) for more information. Note that _relative paint_ is not allowed for this
 	instruction.
 
 Example:
@@ -673,7 +705,9 @@ Syntax:
 	define path <name> <path-definition>
 
 	-		`<name>` is a unique identifier for the path. Path names are case-sensitive and may only be defined once.
-	-		`<path-definition>` follows the same syntax as [`PATH`](#path), using either `svg:` data or path instructions inside brackets.
+
+	-		`<path-definition>` follows the same syntax as [`PATH`](#path), using either `svg:` data or path
+	 		instructions inside brackets.
 
 Example:
 
@@ -737,11 +771,11 @@ drawing operations and will be active until they are changed or the current [con
 Syntax:
 
 	font [ <name> ]
-		[ size:<number> ]
-		[ color:<paint> ]
-		[ outline:<stroke> ]
-		[ transform:<transform> ]
-		[ tracking:<number> ]
+		 [ size:<number> ]
+		 [ color:<paint> ]
+		 [ outline:<stroke> ]
+		 [ transform:<transform> ]
+		 [ tracking:<number> ]
 
 -	`<name>` is the name of the font face to be used. Before drawing text, you are required to set the font name. It can
 	be a font previously defined using the [`define font`](#define-font) directive or a font provided by the hosting
@@ -790,6 +824,9 @@ this color will be fully visible, while lower values will result in more transpa
 
 Initially, the pen (and font outline) is set to `none`, and the fill (and font color) to `#FF` (fully opaque).
 
+Mask operations multiply with any existing mask. Mask paints honor `opacity` and gradients, and colors are treated as
+single-channel coverage values.
+
 Demonstration:
 
 	format IVG-3 requires:ImpD-1
@@ -815,12 +852,12 @@ Demonstration:
 	outline=context [
 		fill none
 		pen silver width:0.5 dash:4
-		ellipse $c2
-		ellipse $c1
+		ELLIPSE $c2
+		ELLIPSE $c1
 	]
 	
 	// A: no masking. Draw only circle 1.
-	ellipse $c1
+	ELLIPSE $c1
 	$outline
 	TEXT at:70,145 anchor:center "A"
 	
@@ -828,9 +865,9 @@ Demonstration:
 	offset 150,0
 	context [
 		mask [
-			ellipse $c2
+			ELLIPSE $c2
 		]
-		ellipse $c1
+		ELLIPSE $c1
 	]
 	$outline
 	TEXT at:70,145 anchor:center "B"
@@ -839,9 +876,9 @@ Demonstration:
 	offset -150,150
 	context [
 		mask [
-			ellipse $c2
+			ELLIPSE $c2
 		] inverted:yes
-		ellipse $c1
+		ELLIPSE $c1
 	]
 	$outline
 	TEXT at:70,145 anchor:center "C"
@@ -851,9 +888,9 @@ Demonstration:
 	context [
 		mask [
 			fill gradient:[linear 0,0 0.5,1 from:#00 to:#C0] relative:yes
-			ellipse $c2
+			ELLIPSE $c2
 		]
-		ellipse $c1
+		ELLIPSE $c1
 	]
 	$outline
 	TEXT at:70,145 anchor:center "D"
@@ -888,7 +925,7 @@ the current [context](#context).
 	// Draw a white rectangle on black background.
 	WIPE black
 	fill white
-	rect 0,40,400,40
+	RECT 0,40,400,40
 	
 	fill none
 	font serif size:20 color:white
@@ -904,7 +941,7 @@ the current [context](#context).
 		pen black; ELLIPSE 0,60,14; ELLIPSE 0,60,4
 
 		// Write gamma value under circles.
-		text at:0,110 $gamma anchor:center
+		TEXT at:0,110 $gamma anchor:center
 		offset 40,0
 	]
 ![](images/gammaDemo.png)
@@ -916,15 +953,15 @@ the current [context](#context).
 	WIPE white
 	pen black
 	offset 40,40
-	for quality in:[0.001 0.01 0.1 1.0 10.0] [
+	for quality in:[0.001,0.01,0.1,1.0,10.0] [
 		options curve-quality: $quality
 	
 		// Draw an SVG path with a high number of curve segments
-		path svg:[M0,0Q8,0,0,5Q-7,9-10,0Q-14-12,0-15Q17-19,20,0Q24,22,0,25Q-27,28-30,0Q-33-32,0-35Q37-38,40,0]
+		PATH svg:[M0,0Q8,0,0,5Q-7,9-10,0Q-14-12,0-15Q17-19,20,0Q24,22,0,25Q-27,28-30,0Q-33-32,0-35Q37-38,40,0]
 	
 		// Draw a label under the path indicating the current curve quality
 		font serif size:20 color:black
-		text at:0,50 $quality anchor:center
+		TEXT at:0,50 $quality anchor:center
 		offset 80,0
 	]
 
@@ -957,11 +994,11 @@ the current [context](#context).
 			scale 8
 			
 			// Draw a rectangle to show the pattern.
-			rect $x,0,10,10
+			RECT $x,0,10,10
 			
 			// Write the resolution value under the rectangle.
 			font serif color:white size:2
-			text at:{$x+5},11 [$resolution x] anchor:center
+			TEXT at:{$x+5},11 [$resolution x] anchor:center
 			
 			x={$x+10}
 		]
@@ -1091,9 +1128,10 @@ specifying a color is as follows:
 -	The `#<hex><hex><hex>` alternative specifies the color using a hexadecimal RGB value, where each color component is
 	between `#00` and `#FF`. This is a common way to specify colors on the web.
 
--	The `#<hex><hex><hex><hex>` alternative specifies the color using a hexadecimal RGBA value where the RGB values need
-	to be pre-multiplied with the alpha value. For example, the color yellow `#FFFF00` with a transparency of 0.75
-	(decimal equivalent of `#C0`) becomes `#C0C000C0`.
+-	The `#<hex><hex><hex><hex>` alternative specifies the color using a hexadecimal AARRGGBB value where the RGB values
+ 	must be pre-multiplied with the alpha value: `rgb' = round(rgb * alpha / 255)`. For example, the color yellow
+ 	`#FFFF00` with a transparency of 0.75 (decimal equivalent of `#C0`) becomes `#C0C0C000`. A color `#4080C0` at
+ 	50% (`#80`) becomes `#80204060`.
 
 -	`none` is a special color, meaning that no color will be used; it will be invisible.
 
@@ -1150,7 +1188,7 @@ ending color or multiple color stops. `<gradient>` is used by the [`<paint>`](#p
 as in the [`pen`](#pen) and [`fill`](#fill) directives. The syntax for specifying a gradient is as follows:
 
 	<gradient> = (linear <x0>,<y0> <x1>,<y1> | radial <cx>,<cy> (<r>|<rx>,<ry>))
-				(from:<color> to:<color> | stops:<number>,<color>,[<number>,<color>,...])
+				 (from:<color> to:<color> | stops:<number>,<color>,[<number>,<color>,...])
 
 -	The `linear` alternative creates a linear gradient that transitions between colors along a straight line defined by
 	two points (`<x0>,<y0>` and `<x1>,<y1>`).
@@ -1218,10 +1256,11 @@ look like. You can select a solid color, a gradient of colors, or a pattern.
 	multiple color stops. See [Gradient Specification](#gradient-specification).
 
 -	The `pattern` paint type is used to specify a repeating graphical pattern created from a set of drawing
-	instructions. You define the pattern by enclosing the instructions in brackets `[` and `]`. The drawing context for
-	the pattern inherits all settings from the current context, such as [`pen`](#pen), [`fill`](#fill), etc., except for
-	the [`mask`](#mask) setting. A [`bounds`](#bounds) directive is required to define the pattern's dimensions. The
-	resolution used for rasterizing the pattern can be changed using the [`options`](#options) directive.
+ 	instructions. You define the pattern by enclosing the instructions in brackets `[` and `]`. The drawing context
+ 	for the pattern inherits all settings from the current context, such as [`pen`](#pen), [`fill`](#fill), etc.,
+ 	except for the [`mask`](#mask) setting. A [`bounds`](#bounds) directive is required to define the pattern's
+ 	dimensions. The resolution used for rasterizing the pattern can be changed using the [`options`]
+ 	(#options) directive.
 
 -	The `transform` option allows you to apply a series of transformations on the paint. These transformations are
 	relative to the current transformation of the active [context](#context). See [Transform
@@ -1231,8 +1270,8 @@ look like. You can select a solid color, a gradient of colors, or a pattern.
 	the paint will be transformed along with the objects. If set to `no` it will stay static. (Irrelevant for solid
 	colors.)
 
--	The `opacity` option allows you to specify the opacity of the paint. The value should be between 0 and 1, where 0 is
-	full transparency and 1 is full opacity. Alternatively, you can use hexadecimal values `#00` to `#FF`.
+-	The `opacity` option allows you to specify the opacity of the paint. The value should be between 0 and 1, where 0
+ 	is full transparency and 1 is full opacity. Alternatively, you can use hexadecimal values `#00` to `#FF`.
 
 Demonstration:
 
@@ -1273,11 +1312,10 @@ two ways:
 1.	You can use a transformation as an instruction of its own to transform the current [context](#context) and all
 	subsequent drawing operations. The transformation is applied to the entire canvas when used in this way.
 
-2.	Additionally, transformations can also be used in other directives such as [`<paint>`](#paint-specification),
-	[`font`](#font), and [`image`](#image) to transform specific objects. In these cases, you specify the transformation
-	within square brackets `[` and `]`, and you can list multiple transformations separated with a semicolon `;`. It is
-	important to note that the order of the transformations in the list matters, as transformations are applied in the
-	order they appear.
+2.	Transformations can also appear inside directives such as [`<paint>`](#paint-specification), [`font`](#font), and
+[`image`](#image) to transform specific objects. In these cases, you specify the transformation within square brackets
+`[` and `]`, and you can list multiple transformations separated with a semicolon `;`. Transformations apply left to
+right in the order written.
 
 The syntax for specifying a transformation is as follows:
 
@@ -1297,8 +1335,8 @@ The syntax for specifying a transformation is as follows:
 
 -	The `shear` alternative skews the context/object by the specified `<x>` and `<y>` amount.
 
--	The `matrix` alternative applies a transformation matrix to the context/object. The six values provided represent
-	the coefficients of the matrix.
+-	The `matrix` alternative applies a transformation matrix to the context/object. The six values correspond to an
+ 	SVG-style matrix `[a c e; b d f; 0 0 1]`.
 
 -	You can provide an optional anchor point with any of the above alternatives (except `offset`) by appending `anchor`
 	to the transformation. `anchor` will specify a point in the context/object that will be used as the base for the
@@ -1352,3 +1390,23 @@ Demonstration:
 		TEXT at:25,65 "matrix"
 	]
 ![](images/transformDemo.png)
+
+## Defaults
+
+| Setting					 | Initial value					 |
+|----------------------------|-----------------------------------|
+| pen paint					 | none								 |
+| pen width					 | 1								 |
+| pen caps					 | butt								 |
+| pen joints				 | miter							 |
+| pen miter-limit			 | 2								 |
+| pen dash					 | 0 (solid)						 |
+| fill paint				 | none								 |
+| font name					 | (none; must set before `TEXT`)	 |
+| font size					 | 20								 |
+| font color				 | black							 |
+| font outline				 | none								 |
+| font tracking				 | 0								 |
+| options aa-gamma			 | 1								 |
+| options curve-quality		 | 1								 |
+| options pattern-resolution | 1								 |
