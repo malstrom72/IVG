@@ -48,6 +48,24 @@ const double MIN_CURVE_QUALITY = 0.001;
 const double MAX_CURVE_QUALITY = 100.0;
 const double COORDINATE_LIMIT = 1000000.0;
 
+void checkBounds(const IntRect& bounds) {
+	if (bounds.left < -32768 || bounds.left >= 32768) {
+		Interpreter::throwRunTimeError(String("bounds left out of range [-32768..32767]: ")
+				+ Interpreter::toString(bounds.left));
+	}
+	if (bounds.top < -32768 || bounds.top >= 32768) {
+		Interpreter::throwRunTimeError(String("bounds top out of range [-32768..32767]: ")
+				+ Interpreter::toString(bounds.top));
+	}
+	if (bounds.width <= 0 || bounds.width >= 32768) {
+		Interpreter::throwRunTimeError(String("bounds width out of range [1..32767]: ")
+				+ Interpreter::toString(bounds.width));
+	}
+	if (bounds.height <= 0 || bounds.height >= 32768) {
+		Interpreter::throwRunTimeError(String("bounds height out of range [1..32767]: ")
+				+ Interpreter::toString(bounds.height));
+	}
+}
 static StringIt eatSpace(StringIt p, const StringIt& e) {
 	while (p != e && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')) ++p;
 	return p;
@@ -1577,23 +1595,7 @@ void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
 				, newBounds.top * rescaleBounds, newBounds.width * rescaleBounds, newBounds.height * rescaleBounds));
 	}
 	if (raster.get() != 0) Interpreter::throwRunTimeError("Multiple bounds declarations");
-	if (scaledBounds.left < -32768 || scaledBounds.left >= 32768) {
-		Interpreter::throwRunTimeError(String("bounds left out of range [-32768..32767]: ")
-				+ Interpreter::toString(scaledBounds.left));
-	}
-	if (scaledBounds.top < -32768 || scaledBounds.top >= 32768) {
-		Interpreter::throwRunTimeError(String("bounds top out of range [-32768..32767]: ")
-				+ Interpreter::toString(scaledBounds.top));
-	}
-	if (scaledBounds.width <= 0 || scaledBounds.width >= 32768) {
-		Interpreter::throwRunTimeError(String("bounds width out of range [1..32767]: ")
-				+ Interpreter::toString(scaledBounds.width));
-	}
-	if (scaledBounds.height <= 0 || scaledBounds.height >= 32768) {
-		Interpreter::throwRunTimeError(String("bounds height out of range [1..32767]: ")
-				+ Interpreter::toString(scaledBounds.height));
-	}
-
+	checkBounds(scaledBounds);
 	raster.reset(new SelfContainedRaster<ARGB32>(scaledBounds));
 	(*raster) = Solid<ARGB32>(ARGB32::transparent());
 }

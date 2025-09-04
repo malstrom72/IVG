@@ -24,32 +24,32 @@
 /*
 	Object diagram, example scenario:
  
-			+-----------------+     +-----------------+
-	   +----+ sub Interpreter +----->    FontParser   |
-	   |    |  (font parser)  |     |    (Executor)   |
-	   |    +-----------------+     +--------+--------+
-	   |                                     |
-	   |    +-----------------+              |              +--------------+     +------------+
-	   +----> sub Interpreter +--+           |           +--> mask Context +-----> MaskMaker  |
-	   |    |     (call)      |  |           |           |  |  (current)   |     |  (Canvas)  |
-	   |    +--------+--------+  |        parent         |  +--------------+     +------------+
-	 var             |           |       executor        |
-	access    +------v------+    |     (tracing etc)     |  +--------------+
-	   |      |    local    |    |           |           +--> sub Context  +--+
-	   |      |  Variables  |    |           |           |  |              |  |
-	   |      +-------------+    |           |           |  +--------------+  |
-	   |                         |           |           |                    |
-	   |    +-----------------+  |  +--------v--------+  |  +--------------+  |  +------------+
-	   +---->    root IMPD    +--+-->   IVGExecutor   +--+--> root Context +--+-->   Canvas   |
-			|   Interpreter   |     |                 |     |              |     |            |
-			+--------+--------+     +-----------------+     +--------------+     +------------+
-					 |              | inherit and     |
-			  +------v------+       | overload for    |
-			  |  Variables  |       | custom tracing, |
-			  +-------------+       | loading etc     |
-			  | inherit for |       \-----------------/
-			  | custom      |
-			  | handling    |
+			+-----------------+		+-----------------+
+	   +----+ sub Interpreter +----->	 FontParser	  |
+	   |	|  (font parser)  |		|	 (Executor)	  |
+	   |	+-----------------+		+--------+--------+
+	   |									 |
+	   |	+-----------------+				 |				+--------------+	 +------------+
+	   +----> sub Interpreter +--+			 |			 +--> mask Context +-----> MaskMaker  |
+	   |	|	  (call)	  |	 |			 |			 |	|  (current)   |	 |	(Canvas)  |
+	   |	+--------+--------+	 |		  parent		 |	+--------------+	 +------------+
+	 var			 |			 |		 executor		 |
+	access	  +------v------+	 |	   (tracing etc)	 |	+--------------+
+	   |	  |	   local	|	 |			 |			 +--> sub Context  +--+
+	   |	  |	 Variables	|	 |			 |			 |	|			   |  |
+	   |	  +-------------+	 |			 |			 |	+--------------+  |
+	   |						 |			 |			 |					  |
+	   |	+-----------------+	 |	+--------v--------+	 |	+--------------+  |	 +------------+
+	   +---->	 root IMPD	  +--+-->	IVGExecutor	  +--+--> root Context +--+-->	 Canvas	  |
+			|	Interpreter	  |		|				  |		|			   |	 |			  |
+			+--------+--------+		+-----------------+		+--------------+	 +------------+
+					 |				| inherit and	  |
+			  +------v------+		| overload for	  |
+			  |	 Variables	|		| custom tracing, |
+			  +-------------+		| loading etc	  |
+			  | inherit for |		\-----------------/
+			  | custom		|
+			  | handling	|
 			  \-------------/
 */
 
@@ -67,6 +67,8 @@ namespace IVG {
 using NuXPixels::Rect; // Rect is a typedef in Carbon which can confuse the compiler so we do an explicit using for it.
 
 inline double square(double d) { return d * d; }
+
+void checkBounds(const NuXPixels::IntRect& bounds);
 
 /**
 	Small helper that wraps a pointer which might live on the heap.
@@ -98,7 +100,7 @@ template<class T> class Inheritable {
 };
 
 /**
-       Global rendering options controlling gamma and quality settings.
+	   Global rendering options controlling gamma and quality settings.
 **/
 class Options {
 	public:		Options() : gamma(1.0), curveQuality(1.0), patternResolution(1.0) { }
@@ -113,7 +115,7 @@ class Paint;
 class Context;
 
 /**
-       Interface implemented by all painting helpers used to draw with a mask.
+	   Interface implemented by all painting helpers used to draw with a mask.
 **/
 class Painter {
 	public:		virtual bool isVisible(const Paint& withPaint) const = 0;
@@ -123,8 +125,8 @@ class Painter {
 };
 
 /**
-       Describes how something is painted, including transform, opacity and
-       painter implementation.
+	   Describes how something is painted, including transform, opacity and
+	   painter implementation.
 **/
 class Paint {
 	public:		Paint() : relative(false), opacity(255) { }
@@ -145,8 +147,8 @@ class Paint {
 };
 
 /**
-       Holds outline properties such as width, cap and join style as well as
-       dash pattern and paint.
+	   Holds outline properties such as width, cap and join style as well as
+	   dash pattern and paint.
 **/
 class Stroke {
 	public:		Stroke() : width(1.0), caps(NuXPixels::Path::BUTT), joints(NuXPixels::Path::MITER), miterLimit(2.0)
@@ -162,7 +164,7 @@ class Stroke {
 };
 
 /**
-       Simple font containing glyph paths and metrics used for text rendering.
+	   Simple font containing glyph paths and metrics used for text rendering.
 **/
 class Font {
 	public:		struct Glyph {
@@ -180,7 +182,7 @@ class Font {
 					Metrics();
 					double upm;		// Units Per EM. Scale down paths by this factor for font size 1.
 					double ascent;
-					double descent;	// normally negative
+					double descent; // normally negative
 					double linegap;
 				};
 
@@ -196,7 +198,7 @@ class Font {
 };
 
 /**
-       IMPD executor used for parsing and creating fonts embedded in IVG files.
+	   IMPD executor used for parsing and creating fonts embedded in IVG files.
 **/
 class FontParser : public IMPD::Executor {
 	public:		FontParser(IMPD::Executor* parentExecutor = 0);
@@ -218,7 +220,7 @@ class FontParser : public IMPD::Executor {
 };
 
 /**
-       Holds font name and painting settings for drawing text.
+	   Holds font name and painting settings for drawing text.
 **/
 class TextStyle {
 	public:		TextStyle() : size(20.0), letterSpacing(0.0) { }
@@ -231,7 +233,7 @@ class TextStyle {
 };
 
 /**
-       Snapshot of all painting state used when rendering.
+	   Snapshot of all painting state used when rendering.
 **/
 class State {
 	public:		State() : evenOddFillRule(false) { }
@@ -247,7 +249,7 @@ class State {
 
 class IVGExecutor;
 /**
-       Abstract drawing surface that accepts blended pixel data.
+	   Abstract drawing surface that accepts blended pixel data.
 **/
 class Canvas {
 	protected:	template<class PIXEL_TYPE> void parsePaintOfType(IMPD::Interpreter& impd, IVGExecutor& executor, Context& context, IMPD::ArgumentsContainer& args, Paint& paint) const;
@@ -261,7 +263,7 @@ class Canvas {
 };
 
 /**
-       Canvas implementation used to build a mask raster.
+	   Canvas implementation used to build a mask raster.
 **/
 class MaskMakerCanvas : public Canvas {
 	public:		MaskMakerCanvas(const NuXPixels::IntRect& bounds);
@@ -275,7 +277,7 @@ class MaskMakerCanvas : public Canvas {
 };
 
 /**
-       Provides drawing state and helpers while rendering on a canvas.
+	   Provides drawing state and helpers while rendering on a canvas.
 **/
 class Context {
 	friend class PatternBase;
@@ -298,7 +300,7 @@ class Context {
 };
 
 /**
-       Loaded image data with resolution information.
+	   Loaded image data with resolution information.
 **/
 struct Image {
 	Image() : raster(0), xResolution(1.0), yResolution(1.0) { }
@@ -308,7 +310,7 @@ struct Image {
 };
 
 /**
-       Executes IVG drawing instructions within a rendering context.
+	   Executes IVG drawing instructions within a rendering context.
 **/
 class IVGExecutor : public IMPD::Executor {
 	public:		IVGExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform
@@ -367,7 +369,7 @@ class IVGExecutor : public IMPD::Executor {
 };
 
 /**
-       Utility that multiplies a mask by an opacity value when used.
+	   Utility that multiplies a mask by an opacity value when used.
 **/
 class FadedMask {
 	public:		FadedMask(const NuXPixels::Renderer<NuXPixels::Mask8>& mask, NuXPixels::Mask8::Pixel opacity);
@@ -378,7 +380,7 @@ class FadedMask {
 };
 
 /**
-       Painter that fills using a solid color.
+	   Painter that fills using a solid color.
 **/
 template<class PIXEL_TYPE> class ColorPainter : public Painter {
 	public:		ColorPainter(typename PIXEL_TYPE::Pixel color) : color(color) { }
@@ -393,7 +395,7 @@ template<class PIXEL_TYPE> class ColorPainter : public Painter {
 };
 
 /**
-       Base class for gradient painters handling stop visibility and transforms.
+	   Base class for gradient painters handling stop visibility and transforms.
 **/
 template<class PIXEL_TYPE> class GradientPainter : public Painter {
 	public:		GradientPainter(int count, const typename NuXPixels::Gradient<PIXEL_TYPE>::Stop* points)
@@ -422,7 +424,7 @@ template<class PIXEL_TYPE> class GradientPainter : public Painter {
 };
 
 /**
-       Painter that renders a linear gradient between two points.
+	   Painter that renders a linear gradient between two points.
 **/
 template<class PIXEL_TYPE> class LinearGradientPainter : public GradientPainter<PIXEL_TYPE> {
 	public:		LinearGradientPainter(double startX, double startY, double endX, double endY, int count
@@ -454,7 +456,7 @@ template<class PIXEL_TYPE> class LinearGradientPainter : public GradientPainter<
 // Sorry, the radial gradient painter does not care about any other transformations than width / height
 // (rotation doesn't affect the output unless unproportionally scaled)
 /**
-       Painter that draws a radial gradient based on an elliptical shape.
+	   Painter that draws a radial gradient based on an elliptical shape.
 **/
 template<class PIXEL_TYPE> class RadialGradientPainter : public GradientPainter<PIXEL_TYPE> {
 	public:		RadialGradientPainter(double centerX, double centerY
@@ -483,7 +485,7 @@ template<class PIXEL_TYPE> class RadialGradientPainter : public GradientPainter<
 };
 
 /**
-       Base helper for pattern painters providing a canvas to draw the pattern.
+	   Base helper for pattern painters providing a canvas to draw the pattern.
 **/
 class PatternBase : public Painter, public Canvas {
 	public:		PatternBase(int scale);
@@ -492,7 +494,7 @@ class PatternBase : public Painter, public Canvas {
 };
 
 /**
-       Concrete pattern painter storing the drawn image for repeated use.
+	   Concrete pattern painter storing the drawn image for repeated use.
 **/
 template<class PIXEL_TYPE> class PatternPainter : public PatternBase {
 	public:		PatternPainter(int scale) : PatternBase(scale) { }
@@ -532,16 +534,9 @@ template<class PIXEL_TYPE> class PatternPainter : public PatternBase {
 				}
 	public:		virtual void defineBounds(const NuXPixels::IntRect& newBounds) {
 					NuXPixels::IntRect physicalBounds(newBounds.left * scale, newBounds.top * scale
-							, newBounds.width * scale, newBounds.height * scale);
+						, newBounds.width * scale, newBounds.height * scale);
 					if (image.get() != 0) IMPD::Interpreter::throwRunTimeError("Multiple bounds declarations");
-					if (physicalBounds.width <= 0 || physicalBounds.width >= 32768) {
-						IMPD::Interpreter::throwRunTimeError(IMPD::String("bounds width out of range [1..32767]: ")
-								+ IMPD::Interpreter::toString(physicalBounds.width));
-					}
-					if (physicalBounds.height <= 0 || physicalBounds.height >= 32768) {
-						IMPD::Interpreter::throwRunTimeError(IMPD::String("bounds height out of range [1..32767]: ")
-								+ IMPD::Interpreter::toString(physicalBounds.height));
-					}
+					checkBounds(physicalBounds);
 					image.reset(new NuXPixels::SelfContainedRaster<PIXEL_TYPE>(physicalBounds));
 					(*image) = NuXPixels::Solid<PIXEL_TYPE>(PIXEL_TYPE::transparent());
 				}
@@ -553,7 +548,7 @@ template<class PIXEL_TYPE> class PatternPainter : public PatternBase {
 };
 
 /**
-       Canvas that renders directly into an existing ARGB32 raster.
+	   Canvas that renders directly into an existing ARGB32 raster.
 **/
 class ARGB32Canvas : public Canvas {
 	public:		ARGB32Canvas(NuXPixels::Raster<NuXPixels::ARGB32>& output);
@@ -567,7 +562,7 @@ class ARGB32Canvas : public Canvas {
 // FIX : if we templetize this one as a generic offscreenCanvas it is virtually identical to the one in the PatternPainter
 // it could also expand to an RLEARGB32Canvas, but that is probably always slower than drawing to a bitmap canvas and then compressing
 /**
-       Canvas with its own ARGB32 buffer allocated internally.
+	   Canvas with its own ARGB32 buffer allocated internally.
 **/
 class SelfContainedARGB32Canvas : public Canvas {
 	public:		SelfContainedARGB32Canvas(const double rescaleBounds = 1.0); // rescaleBounds can be used to create a canvas for a different target resolution (just supply the same scale for the initial transform of the root context).
@@ -586,8 +581,8 @@ NuXPixels::ARGB32::Pixel parseColor(const IMPD::String& color);
 
 bool buildPathFromSVG(const IMPD::String& svgSource, double curveQuality, NuXPixels::Path& path, const char*& errorString);
 bool buildPathForString(const IMPD::UniString& string, const std::vector<const Font*>& fonts, double size
-                , const NuXPixels::AffineTransformation& glyphTransform, double letterSpacing, double curveQuality
-                , NuXPixels::Path& path, double& advance, const char*& errorString, IMPD::UniChar lastCharacter = 0);
+				, const NuXPixels::AffineTransformation& glyphTransform, double letterSpacing, double curveQuality
+				, NuXPixels::Path& path, double& advance, const char*& errorString, IMPD::UniChar lastCharacter = 0);
 
 } // namespace IVG
 
