@@ -319,7 +319,6 @@ class IVGExecutor : public IMPD::Executor {
 	public:		enum FormatVersion { UNKNOWN, IVG_1, IVG_2, IVG_3 };
 	public:		IVGExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform
 						= NuXPixels::AffineTransformation());
-	public:		FormatVersion getFormatVersion() const { return formatVersion; }
 	public:		virtual bool format(IMPD::Interpreter& interpreter, const IMPD::String& identifier
 						, const std::vector<IMPD::String>& uses, const std::vector<IMPD::String>& requires);
 	public:		virtual bool execute(IMPD::Interpreter& interpreter, const IMPD::String& instruction

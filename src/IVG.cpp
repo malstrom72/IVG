@@ -806,7 +806,7 @@ static double calcCurveQualityForTransform(const AffineTransformation& xf) {
 
 struct GradientSpec {
 // FIX : reverseRadialStops is always true?
-GradientSpec(const Interpreter& impd, IVGExecutor::FormatVersion version, const String& s, bool reverseRadialStops = false);
+	GradientSpec(const Interpreter& impd, const String& s, bool reverseRadialStops = false);
 	struct StopSpec {
 		double position;
 		String color;
@@ -816,8 +816,9 @@ GradientSpec(const Interpreter& impd, IVGExecutor::FormatVersion version, const 
 	vector<StopSpec> stops;
 };
 
-GradientSpec::GradientSpec(const Interpreter& impd, IVGExecutor::FormatVersion version, const String& source, bool reverseRadialStops) {
+GradientSpec::GradientSpec(const Interpreter& impd, const String& source, bool reverseRadialStops) {
 	ArgumentsContainer gradientArgs(ArgumentsContainer::parse(impd, source));
+
 	isRadial = false;
 	const String gradientType = gradientArgs.fetchRequired(0);
 	const String gradientTypeLower = impd.toLower(gradientType);
@@ -828,20 +829,13 @@ GradientSpec::GradientSpec(const Interpreter& impd, IVGExecutor::FormatVersion v
 	}
 	reverseRadialStops = reverseRadialStops && isRadial;
 
-	const String& arg1 = gradientArgs.fetchRequired(1);
-	const String* arg2 = gradientArgs.fetchOptional(2);
-	if (arg2 != 0) {
-		impd.throwBadSyntax("Gradient coordinates must be comma-separated");
-	}
-	const int count = parseNumberList(impd, arg1, coords, (isRadial ? 3 : 4), 4);
-	if (!isRadial && count != 4) {
-		impd.throwBadSyntax(String("Invalid linear gradient coordinates: ") + arg1);
-	}
+	const int count = parseNumberList(impd, gradientArgs.fetchRequired(1), coords, (isRadial ? 3 : 4), 4);
 	if (count == 3) {
 		coords[3] = coords[2];
 	}
 	if (isRadial && (coords[2] < 0.0 || coords[3] < 0.0)) {
-		impd.throwRunTimeError(String("Negative radial gradient radius: ") + impd.toString(coords[coords[2] < 0.0 ? 2 : 3]));
+		impd.throwRunTimeError(String("Negative radial gradient radius: ")
+				+ impd.toString(coords[coords[2] < 0.0 ? 2 : 3]));
 	}
 
 	const String* s = gradientArgs.fetchOptional("stops");
@@ -914,7 +908,8 @@ FadedMask::operator const Renderer<Mask8>&() const { return output; }
 template<> void Canvas::blend<ARGB32>(const Renderer<ARGB32>& source) { blendWithARGB32(source); }
 template<> void Canvas::blend<Mask8>(const Renderer<Mask8>& source) { blendWithMask8(source); }
 
-template<class PIXEL_TYPE> void Canvas::parsePaintOfType(Interpreter& impd, IVGExecutor& executor, Context& context, ArgumentsContainer& args, Paint& paint) const {
+template<class PIXEL_TYPE> void Canvas::parsePaintOfType(Interpreter& impd, IVGExecutor& executor, Context& context
+			, ArgumentsContainer& args, Paint& paint) const {
 	const String* s;
 
 	// Important to parse pattern first so that we don't apply other attributes (e.g. "relative") before we draw the texture.
@@ -923,7 +918,7 @@ template<class PIXEL_TYPE> void Canvas::parsePaintOfType(Interpreter& impd, IVGE
 		patternPainter->makePattern(impd, executor, context, *s);
 		paint.painter = patternPainter.release();
 	} else if ((s = args.fetchOptional("gradient")) != 0) {
-		GradientSpec spec(impd, executor.getFormatVersion(), *s, true);
+		GradientSpec spec(impd, *s, true);
 		vector< typename Gradient<PIXEL_TYPE>::Stop > stops(spec.stops.size());
 		typename vector< typename Gradient<PIXEL_TYPE>::Stop >::iterator outIt = stops.begin();
 		vector< GradientSpec::StopSpec >::const_iterator e = spec.stops.end();
