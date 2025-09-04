@@ -25,6 +25,7 @@
 #include <cerrno>
 #include <cstring>
 #include <algorithm>
+#include <limits>
 #include "IMPD.h"
 
 #if defined(_MSVC_LANG)
