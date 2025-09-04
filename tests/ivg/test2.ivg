@@ -17,7 +17,7 @@ randomArray = CALL [
 ]
 
 R=-13
-color=gradient:[linear 0,-500 0,10 stops:0.0,YELLOW,0.5,RED,1.0,NONE]
+color=gradient:[linear 0,-500,0,10 stops:0.0,YELLOW,0.5,RED,1.0,NONE]
 C = 4
 S = 2
 o = {100%}

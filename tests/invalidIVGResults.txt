@@ -27,7 +27,7 @@ Testing invalid_line_arguments: expecting "Too few list elements (got 1, expecte
 Testing invalid_pen_caps: expecting "Unrecognized stroke caps: squiggle" ... PASS
 Testing invalid_star_separator: expecting "Too few list elements (got 2, expected at least 4)" ... PASS
 Testing invalid_stroke_joints: expecting "Unrecognized stroke joints: curvy" ... PASS
-Testing ivg3_comma_gradient: expecting "IVG-3 requires space-separated gradient coordinates" ... PASS
+Testing ivg3_comma_gradient: expecting "Gradient coordinates must be comma-separated" ... PASS
 Testing missing_font_name: expecting "Missing font: missing" ... PASS
 Testing missing_format: expecting "Too few list elements (got 1, expected at least 4)" ... PASS
 Testing multiple_bounds: expecting "Multiple bounds declarations" ... PASS

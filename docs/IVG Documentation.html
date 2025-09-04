@@ -60,10 +60,6 @@
     img {
       max-width: 100%;
     }
-    svg {
-      height: auto;
-      max-width: 100%;
-    }
     h1, h2, h3, h4, h5, h6 {
       margin-top: 1.4em;
     }
@@ -107,8 +103,8 @@
      overflow: visible;
     }
     hr {
+      background-color: #1a1a1a;
       border: none;
-      border-top: 1px solid #1a1a1a;
       height: 1px;
       margin: 1em 0;
     }
@@ -407,7 +403,7 @@ bounds 0,0,340,300
 options aa-gamma:1.5
 
 // Fill the canvas with a &quot;barber pole&quot; pattern
-WIPE pattern:[bounds 0,0,40,300; WIPE gradient:[linear 0,0 40,0 stops:[
+WIPE pattern:[bounds 0,0,40,300; WIPE gradient:[linear 0,0,40,0 stops:[
     0,gray,0.25,blue,0.5,gray,0.75,maroon,1,gray
 ] ] ] transform:[rotate 45]
 
@@ -723,9 +719,8 @@ font serif size:$size color:hsv(0.47,0.3,0.9) outline:black
 TEXT at:$x,$y $s anchor:center caret:rx
 
 // Setup fill and pen gradients for the box.
-fill gradient:[linear 0,18 0,40 from:hsv(0.5,0.5,0.2) to:hsv(0.5,0.7,0.6)]
-pen gradient:[radial $x,{$y-$size/3} {$rx-$x},$size
-    .. from:hsv(0.4,0.7,0.9) to:hsv(0.5,0.7,0.4)] width:8.0
+fill gradient:[linear 0,18,0,40 from:hsv(0.5,0.5,0.2) to:hsv(0.5,0.7,0.6)]
+pen gradient:[radial $x,{$y-$size/3},{$rx-$x},$size from:hsv(0.4,0.7,0.9) to:hsv(0.5,0.7,0.4)] width:8.0
 
 /*
     Draw a rounded rect box around the text. The equations make the box dimensions adjust
@@ -755,8 +750,8 @@ bounds 0,0,200,200
 
 // Wipe the full canvas with a radial rainbow gradient
 WIPE gradient:[
-    radial 100,100 100
-    stops:[0,red,0.25,yellow,0.5,lime,0.75,aqua,1,blue]
+radial 100,100,100
+stops:[0,red,0.25,yellow,0.5,lime,0.75,aqua,1,blue]
 ]</code></pre>
 <p><img src="images/wipeExample.png" /></p>
 <h2 id="directives">Directives</h2>
@@ -781,7 +776,7 @@ group ends.</p>
 bounds 0,0,300,300
 
 // Wipe the canvas with a gradient, to begin with.
-WIPE gradient:[linear 0,0 200,200 from:black to:gray]
+WIPE gradient:[linear 0,0,200,200 from:black to:gray]
 
 // Setup fill, pen, and an initial transform of x2.
 pen black width:3
@@ -793,11 +788,10 @@ context [
     // rotate
     rotate 10 anchor:150,150
     
-    // The fill and pen will be local to this context.
-    fill gradient:[linear 0,0 1,0 from:silver to:blue] relative:yes
-    pen none
-    
-    // Fill a rotated, masked gradient 3d cube silhouette.
+    // The fill and pen will be local to this context.</code></pre>
+<p>fill gradient:[linear 0,0,1,0 from:silver to:blue] relative:yes pen
+none</p>
+<pre><code>    // Fill a rotated, masked gradient 3d cube silhouette.
     STAR 150,150,6,90,110
 ]
 // This rect will have the same style and transformation as the first.
@@ -1066,16 +1060,10 @@ TEXT at:70,145 anchor:center &quot;C&quot;
 
 // D: masks can also be semi-transparent.
 offset 150,0
-context [
-    mask [
-        fill gradient:[linear 0,0 0.5,1 from:#00 to:#C0] relative:yes
-        ELLIPSE $c2
-    ]
-    ELLIPSE $c1
-]
-$outline
-TEXT at:70,145 anchor:center &quot;D&quot;</code></pre>
-<p><img src="images/maskDemo.png" /></p>
+context [</code></pre>
+<p>mask [ fill gradient:[linear 0,0,0.5,1 from:#00 to:#C0] relative:yes
+ELLIPSE $c2] ELLIPSE $c1 ] $outline TEXT at:70,145 anchor:center “D”
+<img src="images/maskDemo.png" /></p>
 <h3 id="options">options</h3>
 <p><code>options</code> is a directive that allows fine-tuning quality
 settings for the subsequent instructions. Settings are local to the
@@ -1161,12 +1149,10 @@ for resolution in:[1,2,4,8] [
         
         // Declare the pattern using a simple gradient-colored circle.
         fill pattern:[
-            bounds 0,0,10,10
-            pen gradient:[linear 0,0 1,1 stops:[0,blue,0.5,yellow,0.8,blue]] relative:yes
-            ELLIPSE 5,5,3
-        ]
-        
-        // Scale the pattern up by 8x after the pattern definition to
+            bounds 0,0,10,10</code></pre>
+<p>pen gradient:[linear 0,0,1,1 stops:[0,blue,0.5,yellow,0.8,blue]]
+relative:yes ELLIPSE 5,5,3 ]</p>
+<pre><code>        // Scale the pattern up by 8x after the pattern definition to
         // showcase the need to set the resolution option higher than 1.
         scale 8
         
@@ -1373,9 +1359,11 @@ href="#paint-specification"><code>&lt;paint&gt;</code></a>
 specification, such as in the <a href="#pen"><code>pen</code></a> and <a
 href="#fill"><code>fill</code></a> directives. The syntax for specifying
 a gradient is as follows:</p>
-<pre><code>&lt;gradient&gt; = (linear &lt;x0&gt;,&lt;y0&gt; &lt;x1&gt;,&lt;y1&gt; | radial &lt;cx&gt;,&lt;cy&gt; (&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;))
-             (from:&lt;color&gt; to:&lt;color&gt; | stops:&lt;number&gt;,&lt;color&gt;,[&lt;number&gt;,&lt;color&gt;,...])</code></pre>
+<pre><code>&lt;gradient&gt; = (linear &lt;x0&gt;,&lt;y0&gt;,&lt;x1&gt;,&lt;y1&gt; | radial &lt;cx&gt;,&lt;cy&gt;,(&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;))
+            (from:&lt;color&gt; to:&lt;color&gt; | stops:&lt;number&gt;,&lt;color&gt;,[&lt;number&gt;,&lt;color&gt;,...])</code></pre>
 <ul>
+<li><p>The coordinates are comma-separated without spaces; the
+space-separated form from earlier versions is not supported.</p></li>
 <li><p>The <code>linear</code> alternative creates a linear gradient
 that transitions between colors along a straight line defined by two
 points (<code>&lt;x0&gt;,&lt;y0&gt;</code> and
@@ -1386,9 +1374,9 @@ that transitions between colors emanating from a single point
 further define the shape of the gradient by providing either the radius
 (<code>&lt;r&gt;</code>), which creates a circular shape or the x-radius
 and y-radius (<code>&lt;rx&gt;,&lt;ry&gt;</code>), which creates an
-elliptical shape. Examples using the spaced coordinate form:</p>
-<pre><code>WIPE gradient:[linear 0,0 10,0 from:red to:blue]
-WIPE gradient:[radial 5,5 5 from:white to:black]</code></pre></li>
+elliptical shape. Examples:</p>
+<p>WIPE gradient:[linear 0,0,10,0 from:red to:blue] WIPE
+gradient:[radial 5,5,5 from:white to:black]</p></li>
 <li><p>The <code>from</code> alternative specifies the start and end
 colors of the gradient (see <a href="#color-specification">Color
 Specification</a>).</p></li>
@@ -1408,24 +1396,20 @@ bounds 0,0,500,500
 // Set font style.
 font serif size:16 color:white
 
-// Wipe the canvas with a simple Linear gradient from red to blue.
-WIPE gradient:[linear 0,0 500,500 from:red to:blue]
-RECT 0,0,500,500
-TEXT at:10,490 anchor:left &quot;linear gradient&quot;
-
-// We will use relative fill. 0,0 is top-left corner. 1,1 is bottom-right.
+// Wipe the canvas with a simple Linear gradient from red to blue.</code></pre>
+<p>WIPE gradient:[linear 0,0,500,500 from:red to:blue] RECT 0,0,500,500
+TEXT at:10,490 anchor:left “linear gradient”</p>
+<pre><code>// We will use relative fill. 0,0 is top-left corner. 1,1 is bottom-right.
 fill relative:yes
 
-// Elliptic gradient with stops.
-fill gradient:[radial 0.5,0.5 0.7,0.5 stops:0,blue,0.25,yellow,0.5,blue,0.75,lime,1,blue]
-RECT 200,200,250,250
-TEXT at:210,440 anchor:left &quot;radial gradient with stops&quot;
-
-// Linear gradient with stops.
-fill gradient:[linear 0,0.3 1,0.7 stops:0,red,0.5,lime,1,blue]
-RECT 40,40,250,250
-TEXT at:50,280 anchor:left &quot;linear gradient with stops&quot;</code></pre>
-<p><img src="images/gradientDemo.png" /></p>
+// Elliptic gradient with stops.</code></pre>
+<p>fill gradient:[radial 0.5,0.5,0.7,0.5
+stops:0,blue,0.25,yellow,0.5,blue,0.75,lime,1,blue] RECT 200,200,250,250
+TEXT at:210,440 anchor:left “radial gradient with stops”</p>
+<pre><code>// Linear gradient with stops.</code></pre>
+<p>fill gradient:[linear 0,0.3,1,0.7 stops:0,red,0.5,lime,1,blue] RECT
+40,40,250,250 TEXT at:50,280 anchor:left “linear gradient with stops”
+<img src="images/gradientDemo.png" /></p>
 <h3 id="paint-specification">Paint Specification</h3>
 <p><code>&lt;paint&gt;</code> is used in many directives, such as <a
 href="#pen"><code>pen</code></a>, <a href="#fill"><code>fill</code></a>,
@@ -1498,10 +1482,9 @@ mask [
     ] transform:[scale 0.75; rotate 10 anchor:200,150]
 ]
 
-// Fill the mask with a relative gradient.
-fill gradient:[ linear 0,0 1,1 stops:0.0,white,1.0,blue ] relative:yes
-RECT 0,0,400,300</code></pre>
-<p><img src="images/paintDemo.png" /></p>
+// Fill the mask with a relative gradient.</code></pre>
+<p>fill gradient:[linear 0,0,1,1 stops:0.0,white,1.0,blue] relative:yes
+RECT 0,0,400,300 <img src="images/paintDemo.png" /></p>
 <h3 id="transform-specification">Transform Specification</h3>
 <p><code>&lt;transform&gt;</code> instructions modify the drawing
 instructions’ position, shape, or orientation. You use transformations
@@ -1600,69 +1583,69 @@ context [
 <h2 id="defaults">Defaults</h2>
 <table>
 <thead>
-<tr>
+<tr class="header">
 <th>Setting</th>
 <th>Initial value</th>
 </tr>
 </thead>
 <tbody>
-<tr>
+<tr class="odd">
 <td>pen paint</td>
 <td>none</td>
 </tr>
-<tr>
+<tr class="even">
 <td>pen width</td>
 <td>1</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>pen caps</td>
 <td>butt</td>
 </tr>
-<tr>
+<tr class="even">
 <td>pen joints</td>
 <td>miter</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>pen miter-limit</td>
 <td>2</td>
 </tr>
-<tr>
+<tr class="even">
 <td>pen dash</td>
 <td>0 (solid)</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>fill paint</td>
 <td>none</td>
 </tr>
-<tr>
+<tr class="even">
 <td>font name</td>
 <td>(none; must set before <code>TEXT</code>)</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>font size</td>
 <td>20</td>
 </tr>
-<tr>
+<tr class="even">
 <td>font color</td>
 <td>black</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>font outline</td>
 <td>none</td>
 </tr>
-<tr>
+<tr class="even">
 <td>font tracking</td>
 <td>0</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>options aa-gamma</td>
 <td>1</td>
 </tr>
-<tr>
+<tr class="even">
 <td>options curve-quality</td>
 <td>1</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>options pattern-resolution</td>
 <td>1</td>
 </tr>

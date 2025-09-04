@@ -1,9 +1,9 @@
 FORMAT IVG-3 requires:IMPD-1
 BOUNDS 0,0,200,200
 
-FILL gradient:[linear 0,0 200,0 from:red to:blue]
+FILL gradient:[linear 0,0,200,0 from:red to:blue]
 PEN none
 RECT 0,0,200,100
 
-FILL gradient:[radial 100,150 80 from:yellow to:green]
+FILL gradient:[radial 100,150,80 from:yellow to:green]
 RECT 0,100,200,100

@@ -140,7 +140,7 @@ Syntax:
 -	`<cx>,<cy>` is the center point of the ellipse.
 
 -	`<r>[,<ry>=<r>]` is the radius of the ellipse. If you only provide one value, it will be used for both axes,
- 	creating a circle.
+	creating a circle.
 
 Example:
 
@@ -190,7 +190,7 @@ Syntax:
 -	The `width` and `height` options fit the source image into a specific width and height.
 
 -	If `stretch` is `no` and `width` and/or `height` is supplied, the source image preserves its aspect ratio and fits
- 	within those dimensions. Otherwise, it stretches the image to fill the specified `width` and/or `height` exactly.
+	within those dimensions. Otherwise, it stretches the image to fill the specified `width` and/or `height` exactly.
 
 -	The `transform` option is used to apply a transformation to the image when it is drawn. See [Transform
 	Specification](#transform-specification)
@@ -209,7 +209,7 @@ Demonstration:
 	options aa-gamma:1.5
 	
 	// Fill the canvas with a "barber pole" pattern
-	WIPE pattern:[bounds 0,0,40,300; WIPE gradient:[linear 0,0 40,0 stops:[
+	WIPE pattern:[bounds 0,0,40,300; WIPE gradient:[linear 0,0,40,0 stops:[
 		0,gray,0.25,blue,0.5,gray,0.75,maroon,1,gray
 	] ] ] transform:[rotate 45]
 	
@@ -428,7 +428,7 @@ All numeric parameters are supplied in one comma-separated list.
 -	`<points>` is the number of points of the star.
 
 -	`<r1>[,<r2>=<r1>]` are the inner and outer radius of the star. If `<r2>` is omitted, `<r1>` is used for both,
- 	creating a regular polygon.
+	creating a regular polygon.
 
 -	The `rotation` option specifies the angle of rotation for the star in degrees.
 
@@ -533,9 +533,8 @@ Demonstration:
 	TEXT at:$x,$y $s anchor:center caret:rx
 	
 	// Setup fill and pen gradients for the box.
-	fill gradient:[linear 0,18 0,40 from:hsv(0.5,0.5,0.2) to:hsv(0.5,0.7,0.6)]
-	pen gradient:[radial $x,{$y-$size/3} {$rx-$x},$size
-		.. from:hsv(0.4,0.7,0.9) to:hsv(0.5,0.7,0.4)] width:8.0
+	fill gradient:[linear 0,18,0,40 from:hsv(0.5,0.5,0.2) to:hsv(0.5,0.7,0.6)]
+	pen gradient:[radial $x,{$y-$size/3},{$rx-$x},$size from:hsv(0.4,0.7,0.9) to:hsv(0.5,0.7,0.4)] width:8.0
 	
 	/*
 		Draw a rounded rect box around the text. The equations make the box dimensions adjust
@@ -567,8 +566,8 @@ Example:
 	
 	// Wipe the full canvas with a radial rainbow gradient
 	WIPE gradient:[
-		radial 100,100 100
-		stops:[0,red,0.25,yellow,0.5,lime,0.75,aqua,1,blue]
+	radial 100,100,100
+	stops:[0,red,0.25,yellow,0.5,lime,0.75,aqua,1,blue]
 	]
 ![](images/wipeExample.png)
 
@@ -602,7 +601,7 @@ Demonstration:
 	bounds 0,0,300,300
 	
 	// Wipe the canvas with a gradient, to begin with.
-	WIPE gradient:[linear 0,0 200,200 from:black to:gray]
+	WIPE gradient:[linear 0,0,200,200 from:black to:gray]
 	
 	// Setup fill, pen, and an initial transform of x2.
 	pen black width:3
@@ -615,7 +614,7 @@ Demonstration:
 		rotate 10 anchor:150,150
 		
 		// The fill and pen will be local to this context.
-		fill gradient:[linear 0,0 1,0 from:silver to:blue] relative:yes
+fill gradient:[linear 0,0,1,0 from:silver to:blue] relative:yes
 		pen none
 		
 		// Fill a rotated, masked gradient 3d cube silhouette.
@@ -704,10 +703,10 @@ Syntax:
 
 	define path <name> <path-definition>
 
-	-		`<name>` is a unique identifier for the path. Path names are case-sensitive and may only be defined once.
+-	`<name>` is a unique identifier for the path. Path names are case-sensitive and may only be defined once.
 
-	-		`<path-definition>` follows the same syntax as [`PATH`](#path), using either `svg:` data or path
-	 		instructions inside brackets.
+-	`<path-definition>` follows the same syntax as [`PATH`](#path), using either `svg:` data or path instructions
+	inside brackets.
 
 Example:
 
@@ -887,7 +886,7 @@ Demonstration:
 	offset 150,0
 	context [
 		mask [
-			fill gradient:[linear 0,0 0.5,1 from:#00 to:#C0] relative:yes
+			fill gradient:[linear 0,0,0.5,1 from:#00 to:#C0] relative:yes
 			ELLIPSE $c2
 		]
 		ELLIPSE $c1
@@ -985,7 +984,7 @@ the current [context](#context).
 			// Declare the pattern using a simple gradient-colored circle.
 			fill pattern:[
 				bounds 0,0,10,10
-				pen gradient:[linear 0,0 1,1 stops:[0,blue,0.5,yellow,0.8,blue]] relative:yes
+				pen gradient:[linear 0,0,1,1 stops:[0,blue,0.5,yellow,0.8,blue]] relative:yes
 				ELLIPSE 5,5,3
 			]
 			
@@ -1129,9 +1128,9 @@ specifying a color is as follows:
 	between `#00` and `#FF`. This is a common way to specify colors on the web.
 
 -	The `#<hex><hex><hex><hex>` alternative specifies the color using a hexadecimal AARRGGBB value where the RGB values
- 	must be pre-multiplied with the alpha value: `rgb' = round(rgb * alpha / 255)`. For example, the color yellow
- 	`#FFFF00` with a transparency of 0.75 (decimal equivalent of `#C0`) becomes `#C0C0C000`. A color `#4080C0` at
- 	50% (`#80`) becomes `#80204060`.
+	must be pre-multiplied with the alpha value: `rgb' = round(rgb * alpha / 255)`. For example, the color yellow
+	`#FFFF00` with a transparency of 0.75 (decimal equivalent of `#C0`) becomes `#C0C0C000`. A color `#4080C0` at
+	50% (`#80`) becomes `#80204060`.
 
 -	`none` is a special color, meaning that no color will be used; it will be invisible.
 
@@ -1187,8 +1186,10 @@ The `<gradient>` paint type creates a smooth transition between multiple colors.
 ending color or multiple color stops. `<gradient>` is used by the [`<paint>`](#paint-specification) specification, such
 as in the [`pen`](#pen) and [`fill`](#fill) directives. The syntax for specifying a gradient is as follows:
 
-	<gradient> = (linear <x0>,<y0> <x1>,<y1> | radial <cx>,<cy> (<r>|<rx>,<ry>))
-				 (from:<color> to:<color> | stops:<number>,<color>,[<number>,<color>,...])
+	<gradient> = (linear <x0>,<y0>,<x1>,<y1> | radial <cx>,<cy>,(<r>|<rx>,<ry>))
+				(from:<color> to:<color> | stops:<number>,<color>,[<number>,<color>,...])
+
+-	The coordinates are comma-separated without spaces; the space-separated form from earlier versions is not supported.
 
 -	The `linear` alternative creates a linear gradient that transitions between colors along a straight line defined by
 	two points (`<x0>,<y0>` and `<x1>,<y1>`).
@@ -1197,10 +1198,11 @@ as in the [`pen`](#pen) and [`fill`](#fill) directives. The syntax for specifyin
 	(`<cx>,<cy>`) and spreading outward. You can further define the shape of the gradient by providing either the radius
 	(`<r>`), which creates a circular shape or the x-radius and y-radius (`<rx>,<ry>`), which creates an elliptical
 	shape.
-	Examples using the spaced coordinate form:
+	
+Examples:
 
-		WIPE gradient:[linear 0,0 10,0 from:red to:blue]
-		WIPE gradient:[radial 5,5 5 from:white to:black]
+	WIPE gradient:[linear 0,0,10,0 from:red to:blue]
+	WIPE gradient:[radial 5,5,5 from:white to:black]
 
 -	The `from` alternative specifies the start and end colors of the gradient (see [Color
 	Specification](#color-specification)).
@@ -1219,7 +1221,7 @@ Gradient demonstration:
 	font serif size:16 color:white
 	
 	// Wipe the canvas with a simple Linear gradient from red to blue.
-	WIPE gradient:[linear 0,0 500,500 from:red to:blue]
+	WIPE gradient:[linear 0,0,500,500 from:red to:blue]
 	RECT 0,0,500,500
 	TEXT at:10,490 anchor:left "linear gradient"
 	
@@ -1227,12 +1229,12 @@ Gradient demonstration:
 	fill relative:yes
 	
 	// Elliptic gradient with stops.
-	fill gradient:[radial 0.5,0.5 0.7,0.5 stops:0,blue,0.25,yellow,0.5,blue,0.75,lime,1,blue]
+	fill gradient:[radial 0.5,0.5,0.7,0.5 stops:0,blue,0.25,yellow,0.5,blue,0.75,lime,1,blue]
 	RECT 200,200,250,250
 	TEXT at:210,440 anchor:left "radial gradient with stops"
 	
 	// Linear gradient with stops.
-	fill gradient:[linear 0,0.3 1,0.7 stops:0,red,0.5,lime,1,blue]
+	fill gradient:[linear 0,0.3,1,0.7 stops:0,red,0.5,lime,1,blue]
 	RECT 40,40,250,250
 	TEXT at:50,280 anchor:left "linear gradient with stops"
 ![](images/gradientDemo.png)
@@ -1256,11 +1258,11 @@ look like. You can select a solid color, a gradient of colors, or a pattern.
 	multiple color stops. See [Gradient Specification](#gradient-specification).
 
 -	The `pattern` paint type is used to specify a repeating graphical pattern created from a set of drawing
- 	instructions. You define the pattern by enclosing the instructions in brackets `[` and `]`. The drawing context
- 	for the pattern inherits all settings from the current context, such as [`pen`](#pen), [`fill`](#fill), etc.,
- 	except for the [`mask`](#mask) setting. A [`bounds`](#bounds) directive is required to define the pattern's
- 	dimensions. The resolution used for rasterizing the pattern can be changed using the [`options`]
- 	(#options) directive.
+	instructions. You define the pattern by enclosing the instructions in brackets `[` and `]`. The drawing context
+	for the pattern inherits all settings from the current context, such as [`pen`](#pen), [`fill`](#fill), etc.,
+	except for the [`mask`](#mask) setting. A [`bounds`](#bounds) directive is required to define the pattern's
+	dimensions. The resolution used for rasterizing the pattern can be changed using the [`options`]
+	(#options) directive.
 
 -	The `transform` option allows you to apply a series of transformations on the paint. These transformations are
 	relative to the current transformation of the active [context](#context). See [Transform
@@ -1271,7 +1273,7 @@ look like. You can select a solid color, a gradient of colors, or a pattern.
 	colors.)
 
 -	The `opacity` option allows you to specify the opacity of the paint. The value should be between 0 and 1, where 0
- 	is full transparency and 1 is full opacity. Alternatively, you can use hexadecimal values `#00` to `#FF`.
+	is full transparency and 1 is full opacity. Alternatively, you can use hexadecimal values `#00` to `#FF`.
 
 Demonstration:
 
@@ -1300,7 +1302,7 @@ Demonstration:
 	]
 	
 	// Fill the mask with a relative gradient.
-	fill gradient:[ linear 0,0 1,1 stops:0.0,white,1.0,blue ] relative:yes
+	fill gradient:[linear 0,0,1,1 stops:0.0,white,1.0,blue] relative:yes
 	RECT 0,0,400,300
 ![](images/paintDemo.png)
 
@@ -1336,7 +1338,7 @@ The syntax for specifying a transformation is as follows:
 -	The `shear` alternative skews the context/object by the specified `<x>` and `<y>` amount.
 
 -	The `matrix` alternative applies a transformation matrix to the context/object. The six values correspond to an
- 	SVG-style matrix `[a c e; b d f; 0 0 1]`.
+	SVG-style matrix `[a c e; b d f; 0 0 1]`.
 
 -	You can provide an optional anchor point with any of the above alternatives (except `offset`) by appending `anchor`
 	to the transformation. `anchor` will specify a point in the context/object that will be used as the base for the
