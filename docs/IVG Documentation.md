@@ -119,9 +119,9 @@ and halts rendering.
 
 ## IVG-1 vs IVG-2 vs IVG-3
 
-- `IVG-1` covers core vector drawing and styling.
-- `IVG-2` adds text, fonts, and raster image support through `define image` and `IMAGE`.
-- `IVG-3` adds `LINE`, `POLYGON`, and an instruction-list form for `PATH` (including `define path`).
+-	`IVG-1` covers core vector drawing and styling.
+-	`IVG-2` adds text, fonts, and raster image support through `define image` and `IMAGE`.
+-	`IVG-3` adds `LINE`, `POLYGON`, and an instruction-list form for `PATH` (including `define path`).
 
 The interpreter processes all versions identically, but readers that only understand `IVG-1` or `IVG-2` will reject
 documents marked `IVG-3`.
@@ -141,13 +141,14 @@ Syntax:
 
 -	`<r>[,<ry>=<r>]` is the radius of the ellipse. If you only provide one value, it will be used for both axes,
 	creating a circle.
-
-
-- Without `sweep`, draws a full ellipse/circle (legacy behavior).
-- With `sweep`, draws a closed partial ellipse sector. The path is always closed and the stroke includes the closing edges.
-- `type:chord` closes the arc with a straight line between arc endpoints (default).
-- `type:pie` closes the arc with two radii from the center to the endpoints.
-- If present, `type` must be `pie` or `chord`.
+	
+-	With `sweep`, draws a closed partial ellipse sector:
+	-	`<start>` is the starting angle in degrees, measured clockwise from the positive x-axis.
+	- 	`<degrees>` is the sweep angle in degrees, measured clockwise from the start angle. It may be negative.
+	
+-	`type` is either `chord` or `pie`:
+	-	`chord` closes the arc with a straight line between arc endpoints (default).
+	-	`pie` closes the arc with two radii from the center to the endpoints.
 
 Example:
 
@@ -304,7 +305,10 @@ _The `PATH svg:` form is available in all IVG versions. The instruction-list var
 - `bezier-to <cx>,<cy>,<x>,<y>` draws a quadratic Bézier curve.
 - `bezier-to <c1x>,<c1y>,<c2x>,<c2y>,<x>,<y>` draws a cubic Bézier curve.
 - `arc-to <x>,<y>,<r>[,<ry>=<r>] [turn:cw|ccw=cw] [large:yes|no=no] [rotate:<deg>=0]` draws an elliptical arc.
-- `arc-sweep <cx>,<cy>,<degrees>` sweeps an arc around a center point.
+- `arc-sweep <cx>,<cy>,<degrees> [end:<variable>]` draws an arc around a center point, sweeping by the given angle.
+- `arc-move <cx>,<cy>,<degrees> [end:<variable>]` moves the current point along an arc sweep without drawing.
+
+The optional `end:` variable receives the endpoint as an `x,y` string (comma‑separated). It can be spliced in list contexts, for example: `line-to $p` or `ELLIPSE $p,3`.
 
 #### Sub-path Commands
 
@@ -321,14 +325,14 @@ These commands mirror their drawing-instruction counterparts but only append pat
 
 Using an instruction list:
 
-		format IVG-3 requires:ImpD-1
-		bounds 0,0,340,300
-		fill lime
-		pen black
-		PATH [
-			move-to 20,20
-			line-to 120,20,120,80,20,80
-		] closed:yes
+	format IVG-3 requires:ImpD-1
+	bounds 0,0,340,300
+	fill lime
+	pen black
+	PATH [
+		move-to 20,20
+		line-to 120,20,120,80,20,80
+	] closed:yes
 ![](images/pathLineToExample.png)
 
 Quadratic and cubic Bézier curves:
@@ -343,8 +347,20 @@ Arcs:
 
 	format IVG-3 requires:ImpD-1
 	bounds 0,0,340,300
+	WIPE #ffffff
+
+	fill none
+	pen black width:2
+
 	PATH [move-to 20,20; arc-to 120,20,40,40]
 	PATH [move-to 60,60; arc-sweep 60,100,180]
+
+	// arc-sweep with endpoint capture
+	PATH [ move-to 140,100; arc-sweep 100,100,180 end:e1 ]
+	fill red; ELLIPSE {$e1},3; fill none
+
+	// arc-move with endpoint capture, then draw a line to it
+	PATH [ move-to 100,60; arc-move 100,100,90 end:e2; line-to $e2 ]
 ![](images/pathArcsExample.png)
 
 Using raw SVG data:

@@ -537,18 +537,20 @@ static int findTransformType(size_t n /* string length */, const char* s /* zero
 /* Built with QuickHashGen */
 // Seed: 903145365
 static int findPathInstructionType(int n /* string length */, const char* s /* string (zero terminated) */) {
-	static const char* STRINGS[11] = {
-		"move-to", "line-to", "bezier-to", "arc-to", "arc-sweep", "line", "rect", 
-		"ellipse", "star", "polygon", "text"
+	static const char* STRINGS[12] = {
+		"move-to", "line-to", "bezier-to", "arc-to", "arc-sweep", "arc-move", "line", 
+		"rect", "ellipse", "star", "polygon", "text"
 	};
-	static const int HASH_TABLE[32] = {
-		-1, -1, -1, -1, -1, 1, 0, -1, 5, 9, -1, -1, -1, -1, 6, 8, 
-		10, -1, -1, -1, -1, -1, -1, -1, 4, 2, -1, 3, -1, -1, 7, -1
+	static const int HASH_TABLE[64] = {
+		-1, -1, -1, 1, -1, -1, -1, -1, -1, -1, -1, 10, -1, -1, 5, -1, 
+		4, -1, -1, -1, -1, -1, -1, 3, -1, -1, -1, 0, 8, -1, -1, 2, 
+		-1, 9, -1, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 6, -1, 
+		-1, -1, -1, -1, -1, -1, -1, -1, 11, -1, -1, -1, -1, -1, -1, -1
 	};
 	const unsigned char* p = (const unsigned char*) s;
 	assert(s[n] == '\0');
 	if (n < 4 || n > 9) return -1;
-	int stringIndex = HASH_TABLE[(p[0] - n) & 31u];
+	int stringIndex = HASH_TABLE[(p[2] ^ p[4]) & 63u];
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
@@ -627,8 +629,8 @@ class TransformationExecutor : public Executor {
 
 enum Type {
 	PATH_MOVE_TO_INSTRUCTION, PATH_LINE_TO_INSTRUCTION, PATH_BEZIER_TO_INSTRUCTION, PATH_ARC_TO_INSTRUCTION,
-	PATH_ARC_SWEEP_INSTRUCTION, PATH_LINE_INSTRUCTION, PATH_RECT_INSTRUCTION, PATH_ELLIPSE_INSTRUCTION,
-	PATH_STAR_INSTRUCTION, PATH_POLYGON_INSTRUCTION, PATH_TEXT_INSTRUCTION
+	PATH_ARC_SWEEP_INSTRUCTION, PATH_ARC_MOVE_INSTRUCTION, PATH_LINE_INSTRUCTION, PATH_RECT_INSTRUCTION,
+	PATH_ELLIPSE_INSTRUCTION, PATH_STAR_INSTRUCTION, PATH_POLYGON_INSTRUCTION, PATH_TEXT_INSTRUCTION
 };
 
 static Path& makeLinePath(Path& p, Interpreter& impd, ArgumentsContainer& args, int minPairs = 2);
@@ -651,9 +653,7 @@ class PathInstructionExecutor : public Executor {
 				}
 	public:		virtual bool execute(Interpreter& impd, const String& instruction, const String& arguments) {
 					const int foundInstruction = findPathInstructionType(IMPD::lossless_cast<int>(instruction.size()), instruction.c_str());
-					if (foundInstruction < 0) {
-						return false;
-					}
+					if (foundInstruction < 0) return false;
 					ArgumentsContainer args(ArgumentsContainer::parse(impd, arguments));
 					Path subPath;
 					switch (foundInstruction) {
@@ -729,13 +729,23 @@ class PathInstructionExecutor : public Executor {
 							path.lineTo(endPos.x, endPos.y);
 							return true;
 						}
-						case PATH_ARC_SWEEP_INSTRUCTION: {
+						case PATH_ARC_SWEEP_INSTRUCTION:
+						case PATH_ARC_MOVE_INSTRUCTION: {
 							checkHasMoveTo(instruction);
 							double nums[3];
 							parseNumberList(impd, args.fetchRequired(0), nums, 3, 3);
+							const String* endVar = args.fetchOptional("end", true);
 							args.throwIfAnyUnfetched();
-							double sweepRadians = min(max(nums[2] * DEGREES, -PI2), PI2);
-							path.arcSweep(nums[0], nums[1], sweepRadians, 1.0, curveQuality);
+							const double sweepRadians = min(max(nums[2] * DEGREES, -PI2), PI2);
+							if (foundInstruction == PATH_ARC_SWEEP_INSTRUCTION) {
+								path.arcSweep(nums[0], nums[1], sweepRadians, 1.0, curveQuality);
+							} else {
+								path.arcMove(nums[0], nums[1], sweepRadians, 1.0);
+							}
+							if (endVar != 0) {
+								Vertex ep = path.getPosition();
+								impd.set(*endVar, impd.toString(ep.x) + String(",") + impd.toString(ep.y));
+							}
 							return true;
 						}
 						case PATH_LINE_INSTRUCTION: {
@@ -1544,10 +1554,10 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 		double startRadians = sweepVals[0] * DEGREES;
 		double sweepRadians = min(max(sweepVals[1] * DEGREES, -PI2), PI2);
 
-		double sx = cx + rx * cos(startRadians);
-		double sy = cy + ry * sin(startRadians);
 		const double ratio = rx / ry;
-		path.moveTo(sx, sy);
+		// Move to the 0-degree point and then advance along the arc without drawing to the start angle
+		path.moveTo(cx + rx, cy);
+		path.arcMove(cx, cy, startRadians, ratio);
 		path.arcSweep(cx, cy, sweepRadians, ratio, curveQuality);
 		if (typeIsPie) {
 			path.lineTo(cx, cy);

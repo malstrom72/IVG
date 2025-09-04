@@ -1,0 +1,27 @@
+format IVG-3 requires:IMPD-1
+bounds 0,0,220,200
+
+WIPE #ffffff
+fill none
+pen black width:2
+
+// --- arc-sweep with endpoint capture ---
+// Start to the right of the center at radius 40
+PATH [
+	move-to 140,100
+	arc-sweep 100,100,180 end:es
+]
+
+// Mark the endpoint in red using the captured "x,y" string
+fill red
+ELLIPSE {$es},3
+fill none
+
+// --- arc-move with endpoint capture, then draw a line to it ---
+// Move along a 90-degree arc around (100,100) starting at (100,60)
+PATH [
+	move-to 100,60
+	arc-move 100,100,90 end:em
+	line-to $em
+]
+

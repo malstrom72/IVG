@@ -517,6 +517,32 @@ Path& Path::arcSweep(double centerX, double centerY, double sweepRadians, double
 	return *this;
 }
 
+Path& Path::arcMove(double centerX, double centerY, double sweepRadians, double aspectRatio) {
+	assert(-PI2 <= sweepRadians && sweepRadians <= PI2);
+	assert(0.0 < aspectRatio && aspectRatio < 10000000000.0);
+
+	const Vertex pos(getPosition());
+	const double sx = (pos.x - centerX) / aspectRatio;
+	const double sy = pos.y - centerY;
+
+	// Rotate current point around center by sweepRadians in normalized space
+	double rx = cos(sweepRadians);
+	double ry = sin(sweepRadians);
+	double px = sx * rx - sy * ry;
+	double py = sx * ry + sy * rx;
+
+	const double endX = centerX + px * aspectRatio;
+	const double endY = centerY + py;
+
+	// If the last instruction was a MOVE, adjust it in place; otherwise insert a MOVE
+	if (!instructions.empty() && instructions.back().first == MOVE) {
+		instructions.back().second = Vertex(endX, endY);
+	} else {
+		moveTo(endX, endY);
+	}
+	return *this;
+}
+
 Path& Path::addEllipse(double centerX, double centerY, double radiusX, double radiusY, double curveQuality) {
 	assert(0.0 < curveQuality);
 	if (fabs(radiusX) < EPSILON) addLine(centerX, centerY - radiusY, centerX, centerY + radiusY);
