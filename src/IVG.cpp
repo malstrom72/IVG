@@ -162,8 +162,8 @@ static void appendArcSegment(const Vertex& startPos, const Vertex& endPos, doubl
 	const double largeArcSign = (largeArcFlag != 0 ? 1.0 : -1.0);
 	const double sweepSign = (sweepFlag != 0 ? largeArcSign : -largeArcSign);
 	const double aspectRatio = rx / ry;
-	if (aspectRatio <= 0.0 || aspectRatio >= 10000000000.0) {
-		Interpreter::throwRunTimeError(String("ellipse aspect ratio out of range (0..1e10): ")
+	if (aspectRatio < EPSILON || aspectRatio >= 1e6) {
+		Interpreter::throwRunTimeError(String("ellipse aspect ratio out of range: ")
 				+ Interpreter::toString(aspectRatio));
 	}
 	const double l = dx * dx + (aspectRatio * dy) * (aspectRatio * dy);
@@ -1530,8 +1530,8 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 	const double cy = parsed[1];
 	const double rx = parsed[2];
 	const double ry = (count == 4 ? parsed[3] : parsed[2]);
-	if (rx < 0.0 || ry < 0.0) {
-		impd.throwRunTimeError(String("Negative ellipse radius: ") + impd.toString(rx < 0.0 ? rx : ry));
+	if (rx < EPSILON || ry < EPSILON) {
+		impd.throwRunTimeError(String("Invalid ellipse radius: ") + impd.toString(rx < EPSILON ? rx : ry));
 	}
 
 	const String* sweepArg = args.fetchOptional("sweep");
@@ -1558,11 +1558,15 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 		double startRadians = sweepVals[0] * DEGREES;
 		double sweepRadians = min(max(sweepVals[1] * DEGREES, -PI2), PI2);
 
-		const double ratio = rx / ry;
+		const double aspectRatio = rx / ry;
+		if (aspectRatio < EPSILON || aspectRatio >= 1e6) {
+			Interpreter::throwRunTimeError(String("ellipse aspect ratio out of range: ")
+					+ Interpreter::toString(aspectRatio));
+		}
 		// Move to the 0-degree point and then advance along the arc without drawing to the start angle
 		path.moveTo(cx + rx, cy);
-		path.arcMove(cx, cy, startRadians, ratio);
-		path.arcSweep(cx, cy, sweepRadians, ratio, curveQuality);
+		path.arcMove(cx, cy, startRadians, aspectRatio);
+		path.arcSweep(cx, cy, sweepRadians, aspectRatio, curveQuality);
 		if (typeIsPie) {
 			path.lineTo(cx, cy);
 		}
