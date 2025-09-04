@@ -22,6 +22,7 @@ fill none
 PATH [
 	move-to 100,60
 	arc-move 100,100,90 end:em
+	move-to 100,60
 	line-to $em
 ]
 

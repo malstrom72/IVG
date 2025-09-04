@@ -60,6 +60,10 @@
     img {
       max-width: 100%;
     }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
     h1, h2, h3, h4, h5, h6 {
       margin-top: 1.4em;
     }
@@ -103,8 +107,8 @@
      overflow: visible;
     }
     hr {
-      background-color: #1a1a1a;
       border: none;
+      border-top: 1px solid #1a1a1a;
       height: 1px;
       margin: 1em 0;
     }
@@ -304,6 +308,8 @@ paint.</p>
 <p>All coordinates are measured in pixels. The origin is at the top-left
 corner, <em>x</em> increases to the right, <em>y</em> increases
 downward, and fractional coordinates are allowed.</p>
+<p>Angle conventions: Angles are in degrees; 0° at the positive x‑axis;
+clockwise is positive unless stated otherwise.</p>
 <h2 id="error-handling">Error handling</h2>
 <p>Malformed input—such as unknown directives, incorrect argument
 counts, or out-of-range values—triggers a run-time error and halts
@@ -327,13 +333,24 @@ on the canvas. It will be filled with the current <a
 href="#fill"><code>fill</code></a> setting and outlined with the current
 <a href="#pen"><code>pen</code></a> setting.</p>
 <p>Syntax:</p>
-<pre><code>ELLIPSE &lt;cx&gt;,&lt;cy&gt;,&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;]</code></pre>
+<pre><code>ELLIPSE &lt;cx&gt;,&lt;cy&gt;,&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;] [ sweep:&lt;start&gt;,&lt;degrees&gt; [ type:pie|chord=chord ] ]</code></pre>
 <ul>
 <li><p><code>&lt;cx&gt;,&lt;cy&gt;</code> is the center point of the
 ellipse.</p></li>
 <li><p><code>&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;]</code> is the radius of
 the ellipse. If you only provide one value, it will be used for both
 axes, creating a circle.</p></li>
+<li><p>With <code>sweep</code>, draws a closed partial ellipse sector;
+<code>&lt;start&gt;</code> and <code>&lt;degrees&gt;</code> follow the
+angle conventions.</p></li>
+<li><p><code>type</code> is either <code>chord</code> or
+<code>pie</code>:</p>
+<ul>
+<li><code>chord</code> closes the arc with a straight line between arc
+endpoints (default).</li>
+<li><code>pie</code> closes the arc with two radii from the center to
+the endpoints.</li>
+</ul></li>
 </ul>
 <p>Example:</p>
 <pre><code>bounds 0,0,300,200
@@ -351,6 +368,12 @@ pen #802020 width:5
 rotate 10 anchor:150,100
 ELLIPSE 150,100,140,30</code></pre>
 <p><img src="images/ellipseExample.png" /></p>
+<p>Pac‑Man (sector using <code>type:pie</code>):</p>
+<pre><code>bounds 0,0,200,200
+fill yellow
+pen black width:2
+ELLIPSE 100,100,80 sweep:30,300 type:pie</code></pre>
+<p><img src="images/pacmanExample.png" /></p>
 <h3 id="image">IMAGE</h3>
 <p>You use the <code>IMAGE</code> instruction for drawing an image on
 the canvas. The image can be a previously defined image created with the
@@ -459,16 +482,27 @@ href="#pen"><code>pen</code></a> setting. Paths may be supplied as an
 instruction list, raw SVG data, or by referencing a previously defined
 path name.</p>
 <p>Syntax:</p>
-<pre><code>PATH [&lt;instructions&gt;] [transform:&lt;transform&gt;] [closed:(yes|no)=no]
-    | svg:&lt;svg data&gt; [transform:&lt;transform&gt;]
-    | &lt;name&gt; [transform:&lt;transform&gt;]</code></pre>
+<pre><code>PATH ((&lt;instructions&gt; [closed:(yes|no)=no]) | svg:&lt;svg data&gt; | &lt;name&gt;) [transform:&lt;transform&gt;]</code></pre>
 <ul>
-<li><p><code>&lt;name&gt;</code> is a path defined with <a
-href="#define-path"><code>define path</code></a>.</p></li>
+<li><p><code>&lt;instructions&gt;</code> is a bracketed list of
+sub-commands (either separated by new lines or semicolons). See
+below.</p></li>
+<li><p>The <code>closed</code> option closes the path automatically,
+connecting the final point back to the first and also closing any
+sub-paths begun with <code>move-to</code>. A single instruction list may
+contain multiple sub-paths, all closed when <code>closed:yes</code> is
+specified.</p></li>
 <li><p><code>&lt;svg data&gt;</code> is a string containing SVG path
 data. See https://svgwg.org/specs/paths/ for details.</p></li>
-<li><p><code>&lt;instructions&gt;</code> is a bracketed list of
-sub-commands:</p>
+<li><p><code>&lt;name&gt;</code> is a path defined with <a
+href="#define-path"><code>define path</code></a>.</p></li>
+<li><p>The <code>transform</code> option applies a transformation before
+drawing, using the same syntax as <a
+href="#image"><code>IMAGE</code></a>.</p></li>
+</ul>
+<p><em>The <code>PATH svg:</code> form is available in all IVG versions.
+The instruction-list variant requires IVG-3.</em></p>
+<h4 id="path-instructions">Path Instructions</h4>
 <ul>
 <li><code>move-to &lt;x&gt;,&lt;y&gt;</code> sets the starting point for
 a new sub-path.</li>
@@ -478,43 +512,45 @@ draws one or more line segments from the current point.</li>
 draws a quadratic Bézier curve.</li>
 <li><code>bezier-to &lt;c1x&gt;,&lt;c1y&gt;,&lt;c2x&gt;,&lt;c2y&gt;,&lt;x&gt;,&lt;y&gt;</code>
 draws a cubic Bézier curve.</li>
-<li><code>arc-to &lt;x&gt;,&lt;y&gt;,&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;] [sweep:cw|ccw=cw] [large:yes|no=no] [rotate:&lt;deg&gt;=0]</code>
+<li><code>arc-to &lt;x&gt;,&lt;y&gt;,&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;] [turn:cw|ccw=cw] [large:yes|no=no] [rotate:&lt;deg&gt;=0]</code>
 draws an elliptical arc.</li>
-<li><code>arc-sweep &lt;cx&gt;,&lt;cy&gt;,&lt;degrees&gt;</code> sweeps
-an arc around a center point.</li>
+<li><code>arc-sweep &lt;cx&gt;,&lt;cy&gt;,&lt;degrees&gt; [end:&lt;variable&gt;]</code>
+draws an arc around a center point, sweeping by the given angle.</li>
+<li><code>arc-move &lt;cx&gt;,&lt;cy&gt;,&lt;degrees&gt; [end:&lt;variable&gt;]</code>
+moves the current point along an arc sweep without drawing.</li>
+</ul>
+<p>The optional <code>end:</code> variable receives the endpoint as an
+<code>x,y</code> string (comma‑separated). It can be spliced in list
+contexts, for example: <code>line-to $p</code> or
+<code>ELLIPSE $p,3</code>.</p>
+<h4 id="sub-path-commands">Sub-path Commands</h4>
+<p>These commands mirror their drawing-instruction counterparts but only
+append path geometry (they don’t paint by themselves):</p>
+<ul>
 <li><code>line &lt;x0&gt;,&lt;y0&gt;,&lt;x1&gt;,&lt;y1&gt;[,&lt;x2&gt;,&lt;y2&gt; ...]</code>
 appends an open polyline starting at
 <code>&lt;x0&gt;,&lt;y0&gt;</code>.</li>
 <li><code>rect &lt;x&gt;,&lt;y&gt;,&lt;w&gt;,&lt;h&gt; [rounded:&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;]</code>
 appends an axis-aligned rectangle.</li>
-<li><code>ellipse &lt;cx&gt;,&lt;cy&gt;,&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;]</code>
-appends an ellipse or circle.</li>
+<li><code>ellipse &lt;cx&gt;,&lt;cy&gt;,&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;] [ sweep:&lt;start&gt;,&lt;degrees&gt; [ type:pie|chord=chord ] ]</code>
+appends a full ellipse or a closed sector.</li>
 <li><code>star &lt;cx&gt;,&lt;cy&gt;,&lt;points&gt;,&lt;r1&gt;[,&lt;r2&gt;=&lt;r1&gt;] [rotation:&lt;angle&gt;]</code>
 appends a star or regular polygon.</li>
 <li><code>polygon &lt;x0&gt;,&lt;y0&gt; &lt;x1&gt;,&lt;y1&gt; [&lt;x2&gt;,&lt;y2&gt; ...]</code>
 appends a closed polygon.</li>
 <li><code>text [at:&lt;x,y&gt;] [anchor:left|center|right=left] &lt;text&gt;</code>
 appends a text outline.</li>
-</ul></li>
 </ul>
-<p><code>closed:yes</code> closes the path automatically, connecting the
-final point back to the first and also closing any sub-paths begun with
-<code>move-to</code>. A single instruction list may contain multiple
-sub-paths, all closed when <code>closed:yes</code> is specified.</p>
-<p><code>transform:</code> applies a transformation before drawing,
-using the same syntax as <a href="#image"><code>IMAGE</code></a>.</p>
-<p><em>The <code>PATH svg:</code> form is available in all IVG versions.
-The instruction-list variant requires IVG-3.</em></p>
 <h4 id="examples">Examples</h4>
 <p>Using an instruction list:</p>
-<pre><code>    format IVG-3 requires:ImpD-1
-    bounds 0,0,340,300
-    fill lime
-    pen black
-    PATH [
-        move-to 20,20
-        line-to 120,20,120,80,20,80
-    ] closed:yes</code></pre>
+<pre><code>format IVG-3 requires:ImpD-1
+bounds 0,0,340,300
+fill lime
+pen black
+PATH [
+    move-to 20,20
+    line-to 120,20,120,80,20,80
+] closed:yes</code></pre>
 <p><img src="images/pathLineToExample.png" /></p>
 <p>Quadratic and cubic Bézier curves:</p>
 <pre><code>format IVG-3 requires:ImpD-1
@@ -525,8 +561,20 @@ PATH [move-to 20,20; bezier-to 40,20,80,60,100,80]</code></pre>
 <p>Arcs:</p>
 <pre><code>format IVG-3 requires:ImpD-1
 bounds 0,0,340,300
+WIPE #ffffff
+
+fill none
+pen black width:2
+
 PATH [move-to 20,20; arc-to 120,20,40,40]
-PATH [move-to 60,60; arc-sweep 60,100,180]</code></pre>
+PATH [move-to 60,60; arc-sweep 60,100,180]
+
+// arc-sweep with endpoint capture
+PATH [ move-to 140,100; arc-sweep 100,100,180 end:e1 ]
+fill red; ELLIPSE {$e1},3; fill none
+
+// arc-move with endpoint capture, then draw a line to it
+PATH [ move-to 100,60; arc-move 100,100,90 end:e2; line-to $e2 ]</code></pre>
 <p><img src="images/pathArcsExample.png" /></p>
 <p>Using raw SVG data:</p>
 <pre><code>format IVG-3 requires:ImpD-1
@@ -788,10 +836,11 @@ context [
     // rotate
     rotate 10 anchor:150,150
     
-    // The fill and pen will be local to this context.</code></pre>
-<p>fill gradient:[linear 0,0,1,0 from:silver to:blue] relative:yes pen
-none</p>
-<pre><code>    // Fill a rotated, masked gradient 3d cube silhouette.
+    // The fill and pen will be local to this context.
+    fill gradient:[linear 0,0,1,0 from:silver to:blue] relative:yes
+    pen none
+    
+    // Fill a rotated, masked gradient 3d cube silhouette.
     STAR 150,150,6,90,110
 ]
 // This rect will have the same style and transformation as the first.
@@ -874,12 +923,14 @@ TEXT at:40,110 &quot;IVG&quot;</code></pre>
 <p>You can define a reusable path and draw it later with the <a
 href="#path"><code>PATH</code></a> instruction.</p>
 <p>Syntax:</p>
-<pre><code>define path &lt;name&gt; &lt;path-definition&gt;
-
--       `&lt;name&gt;` is a unique identifier for the path. Path names are case-sensitive and may only be defined once.
-
--       `&lt;path-definition&gt;` follows the same syntax as [`PATH`](#path), using either `svg:` data or path
-        instructions inside brackets.</code></pre>
+<pre><code>define path &lt;name&gt; &lt;path-definition&gt;</code></pre>
+<ul>
+<li><p><code>&lt;name&gt;</code> is a unique identifier for the path.
+Path names are case-sensitive and may only be defined once.</p></li>
+<li><p><code>&lt;path-definition&gt;</code> follows the same syntax as
+<a href="#path"><code>PATH</code></a>, using either <code>svg:</code>
+data or path instructions inside brackets.</p></li>
+</ul>
 <p>Example:</p>
 <pre><code>define path star [svg:[M0,0 L10,0 L5,8 z]]
 fill gold
@@ -1060,10 +1111,16 @@ TEXT at:70,145 anchor:center &quot;C&quot;
 
 // D: masks can also be semi-transparent.
 offset 150,0
-context [</code></pre>
-<p>mask [ fill gradient:[linear 0,0,0.5,1 from:#00 to:#C0] relative:yes
-ELLIPSE $c2] ELLIPSE $c1 ] $outline TEXT at:70,145 anchor:center “D”
-<img src="images/maskDemo.png" /></p>
+context [
+    mask [
+        fill gradient:[linear 0,0,0.5,1 from:#00 to:#C0] relative:yes
+        ELLIPSE $c2
+    ]
+    ELLIPSE $c1
+]
+$outline
+TEXT at:70,145 anchor:center &quot;D&quot;</code></pre>
+<p><img src="images/maskDemo.png" /></p>
 <h3 id="options">options</h3>
 <p><code>options</code> is a directive that allows fine-tuning quality
 settings for the subsequent instructions. Settings are local to the
@@ -1149,10 +1206,12 @@ for resolution in:[1,2,4,8] [
         
         // Declare the pattern using a simple gradient-colored circle.
         fill pattern:[
-            bounds 0,0,10,10</code></pre>
-<p>pen gradient:[linear 0,0,1,1 stops:[0,blue,0.5,yellow,0.8,blue]]
-relative:yes ELLIPSE 5,5,3 ]</p>
-<pre><code>        // Scale the pattern up by 8x after the pattern definition to
+            bounds 0,0,10,10
+            pen gradient:[linear 0,0,1,1 stops:[0,blue,0.5,yellow,0.8,blue]] relative:yes
+            ELLIPSE 5,5,3
+        ]
+        
+        // Scale the pattern up by 8x after the pattern definition to
         // showcase the need to set the resolution option higher than 1.
         scale 8
         
@@ -1374,9 +1433,12 @@ that transitions between colors emanating from a single point
 further define the shape of the gradient by providing either the radius
 (<code>&lt;r&gt;</code>), which creates a circular shape or the x-radius
 and y-radius (<code>&lt;rx&gt;,&lt;ry&gt;</code>), which creates an
-elliptical shape. Examples:</p>
-<p>WIPE gradient:[linear 0,0,10,0 from:red to:blue] WIPE
-gradient:[radial 5,5,5 from:white to:black]</p></li>
+elliptical shape.</p></li>
+</ul>
+<p>Examples:</p>
+<pre><code>WIPE gradient:[linear 0,0,10,0 from:red to:blue]
+WIPE gradient:[radial 5,5,5 from:white to:black]</code></pre>
+<ul>
 <li><p>The <code>from</code> alternative specifies the start and end
 colors of the gradient (see <a href="#color-specification">Color
 Specification</a>).</p></li>
@@ -1396,20 +1458,24 @@ bounds 0,0,500,500
 // Set font style.
 font serif size:16 color:white
 
-// Wipe the canvas with a simple Linear gradient from red to blue.</code></pre>
-<p>WIPE gradient:[linear 0,0,500,500 from:red to:blue] RECT 0,0,500,500
-TEXT at:10,490 anchor:left “linear gradient”</p>
-<pre><code>// We will use relative fill. 0,0 is top-left corner. 1,1 is bottom-right.
+// Wipe the canvas with a simple Linear gradient from red to blue.
+WIPE gradient:[linear 0,0,500,500 from:red to:blue]
+RECT 0,0,500,500
+TEXT at:10,490 anchor:left &quot;linear gradient&quot;
+
+// We will use relative fill. 0,0 is top-left corner. 1,1 is bottom-right.
 fill relative:yes
 
-// Elliptic gradient with stops.</code></pre>
-<p>fill gradient:[radial 0.5,0.5,0.7,0.5
-stops:0,blue,0.25,yellow,0.5,blue,0.75,lime,1,blue] RECT 200,200,250,250
-TEXT at:210,440 anchor:left “radial gradient with stops”</p>
-<pre><code>// Linear gradient with stops.</code></pre>
-<p>fill gradient:[linear 0,0.3,1,0.7 stops:0,red,0.5,lime,1,blue] RECT
-40,40,250,250 TEXT at:50,280 anchor:left “linear gradient with stops”
-<img src="images/gradientDemo.png" /></p>
+// Elliptic gradient with stops.
+fill gradient:[radial 0.5,0.5,0.7,0.5 stops:0,blue,0.25,yellow,0.5,blue,0.75,lime,1,blue]
+RECT 200,200,250,250
+TEXT at:210,440 anchor:left &quot;radial gradient with stops&quot;
+
+// Linear gradient with stops.
+fill gradient:[linear 0,0.3,1,0.7 stops:0,red,0.5,lime,1,blue]
+RECT 40,40,250,250
+TEXT at:50,280 anchor:left &quot;linear gradient with stops&quot;</code></pre>
+<p><img src="images/gradientDemo.png" /></p>
 <h3 id="paint-specification">Paint Specification</h3>
 <p><code>&lt;paint&gt;</code> is used in many directives, such as <a
 href="#pen"><code>pen</code></a>, <a href="#fill"><code>fill</code></a>,
@@ -1440,8 +1506,8 @@ href="#pen"><code>pen</code></a>, <a href="#fill"><code>fill</code></a>,
 etc., except for the <a href="#mask"><code>mask</code></a> setting. A <a
 href="#bounds"><code>bounds</code></a> directive is required to define
 the pattern’s dimensions. The resolution used for rasterizing the
-pattern can be changed using the [<code>options</code>] (#options)
-directive.</p></li>
+pattern can be changed using the <a
+href="#options"><code>options</code></a> directive.</p></li>
 <li><p>The <code>transform</code> option allows you to apply a series of
 transformations on the paint. These transformations are relative to the
 current transformation of the active <a href="#context">context</a>. See
@@ -1482,9 +1548,10 @@ mask [
     ] transform:[scale 0.75; rotate 10 anchor:200,150]
 ]
 
-// Fill the mask with a relative gradient.</code></pre>
-<p>fill gradient:[linear 0,0,1,1 stops:0.0,white,1.0,blue] relative:yes
-RECT 0,0,400,300 <img src="images/paintDemo.png" /></p>
+// Fill the mask with a relative gradient.
+fill gradient:[linear 0,0,1,1 stops:0.0,white,1.0,blue] relative:yes
+RECT 0,0,400,300</code></pre>
+<p><img src="images/paintDemo.png" /></p>
 <h3 id="transform-specification">Transform Specification</h3>
 <p><code>&lt;transform&gt;</code> instructions modify the drawing
 instructions’ position, shape, or orientation. You use transformations
@@ -1583,69 +1650,69 @@ context [
 <h2 id="defaults">Defaults</h2>
 <table>
 <thead>
-<tr class="header">
+<tr>
 <th>Setting</th>
 <th>Initial value</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
+<tr>
 <td>pen paint</td>
 <td>none</td>
 </tr>
-<tr class="even">
+<tr>
 <td>pen width</td>
 <td>1</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>pen caps</td>
 <td>butt</td>
 </tr>
-<tr class="even">
+<tr>
 <td>pen joints</td>
 <td>miter</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>pen miter-limit</td>
 <td>2</td>
 </tr>
-<tr class="even">
+<tr>
 <td>pen dash</td>
-<td>0 (solid)</td>
+<td>none</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>fill paint</td>
 <td>none</td>
 </tr>
-<tr class="even">
+<tr>
 <td>font name</td>
 <td>(none; must set before <code>TEXT</code>)</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>font size</td>
 <td>20</td>
 </tr>
-<tr class="even">
+<tr>
 <td>font color</td>
 <td>black</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>font outline</td>
 <td>none</td>
 </tr>
-<tr class="even">
+<tr>
 <td>font tracking</td>
 <td>0</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>options aa-gamma</td>
 <td>1</td>
 </tr>
-<tr class="even">
+<tr>
 <td>options curve-quality</td>
 <td>1</td>
 </tr>
-<tr class="odd">
+<tr>
 <td>options pattern-resolution</td>
 <td>1</td>
 </tr>

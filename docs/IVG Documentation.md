@@ -112,6 +112,8 @@ Any `opacity` modifier multiplies the alpha channel of its paint.
 All coordinates are measured in pixels. The origin is at the top-left corner, _x_ increases to the right, _y_ increases
 downward, and fractional coordinates are allowed.
 
+Angle conventions: Angles are in degrees; 0° at the positive x‑axis; clockwise is positive unless stated otherwise.
+
 ## Error handling
 
 Malformed input—such as unknown directives, incorrect argument counts, or out-of-range values—triggers a run-time error
@@ -142,9 +144,7 @@ Syntax:
 -	`<r>[,<ry>=<r>]` is the radius of the ellipse. If you only provide one value, it will be used for both axes,
 	creating a circle.
 	
--	With `sweep`, draws a closed partial ellipse sector:
-	-	`<start>` is the starting angle in degrees, measured clockwise from the positive x-axis.
-	- 	`<degrees>` is the sweep angle in degrees, measured clockwise from the start angle. It may be negative.
+-	With `sweep`, draws a closed partial ellipse sector; `<start>` and `<degrees>` follow the angle conventions.
 	
 -	`type` is either `chord` or `pie`:
 	-	`chord` closes the arc with a straight line between arc endpoints (default).
@@ -294,7 +294,7 @@ specified.
 
 - `<name>` is a path defined with [`define path`](#define-path).
 
-- The `transform` options applies a transformation before drawing, using the same syntax as [`IMAGE`](#image).
+- The `transform` option applies a transformation before drawing, using the same syntax as [`IMAGE`](#image).
 
 _The `PATH svg:` form is available in all IVG versions. The instruction-list variant requires IVG-3._
 
@@ -651,7 +651,7 @@ Demonstration:
 		rotate 10 anchor:150,150
 		
 		// The fill and pen will be local to this context.
-fill gradient:[linear 0,0,1,0 from:silver to:blue] relative:yes
+		fill gradient:[linear 0,0,1,0 from:silver to:blue] relative:yes
 		pen none
 		
 		// Fill a rotated, masked gradient 3d cube silhouette.
@@ -1298,8 +1298,8 @@ look like. You can select a solid color, a gradient of colors, or a pattern.
 	instructions. You define the pattern by enclosing the instructions in brackets `[` and `]`. The drawing context
 	for the pattern inherits all settings from the current context, such as [`pen`](#pen), [`fill`](#fill), etc.,
 	except for the [`mask`](#mask) setting. A [`bounds`](#bounds) directive is required to define the pattern's
-	dimensions. The resolution used for rasterizing the pattern can be changed using the [`options`]
-	(#options) directive.
+	dimensions. The resolution used for rasterizing the pattern can be changed using the [`options`](#options)
+	directive.
 
 -	The `transform` option allows you to apply a series of transformations on the paint. These transformations are
 	relative to the current transformation of the active [context](#context). See [Transform
@@ -1439,7 +1439,7 @@ Demonstration:
 | pen caps					 | butt								 |
 | pen joints				 | miter							 |
 | pen miter-limit			 | 2								 |
-| pen dash					 | 0 (solid)						 |
+| pen dash					 | none							 |
 | fill paint				 | none								 |
 | font name					 | (none; must set before `TEXT`)	 |
 | font size					 | 20								 |
