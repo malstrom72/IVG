@@ -162,6 +162,10 @@ static void appendArcSegment(const Vertex& startPos, const Vertex& endPos, doubl
 	const double largeArcSign = (largeArcFlag != 0 ? 1.0 : -1.0);
 	const double sweepSign = (sweepFlag != 0 ? largeArcSign : -largeArcSign);
 	const double aspectRatio = rx / ry;
+	if (aspectRatio <= 0.0 || aspectRatio >= 10000000000.0) {
+		Interpreter::throwRunTimeError(String("ellipse aspect ratio out of range (0..1e10): ")
+				+ Interpreter::toString(aspectRatio));
+	}
 	const double l = dx * dx + (aspectRatio * dy) * (aspectRatio * dy);
 	const double b = max(4.0 * rx * rx / l - 1.0, EPSILON);
 	const double a = sweepSign * sqrt(b * 0.25);
