@@ -1,0 +1,4 @@
+format IVG-3
+BOUNDS 0,0,10,10
+font missing
+text "hi"

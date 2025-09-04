@@ -134,5 +134,23 @@ TRACE {log(-1)} // Math error
 
 TRACE {sqrt(-1)} // Math error
 
+INCLUDE // missing arg
+
+FORMAT foo extra:bar
+
+TRACE "unterminated
+
+TRACE {1?2}
+
+LOCAL x 5
+
+TRACE {(1+2}
+
+TRACE {1e309}
+
+IF maybe []
+
+INCLUDE missing.impd
+
 REPEAT 1073741823 [] // statements count limit
 

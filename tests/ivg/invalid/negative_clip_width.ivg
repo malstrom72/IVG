@@ -1,0 +1,4 @@
+format IVG-3
+BOUNDS 0,0,10,10
+define image foo [bounds 0,0,1,1]
+image 0,0 foo clip:[0,0,-10,10]
