@@ -69,6 +69,8 @@ using NuXPixels::Path;
 
 inline double square(double d) { return d * d; }
 
+void checkBounds(const NuXPixels::IntRect& bounds);
+
 /**
 	Small helper that wraps a pointer which might live on the heap.
 	- If you assign a freshly created object it is kept in a std::unique_ptr
@@ -544,16 +546,9 @@ template<class PIXEL_TYPE> class PatternPainter : public PatternBase {
 				}
 	public:		virtual void defineBounds(const NuXPixels::IntRect& newBounds) {
 					NuXPixels::IntRect physicalBounds(newBounds.left * scale, newBounds.top * scale
-							, newBounds.width * scale, newBounds.height * scale);
+						, newBounds.width * scale, newBounds.height * scale);
 					if (image.get() != 0) IMPD::Interpreter::throwRunTimeError("Multiple bounds declarations");
-					if (physicalBounds.width <= 0 || physicalBounds.width >= 32768) {
-						IMPD::Interpreter::throwRunTimeError(IMPD::String("bounds width out of range [1..32767]: ")
-								+ IMPD::Interpreter::toString(physicalBounds.width));
-					}
-					if (physicalBounds.height <= 0 || physicalBounds.height >= 32768) {
-						IMPD::Interpreter::throwRunTimeError(IMPD::String("bounds height out of range [1..32767]: ")
-								+ IMPD::Interpreter::toString(physicalBounds.height));
-					}
+					checkBounds(physicalBounds);
 					image.reset(new NuXPixels::SelfContainedRaster<PIXEL_TYPE>(physicalBounds));
 					(*image) = NuXPixels::Solid<PIXEL_TYPE>(PIXEL_TYPE::transparent());
 				}

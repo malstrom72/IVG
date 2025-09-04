@@ -22,7 +22,6 @@
 **/
 #include <math.h>
 #include <algorithm>
-#include <iostream>
 #include "NuXPixels.h"
 #include "NuXPixelsImpl.h"
 #if (NUXPIXELS_SIMD)
@@ -1015,7 +1014,8 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 	const double a = 1.0 - dy * dy / (height * height);
 	const double rowWidth = (a > EPSILON) ? width * sqrt(a) : 0;
 	const double rowStart = (centerX - rowWidth);
-	const int leftEdge = minValue(maxValue(roundToInt(rowStart - x), 0), length);
+	const int rowStartInt = roundToInt(rowStart);
+	const int leftEdge = minValue(maxValue(rowStartInt - x, 0), length);
 	const int rightEdge = minValue(roundToInt(rowStart + rowWidth * 2 - x), length);
 	
 	int i = 0;
@@ -1028,16 +1028,14 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 		} else {
 			assert(i == leftEdge);
 						
-			const int rowStartInt = roundToInt(rowStart);
+			const int steps = x + i - rowStartInt;
+			assert(steps >= 0);
 			const double dx = rowStartInt - centerX;
 			const double dpp = 2.0 * wk;
 			const double dp = (2.0 * dx - 1.0) * wk + dpp * 0.5;
 			const double d = dy * dy * hk + dx * dx * wk + dp * 0.5;
 			assert(dpp >= 0.0);
 			const unsigned int dppi = roundToInt(dpp);
-
-			const int steps = x + i - rowStartInt;
-			assert(steps >= 0);
 			assert(steps < (1 << 16));
 			const int dp0 = roundToInt(dp);
 			
@@ -1082,7 +1080,7 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 				}
 
 				if (allZ < (1 << (30 - 8))) {														// Shift input and output if maximum z is small to attain 256 times higher resolution for the relatively small sqrt table lookup.
-					const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - 8); 							// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
+					const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - 8);							// Input is "up-shifted" twice as much (8) as the output is down-shifted (4), since the output multiplier should be the square-root of the input multiplier.
 					pixels[0] = ((255 << 4) - 255 + sqrtTable[z0 >> sqrtShift]) >> 4;				// Since the table is inversed (see constructor), we use an algebraic trick to perform: 255 - (255 - table) >> 4.
 					pixels[1] = ((255 << 4) - 255 + sqrtTable[z1 >> sqrtShift]) >> 4;
 					pixels[2] = ((255 << 4) - 255 + sqrtTable[z2 >> sqrtShift]) >> 4;
@@ -1148,8 +1146,10 @@ struct PolygonMask::Segment::Order {
 	}
 };
 
+bool PolygonMask::isValid() const { return valid; }
+
 PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule)
-       : segments(), fillRule(fillRule), row(0), engagedStart(0), engagedEnd(0), coverageDelta()
+	: segments(), fillRule(fillRule), row(0), engagedStart(0), engagedEnd(0), coverageDelta(), valid(true)
 {
 	// Clamp the clip rectangle to the numeric limits handled by the rasterizer.
 	IntRect cb = clipBounds;
@@ -1164,6 +1164,7 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 
 	// Reserve space for all edges plus a sentinel segment.
 	segments.reserve(path.size() + 1);
+	const double vertexLimit = static_cast<double>(0x7FFFFFFF >> POLYGON_FRACTION_BITS);
 	int minY = 0x3FFFFFFF;
 	int minX = 0x3FFFFFFF;
 	int maxY = -0x3FFFFFFF;
@@ -1178,15 +1179,31 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 	for (Path::const_iterator it = path.begin(), e = path.end(); it != e;) {
 		while (it != path.end() && it->first == Path::MOVE) {
 			// Begin a new contour.
-			lx = roundToInt(it->second.x * FRACT_ONE);
-			ly = roundToInt(it->second.y * FRACT_ONE);
+			const double x = it->second.x;
+			const double y = it->second.y;
+			if (!isfinite(x) || !isfinite(y) || fabs(x) > vertexLimit || fabs(y) > vertexLimit) {
+				valid = false;
+				segments.clear();
+				bounds = IntRect();
+				return;
+			}
+			lx = roundToInt(x * FRACT_ONE);
+			ly = roundToInt(y * FRACT_ONE);
 			++it;
 		}
 		while (it != path.end() && it->first != Path::MOVE) {
 			int x0 = lx;
 			int y0 = ly;
-			int x1 = roundToInt(it->second.x * FRACT_ONE);
-			int y1 = roundToInt(it->second.y * FRACT_ONE);
+			const double x = it->second.x;
+			const double y = it->second.y;
+			if (!isfinite(x) || !isfinite(y) || fabs(x) > vertexLimit || fabs(y) > vertexLimit) {
+				valid = false;
+				segments.clear();
+				bounds = IntRect();
+				return;
+			}
+			int x1 = roundToInt(x * FRACT_ONE);
+			int y1 = roundToInt(y * FRACT_ONE);
 			lx = x1;
 			ly = y1;
 			bool reversed = false;
@@ -1257,6 +1274,9 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 }
 
 void PolygonMask::rewind() const {
+	assert(valid);
+	if (!valid) return;
+	
 	// Reset state so rendering can start from the top row again.
 	row = bounds.top;
 	engagedStart = 0;
@@ -1282,9 +1302,17 @@ void PolygonMask::rewind() const {
 	segsHorizontally = segsVertically;
 }
 
-IntRect PolygonMask::calcBounds() const { return bounds; }
+IntRect PolygonMask::calcBounds() const {
+	assert(valid);
+	return (valid ? bounds : IntRect());
+}
 
 void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) const {
+	assert(valid);
+	if (!valid) {
+		output.addTransparent(length);
+		return;
+	}
 	assert(0 < length && length <= MAX_RENDER_LENGTH);
 	const int clipLeft = bounds.left;
 	const int clipRight = bounds.calcRight();

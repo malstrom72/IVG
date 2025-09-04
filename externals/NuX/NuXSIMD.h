@@ -33,14 +33,14 @@
 
 #if defined(_MSC_VER) // Visual C++ version
 
-    #define NUXSIMD_WIN 1
-    #define NUXSIMD_UNIX 0 // macOS/Linux
+	#define NUXSIMD_WIN 1
+	#define NUXSIMD_UNIX 0 // macOS/Linux
 	#define NUXSIMD_BIG_ENDIAN 0
 	#define NUXSIMD_LITTLE_ENDIAN 1
 	#define NUXSIMD_INLINE __forceinline
-    #define NUXSIMD_ALTIVEC 0
-    #define NUXSIMD_NEON 0
-    #define NUXSIMD_SSE 1
+	#define NUXSIMD_ALTIVEC 0
+	#define NUXSIMD_NEON 0
+	#define NUXSIMD_SSE 1
 	
 #elif defined(__APPLE__) || defined(__linux__) // Unix-like (macOS/Linux)
 
@@ -49,7 +49,7 @@
 	#if (__ARM_NEON__)
 		#define NUXSIMD_BIG_ENDIAN 0
 		#define NUXSIMD_LITTLE_ENDIAN 1
-    	#define NUXSIMD_ALTIVEC 0
+		#define NUXSIMD_ALTIVEC 0
 		#define NUXSIMD_NEON 1
 		#define NUXSIMD_SSE 0
 	#elif (__LITTLE_ENDIAN__) || (defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
@@ -92,16 +92,16 @@ namespace NuXSIMD {
 #if (NUXSIMD_WIN)
 	#define SIMD_ALIGN(x) __declspec(align(16)) x
 #elif (NUXSIMD_UNIX)
-        #define SIMD_ALIGN(x) x __attribute__ ((aligned (16)))
+	#define SIMD_ALIGN(x) x __attribute__ ((aligned (16)))
 #endif // (NUXSIMD_UNIX)
 
 NUXSIMD_INLINE bool isAligned(const void* p) { return ((reinterpret_cast<intptr_t>(p) & 0xF) == 0); }
 template<typename T> NUXSIMD_INLINE T* allocateAligned(size_t size) {
 	const size_t bytes = ((size * sizeof (T) + 15) & ~15U);
 #if (NUXSIMD_NEON || NUXSIMD_UNIX)
-        T* alloced = reinterpret_cast<T*>(aligned_alloc(16, bytes));
+	T* alloced = reinterpret_cast<T*>(aligned_alloc(16, bytes));
 #else
-        T* alloced = reinterpret_cast<T*>(_mm_malloc(bytes, 16));
+	T* alloced = reinterpret_cast<T*>(_mm_malloc(bytes, 16));
 #endif
 	if (alloced == 0) {
 		throw std::bad_alloc();
@@ -112,9 +112,9 @@ template<typename T> NUXSIMD_INLINE T* allocateAligned(size_t size) {
 NUXSIMD_INLINE void freeAligned(void* p) {
 	assert(p != 0);
 #if (NUXSIMD_NEON || NUXSIMD_UNIX)
-        free(p);
+	free(p);
 #else
-        _mm_free(p);
+	_mm_free(p);
 #endif
 }
 struct Aligned {
@@ -558,7 +558,7 @@ template<typename T, int N> struct AlignedArray : public Aligned {
 	// FIX : from https://github.com/DLTcollab/sse2neon/blob/master/sse2neon.h, must test this to match SIMD
 	NUXSIMD_INLINE QFloat rcpApprox(QFloat x) {
 		const float32x4_t recip = vrecpeq_f32(x);
-    	return vmulq_f32(recip, vrecpsq_f32(recip, x));
+		return vmulq_f32(recip, vrecpsq_f32(recip, x));
 	}
 	NUXSIMD_INLINE QFloat rcpImproved(QFloat x) { QFloat y = rcpApprox(x); return sub(add(y, y), mul(mul(x, y), y)); }
 
@@ -573,11 +573,11 @@ template<typename T, int N> struct AlignedArray : public Aligned {
 	// FIX : from https://github.com/DLTcollab/sse2neon/blob/master/sse2neon.h . is it the best?
 	NUXSIMD_INLINE void transpose(QFloat& a, QFloat& b, QFloat& c, QFloat& d) {
 		float32x4x2_t row01 = vtrnq_f32(a, b);
-        float32x4x2_t row23 = vtrnq_f32(c, d);
-        a = vcombine_f32(vget_low_f32(row01.val[0]), vget_low_f32(row23.val[0]));
-        b = vcombine_f32(vget_low_f32(row01.val[1]), vget_low_f32(row23.val[1]));
-        c = vcombine_f32(vget_high_f32(row01.val[0]), vget_high_f32(row23.val[0]));
-        d = vcombine_f32(vget_high_f32(row01.val[1]), vget_high_f32(row23.val[1]));
+		float32x4x2_t row23 = vtrnq_f32(c, d);
+		a = vcombine_f32(vget_low_f32(row01.val[0]), vget_low_f32(row23.val[0]));
+		b = vcombine_f32(vget_low_f32(row01.val[1]), vget_low_f32(row23.val[1]));
+		c = vcombine_f32(vget_high_f32(row01.val[0]), vget_high_f32(row23.val[0]));
+		d = vcombine_f32(vget_high_f32(row01.val[1]), vget_high_f32(row23.val[1]));
 	}
 
 	typedef int32x4_t QInt;
@@ -621,11 +621,11 @@ template<typename T, int N> struct AlignedArray : public Aligned {
 /* FIX : drop, not tested
 	NUXSIMD_INLINE QInt mulHighUnsigned16(QInt x, QInt y) {
 		const uint16x4_t x3210 = vget_low_u16(x);
-    	const uint16x4_t y3210 = vget_low_u16(y);
-    	const uint32x4_t xy3210 = vmull_u16(x3210, y3210);
-	    const uint32x4_t xy7654 = vmull_high_u16(x, y);
-    	const uint16x8_t r = vuzp2q_u16(xy3210, xy7654);
-	    return r;
+		const uint16x4_t y3210 = vget_low_u16(y);
+		const uint32x4_t xy3210 = vmull_u16(x3210, y3210);
+		const uint32x4_t xy7654 = vmull_high_u16(x, y);
+		const uint16x8_t r = vuzp2q_u16(xy3210, xy7654);
+		return r;
 	}
 */
 	NUXSIMD_INLINE QInt mulLow16(QInt x, QInt y) { return vmulq_s16(x, y); }
