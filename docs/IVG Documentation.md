@@ -6,13 +6,14 @@
 -	[Case conventions](#case-conventions)
 -	[Rendering model](#rendering-model)
 -	[Coordinate system](#coordinate-system)
+-	[List grouping](#list-grouping)
 -	[Error handling](#error-handling)
 -	[IVG-1 vs IVG-2 vs IVG-3](#ivg-1-vs-ivg-2-vs-ivg-3)
 -	[Instructions](#instructions)
 	-	[ELLIPSE](#ellipse)
 	-	[IMAGE](#image)
-	-	[PATH](#path)
 	-	[LINE](#line)
+	-	[PATH](#path)
 	-	[POLYGON](#polygon)
 	-	[RECT](#rect)
 	-	[STAR](#star)
@@ -113,6 +114,19 @@ All coordinates are measured in pixels. The origin is at the top-left corner, _x
 downward, and fractional coordinates are allowed.
 
 Angle conventions: Angles are in degrees; 0° at the positive x‑axis; clockwise is positive unless stated otherwise.
+
+## List grouping
+
+In ImpD, you normally separate list values with commas:
+
+	LINE 30,40,140,70,200,120,260,150,310,170
+
+If you enclose a list in square brackets `[ ... ]`, commas may be omitted and spaces can act as separators. This is
+convenient for long coordinate lists:
+
+	LINE [30,40 140,70 200,120 260,150 310,170]
+
+The two forms are equivalent. Bracketed lists are often easier to read for geometry with many points.
 
 ## Error handling
 
@@ -274,6 +288,30 @@ Demonstration:
 	TEXT at:280,280 anchor:center F
 ![](images/imageExample.png)
 
+### LINE
+
+The `LINE` instruction draws an open polyline using the current [`pen`](#pen).
+
+Syntax:
+
+	LINE <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]
+
+At least two points (four coordinates) are required. Two points draw a single line segment; additional points extend the
+polyline.
+
+Example:
+
+	format IVG-3 requires:ImpD-1
+	bounds 0,0,340,220
+	WIPE #0b1020
+	fill none
+	pen #8fd3ff width:6 caps:round
+	LINE [30,40 140,70 200,120 260,150 310,170]
+	fill #ffd35a
+	pen none
+	ELLIPSE 310,170,8
+![](images/lineExample.png)
+
 ### PATH
 
 The `PATH` instruction draws an arbitrary vector path. It will be filled with the current [`fill`](#fill) setting and
@@ -323,44 +361,55 @@ These commands mirror their drawing-instruction counterparts but only append pat
 
 #### Examples
 
-Using an instruction list:
-
-	format IVG-3 requires:ImpD-1
-	bounds 0,0,340,300
-	fill lime
-	pen black
-	PATH [
-		move-to 20,20
-		line-to 120,20,120,80,20,80
-	] closed:yes
-![](images/pathLineToExample.png)
-
 Quadratic and cubic Bézier curves:
 
 	format IVG-3 requires:ImpD-1
-	bounds 0,0,340,300
-	PATH [move-to 20,20; bezier-to 60,20,60,80]
-	PATH [move-to 20,20; bezier-to 40,20,80,60,100,80]
+	bounds 0,0,340,260
+	WIPE #0e1726
+
+	// Curvy string with quadratic and cubic Beziers
+	fill none
+	pen #7dd3fc width:4 caps:round
+	PATH [
+		move-to 50,220
+		bezier-to 140,160,200,200
+		bezier-to 220,200,240,120,280,220
+	]
+
+	// Heart balloon using cubic Beziers
+	fill #ff6fae; pen #555555 width:2
+	PATH [
+		move-to 170,80
+		bezier-to 170,60,210,60,210,80
+		bezier-to 210,110,170,130,170,150
+		bezier-to 170,130,130,110,130,80
+		bezier-to 130,60,170,60,170,80
+	] closed:yes
 ![](images/pathBeziersExample.png)
 
 Arcs:
 
 	format IVG-3 requires:ImpD-1
-	bounds 0,0,340,300
-	WIPE #ffffff
-
+	bounds 0,0,340,200
+	WIPE #101418
 	fill none
-	pen black width:2
-
-	PATH [move-to 20,20; arc-to 120,20,40,40]
-	PATH [move-to 60,60; arc-sweep 60,100,180]
-
-	// arc-sweep with endpoint capture
-	PATH [ move-to 140,100; arc-sweep 100,100,180 end:e1 ]
-	fill red; ELLIPSE {$e1},3; fill none
-
-	// arc-move with endpoint capture, then draw a line to it
-	PATH [ move-to 100,60; arc-move 100,100,90 end:e2; line-to $e2 ]
+	pen #2ee6a6 width:10 caps:round
+	
+	// open arcs (drawn)
+	PATH [ move-to 60,120;  arc-sweep 170,120,180 ]
+	PATH [ move-to 60,120;  arc-sweep 170,120,140 ]
+	pen #ff6fae width:3
+	
+	// arc-move (no draw), then a line to the moved endpoint
+	PATH [ move-to 60,120; arc-move 170,120,110 end:p; line-to $p ]
+	
+	// a face for fun
+	fill #ffd45a; pen #222222 width:2
+	ELLIPSE 170,120,60
+	fill #222222; pen none
+	ELLIPSE 150,105,6; ELLIPSE 190,105,6
+	pen #222222 width:3; fill none
+	PATH [ move-to 145,135; arc-sweep 170,125,-90 ]
 ![](images/pathArcsExample.png)
 
 Using raw SVG data:
@@ -382,25 +431,6 @@ Using raw SVG data:
 	PATH svg:[M100,300 v-200 h200 a100,100,90,0,1,0,200 a100,100,90,0,1,-200,0 z]
 ![](images/pathSVGExample.png)
 
-### LINE
-
-The `LINE` instruction draws an open polyline using the current [`pen`](#pen).
-
-Syntax:
-
-	LINE <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]
-
-At least two points (four coordinates) are required. Two points draw a single line segment; additional points extend the
-polyline.
-
-Example:
-
-	format IVG-3 requires:ImpD-1
-	bounds 0,0,340,300
-	pen black width:2
-	LINE 10,10,80,40,40,80
-![](images/lineExample.png)
-
 ### POLYGON
 
 The `POLYGON` instruction draws a closed polygon using the current [`fill`](#fill) and [`pen`](#pen).
@@ -414,10 +444,22 @@ At least three points (six coordinates) are required. The polygon is automatical
 Example:
 
 	format IVG-3 requires:ImpD-1
-	bounds 0,0,340,300
-	fill lime
-	pen black
-	POLYGON 20,20,120,20,120,80,20,80
+	bounds 0,0,340,260
+	WIPE #e6f7ff
+	
+	// kite body
+	fill #ffb703
+	pen #0f172a width:2
+	POLYGON [170,30 230,90 170,210 110,90]
+	
+	// cross spars
+	pen #0f172a width:3; fill none
+	LINE 170,30,170,210
+	LINE 110,90,230,90
+	
+	// tail
+	pen #0f172a width:2
+	LINE [170,210 150,235 125,220 110,245]
 ![](images/polygonExample.png)
 
 ### RECT
