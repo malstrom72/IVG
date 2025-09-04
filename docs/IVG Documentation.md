@@ -90,7 +90,6 @@ It's worth noting that basic knowledge of the _ImpD_ language is necessary to un
 For more information on _ImpD_, please refer to the separate [_ImpD documentation_](ImpD%20Documentation.md) provided.
 It will cover how to use variables and control flow statements to create dynamic and interactive graphics.
 
-
 The _IVG_ format used in this documentation is `IVG-3`. Therefore, the `format` instruction should be as follows:
 
 	format IVG-3 requires:ImpD-1
@@ -399,9 +398,6 @@ Arcs:
 	PATH [ move-to 60,120;  arc-sweep 170,120,180 ]
 	PATH [ move-to 60,120;  arc-sweep 170,120,140 ]
 	pen #ff6fae width:3
-	
-	// arc-move (no draw), then a line to the moved endpoint
-	PATH [ move-to 60,120; arc-move 170,120,110 end:p; line-to $p ]
 	
 	// a face for fun
 	fill #ffd45a; pen #222222 width:2
