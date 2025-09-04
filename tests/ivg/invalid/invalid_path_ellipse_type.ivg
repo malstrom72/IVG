@@ -1,0 +1,4 @@
+format IVG-3
+// PATH ellipse with invalid type value
+PATH [ellipse 10,10,5 sweep:0,90 type:notit]
+

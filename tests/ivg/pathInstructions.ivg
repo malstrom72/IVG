@@ -17,7 +17,7 @@ PATH [move-to 90,10; bezier-to 130,70,170,10]
 PATH [move-to 10,90; bezier-to 40,130,80,50,110,90]
 
 // arc-to
-PATH [move-to 130,90; arc-to 190,90,30,40 sweep:ccw]
+PATH [move-to 130,90; arc-to 190,90,30,40 turn:ccw]
 
 // arc-sweep
 PATH [move-to 210,90; arc-sweep 210,150,180]

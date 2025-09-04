@@ -15,15 +15,17 @@ Testing font_long_glyph_name: expecting "Invalid glyph character (length is not 
 Testing gradient_stop_position: expecting "Invalid stops for gradient (invalid position: 2)" ... PASS
 Testing gradient_stops_odd_count: expecting "Invalid stops for gradient (odd number of elements): 0,#000,#fff" ... PASS
 Testing invalid_arc_large: expecting "Invalid large for arc-to: maybe" ... PASS
-Testing invalid_arc_sweep: expecting "Invalid sweep for arc-to: fast" ... PASS
+Testing invalid_arc_sweep: expecting "Invalid turn for arc-to: fast" ... PASS
 Testing invalid_color_name: expecting "Invalid color name: blurple" ... PASS
 Testing invalid_define_resolution: expecting "resolution out of range [0.0001..inf): 0" ... PASS
 Testing invalid_ellipse_separator: expecting "Too few list elements (got 2, expected at least 3)" ... PASS
+Testing invalid_ellipse_type: expecting "Unrecognized ellipse type: banana" ... PASS
 Testing invalid_fill_rule: expecting "Unrecognized fill rule: zigzag" ... PASS
 Testing invalid_font_metrics: expecting "Invalid metrics instruction in font definition" ... PASS
 Testing invalid_hex_color: expecting "Invalid color: GGGGGG" ... PASS
 Testing invalid_image_alignment: expecting "Unrecognized alignment: side" ... PASS
 Testing invalid_line_arguments: expecting "Too few list elements (got 1, expected at least 4)" ... PASS
+Testing invalid_path_ellipse_type: expecting "Unrecognized ellipse type: notit" ... PASS
 Testing invalid_pen_caps: expecting "Unrecognized stroke caps: squiggle" ... PASS
 Testing invalid_star_separator: expecting "Too few list elements (got 2, expected at least 4)" ... PASS
 Testing invalid_stroke_joints: expecting "Unrecognized stroke joints: curvy" ... PASS

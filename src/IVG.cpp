@@ -631,11 +631,11 @@ enum Type {
 	PATH_STAR_INSTRUCTION, PATH_POLYGON_INSTRUCTION, PATH_TEXT_INSTRUCTION
 };
 
-static Path makeLinePath(Interpreter& impd, ArgumentsContainer& args, int minPairs = 2);
-static Path makeRectPath(Interpreter& impd, ArgumentsContainer& args, double curveQuality);
-static Path makeEllipsePath(Interpreter& impd, ArgumentsContainer& args, double curveQuality);
-static Path makeStarPath(Interpreter& impd, ArgumentsContainer& args);
-static Path makePolygonPath(Interpreter& impd, ArgumentsContainer& args);
+static Path& makeLinePath(Path& p, Interpreter& impd, ArgumentsContainer& args, int minPairs = 2);
+static Path& makeRectPath(Path& p, Interpreter& impd, ArgumentsContainer& args, double curveQuality);
+static Path& makeEllipsePath(Path& p, Interpreter& impd, ArgumentsContainer& args, double curveQuality);
+static Path& makeStarPath(Path& p, Interpreter& impd, ArgumentsContainer& args);
+static Path& makePolygonPath(Path& p, Interpreter& impd, ArgumentsContainer& args);
 
 enum TextAnchor { LEFT_ANCHOR, CENTER_ANCHOR, RIGHT_ANCHOR };
 static TextAnchor parseAnchor(Interpreter& impd, const String* s);
@@ -655,6 +655,7 @@ class PathInstructionExecutor : public Executor {
 						return false;
 					}
 					ArgumentsContainer args(ArgumentsContainer::parse(impd, arguments));
+					Path subPath;
 					switch (foundInstruction) {
 						case PATH_MOVE_TO_INSTRUCTION: {
 							double numbers[2];
@@ -705,12 +706,12 @@ class PathInstructionExecutor : public Executor {
 							int sweepFlag = 1;
 							int largeFlag = 0;
 							double rotate = 0.0;
-							const String* sweep = args.fetchOptional("sweep");
-							if (sweep != 0) {
-								const String sweepLower = impd.toLower(*sweep);
-								if (sweepLower == "cw") sweepFlag = 1;
-								else if (sweepLower == "ccw") sweepFlag = 0;
-								else impd.throwBadSyntax(String("Invalid sweep for arc-to: ") + *sweep);
+							const String* turn = args.fetchOptional("turn");
+							if (turn != 0) {
+								const String turnLower = impd.toLower(*turn);
+								if (turnLower == "cw") sweepFlag = 1;
+								else if (turnLower == "ccw") sweepFlag = 0;
+								else impd.throwBadSyntax(String("Invalid turn for arc-to: ") + *turn);
 							}
 							const String* large = args.fetchOptional("large");
 							if (large != 0) {
@@ -738,23 +739,23 @@ class PathInstructionExecutor : public Executor {
 							return true;
 						}
 						case PATH_LINE_INSTRUCTION: {
-							path.append(makeLinePath(impd, args));
+							path.append(makeLinePath(subPath, impd, args));
 							return true;
 						}
 						case PATH_RECT_INSTRUCTION: {
-							path.append(makeRectPath(impd, args, curveQuality));
+							path.append(makeRectPath(subPath, impd, args, curveQuality));
 							return true;
 						}
 						case PATH_ELLIPSE_INSTRUCTION: {
-							path.append(makeEllipsePath(impd, args, curveQuality));
+							path.append(makeEllipsePath(subPath, impd, args, curveQuality));
 							return true;
 						}
 						case PATH_STAR_INSTRUCTION: {
-							path.append(makeStarPath(impd, args));
+							path.append(makeStarPath(subPath, impd, args));
 							return true;
 						}
 						case PATH_POLYGON_INSTRUCTION: {
-							path.append(makePolygonPath(impd, args));
+							path.append(makePolygonPath(subPath, impd, args));
 							return true;
 						}
 						case PATH_TEXT_INSTRUCTION: {
@@ -1171,7 +1172,6 @@ void IVGExecutor::versionRequired(Interpreter& impd, FormatVersion required, con
 	}
 }
 
-
 void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 	const String& type = args.fetchRequired(0, true);
 	const String& typeLower = impd.toLower(type);
@@ -1258,20 +1258,20 @@ void IVGExecutor::buildPath(Interpreter& impd, const String* blockArg, const Str
 			, ArgumentsContainer& args, const String& instruction, Path& path) {
 	const double curveQuality = currentContext->calcCurveQuality();
 	if (svg != 0) {
-			const char* errorString;
-			if (!buildPathFromSVG(*svg, curveQuality, path, errorString)) {
-					impd.throwBadSyntax(errorString);
-			}
+		const char* errorString;
+		if (!buildPathFromSVG(*svg, curveQuality, path, errorString)) {
+			impd.throwBadSyntax(errorString);
+		}
 	} else {
-			versionRequired(impd, IVG_3, instruction);
-			const String* closed = args.fetchOptional("closed");
-			const String& block = (blockArg != 0 ? *blockArg : args.fetchRequired(0, false));
-			PathInstructionExecutor pathExecutor(impd.getExecutor(), path, curveQuality);
-			Interpreter pathInterpreter(pathExecutor, impd);
-			pathInterpreter.run(block);
-			if (closed != 0 && impd.toBool(*closed)) {
-					path.closeAll();
-			}
+		versionRequired(impd, IVG_3, instruction);
+		const String* closed = args.fetchOptional("closed");
+		const String& block = (blockArg != 0 ? *blockArg : args.fetchRequired(0, false));
+		PathInstructionExecutor pathExecutor(impd.getExecutor(), path, curveQuality);
+		Interpreter pathInterpreter(pathExecutor, impd);
+		pathInterpreter.run(block);
+		if (closed != 0 && impd.toBool(*closed)) {
+			path.closeAll();
+		}
 	}
 }
 
@@ -1468,14 +1468,13 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 }
 
 // Path-building helpers
-static Path makeLinePath(Interpreter& impd, ArgumentsContainer& args, int minPairs) {
+static Path& makeLinePath(Path& path, Interpreter& impd, ArgumentsContainer& args, int minPairs) {
 	StringVector elems;
 	int count = impd.parseList(args.fetchRequired(0), elems, true, false, minPairs * 2, 20000);
 	args.throwIfAnyUnfetched();
 	if ((count & 1) != 0) {
 		impd.throwBadSyntax("LINE requires an even number of coordinates");
 	}
-	Path path;
 	path.moveTo(impd.toDouble(elems[0]), impd.toDouble(elems[1]));
 	for (int i = 2; i < count; i += 2) {
 		path.lineTo(impd.toDouble(elems[i]), impd.toDouble(elems[i + 1]));
@@ -1483,7 +1482,7 @@ static Path makeLinePath(Interpreter& impd, ArgumentsContainer& args, int minPai
 	return path;
 }
 
-static Path makeRectPath(Interpreter& impd, ArgumentsContainer& args, double curveQuality) {
+static Path& makeRectPath(Path& path, Interpreter& impd, ArgumentsContainer& args, double curveQuality) {
 	double numbers[4];
 	parseNumberList(impd, args.fetchRequired(0), numbers, 4, 4);
 	const String* s = args.fetchOptional("rounded");
@@ -1494,9 +1493,8 @@ static Path makeRectPath(Interpreter& impd, ArgumentsContainer& args, double cur
 	if (numbers[3] < 0.0) {
 		impd.throwRunTimeError(String("Negative rectangle height: ") + impd.toString(numbers[3]));
 	}
-	Path p;
 	if (s == 0) {
-		p.addRect(numbers[0], numbers[1], numbers[2], numbers[3]);
+		path.addRect(numbers[0], numbers[1], numbers[2], numbers[3]);
 	} else {
 		double rounded[2];
 		int count = parseNumberList(impd, *s, rounded, 1, 2);
@@ -1505,33 +1503,61 @@ static Path makeRectPath(Interpreter& impd, ArgumentsContainer& args, double cur
 			impd.throwRunTimeError(String("Negative rounded corner radius: ")
 					+ impd.toString(rounded[0] < 0.0 ? rounded[0] : rounded[1]));
 		}
-		p.addRoundedRect(numbers[0], numbers[1], numbers[2], numbers[3]
+		path.addRoundedRect(numbers[0], numbers[1], numbers[2], numbers[3]
 				, min(rounded[0], numbers[2] * 0.5), min(rounded[1], numbers[3] * 0.5), curveQuality);
 	}
-	return p;
+	return path;
 }
 
-static Path makeEllipsePath(Interpreter& impd, ArgumentsContainer& args, double curveQuality) {
+static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& args, double curveQuality) {
 	double parsed[4];
-	int count = parseNumberList(impd, args.fetchRequired(0), parsed, 3, 4);
-	args.throwIfAnyUnfetched();
-	double cx = parsed[0];
-	double cy = parsed[1];
-	double rx = parsed[2];
-	double ry = (count == 4 ? parsed[3] : parsed[2]);
+	const int count = parseNumberList(impd, args.fetchRequired(0), parsed, 3, 4);
+	const double cx = parsed[0];
+	const double cy = parsed[1];
+	const double rx = parsed[2];
+	const double ry = (count == 4 ? parsed[3] : parsed[2]);
 	if (rx < 0.0 || ry < 0.0) {
 		impd.throwRunTimeError(String("Negative ellipse radius: ") + impd.toString(rx < 0.0 ? rx : ry));
 	}
-	Path p;
-	if (rx == ry) {
-		p.addCircle(cx, cy, rx, curveQuality);
+
+	const String* sweepArg = args.fetchOptional("sweep");
+	if (sweepArg == 0) {
+		args.throwIfAnyUnfetched();
+		if (rx == ry) {
+			path.addCircle(cx, cy, rx, curveQuality);
+		} else {
+			path.addEllipse(cx, cy, rx, ry, curveQuality);
+		}
 	} else {
-		p.addEllipse(cx, cy, rx, ry, curveQuality);
+		const String* typeArg = args.fetchOptional("type");
+		bool typeIsPie = false;
+		if (typeArg != 0) {
+			String t = impd.toLower(*typeArg);
+			if (t == "pie") typeIsPie = true;
+			else if (t == "chord") typeIsPie = false;
+			else impd.throwBadSyntax(String("Unrecognized ellipse type: ") + *typeArg);
+		}
+		args.throwIfAnyUnfetched();
+
+		double sweepVals[2];
+		parseNumberList(impd, *sweepArg, sweepVals, 2, 2);
+		double startRadians = sweepVals[0] * DEGREES;
+		double sweepRadians = min(max(sweepVals[1] * DEGREES, -PI2), PI2);
+
+		double sx = cx + rx * cos(startRadians);
+		double sy = cy + ry * sin(startRadians);
+		const double ratio = rx / ry;
+		path.moveTo(sx, sy);
+		path.arcSweep(cx, cy, sweepRadians, ratio, curveQuality);
+		if (typeIsPie) {
+			path.lineTo(cx, cy);
+		}
+		path.close();
 	}
-	return p;
+	return path;
 }
 
-static Path makeStarPath(Interpreter& impd, ArgumentsContainer& args) {
+static Path& makeStarPath(Path& path, Interpreter& impd, ArgumentsContainer& args) {
 	double numbers[5];
 	int count = parseNumberList(impd, args.fetchRequired(0), numbers, 4, 5);
 	const String* s = args.fetchOptional("rotation");
@@ -1548,15 +1574,11 @@ static Path makeStarPath(Interpreter& impd, ArgumentsContainer& args) {
 	if (r1 < 0.0 || r2 < 0.0) {
 		impd.throwRunTimeError(String("Negative star radius: ") + impd.toString(r1 < 0.0 ? r1 : r2));
 	}
-	Path p;
-	p.addStar(cx, cy, points, r1, r2, rotation);
-	return p;
+	return path.addStar(cx, cy, points, r1, r2, rotation);
 }
 
-static Path makePolygonPath(Interpreter& impd, ArgumentsContainer& args) {
-	Path path = makeLinePath(impd, args, 3);
-	path.close();
-	return path;
+static Path& makePolygonPath(Path& path, Interpreter& impd, ArgumentsContainer& args) {
+	return makeLinePath(path, impd, args, 3).close();
 }
 
 static TextAnchor parseAnchor(Interpreter& impd, const String* s) {
@@ -1613,11 +1635,11 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 	ArgumentsContainer args(ArgumentsContainer::parse(impd, arguments));
 	double numbers[6];
 
+	Path drawPath;
 	IVGInstruction ivgInstruction = static_cast<IVGInstruction>(foundInstruction);
 	switch (ivgInstruction) {
 		case RECT_INSTRUCTION: {
-			Path p = makeRectPath(impd, args, currentContext->calcCurveQuality());
-			currentContext->draw(p);
+			currentContext->draw(makeRectPath(drawPath, impd, args, currentContext->calcCurveQuality()));
 			break;
 		}
 
@@ -1741,17 +1763,15 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 		
-			case ELLIPSE_INSTRUCTION: {
-					Path p = makeEllipsePath(impd, args, currentContext->calcCurveQuality());
-					currentContext->draw(p);
-					break;
-			}
+		case ELLIPSE_INSTRUCTION: {
+			currentContext->draw(makeEllipsePath(drawPath, impd, args, currentContext->calcCurveQuality()));
+			break;
+		}
 
-			case STAR_INSTRUCTION: {
-					Path p = makeStarPath(impd, args);
-					currentContext->draw(p);
-					break;
-			}
+		case STAR_INSTRUCTION: {
+			currentContext->draw(makeStarPath(drawPath, impd, args));
+			break;
+		}
 
 		case MASK_INSTRUCTION: {
 			const String& block = args.fetchRequired(0, false);
@@ -1867,16 +1887,15 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 
 		case LINE_INSTRUCTION: {
 			versionRequired(impd, IVG_3, instruction);
-			const Path path = makeLinePath(impd, args);
-			const Rect<double> pathBounds(path.calcFloatBounds());
-			currentContext->stroke(path, currentContext->accessState().pen, pathBounds, 1.0);
+			makeLinePath(drawPath, impd, args);
+			const Rect<double> pathBounds(drawPath.calcFloatBounds());
+			currentContext->stroke(drawPath, currentContext->accessState().pen, pathBounds, 1.0);
 			break;
 		}
 
 		case POLYGON_INSTRUCTION: {
 			versionRequired(impd, IVG_3, instruction);
-			Path path = makePolygonPath(impd, args);
-			currentContext->draw(path);
+			currentContext->draw(makePolygonPath(drawPath, impd, args));
 			break;
 		}
 	}

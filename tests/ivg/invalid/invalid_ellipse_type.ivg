@@ -1,0 +1,4 @@
+format IVG-3
+// ELLIPSE with invalid type value
+ELLIPSE 0,0,10 sweep:0,90 type:banana
+

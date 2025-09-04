@@ -1,0 +1,28 @@
+format IVG-3 requires:IMPD-1
+bounds 0,0,240,240
+
+// Demonstrate ELLIPSE sectors (pie and chord) and PATH ellipse sector
+WIPE #ffffff
+pen black width:1
+
+// TL: pie ("Pac-Man")
+fill #ffe100
+ELLIPSE 60,60,40 sweep:30,300 type:pie
+
+// TR: chord sector (circle)
+fill #80ff80
+ELLIPSE 180,60,40 sweep:-45,270 type:chord
+
+// BL: chord sector (ellipse)
+fill #ff8080
+ELLIPSE 60,180,50,30 sweep:0,180 type:chord
+
+// BR: pie sector (ellipse)
+fill #8080ff
+ELLIPSE 180,180,50,30 sweep:-90,180 type:pie
+
+// Center: PATH ellipse sector outline only
+fill none
+pen #000000 width:2
+PATH [ellipse 120,120,40,25 sweep:210,120 type:pie]
+

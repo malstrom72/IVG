@@ -135,12 +135,19 @@ The `ELLIPSE` instruction draws an ellipse or circle shape on the canvas. It wil
 
 Syntax:
 
-	ELLIPSE <cx>,<cy>,<r>[,<ry>=<r>]
+	ELLIPSE <cx>,<cy>,<r>[,<ry>=<r>] [ sweep:<start>,<degrees> [ type:pie|chord=chord ] ]
 
 -	`<cx>,<cy>` is the center point of the ellipse.
 
 -	`<r>[,<ry>=<r>]` is the radius of the ellipse. If you only provide one value, it will be used for both axes,
 	creating a circle.
+
+
+- Without `sweep`, draws a full ellipse/circle (legacy behavior).
+- With `sweep`, draws a closed partial ellipse sector. The path is always closed and the stroke includes the closing edges.
+- `type:chord` closes the arc with a straight line between arc endpoints (default).
+- `type:pie` closes the arc with two radii from the center to the endpoints.
+- If present, `type` must be `pie` or `chord`.
 
 Example:
 
@@ -159,6 +166,14 @@ Example:
 	rotate 10 anchor:150,100
 	ELLIPSE 150,100,140,30
 ![](images/ellipseExample.png)
+
+Pac‑Man (sector using `type:pie`):
+
+	bounds 0,0,200,200
+	fill yellow
+	pen black width:2
+	ELLIPSE 100,100,80 sweep:30,300 type:pie
+![](images/pacmanExample.png)
 
 ### IMAGE
 
@@ -266,35 +281,41 @@ referencing a previously defined path name.
 
 Syntax:
 
-	PATH [<instructions>] [transform:<transform>] [closed:(yes|no)=no]
-		| svg:<svg data> [transform:<transform>]
-		| <name> [transform:<transform>]
+	PATH ((<instructions> [closed:(yes|no)=no]) | svg:<svg data> | <name>) [transform:<transform>]
 
-- `<name>` is a path defined with [`define path`](#define-path).
+- `<instructions>` is a bracketed list of sub-commands (either separated by new lines or semicolons). See below.
 
-- `<svg data>` is a string containing SVG path data. See https://svgwg.org/specs/paths/ for details.
-
-- `<instructions>` is a bracketed list of sub-commands:
-	- `move-to <x>,<y>` sets the starting point for a new sub-path.
-	- `line-to <x>,<y>[,<x>,<y> ...]` draws one or more line segments from the current point.
-	- `bezier-to <cx>,<cy>,<x>,<y>` draws a quadratic Bézier curve.
-	- `bezier-to <c1x>,<c1y>,<c2x>,<c2y>,<x>,<y>` draws a cubic Bézier curve.
-	- `arc-to <x>,<y>,<r>[,<ry>=<r>] [sweep:cw|ccw=cw] [large:yes|no=no] [rotate:<deg>=0]` draws an elliptical arc.
-	- `arc-sweep <cx>,<cy>,<degrees>` sweeps an arc around a center point.
-	- `line <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]` appends an open polyline starting at `<x0>,<y0>`.
-	- `rect <x>,<y>,<w>,<h> [rounded:<r>|<rx>,<ry>]` appends an axis-aligned rectangle.
-	- `ellipse <cx>,<cy>,<r>[,<ry>=<r>]` appends an ellipse or circle.
-	- `star <cx>,<cy>,<points>,<r1>[,<r2>=<r1>] [rotation:<angle>]` appends a star or regular polygon.
-	- `polygon <x0>,<y0> <x1>,<y1> [<x2>,<y2> ...]` appends a closed polygon.
-	- `text [at:<x,y>] [anchor:left|center|right=left] <text>` appends a text outline.
-
-`closed:yes` closes the path automatically, connecting the final point back to the first and also closing any sub-paths
+- The `closed` option closes the path automatically, connecting the final point back to the first and also closing any sub-paths
 begun with `move-to`. A single instruction list may contain multiple sub-paths, all closed when `closed:yes` is
 specified.
 
-`transform:` applies a transformation before drawing, using the same syntax as [`IMAGE`](#image).
+- `<svg data>` is a string containing SVG path data. See https://svgwg.org/specs/paths/ for details.
+
+- `<name>` is a path defined with [`define path`](#define-path).
+
+- The `transform` options applies a transformation before drawing, using the same syntax as [`IMAGE`](#image).
 
 _The `PATH svg:` form is available in all IVG versions. The instruction-list variant requires IVG-3._
+
+#### Path Instructions
+
+- `move-to <x>,<y>` sets the starting point for a new sub-path.
+- `line-to <x>,<y>[,<x>,<y> ...]` draws one or more line segments from the current point.
+- `bezier-to <cx>,<cy>,<x>,<y>` draws a quadratic Bézier curve.
+- `bezier-to <c1x>,<c1y>,<c2x>,<c2y>,<x>,<y>` draws a cubic Bézier curve.
+- `arc-to <x>,<y>,<r>[,<ry>=<r>] [turn:cw|ccw=cw] [large:yes|no=no] [rotate:<deg>=0]` draws an elliptical arc.
+- `arc-sweep <cx>,<cy>,<degrees>` sweeps an arc around a center point.
+
+#### Sub-path Commands
+
+These commands mirror their drawing-instruction counterparts but only append path geometry (they don’t paint by themselves):
+
+- `line <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]` appends an open polyline starting at `<x0>,<y0>`.
+- `rect <x>,<y>,<w>,<h> [rounded:<r>|<rx>,<ry>]` appends an axis-aligned rectangle.
+- `ellipse <cx>,<cy>,<r>[,<ry>=<r>] [ sweep:<start>,<degrees> [ type:pie|chord=chord ] ]` appends a full ellipse or a closed sector.
+- `star <cx>,<cy>,<points>,<r1>[,<r2>=<r1>] [rotation:<angle>]` appends a star or regular polygon.
+- `polygon <x0>,<y0> <x1>,<y1> [<x2>,<y2> ...]` appends a closed polygon.
+- `text [at:<x,y>] [anchor:left|center|right=left] <text>` appends a text outline.
 
 #### Examples
 
