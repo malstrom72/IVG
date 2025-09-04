@@ -667,9 +667,11 @@ function parseGradientStops(element) {
 function buildGradient(g) {
 	let s;
 	if (g.type === "linear") {
-		s = `gradient:[linear ${g.x1},${g.y1} ${g.x2},${g.y2}`;
+		// IVG-3 requires gradient coordinates to be comma-separated
+		s = `gradient:[linear ${g.x1},${g.y1},${g.x2},${g.y2}`;
 	} else {
-		s = `gradient:[radial ${g.cx},${g.cy} ${g.r}`;
+		// For radial gradients, emit cx,cy,r as a single comma-separated list
+		s = `gradient:[radial ${g.cx},${g.cy},${g.r}`;
 	}
 	if (g.stops.length === 2 && g.stops[0].offset === 0 && g.stops[1].offset === 1) {
 		s += ` from:${g.stops[0].color} to:${g.stops[1].color}`;
