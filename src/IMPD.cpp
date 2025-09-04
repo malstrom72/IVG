@@ -27,6 +27,14 @@
 #include <algorithm>
 #include "IMPD.h"
 
+#if defined(_MSVC_LANG)
+	#define CPP_STD _MSVC_LANG
+#else
+	#define CPP_STD __cplusplus
+#endif
+
+#define HAS_CPP11 (CPP_STD >= 201103L)
+
 namespace IMPD {
 
 // Undefine horrible, horrible Microsoft macros.
@@ -220,7 +228,11 @@ const String Interpreter::YES_STRING("yes");
 const String Interpreter::NO_STRING("no");
 
 static bool isNaN(double d) { return d != d; }
+#if (HAS_CPP11)
+static bool isFinite(double d) { return !isNaN(d) && std::isfinite(d); }
+#else
 static bool isFinite(double d) { return !isNaN(d) && fabs(d) != std::numeric_limits<double>::infinity(); }
+#endif
 
 static double checkedLog(double x) {
 	if (x <= 0) {
@@ -731,8 +743,12 @@ int Interpreter::toInt(const StringRange& r) {
 double Interpreter::toDouble(const StringRange& r) {
 	double v;
 	StringIt q = parseDouble(r.b, r.e, v);
-	if (q == r.b || q != r.e) throwRunTimeError(String("Invalid number: ") + String(r.b, r.e));
-	if (!isFinite(v)) throwRunTimeError("Number overflow");
+	if (q == r.b || q != r.e) {
+		throwRunTimeError(String("Invalid number: ") + String(r.b, r.e));
+	}
+	if (!isFinite(v)) {
+		throwRunTimeError(String("Number overflow: ") + String(r.b, r.e));
+	}
 	return v;
 }
 
