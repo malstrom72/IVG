@@ -1,17 +1,17 @@
 /**
 	IVG is released under the BSD 2-Clause License.
-
+	
 	Copyright (c) 2013-2025, Magnus Lidström
-
+	
 	Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
 	following conditions are met:
-
+	
 	1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following
 	disclaimer.
-
+	
 	2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following
 	disclaimer in the documentation and/or other materials provided with the distribution.
-
+	
 	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
 	INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
 	DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
@@ -25,6 +25,7 @@
 #include <iostream>
 #include <cstring>
 #include <locale>
+#include <cmath>
 #include "IVG.h"
 
 namespace IVG {
@@ -45,7 +46,26 @@ using IMPD::UniChar;
 const double DEGREES = PI2 / 360.0;
 const double MIN_CURVE_QUALITY = 0.001;
 const double MAX_CURVE_QUALITY = 100.0;
+const double COORDINATE_LIMIT = 1000000.0;
 
+void checkBounds(const IntRect& bounds) {
+	if (bounds.left < -32768 || bounds.left >= 32768) {
+		Interpreter::throwRunTimeError(String("bounds left out of range [-32768..32767]: ")
+				+ Interpreter::toString(bounds.left));
+	}
+	if (bounds.top < -32768 || bounds.top >= 32768) {
+		Interpreter::throwRunTimeError(String("bounds top out of range [-32768..32767]: ")
+				+ Interpreter::toString(bounds.top));
+	}
+	if (bounds.width <= 0 || bounds.width >= 32768) {
+		Interpreter::throwRunTimeError(String("bounds width out of range [1..32767]: ")
+				+ Interpreter::toString(bounds.width));
+	}
+	if (bounds.height <= 0 || bounds.height >= 32768) {
+		Interpreter::throwRunTimeError(String("bounds height out of range [1..32767]: ")
+				+ Interpreter::toString(bounds.height));
+	}
+}
 static StringIt eatSpace(StringIt p, const StringIt& e) {
 	while (p != e && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')) ++p;
 	return p;
@@ -79,35 +99,19 @@ static bool parseInt(StringIt& p, const StringIt& e, int32_t& v) {
 	}
 }
 
-// FIX : use IMPD's
-
-static bool parseDouble(StringIt& p, const StringIt& e, double& v) {
+static bool parseSingleCoordinate(StringIt& p, const StringIt& e, double& v) {
 	assert(p <= e);
-	double d = 0;
-	StringIt q = p;
-	double sign = (e - q > 1 && (*q == '+' || *q == '-') ? (*q++ == '-' ? -1.0 : 1.0) : 1.0);
-	if (q == e || (*q != '.' && (*q < '0' || *q > '9'))) return false;
-	StringIt b = q;
-	while (q != e && *q >= '0' && *q <= '9') d = d * 10.0 + (*q++ - '0');
-	if (q != e && *q == '.') {
-		double f = 1.0;
-		while (++q != e && *q >= '0' && *q <= '9') d += (*q - '0') * (f *= 0.1);
-		if (q == b + 1) return false;
-	}
-	if (e - q > 1 && (*q == 'E' || *q == 'e')) {
-		int32_t i;
-		if (parseInt(++q, e, i)) d *= pow(10, static_cast<double>(i));
-	}
-	v = d * sign;
+	StringIt q = Interpreter::parseDouble(p, e, v);
+	if (q == p || !isfinite(v) || fabs(v) > COORDINATE_LIMIT) return false;
 	p = q;
 	return true;
 }
 
 static bool parseCoordinatePair(StringIt& p, const StringIt& e, Vertex& vertex, bool acceptLeadingComma) {
 	StringIt q = (acceptLeadingComma ? eatSpaceAndComma(p, e) : eatSpace(p, e));
-	if (!parseDouble(q, e, vertex.x)) return false;
+	if (!parseSingleCoordinate(q, e, vertex.x)) return false;
 	q = eatSpaceAndComma(q, e);
-	if (!parseDouble(q, e, vertex.y)) return false;
+	if (!parseSingleCoordinate(q, e, vertex.y)) return false;
 	p = q;
 	return true;
 }
@@ -235,7 +239,7 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 					Vertex pos(path.getPosition());
 					double v;
 					StringIt q = eatSpace(p, e);
-					while (parseDouble(q, e, v)) {
+					while (parseSingleCoordinate(q, e, v)) {
 						p = q;
 						if (c == 'H') {
 							if (isRelative) pos.x += v;
@@ -326,7 +330,7 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 					Vertex v;
 					StringIt q = p;
 					while (parseCoordinatePair(q, e, radii, !first)
-							&& ((void)(q = eatSpaceAndComma(q, e)), parseDouble(q, e, xAxisRotation))
+							&& ((void)(q = eatSpaceAndComma(q, e)), parseSingleCoordinate(q, e, xAxisRotation))
 							&& ((void)(q = eatSpaceAndComma(q, e)), parseInt(q, e, largeArcFlag))
 							&& ((void)(q = eatSpaceAndComma(q, e)), parseInt(q, e, sweepFlag))
 							&& parseCoordinatePair(q, e, v, true)) {
@@ -490,7 +494,7 @@ template<> ARGB32::Pixel parseColor<ARGB32>(Interpreter& impd, const StringRange
 			impd.throwBadSyntax(String("Invalid color name: ") + String(r.b, r.e));
 		}
 		return STANDARD_COLORS[i];
-		}
+	}
 }
 
 ARGB32::Pixel parseColor(const String& color) {
@@ -989,6 +993,9 @@ void Context::stroke(const Path& path, Stroke& stroke, const Rect<double>& paint
 				, calcCurveQuality());
 		strokePath.transform(state.transformation);
 		PolygonMask polygonMask(strokePath, canvas.getBounds());
+		if (!polygonMask.isValid()) {
+			Interpreter::throwRunTimeError("Vertices outside valid coordinate range");
+		}
 		stroke.paint.doPaint(*this, paintSourceBounds, CombinedMask(polygonMask, state.mask, state.options.gammaTable));
 	}
 }
@@ -1002,6 +1009,9 @@ void Context::fill(const Path& path, Paint& fill, bool evenOddFillRule, const Re
 		fillPath.closeAll();
 		fillPath.transform(state.transformation);
 		PolygonMask polygonMask(fillPath, canvas.getBounds(), *fillRule);
+		if (!polygonMask.isValid()) {
+			Interpreter::throwRunTimeError("Vertices outside valid coordinate range");
+		}
 		fill.doPaint(*this, paintSourceBounds, CombinedMask(polygonMask, state.mask, state.options.gammaTable));
 	}
 }
@@ -1291,6 +1301,9 @@ void IVGExecutor::buildPath(Interpreter& impd, const String* blockArg, const Str
 void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	double numbers[4];
 	parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
+	if (fabs(numbers[0]) > COORDINATE_LIMIT || fabs(numbers[1]) > COORDINATE_LIMIT) {
+		Interpreter::throwRunTimeError("Image coordinates out of range");
+	}
 	const Vertex atPosition = Vertex(numbers[0], numbers[1]);
 	const WideString imageName = impd.unescapeToWide(args.fetchRequired(1));
 	const String* s;
@@ -1339,10 +1352,16 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	if ((s = args.fetchOptional("width")) != 0) {
 		doFitWidth = true;
 		fitWidth = impd.toDouble(*s);
+		if (fitWidth < 0.0 || fitWidth > COORDINATE_LIMIT) {
+			impd.throwRunTimeError(String("Invalid image width: ") + impd.toString(fitWidth));
+		}
 	}
 	if ((s = args.fetchOptional("height")) != 0) {
 		doFitHeight = true;
 		fitHeight = impd.toDouble(*s);
+		if (fitHeight < 0.0 || fitHeight > COORDINATE_LIMIT) {
+			impd.throwRunTimeError(String("Invalid image height: ") + impd.toString(fitHeight));
+		}
 	}
 	if (doFitWidth || doFitHeight) {
 		const String* s = args.fetchOptional("stretch");
@@ -1436,6 +1455,17 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 		}
 	}
 	
+	const AffineTransformation textureTransform = AffineTransformation().translate(alignX, alignY)
+			.scale(scaleX, scaleY).transform(imageXF).translate(atPosition.x, atPosition.y)
+			.transform(state.transformation);
+	const double totalXScale = sqrt(square(textureTransform.matrix[0][0]) + square(textureTransform.matrix[1][0]));
+	const double totalYScale = sqrt(square(textureTransform.matrix[0][1]) + square(textureTransform.matrix[1][1]));
+	if (!isfinite(totalXScale) || !isfinite(totalYScale)
+			|| totalXScale * subRasterBounds.width > COORDINATE_LIMIT
+			|| totalYScale * subRasterBounds.height > COORDINATE_LIMIT) {
+		impd.throwRunTimeError("Image scale out of range");
+	}
+	
 	// FIX : sub in nuxpixels for making a sub-raster?
 	const Raster<ARGB32>* raster = image.raster;
 	Raster<ARGB32> subRaster(raster->getPixelPointer(), raster->getStride()
@@ -1444,9 +1474,7 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 		raster = &subRaster;
 	}
 	
-	Texture<ARGB32> texture(*raster, false, AffineTransformation().translate(alignX, alignY)
-			.scale(scaleX, scaleY).transform(imageXF).translate(atPosition.x, atPosition.y)
-			.transform(state.transformation));
+	Texture<ARGB32> texture(*raster, false, textureTransform);
 	Renderer<ARGB32>* renderer = &texture;
 	Solid<Mask8> opacitySolid(opacity);
 	Multiplier<ARGB32, Mask8> opacityMultiplier(*renderer, opacitySolid);
@@ -1716,7 +1744,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			State& state = currentContext->accessState();
 			AffineTransformation thisXF = parseSingleTransformation(impd, static_cast<TransformType>(ivgInstruction - MATRIX_INSTRUCTION), args);
 			args.throwIfAnyUnfetched();
-			 // FIX : should reverse concat order as standard in new AffineTransform class?
+			// FIX : should reverse concat order as standard in new AffineTransform class?
 			state.transformation = thisXF.transform(state.transformation);
 			break;
 		}
@@ -1961,14 +1989,7 @@ void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
 				, newBounds.top * rescaleBounds, newBounds.width * rescaleBounds, newBounds.height * rescaleBounds));
 	}
 	if (raster.get() != 0) Interpreter::throwRunTimeError("Multiple bounds declarations");
-	if (scaledBounds.width <= 0 || scaledBounds.width >= 32768) {
-		Interpreter::throwRunTimeError(String("bounds width out of range [1..32767]: ")
-				+ Interpreter::toString(scaledBounds.width));
-	}
-	if (scaledBounds.height <= 0 || scaledBounds.height >= 32768) {
-		Interpreter::throwRunTimeError(String("bounds height out of range [1..32767]: ")
-				+ Interpreter::toString(scaledBounds.height));
-	}
+	checkBounds(scaledBounds);
 	raster.reset(new SelfContainedRaster<ARGB32>(scaledBounds));
 	(*raster) = Solid<ARGB32>(ARGB32::transparent());
 }

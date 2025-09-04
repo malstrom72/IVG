@@ -1,17 +1,17 @@
 /**
 	IMPD is released under the BSD 2-Clause License.
-
+	
 	Copyright (c) 2013-2025, Magnus Lidström
-
+	
 	Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
 	following conditions are met:
-
+	
 	1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following
 	disclaimer.
-
+	
 	2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following
 	disclaimer in the documentation and/or other materials provided with the distribution.
-
+	
 	THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
 	INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
 	DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
@@ -27,6 +27,14 @@
 #include <algorithm>
 #include <limits>
 #include "IMPD.h"
+
+#if defined(_MSVC_LANG)
+	#define CPP_STD _MSVC_LANG
+#else
+	#define CPP_STD __cplusplus
+#endif
+
+#define HAS_CPP11 (CPP_STD >= 201103L)
 
 namespace IMPD {
 
@@ -221,7 +229,11 @@ const String Interpreter::YES_STRING("yes");
 const String Interpreter::NO_STRING("no");
 
 static bool isNaN(double d) { return d != d; }
+#if (HAS_CPP11)
+static bool isFinite(double d) { return !isNaN(d) && std::isfinite(d); }
+#else
 static bool isFinite(double d) { return !isNaN(d) && fabs(d) != std::numeric_limits<double>::infinity(); }
+#endif
 
 static double checkedLog(double x) {
 	if (x <= 0) {
@@ -369,8 +381,8 @@ StringIt Interpreter::eatWhite(StringIt p, const StringIt& e) {
 			case '\r': if (p + 1 != e && p[1] == '\n') ++p;
 			case '\n': {																								// Eat leading .. on a new line
 				while (++p != e && (*p == ' ' || *p == '\t')) { }
-				if (e - p >= 2 && p[0] == '.' && p[1] == '.') p += 2;
-				break;
+			if (e - p >= 2 && p[0] == '.' && p[1] == '.') p += 2;
+			break;
 			}
 			case '/': if (isComment(p, e)) { p = eatComment(p, e); break; }
 			/* else continue */
@@ -420,7 +432,7 @@ StringIt Interpreter::eatBlock(StringIt p, const StringIt& e) {															//
 		}
 	}
 	if (p == e) throwBadSyntax(c == '[' ? "Missing ]" : "Missing }");
-			 
+				
 	return p;
 }
 
@@ -469,12 +481,12 @@ void Interpreter::parseArguments(const StringRange& r, ArgumentVector& arguments
 			lastRange = (haveQuotes ? StringRange(range.b + 1, range.e - 1) : range);
 			if (lastRange.b == lastRange.e) throwBadSyntax("Label cannot be empty");
 			StringIt q = eatWhite(++p, r.e);
-			if (p == q) { range.b = range.e = p; break; }																// If no space after ':' we go to value directly.
+			if (p == q) { range.b = range.e = p; break; }															   // If no space after ':' we go to value directly.
 
 			p = q;
 		} while (p != r.e);
 		
-		p = eatArgumentValue(range.e, r.e);																				// Beginning of a label is valid beginning of argument, so continue from end-point
+		p = eatArgumentValue(range.e, r.e);																			   // Beginning of a label is valid beginning of argument, so continue from end-point
 		range.e = p;
 		arguments.push_back(Argument(lastRange, range));
 		StringIt q = eatWhite(p, r.e);
@@ -650,7 +662,7 @@ String Interpreter::toString(double d, int precision) {
 	double y = x;	
 	for (; x >= 10.0 && pp < ep; x *= 0.1) ++pp;																		// Normalize values > 10 and move period position.
 
-	if (pp >= ep || y <= SMALL || y >= LARGE) {																			// Exponential treatment of very small or large values.
+	if (pp >= ep || y <= SMALL || y >= LARGE) {																		   // Exponential treatment of very small or large values.
 		double e = floor(log10(y) + 1.0e-10);
 		String exps(e >= 0 ? "e+" : "e");
 		exps += toString(static_cast<int>(e));
@@ -660,17 +672,17 @@ String Interpreter::toString(double d, int precision) {
 	}
 	for (; x < 1.0 && dp < buffer + 32; ++ep, x *= 10.0) {																// For values < 1, spit out leading 0's and increase precision.
 		*dp++ = '0';
-		if (dp == pp) *dp++ = '9';																						// Hop over period position (set to 9 to avoid when eliminating 9's).
+		if (dp == pp) *dp++ = '9';																					   // Hop over period position (set to 9 to avoid when eliminating 9's).
 	}
 	for (; dp < ep; ) {																									// Exhaust all remaining digits of mantissa into buffer.
 		uint32_t ix = static_cast<uint32_t>(x);
 		*dp++ = ix + '0';
-		if (dp == pp) *dp++ = '9';																						// Hop over period position (set to 9 to avoid when eliminating 9's).
+		if (dp == pp) *dp++ = '9';																					   // Hop over period position (set to 9 to avoid when eliminating 9's).
 		x = (x - ix) * 10.0;
 	}
-	if (x >= 5) {																										// If remainder is >= 5, increment trailing 9's...
+	if (x >= 5) {																									   // If remainder is >= 5, increment trailing 9's...
 		while (dp[-1] == '9') *--dp = '0';
-		if (dp == bp) *--bp = '1';																						// If we are at spare position, set to '1' and include, otherwise, increment last non-9.
+		if (dp == bp) *--bp = '1';																					   // If we are at spare position, set to '1' and include, otherwise, increment last non-9.
 		else dp[-1]++;
 	}
 	*pp = '.';
@@ -701,22 +713,17 @@ StringIt Interpreter::parseInt(StringIt p, const StringIt& e, int32_t& i) {
 
 StringIt Interpreter::parseDouble(StringIt p, const StringIt& e, double& v) {
 	assert(p <= e);
+	v = 0.0;
 	double d = 0;
 	StringIt q = p;
 	double sign = (e - q > 1 && (*q == '+' || *q == '-') ? (*q++ == '-' ? -1.0 : 1.0) : 1.0);
-	if (q == e || (*q != '.' && (*q < '0' || *q > '9'))) {
-		v = 0.0;
-		return p;
-	}
+	if (q == e || (*q != '.' && (*q < '0' || *q > '9'))) return p;
 	StringIt b = q;
 	while (q != e && *q >= '0' && *q <= '9') d = d * 10.0 + (*q++ - '0');
 	if (q != e && *q == '.') {
 		double f = 1.0;
 		while (++q != e && *q >= '0' && *q <= '9') d += (*q - '0') * (f *= 0.1);
-		if (q == b + 1) {
-			v = 0.0;
-			return p;
-		}
+		if (q == b + 1) return p;
 	}
 	if (q != e && (*q == 'E' || *q == 'e')) {
 		int32_t i;
@@ -724,7 +731,6 @@ StringIt Interpreter::parseDouble(StringIt p, const StringIt& e, double& v) {
 		if (t != q + 1) { d *= pow(10, static_cast<double>(i)); q = t; }
 	}
 	v = d * sign;
-	if (!isFinite(v)) throwRunTimeError("Number overflow");
 	return q;
 }
 
@@ -737,8 +743,13 @@ int Interpreter::toInt(const StringRange& r) {
 
 double Interpreter::toDouble(const StringRange& r) {
 	double v;
-	StringIt p = parseDouble(r.b, r.e, v);
-	if (p == r.b || p != r.e) throwRunTimeError(String("Invalid number: ") + String(r.b, r.e));
+	StringIt q = parseDouble(r.b, r.e, v);
+	if (q == r.b || q != r.e) {
+		throwRunTimeError(String("Invalid number: ") + String(r.b, r.e));
+	}
+	if (!isFinite(v)) {
+		throwRunTimeError(String("Number overflow: ") + String(r.b, r.e));
+	}
 	return v;
 }
 
@@ -843,15 +854,19 @@ StringIt Interpreter::booleanOperation(StringIt p, const StringIt& e, Evaluation
 
 bool Interpreter::evaluationValueToNumber(const EvaluationValue& v, double& d, String& s) const {
 	bool isNumeric = (v.getType() == EvaluationValue::NUMERIC);
-	if (isNumeric) d = v;
-	else {
+	if (isNumeric) {
+		d = v;
+		if (!isFinite(d)) throwRunTimeError("Number overflow");
+	} else {
 		s = static_cast<String>(v);
 		StringIt q = parseDouble(s.begin(), s.end(), d);
-		isNumeric = (q != s.begin() && q == s.end());
+		if (q != s.begin() && q == s.end()) {
+			if (!isFinite(d)) throwRunTimeError("Number overflow");
+			isNumeric = true;
+		}
 	}
 	return isNumeric;
 }
-
 StringIt Interpreter::comparisonOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence, bool dry) const {
 	if (precedence < COMPARE) {
 		EvaluationValue r;
@@ -987,14 +1002,14 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 	p = t;
 	if (p == e) throwBadSyntax("Unexpected end");
 	switch (*p) {
-		case '[': {
-			StringIt q = eatBlock(p, e);
-			if (!dry) {
-				v = performExpansion(StringRange(p + 1, q - 1));
+			case '[': {
+				StringIt q = eatBlock(p, e);
+				if (!dry) {
+					v = performExpansion(StringRange(p + 1, q - 1));
+				}
+				p = q;
+				break;
 			}
-			p = q;
-			break;
-		}
 		
 		case '"': {
 			StringIt q = eatQuotedString(p, e);
@@ -1035,6 +1050,7 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 			double d;
 			StringIt q = parseDouble(p, e, d);
 			if (q != p) {
+				if (!isFinite(d)) throwRunTimeError("Number overflow");
 				p = q;
 				if (!dry) {
 					v = d;

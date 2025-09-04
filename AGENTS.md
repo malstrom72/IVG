@@ -8,6 +8,14 @@ timeout 600 ./build.sh
 
 Always execute this command before committing changes to verify that the build and regression tests succeed.
 
+A complete run ends with the line:
+
+```
+=== ALL BUILDS AND TESTS COMPLETED SUCCESSFULLY ===
+```
+
+If this message does not appear, the build has not finished correctly.
+
 ## Repository layout
 The project uses a consistent folder structure. Build output is written to `output/` and no source files live there. Useful locations:
 

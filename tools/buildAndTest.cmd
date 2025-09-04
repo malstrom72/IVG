@@ -53,8 +53,7 @@ inflate.c inftrees.c trees.c uncompr.c zutil.c
 SET "CSOURCES=!CSOURCES! externals\zlib\%%f"
 )
 
-CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVG2PNG ^
-"-ffp-contract=off" "-UTARGET_OS_MAC" "-DNUXPIXELS_SIMD=%simd%" ^
+CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVG2PNG "-DNUXPIXELS_SIMD=%simd%" ^
 /I"." /I"externals" /I"externals\libpng" /I"externals\zlib" ^
 .\tools\IVG2PNG.cpp .\src\IVG.cpp .\src\IMPD.cpp .\externals\NuX\NuXPixels.cpp ^
 %CSOURCES% || EXIT /B 1
