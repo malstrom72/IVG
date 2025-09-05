@@ -162,7 +162,7 @@ static void appendArcSegment(const Vertex& startPos, const Vertex& endPos, doubl
 	const double largeArcSign = (largeArcFlag != 0 ? 1.0 : -1.0);
 	const double sweepSign = (sweepFlag != 0 ? largeArcSign : -largeArcSign);
 	const double aspectRatio = rx / ry;
-	if (aspectRatio < EPSILON || aspectRatio >= 1e6) {
+	if (!(aspectRatio > EPSILON && aspectRatio < 1e6)) {
 		Interpreter::throwRunTimeError(String("ellipse aspect ratio out of range: ")
 				+ Interpreter::toString(aspectRatio));
 	}
@@ -1540,6 +1540,11 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 		if (rx == ry) {
 			path.addCircle(cx, cy, rx, curveQuality);
 		} else {
+			const double aspectRatio = rx / ry;
+			if (!(aspectRatio > EPSILON && aspectRatio < 1e6)) {
+				Interpreter::throwRunTimeError(String("ellipse aspect ratio out of range: ")
+				+ Interpreter::toString(aspectRatio));
+			}
 			path.addEllipse(cx, cy, rx, ry, curveQuality);
 		}
 	} else {
@@ -1559,7 +1564,7 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 		double sweepRadians = min(max(sweepVals[1] * DEGREES, -PI2), PI2);
 
 		const double aspectRatio = rx / ry;
-		if (aspectRatio < EPSILON || aspectRatio >= 1e6) {
+		if (!(aspectRatio > EPSILON && aspectRatio < 1e6)) {
 			Interpreter::throwRunTimeError(String("ellipse aspect ratio out of range: ")
 					+ Interpreter::toString(aspectRatio));
 		}
