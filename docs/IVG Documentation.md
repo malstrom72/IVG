@@ -150,7 +150,7 @@ The `ELLIPSE` instruction draws an ellipse or circle shape on the canvas. It wil
 
 Syntax:
 
-	ELLIPSE <cx>,<cy>,<r>[,<ry>=<r>] [ sweep:<start>,<degrees> [ type:pie|chord=chord ] ]
+	ELLIPSE <cx>,<cy>,<r>[,<ry>=<r>] [ sweep:<start>,<degrees> [ type:(pie|chord)=chord ] ]
 
 -	`<cx>,<cy>` is the center point of the ellipse.
 
@@ -353,7 +353,7 @@ These commands mirror their drawing-instruction counterparts but only append pat
 
 - `line <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]` appends an open polyline starting at `<x0>,<y0>`.
 - `rect <x>,<y>,<w>,<h> [rounded:<r>|<rx>,<ry>]` appends an axis-aligned rectangle.
-- `ellipse <cx>,<cy>,<r>[,<ry>=<r>] [ sweep:<start>,<degrees> [ type:pie|chord=chord ] ]` appends a full ellipse or a closed sector.
+- `ellipse <cx>,<cy>,<r>[,<ry>=<r>] [ sweep:<start>,<degrees> [ type:(pie|chord)=chord ] ]` appends a full ellipse or a closed sector.
 - `star <cx>,<cy>,<points>,<r1>[,<r2>=<r1>] [rotation:<angle>]` appends a star or regular polygon.
 - `polygon <x0>,<y0> <x1>,<y1> [<x2>,<y2> ...]` appends a closed polygon.
 - `text [at:<x,y>] [anchor:left|center|right=left] <text>` appends a text outline.
@@ -395,8 +395,8 @@ Arcs:
 	pen #2ee6a6 width:10 caps:round
 	
 	// open arcs (drawn)
-	PATH [ move-to 60,120;  arc-sweep 170,120,180 ]
-	PATH [ move-to 60,120;  arc-sweep 170,120,140 ]
+	PATH [ move-to 60,120;	arc-sweep 170,120,180 ]
+	PATH [ move-to 60,120;	arc-sweep 170,120,140 ]
 	pen #ff6fae width:3
 	
 	// a face for fun

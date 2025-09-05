@@ -635,7 +635,7 @@ enum Type {
 
 static Path& makeLinePath(Path& p, Interpreter& impd, ArgumentsContainer& args, int minPairs = 2);
 static Path& makeRectPath(Path& p, Interpreter& impd, ArgumentsContainer& args, double curveQuality);
-static Path& makeEllipsePath(Path& p, Interpreter& impd, ArgumentsContainer& args, double curveQuality);
+static Path& makeEllipsePath(Path& p, Interpreter& impd, ArgumentsContainer& args, double curveQuality, IVGExecutor::FormatVersion formatVersion);
 static Path& makeStarPath(Path& p, Interpreter& impd, ArgumentsContainer& args);
 static Path& makePolygonPath(Path& p, Interpreter& impd, ArgumentsContainer& args);
 
@@ -644,8 +644,8 @@ static TextAnchor parseAnchor(Interpreter& impd, const String* s);
 static double anchorOffset(TextAnchor anchor, double advance);
 
 class PathInstructionExecutor : public Executor {
-	public:		PathInstructionExecutor(Executor& parentExecutor, Path& path, double curveQuality)
-						: parentExecutor(parentExecutor), path(path), curveQuality(curveQuality) { };
+	public: PathInstructionExecutor(Executor& parentExecutor, Path& path, double curveQuality, IVGExecutor::FormatVersion formatVersion)
+			: parentExecutor(parentExecutor), path(path), curveQuality(curveQuality), formatVersion(formatVersion) { };
 	public:		virtual bool format(Interpreter& impd, const String& identifier, const vector<String>& uses
 						, const vector<String>& requires) {
 					(void)impd; (void)identifier; (void)uses; (void)requires;
@@ -757,7 +757,7 @@ class PathInstructionExecutor : public Executor {
 							return true;
 						}
 						case PATH_ELLIPSE_INSTRUCTION: {
-							path.append(makeEllipsePath(subPath, impd, args, curveQuality));
+							path.append(makeEllipsePath(subPath, impd, args, curveQuality, formatVersion));
 							return true;
 						}
 						case PATH_STAR_INSTRUCTION: {
@@ -799,6 +799,7 @@ class PathInstructionExecutor : public Executor {
 	protected:	Executor& parentExecutor;
 	protected:	Path& path;
 	protected:	const double curveQuality;
+	protected:	const IVGExecutor::FormatVersion formatVersion;
 };
 
 static AffineTransformation parseTransformationBlock(Interpreter& impd, const String& source) {
@@ -1276,7 +1277,7 @@ void IVGExecutor::buildPath(Interpreter& impd, const String* blockArg, const Str
 		versionRequired(impd, IVG_3, instruction);
 		const String* closed = args.fetchOptional("closed");
 		const String& block = (blockArg != 0 ? *blockArg : args.fetchRequired(0, false));
-		PathInstructionExecutor pathExecutor(impd.getExecutor(), path, curveQuality);
+		PathInstructionExecutor pathExecutor(impd.getExecutor(), path, curveQuality, formatVersion);
 		Interpreter pathInterpreter(pathExecutor, impd);
 		pathInterpreter.run(block);
 		if (closed != 0 && impd.toBool(*closed)) {
@@ -1519,7 +1520,7 @@ static Path& makeRectPath(Path& path, Interpreter& impd, ArgumentsContainer& arg
 	return path;
 }
 
-static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& args, double curveQuality) {
+static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& args, double curveQuality, IVGExecutor::FormatVersion formatVersion) {
 	double parsed[4];
 	const int count = parseNumberList(impd, args.fetchRequired(0), parsed, 3, 4);
 	const double cx = parsed[0];
@@ -1539,6 +1540,9 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 			path.addEllipse(cx, cy, rx, ry, curveQuality);
 		}
 	} else {
+		if (formatVersion != IVGExecutor::UNKNOWN && formatVersion < IVGExecutor::IVG_3) {
+			impd.throwBadSyntax(String("Ellipse sweep requires IVG-3"));
+		}
 		const String* typeArg = args.fetchOptional("type");
 		bool typeIsPie = false;
 		if (typeArg != 0) {
@@ -1774,7 +1778,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		}
 		
 		case ELLIPSE_INSTRUCTION: {
-			currentContext->draw(makeEllipsePath(drawPath, impd, args, currentContext->calcCurveQuality()));
+			currentContext->draw(makeEllipsePath(drawPath, impd, args, currentContext->calcCurveQuality(), formatVersion));
 			break;
 		}
 

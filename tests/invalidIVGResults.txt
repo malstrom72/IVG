@@ -7,6 +7,8 @@ Testing duplicate_alignment_tokens: expecting "Duplicate horizontal alignment: l
 Testing duplicate_font_definition: expecting "Duplicate font definition: f" ... PASS
 Testing duplicate_image_definition: expecting "Duplicate image definition: img" ... PASS
 Testing duplicate_path_definition: expecting "Duplicate path definition: p" ... PASS
+Testing ellipse_sweep_ivg1: expecting "Ellipse sweep requires IVG-3" ... PASS
+Testing ellipse_sweep_ivg2: expecting "Ellipse sweep requires IVG-3" ... PASS
 Testing font_duplicate_glyph: expecting "Duplicate glyph definition in font definition (unicode: 97)" ... PASS
 Testing font_duplicate_kerning_pair: expecting "Duplicate kerning pair in font definition: 97,98" ... PASS
 Testing font_duplicate_metrics: expecting "Duplicate metrics instruction in font definition" ... PASS
