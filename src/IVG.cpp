@@ -177,6 +177,9 @@ static void appendArcSegment(const Vertex& startPos, const Vertex& endPos, doubl
 		tempPath.lineTo(s.x, s.y);
 		tempPath.arcSweep(centerX, centerY, sweepRadians, rx, ry, curveQuality);
 		tempPath.transform(affineReverse);
+		if (path.size() + tempPath.size() >= PATH_INSTRUCTION_LIMIT) {
+			Interpreter::throwRunTimeError("path instruction limit exceeded");
+		}
 		path.append(tempPath);
 	} else {
 		path.arcSweep(centerX, centerY, sweepRadians, rx, ry, curveQuality);
@@ -751,23 +754,23 @@ double nums[3];
 							return true;
 						}
 						case PATH_LINE_INSTRUCTION: {
-							path.append(makeLinePath(subPath, impd, args));
+							appendChecked(makeLinePath(subPath, impd, args));
 							return true;
 						}
 						case PATH_RECT_INSTRUCTION: {
-							path.append(makeRectPath(subPath, impd, args, curveQuality));
+							appendChecked(makeRectPath(subPath, impd, args, curveQuality));
 							return true;
 						}
 						case PATH_ELLIPSE_INSTRUCTION: {
-							path.append(makeEllipsePath(subPath, impd, args, curveQuality, formatVersion));
+							appendChecked(makeEllipsePath(subPath, impd, args, curveQuality, formatVersion));
 							return true;
 						}
 						case PATH_STAR_INSTRUCTION: {
-							path.append(makeStarPath(subPath, impd, args));
+							appendChecked(makeStarPath(subPath, impd, args));
 							return true;
 						}
 						case PATH_POLYGON_INSTRUCTION: {
-							path.append(makePolygonPath(subPath, impd, args));
+							appendChecked(makePolygonPath(subPath, impd, args));
 							return true;
 						}
 						case PATH_TEXT_INSTRUCTION: {
@@ -783,7 +786,7 @@ double nums[3];
 							Path textPath = ivg.makeTextPath(impd, state, text, advance);
 							at[0] -= anchorOffset(anchor, advance);
 							textPath.transform(AffineTransformation().translate(at[0], at[1]));
-							path.append(textPath);
+							appendChecked(textPath);
 							return true;
 						}
 					}
@@ -792,6 +795,12 @@ double nums[3];
 	public:		virtual void trace(Interpreter& impd, const WideString& s) { parentExecutor.trace(impd, s); }
 	public:		virtual bool progress(Interpreter& impd, int maxStatementsLeft) { return parentExecutor.progress(impd, maxStatementsLeft); }
 	public:		virtual bool load(Interpreter& impd, const WideString& filename, String& contents) { return parentExecutor.load(impd, filename, contents); }
+	protected:	void appendChecked(const Path& p) {
+					if (path.size() + p.size() >= PATH_INSTRUCTION_LIMIT) {
+						Interpreter::throwRunTimeError("path instruction limit exceeded");
+					}
+					path.append(p);
+				}
 	protected:	Executor& parentExecutor;
 	protected:	Path& path;
 	protected:	const double curveQuality;
@@ -972,7 +981,13 @@ void Context::stroke(const Path& path, Stroke& stroke, const Rect<double>& paint
 		if (stroke.gap > EPSILON) {
 			double l = stroke.dash + stroke.gap;
 			double dashOffset = fmod(fmod(stroke.dashOffset, l) + l, l);  // floor modulo trick
-			strokePath.dash(stroke.dash, stroke.gap, dashOffset);
+			strokePath.dash(stroke.dash, stroke.gap, dashOffset, PATH_INSTRUCTION_LIMIT);
+			if (strokePath.size() >= PATH_INSTRUCTION_LIMIT) {
+				Interpreter::throwRunTimeError("path instruction limit exceeded");
+			}
+		}
+		if (strokePath.size() * 3 >= PATH_INSTRUCTION_LIMIT) {
+			Interpreter::throwRunTimeError("path instruction limit exceeded");
 		}
 		strokePath.stroke(stroke.width * widthMultiplier, stroke.caps, stroke.joints, stroke.miterLimit
 				, calcCurveQuality());
@@ -1845,14 +1860,13 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				ArgumentsContainer outlineArgs(ArgumentsContainer::parse(impd, *s));
 				parseStroke(impd, outlineArgs, state.textStyle.outline);
 			}
-
 			if ((s = args.fetchOptional("transform", false)) != 0) {
 				state.textStyle.glyphTransform = parseTransformationBlock(impd, *s);
 			}
 			if ((s = args.fetchOptional("size", true)) != 0) {
 				double d = impd.toDouble(*s);
-				if (d <= 0.0) {
-					impd.throwRunTimeError(String("font size out of range (0..inf): ") + impd.toString(d));
+				if (d <= 0.0 || d > 1000000.0) {
+					impd.throwRunTimeError(String("font size out of range (0..1000000]: ") + impd.toString(d));
 				}
 				state.textStyle.size = d;
 			}
@@ -2055,6 +2069,9 @@ bool buildPathForString(const UniString& string, const std::vector<const Font*>&
 			lastCharacter = thisCharacter;
 			glyphPath.transform(fontInfoIt->scaledXF.translate(advance, 0.0));
 			advance += (glyph->advance * fontInfoIt->mpu + letterSpacing) * size;
+			if (path.size() + glyphPath.size() >= PATH_INSTRUCTION_LIMIT) {
+				Interpreter::throwRunTimeError("path instruction limit exceeded");
+			}
 			path.append(glyphPath);
 		} else {
 			if (success) {

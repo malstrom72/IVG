@@ -14,6 +14,7 @@ Testing font_duplicate_kerning_pair: expecting "Duplicate kerning pair in font d
 Testing font_duplicate_metrics: expecting "Duplicate metrics instruction in font definition" ... PASS
 Testing font_glyph_before_metrics: expecting "Missing metrics before glyph instruction in font definition" ... PASS
 Testing font_long_glyph_name: expecting "Invalid glyph character (length is not 1): ab" ... PASS
+Testing font_size_out_of_range: expecting "font size out of range (0..1000000]: 1000001" ... PASS
 Testing gradient_stop_position: expecting "Invalid stops for gradient (invalid position: 2)" ... PASS
 Testing gradient_stops_odd_count: expecting "Invalid stops for gradient (odd number of elements): 0,#000,#fff" ... PASS
 Testing invalid_arc_large: expecting "Invalid large for arc-to: maybe" ... PASS
@@ -41,6 +42,7 @@ Testing negative_glyph_advance: expecting "Negative glyph advance in font defini
 Testing negative_rect_width: expecting "Negative rectangle width: -5" ... PASS
 Testing negative_rounded_radius: expecting "Negative rounded corner radius: -1" ... PASS
 Testing negative_star_radius: expecting "Negative star radius: -1" ... PASS
+Testing path_size_out_of_range: expecting "path instruction limit exceeded" ... PASS
 Testing pattern_unknown_reference: expecting "Unrecognized instruction: missing" ... PASS
 Testing star_points_out_of_range: expecting "star points out of range [1..10000]: 0" ... PASS
 Testing text_invalid_anchor: expecting "Unrecognized anchor: upside" ... PASS

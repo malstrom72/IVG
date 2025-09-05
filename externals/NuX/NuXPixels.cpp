@@ -826,20 +826,23 @@ Path& Path::stroke(double width, EndCapStyle endCaps, JointStyle joints, double 
 	return *this;
 }
 
-Path& Path::dash(double dashLength, double gapLength, double dashOffset) {
+
+Path& Path::dash(double dashLength, double gapLength, double dashOffset, size_type limit) {
 	assert(0.0 <= dashLength);
 	assert(0.0 <= gapLength);
 	assert(0.0 <= dashOffset && dashOffset <= (dashLength + gapLength));
 
 	if (gapLength >= EPSILON) {
 		InstructionsVector dashed;
-		double initR = fmod(dashLength - dashOffset, (dashLength + gapLength));		
+		double initR = fmod(dashLength - dashOffset, (dashLength + gapLength));
 		Vertex lv(0.0, 0.0);
-		for (const_iterator it = instructions.begin(), e = instructions.end(); it != e;) {
+		bool limitReached = false;
+		for (const_iterator it = instructions.begin(), e = instructions.end(); it != e && !limitReached;) {
 			for (; it != e && it->first != LINE; ++it) lv = it->second;
 			if (it != e) {
 				size_type firstDashIndex = dashed.size();
 				size_type lastDashIndex = firstDashIndex;
+				if (dashed.size() >= limit) { limitReached = true; break; }
 				dashed.push_back(Instruction(MOVE, lv));
 				bool firstPenDown = true;
 				double r = initR;
@@ -849,7 +852,7 @@ Path& Path::dash(double dashLength, double gapLength, double dashOffset) {
 				}
 				bool penDown = firstPenDown;
 				bool isClosed = false;
-				for (; it != e && it->first != MOVE && !isClosed; ++it) {
+				for (; it != e && it->first != MOVE && !isClosed && !limitReached; ++it) {
 					isClosed = (it->first == CLOSE);
 					double dx = it->second.x - lv.x;
 					double dy = it->second.y - lv.y;
@@ -865,6 +868,7 @@ Path& Path::dash(double dashLength, double gapLength, double dashOffset) {
 							l -= n;
 							r -= n;
 							if (penDown) {
+								if (dashed.size() >= limit) { limitReached = true; break; }
 								dashed.push_back(Instruction(LINE, lv));
 								if (r <= 0.0) {
 									penDown = false;
@@ -873,23 +877,23 @@ Path& Path::dash(double dashLength, double gapLength, double dashOffset) {
 							} else if (r <= 0.0) {
 								penDown = true;
 								lastDashIndex = dashed.size();
+								if (dashed.size() >= limit) { limitReached = true; break; }
 								dashed.push_back(Instruction(MOVE, lv));
 								r += dashLength;
 							}
-						} while (l > 0.0);
+						} while (l > 0.0 && !limitReached);
 					}
 				}
-				if (firstDashIndex != lastDashIndex && isClosed && penDown && firstPenDown) {	// If original sub-path was closed and we currently have "pen down", we should rotate the vertex data so that we begin the new sub-path at "pen-down-point".
+				if (!limitReached && firstDashIndex != lastDashIndex && isClosed && penDown && firstPenDown) {
 					(dashed.begin() + firstDashIndex)->first = LINE;
 					std::rotate(dashed.begin() + firstDashIndex, dashed.begin() + lastDashIndex, dashed.end());
 				}
 			}
 		}
-		
 		instructions.swap(dashed);
 		openIndex = instructions.size() - 1;
 	}
-	
+
 	return *this;
 }
 
