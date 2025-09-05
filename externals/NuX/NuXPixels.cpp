@@ -480,15 +480,14 @@ Path& Path::addRect(double left, double top, double width, double height) {
 /**
 	Makes an arc by rotating a point around the center of the arc.
 **/
-Path& Path::arcSweep(double centerX, double centerY, double sweepRadians, double aspectRatio, double curveQuality) {
+Path& Path::arcSweep(double centerX, double centerY, double sweepRadians, double radiusX, double radiusY, double curveQuality) {
 	assert(-PI2 <= sweepRadians && sweepRadians <= PI2);
-	assert(0.0 < aspectRatio && aspectRatio < 10000000000.0);
 	assert(0.0 < curveQuality);
 
 	const Vertex pos(getPosition());
-	const double sx = (pos.x - centerX) / aspectRatio;
-	const double sy = pos.y - centerY;
-	const double diameter = maxValue(2.0 * fabs(aspectRatio), 2.0) * sqrt(sx * sx + sy * sy);
+	const double sx = (pos.x - centerX) / radiusX;
+	const double sy = (pos.y - centerY) / radiusY;
+	const double diameter = maxValue(fabs(radiusX), fabs(radiusY)) * 2.0;
 	double rx;
 	double ry;
 	const double t = calcCircleRotationVector(curveQuality, diameter, rx, ry);
@@ -506,35 +505,32 @@ Path& Path::arcSweep(double centerX, double centerY, double sweepRadians, double
 		px = nx;
 		py = ny;
 		r += t;
-		lineTo(centerX + px * aspectRatio, centerY + py);
+		lineTo(centerX + px * radiusX, centerY + py * radiusY);
 	}
 	rx = cos(sweepRadians);
 	ry = sin(sweepRadians);
 	px = sx * rx - sy * ry;
 	py = sx * ry + sy * rx;
-	lineTo(centerX + px * aspectRatio, centerY + py);
+	lineTo(centerX + px * radiusX, centerY + py * radiusY);
 
 	return *this;
 }
 
-Path& Path::arcMove(double centerX, double centerY, double sweepRadians, double aspectRatio) {
+Path& Path::arcMove(double centerX, double centerY, double sweepRadians, double radiusX, double radiusY) {
 	assert(-PI2 <= sweepRadians && sweepRadians <= PI2);
-	assert(0.0 < aspectRatio && aspectRatio < 10000000000.0);
 
 	const Vertex pos(getPosition());
-	const double sx = (pos.x - centerX) / aspectRatio;
-	const double sy = pos.y - centerY;
+	const double sx = (pos.x - centerX) / radiusX;
+	const double sy = (pos.y - centerY) / radiusY;
 
-	// Rotate current point around center by sweepRadians in normalized space
 	double rx = cos(sweepRadians);
 	double ry = sin(sweepRadians);
 	double px = sx * rx - sy * ry;
 	double py = sx * ry + sy * rx;
 
-	const double endX = centerX + px * aspectRatio;
-	const double endY = centerY + py;
+	const double endX = centerX + px * radiusX;
+	const double endY = centerY + py * radiusY;
 
-	// If the last instruction was a MOVE, adjust it in place; otherwise insert a MOVE
 	if (!instructions.empty() && instructions.back().first == MOVE) {
 		instructions.back().second = Vertex(endX, endY);
 	} else {
@@ -545,12 +541,14 @@ Path& Path::arcMove(double centerX, double centerY, double sweepRadians, double 
 
 Path& Path::addEllipse(double centerX, double centerY, double radiusX, double radiusY, double curveQuality) {
 	assert(0.0 < curveQuality);
-	if (fabs(radiusX) < EPSILON) addLine(centerX, centerY - radiusY, centerX, centerY + radiusY);
-	else if (fabs(radiusY) < EPSILON) addLine(centerX - radiusX, centerY, centerX + radiusX, centerY);
-	else {
+	if (fabs(radiusX) < EPSILON) {
+		addLine(centerX, centerY - radiusY, centerX, centerY + radiusY);
+	} else if (fabs(radiusY) < EPSILON) {
+		addLine(centerX - radiusX, centerY, centerX + radiusX, centerY);
+	} else {
 		double sweepSign = ((radiusX < 0.0) != (radiusY < 0.0) ? -1.0 : 1.0);
 		moveTo(centerX + radiusX, centerY);
-		arcSweep(centerX, centerY, sweepSign * PI2, sweepSign * radiusX / radiusY, curveQuality);
+		arcSweep(centerX, centerY, sweepSign * PI2, radiusX, radiusY, curveQuality);
 	}
 	close();
 	return *this;
@@ -559,7 +557,7 @@ Path& Path::addEllipse(double centerX, double centerY, double radiusX, double ra
 Path& Path::addCircle(double centerX, double centerY, double radius, double curveQuality) {
 	assert(0.0 < curveQuality);
 	moveTo(centerX + radius, centerY);
-	arcSweep(centerX, centerY, PI2, 1.0, curveQuality);
+	arcSweep(centerX, centerY, PI2, radius, radius, curveQuality);
 	close();
 	return *this;
 }
@@ -569,20 +567,19 @@ Path& Path::addRoundedRect(double left, double top, double width, double height,
 	if (cornerWidth < EPSILON || cornerHeight < EPSILON) {
 		addRect(left, top, width, height);
 	} else {
-		double ratio = cornerWidth / cornerHeight;
 		double right = left + width;
 		double bottom = top + height;
 		addLine(left + cornerWidth, top, right - cornerWidth, top);
-		arcSweep(right - cornerWidth, top + cornerHeight, PI * 0.5, ratio, curveQuality);
+		arcSweep(right - cornerWidth, top + cornerHeight, PI * 0.5, cornerWidth, cornerHeight, curveQuality);
 		lineTo(right, top + cornerHeight);
 		lineTo(right, bottom - cornerHeight);
-		arcSweep(right - cornerWidth, bottom - cornerHeight, PI * 0.5, ratio, curveQuality);
+		arcSweep(right - cornerWidth, bottom - cornerHeight, PI * 0.5, cornerWidth, cornerHeight, curveQuality);
 		lineTo(right - cornerWidth, bottom);
 		lineTo(left + cornerWidth, bottom);
-		arcSweep(left + cornerWidth, bottom - cornerHeight, PI * 0.5, ratio, curveQuality);
+		arcSweep(left + cornerWidth, bottom - cornerHeight, PI * 0.5, cornerWidth, cornerHeight, curveQuality);
 		lineTo(left, bottom - cornerHeight);
 		lineTo(left, top + cornerHeight);
-		arcSweep(left + cornerWidth, top + cornerHeight, PI * 0.5, ratio, curveQuality);
+		arcSweep(left + cornerWidth, top + cornerHeight, PI * 0.5, cornerWidth, cornerHeight, curveQuality);
 		close();
 	}
 	return *this;

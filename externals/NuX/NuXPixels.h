@@ -311,8 +311,8 @@ class Path {
 	public:		Path& lineTo(double x, double y);
 	public:		Path& quadraticTo(double controlPointX, double controlPointY, double x, double y, double curveQuality = 1.0);
 	public:		Path& cubicTo(double cpBeginX, double cpBeginY, double cpEndX, double cpEndY, double x, double y, double curveQuality = 1.0);
-	public:		Path& arcSweep(double centerX, double centerY, double sweepRadians, double aspectRatio = 1.0, double curveQuality = 1.0);
-	public:		Path& arcMove(double centerX, double centerY, double sweepRadians, double aspectRatio = 1.0);
+	public:		Path& arcSweep(double centerX, double centerY, double sweepRadians, double radiusX, double radiusY, double curveQuality = 1.0);
+	public:		Path& arcMove(double centerX, double centerY, double sweepRadians, double radiusX, double radiusY);
 	public:		Path& append(const Path& p);
 	public:		Path& addLine(double startX, double startY, double endX, double endY);
 	public:		Path& addRect(double left, double top, double width, double height); // FIX : <- phase out? only have addRect(Rect<double>)?
@@ -954,7 +954,7 @@ class PolygonMask : public Renderer<Mask8> {
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<Mask8>& output) const;
 	public:		void rewind() const;
-	public: 	bool isValid() const;	/// false if path had out-of-range vertices
+	public:		bool isValid() const;	/// false if path had out-of-range vertices
 	
 	protected:	struct Segment {
 					int topY;			/// Starting y in fixed fraction format (fraction precision = POLYGON_FRACTION_BITS).

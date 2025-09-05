@@ -175,11 +175,11 @@ static void appendArcSegment(const Vertex& startPos, const Vertex& endPos, doubl
 	if (xAxisRotation != 0.0) {
 		Path tempPath;
 		tempPath.lineTo(s.x, s.y);
-		tempPath.arcSweep(centerX, centerY, sweepRadians, aspectRatio, curveQuality);
+		tempPath.arcSweep(centerX, centerY, sweepRadians, rx, ry, curveQuality);
 		tempPath.transform(affineReverse);
 		path.append(tempPath);
 	} else {
-		path.arcSweep(centerX, centerY, sweepRadians, aspectRatio, curveQuality);
+		path.arcSweep(centerX, centerY, sweepRadians, rx, ry, curveQuality);
 	}
 }
 
@@ -742,9 +742,9 @@ class PathInstructionExecutor : public Executor {
 							args.throwIfAnyUnfetched();
 							const double sweepRadians = min(max(nums[2] * DEGREES, -PI2), PI2);
 							if (foundInstruction == PATH_ARC_SWEEP_INSTRUCTION) {
-								path.arcSweep(nums[0], nums[1], sweepRadians, 1.0, curveQuality);
+								path.arcSweep(nums[0], nums[1], sweepRadians, 1.0, 1.0, curveQuality);
 							} else {
-								path.arcMove(nums[0], nums[1], sweepRadians, 1.0);
+								path.arcMove(nums[0], nums[1], sweepRadians, 1.0, 1.0);
 							}
 							if (endVar != 0) {
 								Vertex ep = path.getPosition();
@@ -1530,8 +1530,8 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 	const double cy = parsed[1];
 	const double rx = parsed[2];
 	const double ry = (count == 4 ? parsed[3] : parsed[2]);
-	if (rx < EPSILON || ry < EPSILON) {
-		impd.throwRunTimeError(String("Invalid ellipse radius: ") + impd.toString(rx < EPSILON ? rx : ry));
+	if (rx < 0.0 || ry < 0.0) {
+		impd.throwRunTimeError(String("Negative ellipse radius: ") + impd.toString(rx < 0.0 ? rx : ry));
 	}
 
 	const String* sweepArg = args.fetchOptional("sweep");
@@ -1540,11 +1540,6 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 		if (rx == ry) {
 			path.addCircle(cx, cy, rx, curveQuality);
 		} else {
-			const double aspectRatio = rx / ry;
-			if (!(aspectRatio > EPSILON && aspectRatio < 1e6)) {
-				Interpreter::throwRunTimeError(String("ellipse aspect ratio out of range: ")
-				+ Interpreter::toString(aspectRatio));
-			}
 			path.addEllipse(cx, cy, rx, ry, curveQuality);
 		}
 	} else {
@@ -1562,16 +1557,11 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 		parseNumberList(impd, *sweepArg, sweepVals, 2, 2);
 		double startRadians = sweepVals[0] * DEGREES;
 		double sweepRadians = min(max(sweepVals[1] * DEGREES, -PI2), PI2);
-
-		const double aspectRatio = rx / ry;
-		if (!(aspectRatio > EPSILON && aspectRatio < 1e6)) {
-			Interpreter::throwRunTimeError(String("ellipse aspect ratio out of range: ")
-					+ Interpreter::toString(aspectRatio));
-		}
+		
 		// Move to the 0-degree point and then advance along the arc without drawing to the start angle
 		path.moveTo(cx + rx, cy);
-		path.arcMove(cx, cy, startRadians, aspectRatio);
-		path.arcSweep(cx, cy, sweepRadians, aspectRatio, curveQuality);
+		path.arcMove(cx, cy, startRadians, rx, ry);
+		path.arcSweep(cx, cy, sweepRadians, rx, ry, curveQuality);
 		if (typeIsPie) {
 			path.lineTo(cx, cy);
 		}

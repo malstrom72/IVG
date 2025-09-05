@@ -34,7 +34,7 @@ Testing missing_font_name: expecting "Missing font: missing" ... PASS
 Testing missing_format: expecting "Too few list elements (got 1, expected at least 4)" ... PASS
 Testing multiple_bounds: expecting "Multiple bounds declarations" ... PASS
 Testing negative_clip_width: expecting "Negative clip width: -10" ... PASS
-Testing negative_ellipse_radius: expecting "Invalid ellipse radius: -5" ... PASS
+Testing negative_ellipse_radius: expecting "Negative ellipse radius: -5" ... PASS
 Testing negative_glyph_advance: expecting "Negative glyph advance in font definition: -1" ... PASS
 Testing negative_rect_width: expecting "Negative rectangle width: -5" ... PASS
 Testing negative_rounded_radius: expecting "Negative rounded corner radius: -1" ... PASS
