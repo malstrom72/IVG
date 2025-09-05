@@ -177,6 +177,9 @@ static void appendArcSegment(const Vertex& startPos, const Vertex& endPos, doubl
 		tempPath.lineTo(s.x, s.y);
 		tempPath.arcSweep(centerX, centerY, sweepRadians, rx, ry, curveQuality);
 		tempPath.transform(affineReverse);
+		if (path.size() + tempPath.size() >= PATH_INSTRUCTION_LIMIT) {
+				Interpreter::throwRunTimeError("path instruction limit exceeded");
+		}
 		path.append(tempPath);
 	} else {
 		path.arcSweep(centerX, centerY, sweepRadians, rx, ry, curveQuality);
@@ -205,7 +208,7 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 			c = (isRelative ? c - ('a' - 'A') : c);
 			if (c != 'T') {
 				quadraticReflectionPoint = Vertex(0.0, 0.0);
-			}
+		}
 			if (c != 'S') {
 				cubicReflectionPoint = Vertex(0.0, 0.0);
 			}
@@ -216,13 +219,13 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 					if (!parseCoordinatePair(p, e, v, false)) {
 						errorString = "Invalid M syntax in svg path data";
 						return false;
-					}
+				}
 					v = toAbsoluteVertex(path, isRelative, v);
 					path.moveTo(v.x, v.y);
 					while (parseCoordinatePair(p, e, v, true)) {
 						v = toAbsoluteVertex(path, isRelative, v);
 						path.lineTo(v.x, v.y);
-					}
+				}
 					break;
 				}
 				
@@ -231,11 +234,11 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 					if (!parseCoordinatePair(p, e, v, false)) {
 						errorString = "Invalid L syntax in svg path data";
 						return false;
-					}
+			}
 					do {
 						v = toAbsoluteVertex(path, isRelative, v);
 						path.lineTo(v.x, v.y);
-					} while (parseCoordinatePair(p, e, v, true));
+			} while (parseCoordinatePair(p, e, v, true));
 					break;
 				}
 
@@ -752,27 +755,32 @@ class PathInstructionExecutor : public Executor {
 							}
 							return true;
 						}
-						case PATH_LINE_INSTRUCTION: {
-							path.append(makeLinePath(subPath, impd, args));
-							return true;
-						}
-						case PATH_RECT_INSTRUCTION: {
-							path.append(makeRectPath(subPath, impd, args, curveQuality));
-							return true;
-						}
-						case PATH_ELLIPSE_INSTRUCTION: {
-							path.append(makeEllipsePath(subPath, impd, args, curveQuality, formatVersion));
-							return true;
-						}
-						case PATH_STAR_INSTRUCTION: {
-							path.append(makeStarPath(subPath, impd, args));
-							return true;
-						}
-						case PATH_POLYGON_INSTRUCTION: {
-							path.append(makePolygonPath(subPath, impd, args));
-							return true;
-						}
-						case PATH_TEXT_INSTRUCTION: {
+case PATH_LINE_INSTRUCTION: {
+Path p = makeLinePath(subPath, impd, args);
+appendChecked(p);
+return true;
+}
+case PATH_RECT_INSTRUCTION: {
+Path p = makeRectPath(subPath, impd, args, curveQuality);
+appendChecked(p);
+return true;
+}
+case PATH_ELLIPSE_INSTRUCTION: {
+Path p = makeEllipsePath(subPath, impd, args, curveQuality, formatVersion);
+appendChecked(p);
+return true;
+}
+case PATH_STAR_INSTRUCTION: {
+Path p = makeStarPath(subPath, impd, args);
+appendChecked(p);
+return true;
+}
+case PATH_POLYGON_INSTRUCTION: {
+Path p = makePolygonPath(subPath, impd, args);
+appendChecked(p);
+return true;
+}
+case PATH_TEXT_INSTRUCTION: {
 							const String* s;
 							double at[2] = {0.0, 0.0};
 							if ((s = args.fetchOptional("at", true)) != 0) parseNumberList(impd, *s, at, 2, 2);
@@ -785,9 +793,9 @@ class PathInstructionExecutor : public Executor {
 							Path textPath = ivg.makeTextPath(impd, state, text, advance);
 							at[0] -= anchorOffset(anchor, advance);
 							textPath.transform(AffineTransformation().translate(at[0], at[1]));
-							path.append(textPath);
-							return true;
-						}
+appendChecked(textPath);
+return true;
+}
 					}
 					return false;
 				}
@@ -800,6 +808,12 @@ class PathInstructionExecutor : public Executor {
 						Interpreter::throwRunTimeError("Invalid first path instruction: " + instruction);
 					}
 				}
+	protected:	void appendChecked(const Path& p) {
+			if (path.size() + p.size() >= PATH_INSTRUCTION_LIMIT) {
+				Interpreter::throwRunTimeError("path instruction limit exceeded");
+			}
+			path.append(p);
+		}
 	protected:	Executor& parentExecutor;
 	protected:	Path& path;
 	protected:	const double curveQuality;
@@ -980,8 +994,14 @@ void Context::stroke(const Path& path, Stroke& stroke, const Rect<double>& paint
 		if (stroke.gap > EPSILON) {
 			double l = stroke.dash + stroke.gap;
 			double dashOffset = fmod(fmod(stroke.dashOffset, l) + l, l);  // floor modulo trick
-			strokePath.dash(stroke.dash, stroke.gap, dashOffset);
-		}
+			strokePath.dash(stroke.dash, stroke.gap, dashOffset, PATH_INSTRUCTION_LIMIT);
+			if (strokePath.size() >= PATH_INSTRUCTION_LIMIT) {
+				Interpreter::throwRunTimeError("path instruction limit exceeded");
+			}
+			}
+		if (strokePath.size() * 3 >= PATH_INSTRUCTION_LIMIT) {
+			Interpreter::throwRunTimeError("path instruction limit exceeded");
+			}
 		strokePath.stroke(stroke.width * widthMultiplier, stroke.caps, stroke.joints, stroke.miterLimit
 				, calcCurveQuality());
 		strokePath.transform(state.transformation);
@@ -1850,14 +1870,14 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				ArgumentsContainer outlineArgs(ArgumentsContainer::parse(impd, *s));
 				parseStroke(impd, outlineArgs, state.textStyle.outline);
 			}
-
 			if ((s = args.fetchOptional("transform", false)) != 0) {
 				state.textStyle.glyphTransform = parseTransformationBlock(impd, *s);
 			}
 			if ((s = args.fetchOptional("size", true)) != 0) {
+				const double maxFontSize = 1000000.0;
 				double d = impd.toDouble(*s);
-				if (d <= 0.0) {
-					impd.throwRunTimeError(String("font size out of range (0..inf): ") + impd.toString(d));
+				if (d <= 0.0 || d > maxFontSize) {
+					impd.throwRunTimeError(String("font size out of range (0..1000000]: ") + impd.toString(d));
 				}
 				state.textStyle.size = d;
 			}
@@ -2060,6 +2080,9 @@ bool buildPathForString(const UniString& string, const std::vector<const Font*>&
 			lastCharacter = thisCharacter;
 			glyphPath.transform(fontInfoIt->scaledXF.translate(advance, 0.0));
 			advance += (glyph->advance * fontInfoIt->mpu + letterSpacing) * size;
+				if (path.size() + glyphPath.size() >= PATH_INSTRUCTION_LIMIT) {
+					Interpreter::throwRunTimeError("path instruction limit exceeded");
+				}
 			path.append(glyphPath);
 		} else {
 			if (success) {
