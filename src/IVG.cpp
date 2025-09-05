@@ -175,11 +175,11 @@ static void appendArcSegment(const Vertex& startPos, const Vertex& endPos, doubl
 	if (xAxisRotation != 0.0) {
 		Path tempPath;
 		tempPath.lineTo(s.x, s.y);
-		tempPath.arcSweep(centerX, centerY, sweepRadians, aspectRatio, curveQuality);
+		tempPath.arcSweep(centerX, centerY, sweepRadians, rx, ry, curveQuality);
 		tempPath.transform(affineReverse);
 		path.append(tempPath);
 	} else {
-		path.arcSweep(centerX, centerY, sweepRadians, aspectRatio, curveQuality);
+		path.arcSweep(centerX, centerY, sweepRadians, rx, ry, curveQuality);
 	}
 }
 
@@ -541,21 +541,22 @@ static int findTransformType(size_t n /* string length */, const char* s /* zero
 /* Built with QuickHashGen */
 // Seed: 903145365
 static int findPathInstructionType(int n /* string length */, const char* s /* string (zero terminated) */) {
-	static const char* STRINGS[12] = {
-		"move-to", "line-to", "bezier-to", "arc-to", "arc-sweep", "arc-move", "line", 
-		"rect", "ellipse", "star", "polygon", "text"
-	};
-	static const int HASH_TABLE[64] = {
-		-1, -1, -1, 1, -1, -1, -1, -1, -1, -1, -1, 10, -1, -1, 5, -1, 
-		4, -1, -1, -1, -1, -1, -1, 3, -1, -1, -1, 0, 8, -1, -1, 2, 
-		-1, 9, -1, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 6, -1, 
-		-1, -1, -1, -1, -1, -1, -1, -1, 11, -1, -1, -1, -1, -1, -1, -1
-	};
-	const unsigned char* p = (const unsigned char*) s;
-	assert(s[n] == '\0');
-	if (n < 4 || n > 9) return -1;
-	int stringIndex = HASH_TABLE[(p[2] ^ p[4]) & 63u];
-	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
+static const char* STRINGS[16] = {
+"move-to", "line-to", "bezier-to", "arc-to", "arc-sweep", "arc-move", "line",
+"rect", "ellipse", "star", "polygon", "text", "anchor", "cursor", "path",
+"close"
+};
+static const int HASH_TABLE[64] = {
+-1, -1, -1, 1, -1, -1, -1, -1, -1, -1, 15, 10, 12, -1, 5, -1,
+4, -1, -1, -1, -1, -1, -1, 3, -1, -1, -1, 0, 8, 13, -1, 2,
+-1, 9, -1, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 6, -1,
+-1, -1, -1, -1, 14, -1, -1, -1, 11, -1, -1, -1, -1, -1, -1, -1
+};
+const unsigned char* p = (const unsigned char*) s;
+assert(s[n] == '\0');
+if (n < 4 || n > 9) return -1;
+int stringIndex = HASH_TABLE[(p[2] ^ p[4]) & 63u];
+return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
 static AffineTransformation parseSingleTransformation(Interpreter& impd, TransformType transformType, ArgumentsContainer& arguments) {
@@ -632,9 +633,10 @@ class TransformationExecutor : public Executor {
 };
 
 enum Type {
-	PATH_MOVE_TO_INSTRUCTION, PATH_LINE_TO_INSTRUCTION, PATH_BEZIER_TO_INSTRUCTION, PATH_ARC_TO_INSTRUCTION,
-	PATH_ARC_SWEEP_INSTRUCTION, PATH_ARC_MOVE_INSTRUCTION, PATH_LINE_INSTRUCTION, PATH_RECT_INSTRUCTION,
-	PATH_ELLIPSE_INSTRUCTION, PATH_STAR_INSTRUCTION, PATH_POLYGON_INSTRUCTION, PATH_TEXT_INSTRUCTION
+PATH_MOVE_TO_INSTRUCTION, PATH_LINE_TO_INSTRUCTION, PATH_BEZIER_TO_INSTRUCTION, PATH_ARC_TO_INSTRUCTION,
+PATH_ARC_SWEEP_INSTRUCTION, PATH_ARC_MOVE_INSTRUCTION, PATH_LINE_INSTRUCTION, PATH_RECT_INSTRUCTION,
+PATH_ELLIPSE_INSTRUCTION, PATH_STAR_INSTRUCTION, PATH_POLYGON_INSTRUCTION, PATH_TEXT_INSTRUCTION,
+PATH_ANCHOR_INSTRUCTION, PATH_CURSOR_INSTRUCTION, PATH_PATH_INSTRUCTION, PATH_CLOSE_INSTRUCTION
 };
 
 static Path& makeLinePath(Path& p, Interpreter& impd, ArgumentsContainer& args, int minPairs = 2);
@@ -668,9 +670,8 @@ class PathInstructionExecutor : public Executor {
 							args.throwIfAnyUnfetched();
 							return true;
 						}
-						case PATH_LINE_TO_INSTRUCTION: {
-							checkHasMoveTo(instruction);
-							StringVector elems;
+case PATH_LINE_TO_INSTRUCTION: {
+StringVector elems;
 							int count = impd.parseList(args.fetchRequired(0), elems, true, false, 2, 20000);
 							args.throwIfAnyUnfetched();
 							if ((count & 1) != 0) {
@@ -681,9 +682,8 @@ class PathInstructionExecutor : public Executor {
 							}
 							return true;
 						}
-						case PATH_BEZIER_TO_INSTRUCTION: {
-							checkHasMoveTo(instruction);
-							StringVector elems;
+case PATH_BEZIER_TO_INSTRUCTION: {
+StringVector elems;
 							int count = impd.parseList(args.fetchRequired(0), elems, true, false, 4, 6);
 							args.throwIfAnyUnfetched();
 							if (count != 4 && count != 6) {
@@ -698,9 +698,8 @@ class PathInstructionExecutor : public Executor {
 							}
 							return true;
 						}
-						case PATH_ARC_TO_INSTRUCTION: {
-							checkHasMoveTo(instruction);
-							StringVector elems;
+case PATH_ARC_TO_INSTRUCTION: {
+StringVector elems;
 							int count = impd.parseList(args.fetchRequired(0), elems, true, false, 3, 4);
 							double end[2];
 							end[0] = impd.toDouble(elems[0]);
@@ -733,18 +732,17 @@ class PathInstructionExecutor : public Executor {
 							path.lineTo(endPos.x, endPos.y);
 							return true;
 						}
-						case PATH_ARC_SWEEP_INSTRUCTION:
-						case PATH_ARC_MOVE_INSTRUCTION: {
-							checkHasMoveTo(instruction);
-							double nums[3];
+case PATH_ARC_SWEEP_INSTRUCTION:
+case PATH_ARC_MOVE_INSTRUCTION: {
+double nums[3];
 							parseNumberList(impd, args.fetchRequired(0), nums, 3, 3);
 							const String* endVar = args.fetchOptional("end", true);
 							args.throwIfAnyUnfetched();
 							const double sweepRadians = min(max(nums[2] * DEGREES, -PI2), PI2);
 							if (foundInstruction == PATH_ARC_SWEEP_INSTRUCTION) {
-								path.arcSweep(nums[0], nums[1], sweepRadians, 1.0, curveQuality);
+								path.arcSweep(nums[0], nums[1], sweepRadians, 1.0, 1.0, curveQuality);
 							} else {
-								path.arcMove(nums[0], nums[1], sweepRadians, 1.0);
+								path.arcMove(nums[0], nums[1], sweepRadians, 1.0, 1.0);
 							}
 							if (endVar != 0) {
 								Vertex ep = path.getPosition();
@@ -794,12 +792,6 @@ class PathInstructionExecutor : public Executor {
 	public:		virtual void trace(Interpreter& impd, const WideString& s) { parentExecutor.trace(impd, s); }
 	public:		virtual bool progress(Interpreter& impd, int maxStatementsLeft) { return parentExecutor.progress(impd, maxStatementsLeft); }
 	public:		virtual bool load(Interpreter& impd, const WideString& filename, String& contents) { return parentExecutor.load(impd, filename, contents); }
-	protected:	void checkHasMoveTo(const String& instruction) const {
-					assert(path.empty() || path.begin()->first == Path::MOVE);
-					if (path.empty()) {
-						Interpreter::throwRunTimeError("Invalid first path instruction: " + instruction);
-					}
-				}
 	protected:	Executor& parentExecutor;
 	protected:	Path& path;
 	protected:	const double curveQuality;
@@ -1280,13 +1272,13 @@ void IVGExecutor::buildPath(Interpreter& impd, const String* blockArg, const Str
 	} else {
 		versionRequired(impd, IVG_3, instruction);
 		const String* closed = args.fetchOptional("closed");
-		const String& block = (blockArg != 0 ? *blockArg : args.fetchRequired(0, false));
-		PathInstructionExecutor pathExecutor(impd.getExecutor(), path, curveQuality, formatVersion);
-		Interpreter pathInterpreter(pathExecutor, impd);
-		pathInterpreter.run(block);
-		if (closed != 0 && impd.toBool(*closed)) {
-			path.closeAll();
-		}
+	const String& block = (blockArg != 0 ? *blockArg : args.fetchRequired(0, false));
+	PathInstructionExecutor pathExecutor(impd.getExecutor(), path, curveQuality, formatVersion);
+	Interpreter pathInterpreter(pathExecutor, impd);
+	pathInterpreter.run(block);
+	if (closed != 0 && impd.toBool(*closed)) {
+		path.closeAll();
+	}
 	}
 }
 
@@ -1531,8 +1523,8 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 	const double cy = parsed[1];
 	const double rx = parsed[2];
 	const double ry = (count == 4 ? parsed[3] : parsed[2]);
-	if (rx < EPSILON || ry < EPSILON) {
-		impd.throwRunTimeError(String("Invalid ellipse radius: ") + impd.toString(rx < EPSILON ? rx : ry));
+	if (rx < 0.0 || ry < 0.0) {
+		impd.throwRunTimeError(String("Negative ellipse radius: ") + impd.toString(rx < 0.0 ? rx : ry));
 	}
 
 	const String* sweepArg = args.fetchOptional("sweep");
@@ -1541,11 +1533,6 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 		if (rx == ry) {
 			path.addCircle(cx, cy, rx, curveQuality);
 		} else {
-			const double aspectRatio = rx / ry;
-			if (!(aspectRatio > EPSILON && aspectRatio < 1e6)) {
-				Interpreter::throwRunTimeError(String("ellipse aspect ratio out of range: ")
-				+ Interpreter::toString(aspectRatio));
-			}
 			path.addEllipse(cx, cy, rx, ry, curveQuality);
 		}
 	} else {
@@ -1566,16 +1553,11 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 		parseNumberList(impd, *sweepArg, sweepVals, 2, 2);
 		double startRadians = sweepVals[0] * DEGREES;
 		double sweepRadians = min(max(sweepVals[1] * DEGREES, -PI2), PI2);
-
-		const double aspectRatio = rx / ry;
-		if (!(aspectRatio > EPSILON && aspectRatio < 1e6)) {
-			Interpreter::throwRunTimeError(String("ellipse aspect ratio out of range: ")
-					+ Interpreter::toString(aspectRatio));
-		}
+		
 		// Move to the 0-degree point and then advance along the arc without drawing to the start angle
 		path.moveTo(cx + rx, cy);
-		path.arcMove(cx, cy, startRadians, aspectRatio);
-		path.arcSweep(cx, cy, sweepRadians, aspectRatio, curveQuality);
+		path.arcMove(cx, cy, startRadians, rx, ry);
+		path.arcSweep(cx, cy, sweepRadians, rx, ry, curveQuality);
 		if (typeIsPie) {
 			path.lineTo(cx, cy);
 		}
@@ -1713,10 +1695,13 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				builtPath.transform(parseTransformationBlock(impd, *transform));
 				pathPointer = &builtPath;
 			}
-			args.throwIfAnyUnfetched();
-			currentContext->draw(*pathPointer);
-			break;
+		args.throwIfAnyUnfetched();
+		if (pathPointer->empty() || pathPointer->begin()->first != Path::MOVE) {
+			Interpreter::throwRunTimeError("Invalid first path instruction: " + instruction);
 		}
+		currentContext->draw(*pathPointer);
+		break;
+	}
 			
 		case MATRIX_INSTRUCTION:
 		case SCALE_INSTRUCTION:
