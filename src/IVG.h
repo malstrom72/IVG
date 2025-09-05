@@ -67,14 +67,18 @@ namespace IVG {
 using NuXPixels::Rect; // Rect is a typedef in Carbon which can confuse the compiler so we do an explicit using for it.
 using NuXPixels::Path;
 
+const int PATH_INSTRUCTION_LIMIT = 1000000;
+
 inline double square(double d) { return d * d; }
 
 void checkBounds(const NuXPixels::IntRect& bounds);
 
 /**
 	Small helper that wraps a pointer which might live on the heap.
+	
 	- If you assign a freshly created object it is kept in a std::unique_ptr
 	  and deleted automatically when the Inheritable instance goes away.
+	
 	- If you only pass in an existing object the class just stores the pointer
 	  and never attempts to free it.
 	
@@ -332,12 +336,12 @@ class IVGExecutor : public IMPD::Executor {
 					Return Image with null pointer in `raster` if image can't be loaded. Otherwise point to a raster
 					whose lifetime is guaranteed until the next call of this function. IVG will *not* cache this
 					pointer.
-				 
+				
 					The `sourceRectangle` is optional and if null the entire image should always be returned, otherwise
 					you *may* return a different clipped version of the image (which might be necessary to prevent
 					"bleeding" if you supply an image in a different resolution). Regardless, IVG will always clip the
 					source image (taking the resolution into consideration).
-				 
+				
 					`forXSize` and `forYSize` can be used to supply different pre-scaled images depending on desired
 					resolution (but it is not required). If `xSizeIsRelative` is true, `forXSize` is a ratio (1.0 being
 					default), otherwise it is a pixel count (and likewise for `ySizeIsRelative` and `forYSize`).

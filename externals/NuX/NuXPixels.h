@@ -95,7 +95,7 @@
 /**
 	Intel-compiler has a very severe optimization bug with construction of arrays. Empty inline constructors are not
 	removed in compilation. NuXPixels constructs *a lot* of Span arrays, so this adds up to an extreme CPU overhead.
- 
+
 	The workaround is constructing byte-arrays and ugly-casting them to Span arrays instead.
 **/
 #ifndef NUXPIXELS_ICC_HACK
@@ -297,7 +297,7 @@ class Path {
 	public:		enum EndCapStyle { BUTT, ROUND, SQUARE };
 	public:		enum JointStyle { BEVEL, CURVE, MITER };
 	public:		enum Operation { MOVE, LINE, CLOSE };
-	
+
 	public:		typedef std::pair<Operation, Vertex> Instruction;
 	public:		typedef std::vector<Instruction> InstructionsVector;
 	public:		typedef InstructionsVector::size_type size_type;
@@ -324,7 +324,7 @@ class Path {
 	public:		Path& close();
 	public:		Path& closeAll();
 	public:		Path& stroke(double width, EndCapStyle endCaps = BUTT, JointStyle joints = BEVEL, double miterLimit = 2.0, double curveQuality = 1.0);
-	public:		Path& dash(double dashLength, double gapLength, double dashOffset = 0.0);
+	public:		Path& dash(double dashLength, double gapLength, double dashOffset = 0.0, size_type limit = static_cast<size_type>(-1));
 	public:		Path& transform(const AffineTransformation& transformation);
 	public:		bool empty() const;
 	public:		size_type size() const;
@@ -342,7 +342,6 @@ inline bool Path::empty() const { return instructions.empty(); }
 inline Path::size_type Path::size() const { return instructions.size(); }
 inline Path::const_iterator Path::begin() const { return instructions.begin(); }
 inline Path::const_iterator Path::end() const  { return instructions.end(); }
-
 inline UInt32 alphaToScale(UInt8 alpha) { return alpha + (alpha != 0 ? 1 : 0); }	// 0 = 0, 1..255 = 2..256
 // FIX: not correct (should be 0..1 = 0, 2..256 = 1..255
 inline UInt8 scaleToAlpha(UInt32 scale) { assert(0 <= scale && scale <= 256); return scale - (scale >> 8); }
@@ -514,10 +513,10 @@ inline Mask8::Pixel convert(const ARGB32&, const Mask8&, ARGB32::Pixel source) {
 inline ARGB32::Pixel convert(const Mask8&, const ARGB32&, Mask8::Pixel source) { return (source << 24) | (source << 16) | (source << 8) | source; }
 
 /**
-	   Span models a run of consecutive pixels. The run length and the "solid"
-	   and "opaque" flags are packed into a 32-bit field. When the span is solid,
-	   `pixels` points to a single color repeated for the entire run; otherwise
-	   it addresses an array containing one pixel per position.
+	Span models a run of consecutive pixels. The run length and the "solid"
+	and "opaque" flags are packed into a 32-bit field. When the span is solid,
+	`pixels` points to a single color repeated for the entire run; otherwise
+	it addresses an array containing one pixel per position.
 **/
 template<class T> class Span {
 	public:		Span();
@@ -542,14 +541,14 @@ template<class T> class Span {
 #endif
 
 /**
-	   SpanBuffer stores runs of pixels in two parallel arrays. When a span of
-	   length `n` is added, `n` entries are reserved in the span array. The
-	   first entry holds the span itself while the last entry duplicates it so
-	   the iterator can read the previous span's length when stepping
-	   backwards. Entries in between are unused but make pointer arithmetic work
-	   for both forward and backward iteration. Pixel data are appended to the
-	   pixel array in tandem—a solid span stores one color, whereas a variable
-	   span stores `n` colors.
+	SpanBuffer stores runs of pixels in two parallel arrays. When a span of
+	length `n` is added, `n` entries are reserved in the span array. The
+	first entry holds the span itself while the last entry duplicates it so
+	the iterator can read the previous span's length when stepping
+	backwards. Entries in between are unused but make pointer arithmetic work
+	for both forward and backward iteration. Pixel data are appended to the
+	pixel array in tandem—a solid span stores one color, whereas a variable
+	span stores `n` colors.
 **/
 template<class T> class SpanBuffer {
 	public:		class iterator;
