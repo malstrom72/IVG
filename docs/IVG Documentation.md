@@ -319,13 +319,9 @@ referencing a previously defined path name.
 
 Syntax:
 
-	PATH ((<instructions> [closed:(yes|no)=no]) | svg:<svg data> | <name>) [transform:<transform>]
+		PATH ((<instructions>) | svg:<svg data> | <name>) [transform:<transform>]
 
 - `<instructions>` is a bracketed list of sub-commands (either separated by new lines or semicolons). See below.
-
-- The `closed` option closes the path automatically, connecting the final point back to the first and also closing any sub-paths
-begun with `move-to`. A single instruction list may contain multiple sub-paths, all closed when `closed:yes` is
-specified.
 
 - `<svg data>` is a string containing SVG path data. See https://svgwg.org/specs/paths/ for details.
 
@@ -342,10 +338,12 @@ _The `PATH svg:` form is available in all IVG versions. The instruction-list var
 - `bezier-to <cx>,<cy>,<x>,<y>` draws a quadratic Bézier curve.
 - `bezier-to <c1x>,<c1y>,<c2x>,<c2y>,<x>,<y>` draws a cubic Bézier curve.
 - `arc-to <x>,<y>,<r>[,<ry>=<r>] [turn:cw|ccw=cw] [large:yes|no=no] [rotate:<deg>=0]` draws an elliptical arc.
-- `arc-sweep <cx>,<cy>,<degrees> [end:<variable>]` draws an arc around a center point, sweeping by the given angle.
-- `arc-move <cx>,<cy>,<degrees> [end:<variable>]` moves the current point along an arc sweep without drawing.
-
-The optional `end:` variable receives the endpoint as an `x,y` string (comma‑separated). It can be spliced in list contexts, for example: `line-to $p` or `ELLIPSE $p,3`.
+- `arc-sweep <cx>,<cy>,<degrees>` draws an arc around a center point, sweeping by the given angle.
+- `arc-move <cx>,<cy>,<degrees>` moves the current point along an arc sweep without drawing.
+- `anchor [<x>,<y>]` sets a new local origin. Without coordinates it uses the current point; with coordinates it interprets them as global.
+- `cursor <var> | cursor ([x:<var>] [y:<var>])` stores the absolute cursor position in variables.
+- `path <name> | svg:<data> | [<instructions>] [transform:<transform>]` splices another path’s geometry into the current `PATH`.
+- `close` closes the current sub-path by drawing a line back to its starting point.
 
 #### Sub-path Commands
 
@@ -381,9 +379,10 @@ Quadratic and cubic Bézier curves:
 		move-to 170,80
 		bezier-to 170,60,210,60,210,80
 		bezier-to 210,110,170,130,170,150
-		bezier-to 170,130,130,110,130,80
-		bezier-to 130,60,170,60,170,80
-	] closed:yes
+				bezier-to 170,130,130,110,130,80
+				bezier-to 130,60,170,60,170,80
+				close
+		]
 ![](images/pathBeziersExample.png)
 
 Arcs:

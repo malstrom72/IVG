@@ -7,11 +7,15 @@ fill none
 pen black width:2
 font serif size:20
 
+define path tri [move-to 0,0; line-to 20,0,10,20]
+
+define path frag [line-to 20,0,10,20]
+
 // line-to and closed path
-PATH [move-to 10,10; line-to 70,10,70,70,10,70] closed:yes
+PATH [move-to 10,10; anchor; line-to 60,0,60,60,0,60; cursor [x:px y:py]; close]
 
 // quadratic bezier
-PATH [move-to 90,10; bezier-to 130,70,170,10]
+PATH [anchor 90,10; move-to 0,0; bezier-to 40,60,80,0; cursor pos]
 
 // cubic bezier
 PATH [move-to 10,90; bezier-to 40,130,80,50,110,90]
@@ -22,8 +26,8 @@ PATH [move-to 130,90; arc-to 190,90,30,40 turn:ccw]
 // arc-sweep
 PATH [move-to 210,90; arc-sweep 210,150,180]
 
-// line
-PATH [line 10,150,70,210]
+// line with anchor offset
+PATH [anchor 10,150; line 0,0,60,60]
 
 // rect
 PATH [rect 90,150,60,40 rounded:10]
@@ -39,3 +43,10 @@ PATH [polygon 270,150,330,150,300,210]
 
 // text
 PATH [text at:300,210 anchor:center "Hi"]
+
+// path splicing
+PATH [move-to 20,210; path tri]
+PATH [move-to 100,210; path [move-to 0,0; line-to 20,0,10,20] transform:[scale 0.5]]
+PATH [move-to 160,210; path [line-to 20,0,10,20]]
+PATH [move-to 220,210; anchor; path frag]
+PATH [move-to 280,210; anchor; path frag]
