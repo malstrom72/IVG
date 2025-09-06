@@ -510,16 +510,11 @@ href="#pen"><code>pen</code></a> setting. Paths may be supplied as an
 instruction list, raw SVG data, or by referencing a previously defined
 path name.</p>
 <p>Syntax:</p>
-<pre><code>PATH ((&lt;instructions&gt; [closed:(yes|no)=no]) | svg:&lt;svg data&gt; | &lt;name&gt;) [transform:&lt;transform&gt;]</code></pre>
+<pre><code>PATH ((&lt;instructions&gt;) | svg:&lt;svg data&gt; | &lt;name&gt;) [transform:&lt;transform&gt;]</code></pre>
 <ul>
 <li><p><code>&lt;instructions&gt;</code> is a bracketed list of
 sub-commands (either separated by new lines or semicolons). See
 below.</p></li>
-<li><p>The <code>closed</code> option closes the path automatically,
-connecting the final point back to the first and also closing any
-sub-paths begun with <code>move-to</code>. A single instruction list may
-contain multiple sub-paths, all closed when <code>closed:yes</code> is
-specified.</p></li>
 <li><p><code>&lt;svg data&gt;</code> is a string containing SVG path
 data. See https://svgwg.org/specs/paths/ for details.</p></li>
 <li><p><code>&lt;name&gt;</code> is a path defined with <a
@@ -542,15 +537,19 @@ draws a quadratic Bézier curve.</li>
 draws a cubic Bézier curve.</li>
 <li><code>arc-to &lt;x&gt;,&lt;y&gt;,&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;] [turn:cw|ccw=cw] [large:yes|no=no] [rotate:&lt;deg&gt;=0]</code>
 draws an elliptical arc.</li>
-<li><code>arc-sweep &lt;cx&gt;,&lt;cy&gt;,&lt;degrees&gt; [end:&lt;variable&gt;]</code>
+<li><code>arc-sweep &lt;cx&gt;,&lt;cy&gt;,&lt;degrees&gt;</code>
 draws an arc around a center point, sweeping by the given angle.</li>
-<li><code>arc-move &lt;cx&gt;,&lt;cy&gt;,&lt;degrees&gt; [end:&lt;variable&gt;]</code>
+<li><code>arc-move &lt;cx&gt;,&lt;cy&gt;,&lt;degrees&gt;</code>
 moves the current point along an arc sweep without drawing.</li>
+<li><code>anchor [&lt;x&gt;,&lt;y&gt;]</code> sets a new local origin. Without coordinates it
+uses the current point; with coordinates it interprets them as global.</li>
+<li><code>cursor &lt;var&gt; | cursor ([x:&lt;var&gt;] [y:&lt;var&gt;])</code> stores the absolute
+cursor position in variables.</li>
+<li><code>path &lt;name&gt; | svg:&lt;data&gt; | [&lt;instructions&gt;] [transform:&lt;transform&gt;]</code>
+splices another path’s geometry into the current <code>PATH</code>.</li>
+<li><code>close</code> closes the current sub-path by drawing a line back to its
+starting point.</li>
 </ul>
-<p>The optional <code>end:</code> variable receives the endpoint as an
-<code>x,y</code> string (comma‑separated). It can be spliced in list
-contexts, for example: <code>line-to $p</code> or
-<code>ELLIPSE $p,3</code>.</p>
 <h4 id="sub-path-commands">Sub-path Commands</h4>
 <p>These commands mirror their drawing-instruction counterparts but only
 append path geometry (they don’t paint by themselves):</p>
@@ -587,12 +586,13 @@ PATH [
 // Heart balloon using cubic Beziers
 fill #ff6fae; pen #555555 width:2
 PATH [
-	move-to 170,80
-	bezier-to 170,60,210,60,210,80
-	bezier-to 210,110,170,130,170,150
-	bezier-to 170,130,130,110,130,80
-	bezier-to 130,60,170,60,170,80
-] closed:yes</code></pre>
+		move-to 170,80
+		bezier-to 170,60,210,60,210,80
+		bezier-to 210,110,170,130,170,150
+		bezier-to 170,130,130,110,130,80
+		bezier-to 130,60,170,60,170,80
+		close
+]</code></pre>
 <p><img src="images/pathBeziersExample.png" /></p>
 <p>Arcs:</p>
 <pre><code>format IVG-3 requires:ImpD-1
@@ -607,7 +607,7 @@ PATH [ move-to 60,120;	arc-sweep 170,120,140 ]
 pen #ff6fae width:3
 
 // arc-move (no draw), then a line to the moved endpoint
-PATH [ move-to 60,120; arc-move 170,120,110 end:p; line-to $p ]
+PATH [ move-to 60,120; arc-move 170,120,110; cursor p; line-to $p ]
 
 // a face for fun
 fill #ffd45a; pen #222222 width:2

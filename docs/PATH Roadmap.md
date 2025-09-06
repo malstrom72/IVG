@@ -70,49 +70,50 @@ These mirror drawing commands but only append geometry (no paint) and may appear
 - [x] Run `timeout 600 ./build.sh` and record any failures for follow‑up in Milestone 2.
 
 ### Milestone 2 – Anchor and Cursor Semantics
-- [ ] Add a `Vertex anchorOrigin` member to `PathInstructionExecutor` (`src/IVG.cpp:650`).
-- [ ] Initialize `anchorOrigin` to `Vertex(0,0)` in the constructor.
-- [ ] Handle `PATH_ANCHOR_INSTRUCTION` in `execute`:
-- [ ] No arguments – set `anchorOrigin = path.getPosition()`.
-- [ ] With `<x>,<y>` – parse using `parseNumberList` and assign to `anchorOrigin`.
-- [ ] Offset geometry relative to `anchorOrigin`.
-- [ ] Add helper `applyAnchor(double& x, double& y)` that adds `anchorOrigin`.
-- [ ] Use the helper in `moveTo`, `lineTo`, `quadraticTo`, `cubicTo`, `arcSweep`, and `arcMove` cases.
-- [ ] Implement `cursor` support in `PathInstructionExecutor::execute`.
-- [ ] Fetch `path.getPosition()` and format `"x,y"` with `impd.toString`.
-- [ ] `cursor p` – assign the combined string with `impd.set`.
-- [ ] `cursor [x:px y:py]` – assign individual variables when present.
-- [ ] Add regression tests under `tests/ivg` exercising `anchor` and `cursor`.
-- [ ] Run `timeout 600 ./build.sh`; address new failures or carry them forward.
+- [x] Add a `Vertex anchorOrigin` member to `PathInstructionExecutor` (`src/IVG.cpp:650`).
+- [x] Initialize `anchorOrigin` to `Vertex(0,0)` in the constructor.
+- [x] Handle `PATH_ANCHOR_INSTRUCTION` in `execute`:
+- [x] No arguments – set `anchorOrigin = path.getPosition()`.
+- [x] With `<x>,<y>` – parse using `parseNumberList` and assign to `anchorOrigin`.
+- [x] Offset geometry relative to `anchorOrigin`.
+- [x] Add helper `applyAnchor(double& x, double& y)` that adds `anchorOrigin`.
+- [x] Use the helper in `moveTo`, `lineTo`, `quadraticTo`, `cubicTo`, `arcSweep`, and `arcMove` cases.
+- [x] Translate appended geometry (`line`, `rect`, `ellipse`, `star`, `polygon`, `text`) in `appendChecked`.
+- [x] Implement `cursor` support in `PathInstructionExecutor::execute`.
+- [x] Fetch `path.getPosition()` and format `"x,y"` with `impd.toString`.
+- [x] `cursor p` – assign the combined string with `impd.set`.
+- [x] `cursor [x:px y:py]` – assign individual variables when present.
+- [x] Add regression tests under `tests/ivg` exercising `anchor` and `cursor`.
+- [x] Run `timeout 600 ./build.sh`; address new failures or carry them forward.
 
 ### Milestone 3 – Path Splicing and Transform
-- [ ] Add a `path` case to `PathInstructionExecutor::execute` (switch at `src/IVG.cpp:662‑755`).
-- [ ] Plain name – look up `IVGExecutor::definedPaths` (`src/IVG.h:377`).
-- [ ] Inline fragment or `svg:` – call `IVGExecutor::buildPath` to create a temporary `Path`.
-- [ ] Apply optional `transform:` before merging.
-- [ ] Clone the source geometry.
-- [ ] Use `NuXPixels::Path::transform` (`externals/NuX/NuXPixels.cpp:916‑919`).
-- [ ] Merge geometry into the current path.
-- [ ] Translate by current `anchorOrigin` so nested geometry lands in the caller’s coordinate system.
-- [ ] Append with `NuXPixels::Path::append` (`externals/NuX/NuXPixels.cpp:380`).
-- [ ] Rely on `Path::getPosition()` to advance the cursor automatically.
-- [ ] Permit `define path` to contain fragments by accepting paths without an initial `move-to`.
-- [ ] Create tests demonstrating path splicing with and without transforms.
-- [ ] Run `timeout 600 ./build.sh`; resolve issues or note them for Milestone 4.
+- [x] Add a `path` case to `PathInstructionExecutor::execute` (switch at `src/IVG.cpp:662‑755`).
+- [x] Plain name – look up `IVGExecutor::definedPaths` (`src/IVG.h:377`).
+- [x] Inline fragment or `svg:` – call `IVGExecutor::buildPath` to create a temporary `Path`.
+- [x] Apply optional `transform:` before merging.
+- [x] Clone the source geometry.
+- [x] Use `NuXPixels::Path::transform` (`externals/NuX/NuXPixels.cpp:916‑919`).
+- [x] Merge geometry into the current path.
+- [x] Translate by current `anchorOrigin` so nested geometry lands in the caller’s coordinate system.
+- [x] Append with `NuXPixels::Path::append` (`externals/NuX/NuXPixels.cpp:380`).
+- [x] Rely on `Path::getPosition()` to advance the cursor automatically.
+- [x] Permit `define path` to contain fragments by accepting paths without an initial `move-to`.
+- [x] Create tests demonstrating path splicing with and without transforms.
+- [x] Run `timeout 600 ./build.sh`; resolve issues or note them for Milestone 4.
 
 ### Milestone 4 – Close Handling and Legacy Cleanup
-- [ ] Implement the `close` instruction in `PathInstructionExecutor`.
-- [ ] Call `path.close()` (`externals/NuX/NuXPixels.cpp:386`).
-- [ ] Reset `anchorOrigin` to `(0,0)` so subsequent segments use global coordinates.
-- [ ] Retire legacy options.
-- [ ] Remove `closed:` parsing in `IVGExecutor::buildPath` (`src/IVG.cpp:1273-1282`).
-- [ ] Drop the `end:` parameter from `PATH_ARC_SWEEP_INSTRUCTION` and `PATH_ARC_MOVE_INSTRUCTION` (`src/IVG.cpp:736‑751`).
-- [ ] Refresh documentation and tests to match the new syntax.
-- [ ] Update `docs/IVG Documentation.*` and examples.
-- [ ] Adjust regression tests under `tests/ivg`.
-- [ ] Run `timeout 600 ./build.sh`; remaining failures are targeted for the final milestone.
+- [x] Implement the `close` instruction in `PathInstructionExecutor`.
+- [x] Call `path.close()` (`externals/NuX/NuXPixels.cpp:386`).
+- [x] Reset `anchorOrigin` to `(0,0)` so subsequent segments use global coordinates.
+- [x] Retire legacy options.
+- [x] Remove `closed:` parsing in `IVGExecutor::buildPath` (`src/IVG.cpp:1273-1282`).
+- [x] Drop the `end:` parameter from `PATH_ARC_SWEEP_INSTRUCTION` and `PATH_ARC_MOVE_INSTRUCTION` (`src/IVG.cpp:736‑751`).
+- [x] Refresh documentation and tests to match the new syntax.
+- [x] Update `docs/IVG Documentation.*` and examples.
+- [x] Adjust regression tests under `tests/ivg`.
+- [x] Run `timeout 600 ./build.sh`; remaining failures are targeted for the final milestone.
 
 ### Milestone 5 – Final Integration
-- [ ] Resolve outstanding test failures and ensure compatibility with existing `.ivg` files.
-- [ ] Validate specification compliance, formatting (tabs, 120-column limit), and update any remaining docs.
-- [ ] Run `timeout 600 ./build.sh` expecting a clean pass.
+- [x] Resolve outstanding test failures and ensure compatibility with existing `.ivg` files.
+- [x] Validate specification compliance, formatting (tabs, 120-column limit), and update any remaining docs.
+- [x] Run `timeout 600 ./build.sh` expecting a clean pass.
