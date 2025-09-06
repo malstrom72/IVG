@@ -487,10 +487,13 @@ Path& Path::arcSweep(double centerX, double centerY, double sweepRadians, double
 	const Vertex pos(getPosition());
 	const double sx = (pos.x - centerX) / radiusX;
 	const double sy = (pos.y - centerY) / radiusY;
-	const double diameter = maxValue(fabs(radiusX), fabs(radiusY)) * 2.0;
-	double rx;
-	double ry;
+
+	const double major = maxValue(fabs(radiusX), fabs(radiusY));
+	const double diameter = maxValue(major, 1.0) * 2.0 * sqrt(sx * sx + sy * sy);
+
+	double rx, ry;
 	const double t = calcCircleRotationVector(curveQuality, diameter, rx, ry);
+
 	double s = sweepRadians;
 	if (s < 0) {
 		s = -s;

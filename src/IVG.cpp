@@ -521,11 +521,7 @@ ARGB32::Pixel parseColor(const String& color) {
 /* --- Transforms --- */
 
 enum TransformType {
-	MATRIX_TRANSFORM,
-	SCALE_TRANSFORM,
-	ROTATE_TRANSFORM,
-	OFFSET_TRANSFORM,
-	SHEAR_TRANSFORM
+	MATRIX_TRANSFORM, SCALE_TRANSFORM, ROTATE_TRANSFORM, OFFSET_TRANSFORM, SHEAR_TRANSFORM
 };
 
 /* Built with QuickHashGen */
@@ -540,6 +536,13 @@ static int findTransformType(size_t n /* string length */, const char* s /* zero
 	int stringIndex = QUICK_HASH_TABLE[(s[1]) & 7];
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
+
+enum PathInstructionType {
+	PATH_MOVE_TO_INSTRUCTION, PATH_LINE_TO_INSTRUCTION, PATH_BEZIER_TO_INSTRUCTION, PATH_ARC_TO_INSTRUCTION,
+	PATH_ARC_SWEEP_INSTRUCTION, PATH_ARC_MOVE_INSTRUCTION, PATH_LINE_INSTRUCTION, PATH_RECT_INSTRUCTION,
+	PATH_ELLIPSE_INSTRUCTION, PATH_STAR_INSTRUCTION, PATH_POLYGON_INSTRUCTION, PATH_TEXT_INSTRUCTION,
+	PATH_ANCHOR_INSTRUCTION, PATH_CURSOR_INSTRUCTION, PATH_PATH_INSTRUCTION, PATH_CLOSE_INSTRUCTION
+};
 
 /* Built with QuickHashGen */
 // Seed: 903145365
@@ -633,13 +636,6 @@ class TransformationExecutor : public Executor {
 	public:		const AffineTransformation& getTransform() const { return xf; }
 	protected:	Executor& parentExecutor;
 	protected:	AffineTransformation xf;
-};
-
-enum Type {
-	PATH_MOVE_TO_INSTRUCTION, PATH_LINE_TO_INSTRUCTION, PATH_BEZIER_TO_INSTRUCTION, PATH_ARC_TO_INSTRUCTION,
-	PATH_ARC_SWEEP_INSTRUCTION, PATH_ARC_MOVE_INSTRUCTION, PATH_LINE_INSTRUCTION, PATH_RECT_INSTRUCTION,
-	PATH_ELLIPSE_INSTRUCTION, PATH_STAR_INSTRUCTION, PATH_POLYGON_INSTRUCTION, PATH_TEXT_INSTRUCTION,
-	PATH_ANCHOR_INSTRUCTION, PATH_CURSOR_INSTRUCTION, PATH_PATH_INSTRUCTION, PATH_CLOSE_INSTRUCTION
 };
 
 static Path& makeLinePath(Path& p, Interpreter& impd, ArgumentsContainer& args, int minPairs = 2);
@@ -754,9 +750,9 @@ class PathInstructionExecutor : public Executor {
 							applyAnchor(nums[0], nums[1]);
 							const double sweepRadians = min(max(nums[2] * DEGREES, -PI2), PI2);
 							if (foundInstruction == PATH_ARC_SWEEP_INSTRUCTION) {
-									path.arcSweep(nums[0], nums[1], sweepRadians, 1.0, 1.0, curveQuality);
+								path.arcSweep(nums[0], nums[1], sweepRadians, 1.0, 1.0, curveQuality);
 							} else {
-									path.arcMove(nums[0], nums[1], sweepRadians, 1.0, 1.0);
+								path.arcMove(nums[0], nums[1], sweepRadians, 1.0, 1.0);
 							}
 							return true;
 						}
@@ -845,16 +841,7 @@ class PathInstructionExecutor : public Executor {
 								fragment.transform(parseTransformationBlock(impd, *transformArg));
 							}
 							args.throwIfAnyUnfetched();
-							if (!fragment.empty() && fragment.begin()->first != Path::MOVE) {
-								Vertex cp = path.getPosition();
-								fragment.transform(AffineTransformation().translate(cp.x, cp.y));
-								if (path.size() + fragment.size() >= PATH_INSTRUCTION_LIMIT) {
-									Interpreter::throwRunTimeError("path instruction limit exceeded");
-								}
-								path.append(fragment);
-							} else {
-								appendChecked(fragment);
-							}
+							appendChecked(fragment);
 							return true;
 						}
 						case PATH_CLOSE_INSTRUCTION: {
@@ -1119,6 +1106,14 @@ int Context::calcPatternScale() const {
 	return static_cast<int>(max(ceil(scale * state.options.patternResolution - 0.0001), 1.0));
 }
 
+enum IVGInstruction {
+	RECT_INSTRUCTION, PEN_INSTRUCTION, FILL_INSTRUCTION, PATH_INSTRUCTION, MATRIX_INSTRUCTION, SCALE_INSTRUCTION
+	, ROTATE_INSTRUCTION, OFFSET_INSTRUCTION, SHEAR_INSTRUCTION, CONTEXT_INSTRUCTION, WIPE_INSTRUCTION
+	, OPTIONS_INSTRUCTION, RESET_INSTRUCTION, ELLIPSE_INSTRUCTION, STAR_INSTRUCTION, MASK_INSTRUCTION
+	, BOUNDS_INSTRUCTION, DEFINE_INSTRUCTION, FONT_INSTRUCTION, TEXT_INSTRUCTION, IMAGE_INSTRUCTION
+	, LINE_INSTRUCTION, POLYGON_INSTRUCTION
+};
+
 /* Built with QuickHashGen */
 static int findIVGInstruction(size_t n /* string length */, const char* s /* zero-terminated string */) {
 	static const char* STRINGS[23] = {
@@ -1142,14 +1137,6 @@ static int findIVGInstruction(size_t n /* string length */, const char* s /* zer
 	int stringIndex = HASH_TABLE[((0u + p[3]) << 3 ^ p[0]) & 127u];
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
-
-enum IVGInstruction {
-	RECT_INSTRUCTION, PEN_INSTRUCTION, FILL_INSTRUCTION, PATH_INSTRUCTION, MATRIX_INSTRUCTION, SCALE_INSTRUCTION
-	, ROTATE_INSTRUCTION, OFFSET_INSTRUCTION, SHEAR_INSTRUCTION, CONTEXT_INSTRUCTION, WIPE_INSTRUCTION
-	, OPTIONS_INSTRUCTION, RESET_INSTRUCTION, ELLIPSE_INSTRUCTION, STAR_INSTRUCTION, MASK_INSTRUCTION
-	, BOUNDS_INSTRUCTION, DEFINE_INSTRUCTION, FONT_INSTRUCTION, TEXT_INSTRUCTION, IMAGE_INSTRUCTION
-	, LINE_INSTRUCTION, POLYGON_INSTRUCTION
-};
 
 /* --- IVGExecutor --- */
 
@@ -1367,8 +1354,8 @@ void IVGExecutor::buildPath(Interpreter& impd, const String* blockArg, const Str
 			impd.throwBadSyntax(errorString);
 		}
 	} else {
-				versionRequired(impd, IVG_3, instruction);
-				const String& block = (blockArg != 0 ? *blockArg : args.fetchRequired(0, false));
+		versionRequired(impd, IVG_3, instruction);
+		const String& block = (blockArg != 0 ? *blockArg : args.fetchRequired(0, false));
 		PathInstructionExecutor pathExecutor(impd.getExecutor(), path, curveQuality, formatVersion);
 		Interpreter pathInterpreter(pathExecutor, impd);
 		pathInterpreter.run(block);
@@ -1721,8 +1708,8 @@ Path IVGExecutor::makeTextPath(Interpreter& impd, const State& state, const UniS
 	const char* errorString;
 	Path textPath;
 	bool success = buildPathForString(text, fonts, state.textStyle.size, state.textStyle.glyphTransform
-		, state.textStyle.letterSpacing, currentContext->calcCurveQuality(), textPath, advance
-		, errorString);
+			, state.textStyle.letterSpacing, currentContext->calcCurveQuality(), textPath, advance
+			, errorString);
 	if (!success) trace(impd, WideString(errorString, errorString + strlen(errorString)));
 	return textPath;
 }

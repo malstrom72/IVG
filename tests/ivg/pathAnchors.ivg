@@ -1,0 +1,25 @@
+format IVG-3 requires:IMPD-1
+bounds 0,0,320,360
+
+WIPE #ffffff
+fill none
+pen black width:2
+
+define path tri [ star 0,0,3,20 ]
+define path lineWithMove [ move-to 20,100; line-to -30,50 ]
+define path lineWithoutMove [ line-to -30,50 ]
+
+options curve-quality:1.0
+
+PATH [
+	anchor -20,-50
+	move-to 100,100
+	arc-sweep 100,140,320
+	anchor
+	path tri transform:[rotate 30]
+	path lineWithoutMove
+	path lineWithMove
+	anchor 100,50
+	path lineWithoutMove
+	path lineWithMove
+] transform:[scale 2,2.5; shear 0.0,-0.3]
