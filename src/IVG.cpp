@@ -544,22 +544,22 @@ static int findTransformType(size_t n /* string length */, const char* s /* zero
 /* Built with QuickHashGen */
 // Seed: 903145365
 static int findPathInstructionType(int n /* string length */, const char* s /* string (zero terminated) */) {
-static const char* STRINGS[16] = {
-"move-to", "line-to", "bezier-to", "arc-to", "arc-sweep", "arc-move", "line",
-"rect", "ellipse", "star", "polygon", "text", "anchor", "cursor", "path",
-"close"
-};
-static const int HASH_TABLE[64] = {
--1, -1, -1, 1, -1, -1, -1, -1, -1, -1, 15, 10, 12, -1, 5, -1,
-4, -1, -1, -1, -1, -1, -1, 3, -1, -1, -1, 0, 8, 13, -1, 2,
--1, 9, -1, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 6, -1,
--1, -1, -1, -1, 14, -1, -1, -1, 11, -1, -1, -1, -1, -1, -1, -1
-};
-const unsigned char* p = (const unsigned char*) s;
-assert(s[n] == '\0');
-if (n < 4 || n > 9) return -1;
-int stringIndex = HASH_TABLE[(p[2] ^ p[4]) & 63u];
-return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
+	static const char* STRINGS[16] = {
+		"move-to", "line-to", "bezier-to", "arc-to", "arc-sweep", "arc-move", "line",
+		"rect", "ellipse", "star", "polygon", "text", "anchor", "cursor", "path",
+		"close"
+	};
+	static const int HASH_TABLE[64] = {
+		-1, -1, -1, 1, -1, -1, -1, -1, -1, -1, 15, 10, 12, -1, 5, -1,
+		4, -1, -1, -1, -1, -1, -1, 3, -1, -1, -1, 0, 8, 13, -1, 2,
+		-1, 9, -1, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 6, -1,
+		-1, -1, -1, -1, 14, -1, -1, -1, 11, -1, -1, -1, -1, -1, -1, -1
+	};
+	const unsigned char* p = (const unsigned char*) s;
+	assert(s[n] == '\0');
+	if (n < 4 || n > 9) return -1;
+	int stringIndex = HASH_TABLE[(p[2] ^ p[4]) & 63u];
+	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
 static AffineTransformation parseSingleTransformation(Interpreter& impd, TransformType transformType, ArgumentsContainer& arguments) {
@@ -636,10 +636,10 @@ class TransformationExecutor : public Executor {
 };
 
 enum Type {
-PATH_MOVE_TO_INSTRUCTION, PATH_LINE_TO_INSTRUCTION, PATH_BEZIER_TO_INSTRUCTION, PATH_ARC_TO_INSTRUCTION,
-PATH_ARC_SWEEP_INSTRUCTION, PATH_ARC_MOVE_INSTRUCTION, PATH_LINE_INSTRUCTION, PATH_RECT_INSTRUCTION,
-PATH_ELLIPSE_INSTRUCTION, PATH_STAR_INSTRUCTION, PATH_POLYGON_INSTRUCTION, PATH_TEXT_INSTRUCTION,
-PATH_ANCHOR_INSTRUCTION, PATH_CURSOR_INSTRUCTION, PATH_PATH_INSTRUCTION, PATH_CLOSE_INSTRUCTION
+	PATH_MOVE_TO_INSTRUCTION, PATH_LINE_TO_INSTRUCTION, PATH_BEZIER_TO_INSTRUCTION, PATH_ARC_TO_INSTRUCTION,
+	PATH_ARC_SWEEP_INSTRUCTION, PATH_ARC_MOVE_INSTRUCTION, PATH_LINE_INSTRUCTION, PATH_RECT_INSTRUCTION,
+	PATH_ELLIPSE_INSTRUCTION, PATH_STAR_INSTRUCTION, PATH_POLYGON_INSTRUCTION, PATH_TEXT_INSTRUCTION,
+	PATH_ANCHOR_INSTRUCTION, PATH_CURSOR_INSTRUCTION, PATH_PATH_INSTRUCTION, PATH_CLOSE_INSTRUCTION
 };
 
 static Path& makeLinePath(Path& p, Interpreter& impd, ArgumentsContainer& args, int minPairs = 2);
@@ -675,8 +675,8 @@ public: PathInstructionExecutor(Executor& parentExecutor, Path& path, double cur
 							args.throwIfAnyUnfetched();
 							return true;
 						}
-case PATH_LINE_TO_INSTRUCTION: {
-StringVector elems;
+						case PATH_LINE_TO_INSTRUCTION: {
+							StringVector elems;
 							int count = impd.parseList(args.fetchRequired(0), elems, true, false, 2, 20000);
 							args.throwIfAnyUnfetched();
 							if ((count & 1) != 0) {
@@ -690,8 +690,8 @@ StringVector elems;
 		}
 							return true;
 						}
-case PATH_BEZIER_TO_INSTRUCTION: {
-StringVector elems;
+						case PATH_BEZIER_TO_INSTRUCTION: {
+							StringVector elems;
 							int count = impd.parseList(args.fetchRequired(0), elems, true, false, 4, 6);
 							args.throwIfAnyUnfetched();
 							if (count != 4 && count != 6) {
@@ -709,8 +709,8 @@ StringVector elems;
 							}
 							return true;
 						}
-case PATH_ARC_TO_INSTRUCTION: {
-StringVector elems;
+						case PATH_ARC_TO_INSTRUCTION: {
+							StringVector elems;
 							int count = impd.parseList(args.fetchRequired(0), elems, true, false, 3, 4);
 							double end[2];
 							end[0] = impd.toDouble(elems[0]);
@@ -1786,13 +1786,13 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				builtPath.transform(parseTransformationBlock(impd, *transform));
 				pathPointer = &builtPath;
 			}
-		args.throwIfAnyUnfetched();
-		if (pathPointer->empty() || pathPointer->begin()->first != Path::MOVE) {
-			Interpreter::throwRunTimeError("Invalid first path instruction: " + instruction);
+			args.throwIfAnyUnfetched();
+			if (pathPointer->empty() || pathPointer->begin()->first != Path::MOVE) {
+				Interpreter::throwRunTimeError("Invalid first path instruction: " + instruction);
+			}
+			currentContext->draw(*pathPointer);
+			break;
 		}
-		currentContext->draw(*pathPointer);
-		break;
-	}
 			
 		case MATRIX_INSTRUCTION:
 		case SCALE_INSTRUCTION:
