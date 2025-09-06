@@ -654,8 +654,10 @@ static double anchorOffset(TextAnchor anchor, double advance);
 static AffineTransformation parseTransformationBlock(Interpreter& impd, const String& source);
 
 class PathInstructionExecutor : public Executor {
-public: PathInstructionExecutor(Executor& parentExecutor, Path& path, double curveQuality, IVGExecutor::FormatVersion formatVersion)
-: parentExecutor(parentExecutor), path(path), curveQuality(curveQuality), formatVersion(formatVersion), anchorOrigin(0.0, 0.0) { };
+	public: 	PathInstructionExecutor(Executor& parentExecutor, Path& path, double curveQuality, IVGExecutor::FormatVersion formatVersion)
+						: parentExecutor(parentExecutor), path(path), curveQuality(curveQuality), formatVersion(formatVersion)
+						, anchorOrigin(0.0, 0.0) {
+				};
 	public:		virtual bool format(Interpreter& impd, const String& identifier, const vector<String>& uses
 						, const vector<String>& requires) {
 					(void)impd; (void)identifier; (void)uses; (void)requires;
@@ -671,7 +673,7 @@ public: PathInstructionExecutor(Executor& parentExecutor, Path& path, double cur
 							double numbers[2];
 							parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
 							applyAnchor(numbers[0], numbers[1]);
-				path.moveTo(numbers[0], numbers[1]);
+							path.moveTo(numbers[0], numbers[1]);
 							args.throwIfAnyUnfetched();
 							return true;
 						}
@@ -683,11 +685,11 @@ public: PathInstructionExecutor(Executor& parentExecutor, Path& path, double cur
 								impd.throwBadSyntax("line-to requires an even number of coordinates");
 							}
 							for (int i = 0; i < count; i += 2) {
-			double x = impd.toDouble(elems[i]);
-			double y = impd.toDouble(elems[i + 1]);
-			applyAnchor(x, y);
-			path.lineTo(x, y);
-		}
+								double x = impd.toDouble(elems[i]);
+								double y = impd.toDouble(elems[i + 1]);
+								applyAnchor(x, y);
+								path.lineTo(x, y);
+							}
 							return true;
 						}
 						case PATH_BEZIER_TO_INSTRUCTION: {
@@ -701,11 +703,11 @@ public: PathInstructionExecutor(Executor& parentExecutor, Path& path, double cur
 							for (int i = 0; i < count; ++i) n[i] = impd.toDouble(elems[i]);
 							if (count == 4) {
 								applyAnchor(n[0], n[1]);
-				applyAnchor(n[2], n[3]);
-				path.quadraticTo(n[0], n[1], n[2], n[3], curveQuality);
+								applyAnchor(n[2], n[3]);
+								path.quadraticTo(n[0], n[1], n[2], n[3], curveQuality);
 							} else {
 								for (int i = 0; i < 6; i += 2) applyAnchor(n[i], n[i + 1]);
-				path.cubicTo(n[0], n[1], n[2], n[3], n[4], n[5], curveQuality);
+								path.cubicTo(n[0], n[1], n[2], n[3], n[4], n[5], curveQuality);
 							}
 							return true;
 						}
@@ -737,57 +739,57 @@ public: PathInstructionExecutor(Executor& parentExecutor, Path& path, double cur
 							const String* rotateArg = args.fetchOptional("rotate");
 							if (rotateArg != 0) rotate = impd.toDouble(*rotateArg);
 							args.throwIfAnyUnfetched();
-				applyAnchor(end[0], end[1]);
-				Vertex startPos(path.getPosition());
+							applyAnchor(end[0], end[1]);
+							Vertex startPos(path.getPosition());
 							Vertex endPos(end[0], end[1]);
 							appendArcSegment(startPos, endPos, rx, ry, rotate, sweepFlag, largeFlag, curveQuality, path);
 							path.lineTo(endPos.x, endPos.y);
 							return true;
 						}
-case PATH_ARC_SWEEP_INSTRUCTION:
-case PATH_ARC_MOVE_INSTRUCTION: {
-double nums[3];
-														parseNumberList(impd, args.fetchRequired(0), nums, 3, 3);
-														args.throwIfAnyUnfetched();
-								applyAnchor(nums[0], nums[1]);
-								const double sweepRadians = min(max(nums[2] * DEGREES, -PI2), PI2);
-														if (foundInstruction == PATH_ARC_SWEEP_INSTRUCTION) {
-																path.arcSweep(nums[0], nums[1], sweepRadians, 1.0, 1.0, curveQuality);
-														} else {
-																path.arcMove(nums[0], nums[1], sweepRadians, 1.0, 1.0);
-														}
-														return true;
-								}
-			case PATH_ANCHOR_INSTRUCTION: {
-				const String* coords = args.fetchOptional(0);
-				args.throwIfAnyUnfetched();
-				if (coords == 0) {
-					anchorOrigin = path.getPosition();
-				} else {
-					double nums[2];
-					parseNumberList(impd, *coords, nums, 2, 2);
-					anchorOrigin.x = nums[0];
-					anchorOrigin.y = nums[1];
-				}
-				return true;
-			}
-			case PATH_CURSOR_INSTRUCTION: {
-				Vertex ep = path.getPosition();
-				const String* simple = args.fetchOptional(0, true);
-				const String* xVar = args.fetchOptional("x", true);
-				const String* yVar = args.fetchOptional("y", true);
-				args.throwIfAnyUnfetched();
-				if (simple != 0) {
-					if (xVar != 0 || yVar != 0) impd.throwBadSyntax("cursor cannot mix forms");
-					impd.set(*simple, impd.toString(ep.x) + String(",") + impd.toString(ep.y));
-				} else {
-					if (xVar == 0 && yVar == 0) impd.throwBadSyntax("cursor requires at least one of x: or y:");
-					if (xVar != 0) impd.set(*xVar, impd.toString(ep.x));
-					if (yVar != 0) impd.set(*yVar, impd.toString(ep.y));
-				}
-				return true;
-			}
-			case PATH_LINE_INSTRUCTION: {
+						case PATH_ARC_SWEEP_INSTRUCTION:
+						case PATH_ARC_MOVE_INSTRUCTION: {
+							double nums[3];
+							parseNumberList(impd, args.fetchRequired(0), nums, 3, 3);
+							args.throwIfAnyUnfetched();
+							applyAnchor(nums[0], nums[1]);
+							const double sweepRadians = min(max(nums[2] * DEGREES, -PI2), PI2);
+							if (foundInstruction == PATH_ARC_SWEEP_INSTRUCTION) {
+									path.arcSweep(nums[0], nums[1], sweepRadians, 1.0, 1.0, curveQuality);
+							} else {
+									path.arcMove(nums[0], nums[1], sweepRadians, 1.0, 1.0);
+							}
+							return true;
+						}
+						case PATH_ANCHOR_INSTRUCTION: {
+							const String* coords = args.fetchOptional(0);
+							args.throwIfAnyUnfetched();
+							if (coords == 0) {
+								anchorOrigin = path.getPosition();
+							} else {
+								double nums[2];
+								parseNumberList(impd, *coords, nums, 2, 2);
+								anchorOrigin.x = nums[0];
+								anchorOrigin.y = nums[1];
+							}
+							return true;
+						}
+						case PATH_CURSOR_INSTRUCTION: {
+							Vertex ep = path.getPosition();
+							const String* simple = args.fetchOptional(0, true);
+							const String* xVar = args.fetchOptional("x", true);
+							const String* yVar = args.fetchOptional("y", true);
+							args.throwIfAnyUnfetched();
+							if (simple != 0) {
+								if (xVar != 0 || yVar != 0) impd.throwBadSyntax("cursor cannot mix forms");
+								impd.set(*simple, impd.toString(ep.x) + String(",") + impd.toString(ep.y));
+							} else {
+								if (xVar == 0 && yVar == 0) impd.throwBadSyntax("cursor requires at least one of x: or y:");
+								if (xVar != 0) impd.set(*xVar, impd.toString(ep.x));
+								if (yVar != 0) impd.set(*yVar, impd.toString(ep.y));
+							}
+							return true;
+						}
+						case PATH_LINE_INSTRUCTION: {
 							appendChecked(makeLinePath(subPath, impd, args));
 							return true;
 						}
@@ -824,62 +826,62 @@ double nums[3];
 							return true;
 						}
 						case PATH_PATH_INSTRUCTION: {
-								IVGExecutor& ivg = static_cast<IVGExecutor&>(parentExecutor);
-								const String* nameArg = args.fetchOptional(0, false);
-								const String* svg = args.fetchOptional("svg");
-								Path fragment;
-				if (svg == 0 && nameArg != 0 && !nameArg->empty() && (*nameArg)[0] != '[') {
-					const WideString name = impd.unescapeToWide(impd.expand(*nameArg));
-					IVGExecutor::PathMap::const_iterator it = ivg.definedPaths.find(name);
-					if (it == ivg.definedPaths.end()) {
-						Interpreter::throwRunTimeError(String("Undefined path: ") + String(name.begin(), name.end()));
-					}
-					fragment = it->second;
-				} else {
-					ivg.buildPath(impd, nameArg, svg, args, String("path"), fragment);
-				}
-				const String* transformArg = args.fetchOptional("transform");
-				if (transformArg != 0) {
-					fragment.transform(parseTransformationBlock(impd, *transformArg));
-				}
-				args.throwIfAnyUnfetched();
-				if (!fragment.empty() && fragment.begin()->first != Path::MOVE) {
-					Vertex cp = path.getPosition();
-					fragment.transform(AffineTransformation().translate(cp.x, cp.y));
-					if (path.size() + fragment.size() >= PATH_INSTRUCTION_LIMIT) {
-						Interpreter::throwRunTimeError("path instruction limit exceeded");
-					}
-					path.append(fragment);
-				} else {
-					appendChecked(fragment);
-				}
-								return true;
+							IVGExecutor& ivg = static_cast<IVGExecutor&>(parentExecutor);
+							const String* nameArg = args.fetchOptional(0, false);
+							const String* svg = args.fetchOptional("svg");
+							Path fragment;
+							if (svg == 0 && nameArg != 0 && !nameArg->empty() && (*nameArg)[0] != '[') {
+								const WideString name = impd.unescapeToWide(impd.expand(*nameArg));
+								IVGExecutor::PathMap::const_iterator it = ivg.definedPaths.find(name);
+								if (it == ivg.definedPaths.end()) {
+									Interpreter::throwRunTimeError(String("Undefined path: ") + String(name.begin(), name.end()));
+								}
+								fragment = it->second;
+							} else {
+								ivg.buildPath(impd, nameArg, svg, args, String("path"), fragment);
+							}
+							const String* transformArg = args.fetchOptional("transform");
+							if (transformArg != 0) {
+								fragment.transform(parseTransformationBlock(impd, *transformArg));
+							}
+							args.throwIfAnyUnfetched();
+							if (!fragment.empty() && fragment.begin()->first != Path::MOVE) {
+								Vertex cp = path.getPosition();
+								fragment.transform(AffineTransformation().translate(cp.x, cp.y));
+								if (path.size() + fragment.size() >= PATH_INSTRUCTION_LIMIT) {
+									Interpreter::throwRunTimeError("path instruction limit exceeded");
+								}
+								path.append(fragment);
+							} else {
+								appendChecked(fragment);
+							}
+							return true;
 						}
 						case PATH_CLOSE_INSTRUCTION: {
-								args.throwIfAnyUnfetched();
-								path.close();
-								anchorOrigin = Vertex(0.0, 0.0);
-								return true;
+							args.throwIfAnyUnfetched();
+							path.close();
+							anchorOrigin = Vertex(0.0, 0.0);
+							return true;
 						}
-										}
-										return false;
-								}
+					}
+					return false;
+				}
 	public:		virtual void trace(Interpreter& impd, const WideString& s) { parentExecutor.trace(impd, s); }
 	public:		virtual bool progress(Interpreter& impd, int maxStatementsLeft) { return parentExecutor.progress(impd, maxStatementsLeft); }
 	public:		virtual bool load(Interpreter& impd, const WideString& filename, String& contents) { return parentExecutor.load(impd, filename, contents); }
 	protected:	void appendChecked(Path& p) {
-				if (anchorOrigin.x != 0.0 || anchorOrigin.y != 0.0) {
-					p.transform(AffineTransformation().translate(anchorOrigin.x, anchorOrigin.y));
+					if (anchorOrigin.x != 0.0 || anchorOrigin.y != 0.0) {
+						p.transform(AffineTransformation().translate(anchorOrigin.x, anchorOrigin.y));
+					}
+					if (path.size() + p.size() >= PATH_INSTRUCTION_LIMIT) {
+						Interpreter::throwRunTimeError("path instruction limit exceeded");
+					}
+					path.append(p);
 				}
-				if (path.size() + p.size() >= PATH_INSTRUCTION_LIMIT) {
-					Interpreter::throwRunTimeError("path instruction limit exceeded");
-				}
-				path.append(p);
-			}
 	protected:	void applyAnchor(double& x, double& y) const {
-				x += anchorOrigin.x;
-				y += anchorOrigin.y;
-			}
+					x += anchorOrigin.x;
+					y += anchorOrigin.y;
+				}
 	protected:	Executor& parentExecutor;
 	protected:	Path& path;
 	protected:	const double curveQuality;
