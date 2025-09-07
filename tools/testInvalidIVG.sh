@@ -28,7 +28,13 @@ if [ "$UPDATE" -eq 1 ]; then
 		"$EXE" "$f"
 	done | tee invalidIVGResults.txt
 else
+	# Run all tests, do not stop early, but exit non-zero if any failed.
+	set +e
+	fail=0
 	for f in ./ivg/invalid/*.ivg; do
 		"$EXE" "$f"
+		[ "$?" -ne 0 ] && fail=1
 	done
+	set -e
+	exit $fail
 fi

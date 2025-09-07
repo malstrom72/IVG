@@ -1,0 +1,5 @@
+format IVG-3
+BOUNDS 0,0,10,10
+// bezier-to with invalid number of arguments (5 numbers)
+PATH [move-to 0,0; bezier-to 1,2,3,4,5]
+

@@ -68,6 +68,7 @@ using NuXPixels::Rect; // Rect is a typedef in Carbon which can confuse the comp
 using NuXPixels::Path;
 
 const int PATH_INSTRUCTION_LIMIT = 1000000;
+const int MAX_LINE_COORDINATES = 200000; // 100000 lines
 
 inline double square(double d) { return d * d; }
 

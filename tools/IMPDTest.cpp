@@ -47,7 +47,7 @@ class MyExecutor : public Executor {
 						}
 						std::cout << "Test instruction" << std::endl;
 						std::vector<String> list;
-						interpreter.parseList(interpreter.expand(indexedArguments[0]), list, true, true);
+						interpreter.parseList(interpreter.expand(indexedArguments[0]), list, true, true, 0, 100000);
 						for (std::vector<String>::const_iterator it = list.begin(); it != list.end(); ++it) {
 							std::cout << *it << std::endl;
 						}

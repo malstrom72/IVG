@@ -205,8 +205,8 @@ class Interpreter {
 	public:		int mapArguments(const ArgumentVector& allArguments, StringStringMap& labeledArguments
 						, StringVector& indexedArguments);																///< `labeledArguments` will map the labels converted to all lower case
 	public:		void parseArguments(const StringRange& r, ArgumentVector& arguments) const;
-	public:		int parseList(const StringRange& r, StringVector& elements, bool expandAll = false
-						, bool removeEmpty = false, int minElements = 0, int maxElements = INT_MAX) const;
+	public:		int parseList(const StringRange& r, StringVector& elements, bool expandAll 
+						, bool removeEmpty, int minElements, int maxElements) const;
 	public:		String expand(const StringRange& s) const;
 	public:		void set(const String& name, const String& value);
 	public:		String get(const String& name) const;

@@ -1263,10 +1263,10 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			const String& formatId = args.fetchRequired(0);
 			StringVector usesList;
 			const String* s = args.fetchOptional("uses");
-			if (s != 0) parseList(*s, usesList, true, true);
+			if (s != 0) parseList(*s, usesList, true, true, 0, 100);
 			StringVector requiresList;
 			s = args.fetchOptional("requires");
-			if (s != 0) parseList(*s, requiresList, true, true);
+			if (s != 0) parseList(*s, requiresList, true, true, 0, 100);
 			args.throwIfAnyUnfetched();
 
 			transform(usesList.begin(), usesList.end(), usesList.begin(), toLower);
@@ -1341,7 +1341,7 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 				if (reverseArg != 0) reverse = toBool(*reverseArg);
 				args.throwIfAnyUnfetched();
 				StringVector list;
-				parseList(*inWhat, list, false, false);
+				parseList(*inWhat, list, false, false, 0, 10000000);
 				if (reverse) std::reverse(list.begin(), list.end());
 				for (StringVector::const_iterator it = list.begin(), e = list.end(); it != e; ++it) {
 					set(indexVar, *it);

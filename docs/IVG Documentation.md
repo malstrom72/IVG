@@ -341,7 +341,7 @@ _The `PATH svg:` form is available in all IVG versions. The instruction-list var
 - `arc-sweep <cx>,<cy>,<degrees>` draws an arc around a center point, sweeping by the given angle.
 - `arc-move <cx>,<cy>,<degrees>` moves the current point along an arc sweep without drawing.
 - `anchor [<x>,<y>]` sets a new local origin. Without coordinates it uses the current point; with coordinates it interprets them as global.
-- `cursor <var> | cursor ([x:<var>] [y:<var>])` stores the absolute cursor position in variables.
+- `cursor [<var>] [x:<var>] [y:<var>]` stores the cursor position (global) in variables. Either `x`, `y` or both in `x,y` format.
 - `path <name> | svg:<data> | [<instructions>] [transform:<transform>]` splices another path’s geometry into the current `PATH`.
 - `close` closes the current sub-path by drawing a line back to its starting point.
 

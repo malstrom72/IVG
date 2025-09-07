@@ -1,0 +1,5 @@
+format IVG-3
+BOUNDS 0,0,10,10
+// text inside path requires the string argument
+PATH [text]
+

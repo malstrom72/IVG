@@ -64,8 +64,17 @@ echo Testing...
 cd tests
 echo Invalid IVG tests...
 tmp=$(mktemp)
+# Run invalid IVG tests and capture both output and exit status without aborting the pipeline
+set +e
 bash ../tools/testInvalidIVG.sh ../output/InvalidIVGTest | tee "$tmp"
+status=${PIPESTATUS[0]}
+set -e
 diff --strip-trailing-cr invalidIVGResults.txt "$tmp"
+if [ $status -ne 0 ]; then
+	# Non-zero means at least one test failed; the diff above should also fail if outputs differ,
+	# but keep the explicit status to satisfy callers that inspect exit codes.
+	exit $status
+fi
 rm "$tmp"
 bash ../tools/testIVG.sh ../output/IVG2PNG
 if [ -n "${SKIP_SVG:-}" ]; then
