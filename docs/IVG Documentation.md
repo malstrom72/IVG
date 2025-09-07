@@ -319,7 +319,7 @@ referencing a previously defined path name.
 
 Syntax:
 
-		PATH ((<instructions>) | svg:<svg data> | <name>) [transform:<transform>]
+		PATH (<instructions> | svg:<svg data> | <name>) [transform:<transform>]
 
 - `<instructions>` is a bracketed list of sub-commands (either separated by new lines or semicolons). See below.
 
@@ -329,20 +329,25 @@ Syntax:
 
 - The `transform` option applies a transformation before drawing, using the same syntax as [`IMAGE`](#image).
 
+Inside `<instructions>`, lists are bracketed; commas between coordinate pairs may be omitted.
+
 _The `PATH svg:` form is available in all IVG versions. The instruction-list variant requires IVG-3._
 
 #### Path Instructions
+
+Within `PATH [ ... ]`, commas may be omitted between coordinate pairs.
 
 - `move-to <x>,<y>` sets the starting point for a new sub-path.
 - `line-to <x>,<y>[,<x>,<y> ...]` draws one or more line segments from the current point.
 - `bezier-to <cx>,<cy>,<x>,<y>` draws a quadratic Bézier curve.
 - `bezier-to <c1x>,<c1y>,<c2x>,<c2y>,<x>,<y>` draws a cubic Bézier curve.
-- `arc-to <x>,<y>,<r>[,<ry>=<r>] [turn:cw|ccw=cw] [large:yes|no=no] [rotate:<deg>=0]` draws an elliptical arc.
+- `arc-to <x>,<y>,<r>[,<ry>=<r>] [turn:(cw|ccw)=cw] [large:yes|no=no] [rotate:<deg>=0]` draws an elliptical arc.
+	`rotate:<deg>` and `turn:` use the global angle conventions.
 - `arc-sweep <cx>,<cy>,<degrees>` draws an arc around a center point, sweeping by the given angle.
 - `arc-move <cx>,<cy>,<degrees>` moves the current point along an arc sweep without drawing.
-- `anchor [<x>,<y>]` sets a new local origin. Without coordinates it uses the current point; with coordinates it interprets them as global.
-- `cursor [<var>] [x:<var>] [y:<var>]` stores the cursor position (global) in variables. Either `x`, `y` or both in `x,y` format.
-- `path <name> | svg:<data> | [<instructions>] [transform:<transform>]` splices another path’s geometry into the current `PATH`.
+- `anchor [<x>,<y>]` sets a new local origin (translation only) for subsequent `PATH` coordinates. With no arguments, uses the current point; with coordinates, interprets them as global. This anchor is distinct from the `anchor:` option used in transforms.
+- `cursor <var> | ( [x:<var>] [y:<var>] )` stores the global cursor position. `cursor p` sets `$p = "x,y"`. `cursor (x:px y:py)` sets `$px` and `$py`. At least one of `x:` or `y:` is required.
+- `path <name> | svg:<data> | [<instructions>] [transform:<transform>]` splices another path’s geometry into the current `PATH`; it does not paint by itself.
 - `close` closes the current sub-path by drawing a line back to its starting point.
 
 #### Sub-path Commands
@@ -375,13 +380,13 @@ Quadratic and cubic Bézier curves:
 
 	// Heart balloon using cubic Beziers
 	fill #ff6fae; pen #555555 width:2
-	PATH [
-		move-to 170,80
-		bezier-to 170,60,210,60,210,80
-		bezier-to 210,110,170,130,170,150
-				bezier-to 170,130,130,110,130,80
-				bezier-to 130,60,170,60,170,80
-				close
+		PATH [
+			move-to 170,80
+			bezier-to 170,60,210,60,210,80
+			bezier-to 210,110,170,130,170,150
+			bezier-to 170,130,130,110,130,80
+			bezier-to 130,60,170,60,170,80
+			close
 		]
 ![](images/pathBeziersExample.png)
 
@@ -1407,7 +1412,7 @@ The syntax for specifying a transformation is as follows:
 -	The scale `<n>[,<n>]` alternative resizes the context/object by the specified `<n>` factor. You can provide an
 	optional second value to specify a different scaling factor for the x and y-axis.
 
--	The `rotate` alternative rotates the context/object by the specified `<degrees>` amount.
+-	The `rotate` alternative rotates the context/object by the specified `<degrees>` amount. `<degrees>` follows the global angle conventions (0° at +x, clockwise positive).
 
 -	The `shear` alternative skews the context/object by the specified `<x>` and `<y>` amount.
 
