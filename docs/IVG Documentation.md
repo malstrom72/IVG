@@ -97,8 +97,8 @@ The _IVG_ format used in this documentation is `IVG-3`. Therefore, the `format` 
 ## Case conventions
 
 _ImpD_ is case-insensitive, but this documentation follows a convention: "directives" (defining settings, etc.) are
-written in lowercase and drawing instructions in uppercase. Segment commands inside `PATH` compounds—such as `move-to`
-and `line-to`—also appear in lowercase. In short, any instruction in uppercase produces visible output, while
+written in lowercase and drawing instructions in uppercase. Segment commands inside `PATH` compounds, such as `move-to`
+and `line-to`, also appear in lowercase. In short, any instruction in uppercase produces visible output, while
 lowercase forms configure state or describe geometry for later use. In all examples, drawing instructions appear in
 UPPERCASE.
 
@@ -112,7 +112,7 @@ Any `opacity` modifier multiplies the alpha channel of its paint.
 All coordinates are measured in pixels. The origin is at the top-left corner, _x_ increases to the right, _y_ increases
 downward, and fractional coordinates are allowed.
 
-Angle conventions: Angles are in degrees; 0° at the positive x‑axis; clockwise is positive unless stated otherwise.
+Angle conventions: Angles are in degrees, 0° at the positive x‑axis, clockwise is positive.
 
 ## List grouping
 
@@ -129,7 +129,7 @@ The two forms are equivalent. Bracketed lists are often easier to read for geome
 
 ## Error handling
 
-Malformed input—such as unknown directives, incorrect argument counts, or out-of-range values—triggers a run-time error
+Malformed input, such as unknown directives, incorrect argument counts or out-of-range values, triggers a run-time error
 and halts rendering.
 
 ## IVG-1 vs IVG-2 vs IVG-3
@@ -157,7 +157,7 @@ Syntax:
 -	`<r>[,<ry>=<r>]` is the radius of the ellipse. If you only provide one value, it will be used for both axes,
 	creating a circle.
 	
--	With `sweep`, draws a closed partial ellipse sector; `<start>` and `<degrees>` follow the angle conventions.
+-	With `sweep`, draws a closed partial ellipse sector. `<start>` and `<degrees>` follow the angle conventions (0° at the positive x‑axis, clockwise is positive).
 	
 -	`type` is either `chord` or `pie`:
 	-	`chord` closes the arc with a straight line between arc endpoints (default).
@@ -319,7 +319,7 @@ referencing a previously defined path name.
 
 Syntax:
 
-		PATH (<instructions> | svg:<svg data> | <name>) [transform:<transform>]
+	PATH (<instructions> | svg:<svg data> | <name>) [transform:<transform>]
 
 - `<instructions>` is a bracketed list of sub-commands (either separated by new lines or semicolons). See below.
 
@@ -329,8 +329,6 @@ Syntax:
 
 - The `transform` option applies a transformation before drawing, using the same syntax as [`IMAGE`](#image).
 
-Inside `<instructions>`, lists are bracketed; commas between coordinate pairs may be omitted.
-
 _The `PATH svg:` form is available in all IVG versions. The instruction-list variant requires IVG-3._
 
 #### Path Instructions
@@ -338,27 +336,29 @@ _The `PATH svg:` form is available in all IVG versions. The instruction-list var
 Within `PATH [ ... ]`, commas may be omitted between coordinate pairs.
 
 - `move-to <x>,<y>` sets the starting point for a new sub-path.
-- `line-to <x>,<y>[,<x>,<y> ...]` draws one or more line segments from the current point.
+- `line-to <x>,<y>[,<x>,<y>,...]` draws one or more line segments from the current point.
 - `bezier-to <cx>,<cy>,<x>,<y>` draws a quadratic Bézier curve.
 - `bezier-to <c1x>,<c1y>,<c2x>,<c2y>,<x>,<y>` draws a cubic Bézier curve.
 - `arc-to <x>,<y>,<r>[,<ry>=<r>] [turn:(cw|ccw)=cw] [large:yes|no=no] [rotate:<deg>=0]` draws an elliptical arc.
-	`rotate:<deg>` and `turn:` use the global angle conventions.
-- `arc-sweep <cx>,<cy>,<degrees>` draws an arc around a center point, sweeping by the given angle.
+- `arc-sweep <cx>,<cy>,<degrees>` draws an arc around a center point, sweeping by the given angle (positive is clockwise).
 - `arc-move <cx>,<cy>,<degrees>` moves the current point along an arc sweep without drawing.
-- `anchor [<x>,<y>]` sets a new local origin (translation only) for subsequent `PATH` coordinates. With no arguments, uses the current point; with coordinates, interprets them as global. This anchor is distinct from the `anchor:` option used in transforms.
-- `cursor <var> | ( [x:<var>] [y:<var>] )` stores the global cursor position. `cursor p` sets `$p = "x,y"`. `cursor (x:px y:py)` sets `$px` and `$py`. At least one of `x:` or `y:` is required.
-- `path <name> | svg:<data> | [<instructions>] [transform:<transform>]` splices another path’s geometry into the current `PATH`; it does not paint by itself.
-- `close` closes the current sub-path by drawing a line back to its starting point.
+- `close` closes the current sub-path by drawing a line back to its starting point. (No effect if already closed.)
+
+#### Coordinate System and State
+
+- `anchor [<x>,<y>]` sets a new local origin (translation only) for subsequent `PATH` coordinates. Uses the current point if no arguments are supplied, otherwise the coordinates are interpreted as global (unrelated to any previous `anchor` calls).
+- `cursor [<var>] [x:<var>] [y:<var>]` stores the global cursor position (indifferent to any previous `anchor` calls). At least one target must be provided.
 
 #### Sub-path Commands
 
 These commands mirror their drawing-instruction counterparts but only append path geometry (they don’t paint by themselves):
 
-- `line <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]` appends an open polyline starting at `<x0>,<y0>`.
-- `rect <x>,<y>,<w>,<h> [rounded:<r>|<rx>,<ry>]` appends an axis-aligned rectangle.
 - `ellipse <cx>,<cy>,<r>[,<ry>=<r>] [ sweep:<start>,<degrees> [ type:(pie|chord)=chord ] ]` appends a full ellipse or a closed sector.
-- `star <cx>,<cy>,<points>,<r1>[,<r2>=<r1>] [rotation:<angle>]` appends a star or regular polygon.
+- `line <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]` appends an open polyline starting at `<x0>,<y0>`.
+- `path <name> | svg:<data> | [<instructions>] [transform:<transform>]` splices another path’s geometry into the current `PATH`. If the spliced path doesn’t begin with move-to, its first segment continues from the current point
 - `polygon <x0>,<y0> <x1>,<y1> [<x2>,<y2> ...]` appends a closed polygon.
+- `rect <x>,<y>,<w>,<h> [rounded:<r>|<rx>,<ry>]` appends an axis-aligned rectangle.
+- `star <cx>,<cy>,<points>,<r1>[,<r2>=<r1>] [rotation:<angle>]` appends a star or regular polygon.
 - `text [at:<x,y>] [anchor:left|center|right=left] <text>` appends a text outline.
 
 #### Examples
@@ -1268,8 +1268,6 @@ as in the [`pen`](#pen) and [`fill`](#fill) directives. The syntax for specifyin
 	<gradient> = (linear <x0>,<y0>,<x1>,<y1> | radial <cx>,<cy>,(<r>|<rx>,<ry>))
 				(from:<color> to:<color> | stops:<number>,<color>,[<number>,<color>,...])
 
--	The coordinates are comma-separated without spaces; the space-separated form from earlier versions is not supported.
-
 -	The `linear` alternative creates a linear gradient that transitions between colors along a straight line defined by
 	two points (`<x0>,<y0>` and `<x1>,<y1>`).
 
@@ -1412,7 +1410,7 @@ The syntax for specifying a transformation is as follows:
 -	The scale `<n>[,<n>]` alternative resizes the context/object by the specified `<n>` factor. You can provide an
 	optional second value to specify a different scaling factor for the x and y-axis.
 
--	The `rotate` alternative rotates the context/object by the specified `<degrees>` amount. `<degrees>` follows the global angle conventions (0° at +x, clockwise positive).
+-	The `rotate` alternative rotates the context/object by the specified `<degrees>` amount. `<degrees>` is clockwise positive.
 
 -	The `shear` alternative skews the context/object by the specified `<x>` and `<y>` amount.
 

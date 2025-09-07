@@ -510,7 +510,7 @@ href="#pen"><code>pen</code></a> setting. Paths may be supplied as an
 instruction list, raw SVG data, or by referencing a previously defined
 path name.</p>
 <p>Syntax:</p>
-<pre><code>    PATH ((&lt;instructions&gt;) | svg:&lt;svg data&gt; | &lt;name&gt;) [transform:&lt;transform&gt;]</code></pre>
+<pre><code>PATH (&lt;instructions&gt; | svg:&lt;svg data&gt; | &lt;name&gt;) [transform:&lt;transform&gt;]</code></pre>
 <ul>
 <li><p><code>&lt;instructions&gt;</code> is a bracketed list of
 sub-commands (either separated by new lines or semicolons). See
@@ -523,31 +523,41 @@ href="#define-path"><code>define path</code></a>.</p></li>
 drawing, using the same syntax as <a
 href="#image"><code>IMAGE</code></a>.</p></li>
 </ul>
+<p>Inside <code>&lt;instructions&gt;</code>, lists are bracketed; commas
+between coordinate pairs may be omitted.</p>
 <p><em>The <code>PATH svg:</code> form is available in all IVG versions.
 The instruction-list variant requires IVG-3.</em></p>
 <h4 id="path-instructions">Path Instructions</h4>
+<p>Within <code>PATH [ ... ]</code>, commas may be omitted between
+coordinate pairs.</p>
 <ul>
 <li><code>move-to &lt;x&gt;,&lt;y&gt;</code> sets the starting point for
 a new sub-path.</li>
-<li><code>line-to &lt;x&gt;,&lt;y&gt;[,&lt;x&gt;,&lt;y&gt; ...]</code>
+<li><code>line-to &lt;x&gt;,&lt;y&gt;[,&lt;x&gt;,&lt;y&gt;,...]</code>
 draws one or more line segments from the current point.</li>
 <li><code>bezier-to &lt;cx&gt;,&lt;cy&gt;,&lt;x&gt;,&lt;y&gt;</code>
 draws a quadratic Bézier curve.</li>
 <li><code>bezier-to &lt;c1x&gt;,&lt;c1y&gt;,&lt;c2x&gt;,&lt;c2y&gt;,&lt;x&gt;,&lt;y&gt;</code>
 draws a cubic Bézier curve.</li>
-<li><code>arc-to &lt;x&gt;,&lt;y&gt;,&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;] [turn:cw|ccw=cw] [large:yes|no=no] [rotate:&lt;deg&gt;=0]</code>
+<li><code>arc-to &lt;x&gt;,&lt;y&gt;,&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;] [turn:(cw|ccw)=cw] [large:yes|no=no] [rotate:&lt;deg&gt;=0]</code>
 draws an elliptical arc.</li>
 <li><code>arc-sweep &lt;cx&gt;,&lt;cy&gt;,&lt;degrees&gt;</code> draws
-an arc around a center point, sweeping by the given angle.</li>
+an arc around a center point, sweeping by the given angle (positive is
+clockwise).</li>
 <li><code>arc-move &lt;cx&gt;,&lt;cy&gt;,&lt;degrees&gt;</code> moves
 the current point along an arc sweep without drawing.</li>
-<li><code>anchor [&lt;x&gt;,&lt;y&gt;]</code> sets a new local origin.
-Without coordinates it uses the current point; with coordinates it
-interprets them as global.</li>
-<li><code>cursor &lt;var&gt; | cursor ([x:&lt;var&gt;] [y:&lt;var&gt;])</code>
-stores the absolute cursor position in variables.</li>
+<li><code>anchor [&lt;x&gt;,&lt;y&gt;]</code> sets a new local origin
+(translation only) for subsequent <code>PATH</code> coordinates. With no
+arguments, uses the current point; with coordinates, interprets them as
+global.</li>
+<li><code>cursor &lt;var&gt; | ( [x:&lt;var&gt;] [y:&lt;var&gt;] )</code>
+stores the global cursor position. <code>cursor p</code> sets
+<code>$p = "x,y"</code>. <code>cursor (x:px y:py)</code> sets
+<code>$px</code> and <code>$py</code>. At least one of <code>x:</code>
+or <code>y:</code> is required.</li>
 <li><code>path &lt;name&gt; | svg:&lt;data&gt; | [&lt;instructions&gt;] [transform:&lt;transform&gt;]</code>
-splices another path’s geometry into the current <code>PATH</code>.</li>
+splices another path’s geometry into the current <code>PATH</code>; it
+does not paint by itself.</li>
 <li><code>close</code> closes the current sub-path by drawing a line
 back to its starting point.</li>
 </ul>
@@ -586,13 +596,13 @@ PATH [
 
 // Heart balloon using cubic Beziers
 fill #ff6fae; pen #555555 width:2
-PATH [
-    move-to 170,80
-    bezier-to 170,60,210,60,210,80
-    bezier-to 210,110,170,130,170,150
-            bezier-to 170,130,130,110,130,80
-            bezier-to 130,60,170,60,170,80
-            close
+    PATH [
+        move-to 170,80
+        bezier-to 170,60,210,60,210,80
+        bezier-to 210,110,170,130,170,150
+        bezier-to 170,130,130,110,130,80
+        bezier-to 130,60,170,60,170,80
+        close
     ]</code></pre>
 <p><img src="images/pathBeziersExample.png" /></p>
 <p>Arcs:</p>
@@ -1624,7 +1634,9 @@ the context/object by the specified <code>&lt;n&gt;</code> factor. You
 can provide an optional second value to specify a different scaling
 factor for the x and y-axis.</p></li>
 <li><p>The <code>rotate</code> alternative rotates the context/object by
-the specified <code>&lt;degrees&gt;</code> amount.</p></li>
+the specified <code>&lt;degrees&gt;</code> amount.
+<code>&lt;degrees&gt;</code> follows the global angle conventions (0° at
++x, clockwise positive).</p></li>
 <li><p>The <code>shear</code> alternative skews the context/object by
 the specified <code>&lt;x&gt;</code> and <code>&lt;y&gt;</code>
 amount.</p></li>
