@@ -336,7 +336,9 @@ _The `PATH svg:` form is available in all IVG versions. The instruction-list var
 Within `PATH [ ... ]`, commas may be omitted between coordinate pairs.
 
 - `move-to <x>,<y>` sets the starting point for a new sub-path.
+- `move-angle <angle>,<length>` moves the current point by `<length>` at `<angle>` (0° is the positive x-axis; angles increase clockwise).
 - `line-to <x>,<y>[,<x>,<y>,...]` draws one or more line segments from the current point.
+- `line-angle <angle>,<length>` draws a line of length `<length>` from the current point at `<angle>`.
 - `bezier-to <cx>,<cy>,<x>,<y>` draws a quadratic Bézier curve.
 - `bezier-to <c1x>,<c1y>,<c2x>,<c2y>,<x>,<y>` draws a cubic Bézier curve.
 - `arc-to <x>,<y>,<r>[,<ry>=<r>] [turn:(cw|ccw)=cw] [large:yes|no=no] [rotate:<deg>=0]` draws an elliptical arc.
