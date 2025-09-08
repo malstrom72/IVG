@@ -56,4 +56,9 @@ for NAME in circle rect ellipse line path group color-names stroke-fill viewbox 
 done
 set -e
 rm -rf "$TMP"
+if [ $fail -ne 0 ]; then
+	echo
+	echo "=== SVG TESTS FAILED ===" >&2
+	echo
+fi
 exit $fail
