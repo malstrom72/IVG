@@ -539,31 +539,32 @@ static int findTransformType(size_t n /* string length */, const char* s /* zero
 }
 
 enum PathInstructionType {
-	PATH_MOVE_TO_INSTRUCTION, PATH_LINE_TO_INSTRUCTION, PATH_BEZIER_TO_INSTRUCTION, PATH_ARC_TO_INSTRUCTION,
-	PATH_ARC_SWEEP_INSTRUCTION, PATH_ARC_MOVE_INSTRUCTION, PATH_LINE_INSTRUCTION, PATH_RECT_INSTRUCTION,
-	PATH_ELLIPSE_INSTRUCTION, PATH_STAR_INSTRUCTION, PATH_POLYGON_INSTRUCTION, PATH_TEXT_INSTRUCTION,
-	PATH_ANCHOR_INSTRUCTION, PATH_CURSOR_INSTRUCTION, PATH_PATH_INSTRUCTION, PATH_CLOSE_INSTRUCTION
+PATH_MOVE_TO_INSTRUCTION, PATH_LINE_TO_INSTRUCTION, PATH_BEZIER_TO_INSTRUCTION, PATH_ARC_TO_INSTRUCTION,
+PATH_ARC_SWEEP_INSTRUCTION, PATH_ARC_MOVE_INSTRUCTION, PATH_LINE_INSTRUCTION, PATH_RECT_INSTRUCTION,
+PATH_ELLIPSE_INSTRUCTION, PATH_STAR_INSTRUCTION, PATH_POLYGON_INSTRUCTION, PATH_TEXT_INSTRUCTION,
+PATH_ANCHOR_INSTRUCTION, PATH_CURSOR_INSTRUCTION, PATH_PATH_INSTRUCTION, PATH_CLOSE_INSTRUCTION,
+PATH_MOVE_ANGLE_INSTRUCTION, PATH_LINE_ANGLE_INSTRUCTION
 };
 
 /* Built with QuickHashGen */
 // Seed: 903145365
 static int findPathInstructionType(int n /* string length */, const char* s /* string (zero terminated) */) {
-	static const char* STRINGS[16] = {
-		"move-to", "line-to", "bezier-to", "arc-to", "arc-sweep", "arc-move", "line",
-		"rect", "ellipse", "star", "polygon", "text", "anchor", "cursor", "path",
-		"close"
-	};
-	static const int HASH_TABLE[64] = {
-		-1, -1, -1, 1, -1, -1, -1, -1, -1, -1, 15, 10, 12, -1, 5, -1,
-		4, -1, -1, -1, -1, -1, -1, 3, -1, -1, -1, 0, 8, 13, -1, 2,
-		-1, 9, -1, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 6, -1,
-		-1, -1, -1, -1, 14, -1, -1, -1, 11, -1, -1, -1, -1, -1, -1, -1
-	};
-	const unsigned char* p = (const unsigned char*) s;
-	assert(s[n] == '\0');
-	if (n < 4 || n > 9) return -1;
-	int stringIndex = HASH_TABLE[(p[2] ^ p[4]) & 63u];
-	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
+static const char* STRINGS[18] = {
+"move-to", "line-to", "bezier-to", "arc-to", "arc-sweep", "arc-move", "line",
+"rect", "ellipse", "star", "polygon", "text", "anchor", "cursor", "path",
+"close", "move-angle", "line-angle"
+};
+static const int HASH_TABLE[64] = {
+-1, 15, -1, -1, 5, -1, 13, -1, 12, 4, -1, -1, -1, -1, 8, 3,
+10, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+-1, -1, -1, -1, -1, -1, -1, -1, 6, -1, -1, -1, 14, -1, 7, 9,
+11, -1, -1, -1, -1, -1, 16, 17, -1, 0, 1, -1, -1, -1, 2, -1
+};
+const unsigned char* p = (const unsigned char*) s;
+assert(s[n] == '\0');
+if (n < 4 || n > 10) return -1;
+int stringIndex = HASH_TABLE[((p[4] ^ p[0]) - n) & 63u];
+return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
 static AffineTransformation parseSingleTransformation(Interpreter& impd, TransformType transformType, ArgumentsContainer& arguments) {
@@ -651,7 +652,7 @@ static double anchorOffset(TextAnchor anchor, double advance);
 static AffineTransformation parseTransformationBlock(Interpreter& impd, const String& source);
 
 class PathInstructionExecutor : public Executor {
-	public: 	PathInstructionExecutor(Executor& parentExecutor, Path& path, double curveQuality, IVGExecutor::FormatVersion formatVersion)
+	public:		PathInstructionExecutor(Executor& parentExecutor, Path& path, double curveQuality, IVGExecutor::FormatVersion formatVersion)
 						: parentExecutor(parentExecutor), path(path), curveQuality(curveQuality), formatVersion(formatVersion)
 						, anchorOrigin(0.0, 0.0) {
 				};
@@ -667,30 +668,50 @@ class PathInstructionExecutor : public Executor {
 					}
 					ArgumentsContainer args(ArgumentsContainer::parse(impd, arguments));
 					Vertex& ao = anchorOrigin;
-					Path subPath;
-					switch (foundInstruction) {
-						case PATH_MOVE_TO_INSTRUCTION: {
-							double numbers[2];
-							parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
-							path.moveTo(numbers[0] + ao.x, numbers[1] + ao.y);
-							args.throwIfAnyUnfetched();
-							return true;
-						}
-						case PATH_LINE_TO_INSTRUCTION: {
-							StringVector elems;
-							int count = impd.parseList(args.fetchRequired(0), elems, true, false, 2, MAX_LINE_COORDINATES);
-							if ((count & 1) != 0) {
-								impd.throwBadSyntax("line-to requires an even number of coordinates");
-							}
-							args.throwIfAnyUnfetched();
-							for (int i = 0; i < count; i += 2) {
-								double x = impd.toDouble(elems[i]);
-								double y = impd.toDouble(elems[i + 1]);
-								path.lineTo(x + ao.x, y + ao.y);
-							}
-							return true;
-						}
-						case PATH_BEZIER_TO_INSTRUCTION: {
+Path subPath;
+switch (foundInstruction) {
+		case PATH_MOVE_TO_INSTRUCTION: {
+				double numbers[2];
+				parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
+				path.moveTo(numbers[0] + ao.x, numbers[1] + ao.y);
+				args.throwIfAnyUnfetched();
+				return true;
+		}
+		case PATH_MOVE_ANGLE_INSTRUCTION: {
+				double nums[2];
+				parseNumberList(impd, args.fetchRequired(0), nums, 2, 2);
+				args.throwIfAnyUnfetched();
+				const Vertex pos(path.getPosition());
+				double a = nums[0] * DEGREES;
+				double l = nums[1];
+				path.moveTo(pos.x + cos(a) * l, pos.y + sin(a) * l);
+				return true;
+		}
+		case PATH_LINE_TO_INSTRUCTION: {
+				StringVector elems;
+				int count = impd.parseList(args.fetchRequired(0), elems, true, false, 2, MAX_LINE_COORDINATES);
+				if ((count & 1) != 0) {
+						impd.throwBadSyntax("line-to requires an even number of coordinates");
+				}
+				args.throwIfAnyUnfetched();
+				for (int i = 0; i < count; i += 2) {
+						double x = impd.toDouble(elems[i]);
+						double y = impd.toDouble(elems[i + 1]);
+						path.lineTo(x + ao.x, y + ao.y);
+				}
+				return true;
+		}
+		case PATH_LINE_ANGLE_INSTRUCTION: {
+				double nums[2];
+				parseNumberList(impd, args.fetchRequired(0), nums, 2, 2);
+				args.throwIfAnyUnfetched();
+				const Vertex pos(path.getPosition());
+				double a = nums[0] * DEGREES;
+				double l = nums[1];
+				path.lineTo(pos.x + cos(a) * l, pos.y + sin(a) * l);
+				return true;
+		}
+		case PATH_BEZIER_TO_INSTRUCTION: {
 							double n[6];
 							int count = parseNumberList(impd, args.fetchRequired(0), n, 4, 6);
 							args.throwIfAnyUnfetched();
