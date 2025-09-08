@@ -1,0 +1,31 @@
+format IVG-3 requires:ImpD-1
+bounds 0,0,400,400
+WIPE white
+fill none
+pen black
+
+define path wave [ bezier-to 50,-20,50,20,100,0 ]
+path [
+	move-to 50,200
+	for i from:0 to:2 [
+		anchor
+		path wave transform:[rotate 20]
+	]
+	repeat 15 [
+		arc-sweep 60,40,10
+		arc-move 60,40,10
+	]
+	cursor p
+	anchor 0,0
+	move-to 50,200
+	repeat 3 [
+		anchor
+		path wave
+	]
+	for i from:0 to:80 [
+		move-angle {-120-$i*10},{5-$i*0.05}
+		line-angle {-120-$i*10},{5-$i*0.05}
+	]
+	anchor 0,0
+	line-to $p
+]
