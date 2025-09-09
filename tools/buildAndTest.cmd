@@ -82,9 +82,9 @@ IF NOT "%SKIP_SVG%"=="" (
 	WHERE node >NUL 2>NUL
 	IF ERRORLEVEL 1 (
 		ECHO Warning: Node.js not found, skipping SVG tests
-) ELSE (
+	) ELSE (
 		CALL ..\tools\testSVG.cmd || GOTO error
-)
+	)
 )
 CD ..
 CALL .\output\PolygonMaskTest || GOTO error
