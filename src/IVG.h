@@ -370,7 +370,7 @@ class IVGExecutor : public IMPD::Executor {
 	protected:	void versionRequired(IMPD::Interpreter& impd, FormatVersion required, const IMPD::String& instruction);
 	protected:	std::vector<const Font*> lookupExternalOrInternalFonts(IMPD::Interpreter& impd
 						, const IMPD::WideString& name, const IMPD::UniString& forString);
-	protected:	Path makeTextPath(IMPD::Interpreter& impd, const State& state, const IMPD::UniString& text, double& advance);
+	protected:	Path makeTextPath(IMPD::Interpreter& impd, const IMPD::UniString& text, double& advance);
 	protected:	Context rootContext;
 	protected:	Context* currentContext;
 	protected:	typedef std::map<IMPD::WideString, Font> FontMap;

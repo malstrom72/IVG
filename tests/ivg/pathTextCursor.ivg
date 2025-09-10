@@ -1,0 +1,7 @@
+FORMAT IVG-3 requires:IMPD-1
+BOUNDS 0,0,300,60
+WIPE white
+fill none
+pen black
+font serif size:20
+PATH [text at:10,30 foo; text bar; line-to 290,30]

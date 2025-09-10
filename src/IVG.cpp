@@ -149,7 +149,7 @@ static void appendArcSegment(const Vertex& startPos, const Vertex& endPos, doubl
 	if (xAxisRotation != 0.0) {
 		affineReverse = AffineTransformation().rotate(xAxisRotation * DEGREES);
 		AffineTransformation affineForward = affineReverse;
-		bool success = affineForward.invert();
+		const bool success = affineForward.invert();
 		(void)success;
 		assert(success);
 		s = affineForward.transform(s);
@@ -649,7 +649,7 @@ static Path& makePolygonPath(Path& p, Interpreter& impd, ArgumentsContainer& arg
 
 enum TextAnchor { LEFT_ANCHOR, CENTER_ANCHOR, RIGHT_ANCHOR };
 static TextAnchor parseAnchor(Interpreter& impd, const String* s);
-static double anchorOffset(TextAnchor anchor, double advance);
+static double calcTextAnchorOffset(TextAnchor anchor, double advance);
 static AffineTransformation parseTransformationBlock(Interpreter& impd, const String& source);
 
 class PathInstructionExecutor : public Executor {
@@ -750,9 +750,8 @@ class PathInstructionExecutor : public Executor {
 								rotate = impd.toDouble(*rotateArg);
 							}
 							args.throwIfAnyUnfetched();
-							Vertex startPos(path.getPosition());
-							Vertex endPos(end[0] + ao.x, end[1] + ao.y);
-							appendArcSegment(startPos, endPos, rx, ry, rotate, sweepCW, largeArc, curveQuality, path);
+							const Vertex endPos(end[0] + ao.x, end[1] + ao.y);
+							appendArcSegment(path.getPosition(), endPos, rx, ry, rotate, sweepCW, largeArc, curveQuality, path);
 							path.lineTo(endPos.x, endPos.y);
 							return true;
 						}
@@ -822,17 +821,22 @@ class PathInstructionExecutor : public Executor {
 						}
 						case PATH_TEXT_INSTRUCTION: {
 							const String* s;
-							double at[2] = { 0.0, 0.0 };
-							if ((s = args.fetchOptional("at", true)) != 0) parseNumberList(impd, *s, at, 2, 2);
-							TextAnchor anchor = parseAnchor(impd, args.fetchOptional("anchor", true));
+							Vertex base = path.getPosition();
+							if ((s = args.fetchOptional("at", true)) != 0) {
+								double at[2];
+								parseNumberList(impd, *s, at, 2, 2);
+								base = Vertex(at[0], at[1]);
+							}
+							const TextAnchor anchor = parseAnchor(impd, args.fetchOptional("anchor", true));
 							const UniString text = impd.unescapeToUni(args.fetchRequired(0, true));
 							args.throwIfAnyUnfetched();
-							const State& state = ivgExecutor.currentContext->accessState();
-							double advance;
-							Path textPath = ivgExecutor.makeTextPath(impd, state, text, advance);
-							at[0] -= anchorOffset(anchor, advance);
-							textPath.transform(AffineTransformation().translate(at[0], at[1]));
+							double advance = 0.0;
+							Path textPath = ivgExecutor.makeTextPath(impd, text, advance);
+							const double offset = calcTextAnchorOffset(anchor, advance);
+							textPath.transform(AffineTransformation().translate(base.x - offset, base.y));
 							appendChecked(textPath);
+							const Vertex end(base.x + (advance - offset), base.y);
+							path.moveTo(end.x, end.y);
 							return true;
 						}
 						case PATH_PATH_INSTRUCTION: {
@@ -1695,7 +1699,7 @@ static TextAnchor parseAnchor(Interpreter& impd, const String* s) {
 	return anchor;
 }
 
-static double anchorOffset(TextAnchor anchor, double advance) {
+static double calcTextAnchorOffset(TextAnchor anchor, double advance) {
 	switch (anchor) {
 		case LEFT_ANCHOR: return 0.0;
 		case CENTER_ANCHOR: return advance * 0.5;
@@ -1704,18 +1708,19 @@ static double anchorOffset(TextAnchor anchor, double advance) {
 	return 0.0;
 }
 
-Path IVGExecutor::makeTextPath(Interpreter& impd, const State& state, const UniString& text, double& advance) {
+Path IVGExecutor::makeTextPath(Interpreter& impd, const UniString& text, double& advance) {
+	const State& state = currentContext->accessState();
 	if (state.textStyle.fontName.empty()) {
 		Interpreter::throwRunTimeError("Need to set font before writing");
 	}
-	std::vector<const Font*> fonts = lookupExternalOrInternalFonts(impd, state.textStyle.fontName, text);
+	const std::vector<const Font*> fonts = lookupExternalOrInternalFonts(impd, state.textStyle.fontName, text);
 	if (fonts.empty()) {
 		Interpreter::throwRunTimeError(String("Missing font: ")
 			+ String(state.textStyle.fontName.begin(), state.textStyle.fontName.end()));
 	}
 	const char* errorString;
 	Path textPath;
-	bool success = buildPathForString(text, fonts, state.textStyle.size, state.textStyle.glyphTransform
+	const bool success = buildPathForString(text, fonts, state.textStyle.size, state.textStyle.glyphTransform
 			, state.textStyle.letterSpacing, currentContext->calcCurveQuality(), textPath, advance
 			, errorString);
 	if (!success) trace(impd, WideString(errorString, errorString + strlen(errorString)));
@@ -1959,13 +1964,13 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				parseNumberList(impd, *s, numbers, 2, 2);
 				state.textCaret = Vertex(numbers[0], numbers[1]);
 			}
-			TextAnchor anchor = parseAnchor(impd, args.fetchOptional("anchor", true));
+			const TextAnchor anchor = parseAnchor(impd, args.fetchOptional("anchor", true));
 			const UniString text = impd.unescapeToUni(args.fetchRequired(0, true));
 			const String* caretVariable = args.fetchOptional("caret", true);
 			args.throwIfAnyUnfetched();
-			double advance;
-			Path textPath = makeTextPath(impd, state, text, advance);
-			const double offset = anchorOffset(anchor, advance);
+			double advance = 0.0;
+			Path textPath = makeTextPath(impd, text, advance);
+			const double offset = calcTextAnchorOffset(anchor, advance);
 			state.textCaret.x -= offset;
 			textPath.transform(AffineTransformation().translate(state.textCaret.x, state.textCaret.y));
 			const Rect<double> pathBounds(textPath.calcFloatBounds());

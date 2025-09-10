@@ -295,11 +295,11 @@ should be as follows:</p>
 <p><em>ImpD</em> is case-insensitive, but this documentation follows a
 convention: “directives” (defining settings, etc.) are written in
 lowercase and drawing instructions in uppercase. Segment commands inside
-<code>PATH</code> compounds—such as <code>move-to</code> and
-<code>line-to</code>—also appear in lowercase. In short, any instruction
-in uppercase produces visible output, while lowercase forms configure
-state or describe geometry for later use. In all examples, drawing
-instructions appear in UPPERCASE.</p>
+<code>PATH</code> compounds, such as <code>move-to</code> and
+<code>line-to</code>, also appear in lowercase. In short, any
+instruction in uppercase produces visible output, while lowercase forms
+configure state or describe geometry for later use. In all examples,
+drawing instructions appear in UPPERCASE.</p>
 <h2 id="rendering-model">Rendering model</h2>
 <p>Later drawing instructions paint over earlier ones. Compositing uses
 Porter–Duff <em>source-over</em> on premultiplied color. Any
@@ -309,8 +309,8 @@ paint.</p>
 <p>All coordinates are measured in pixels. The origin is at the top-left
 corner, <em>x</em> increases to the right, <em>y</em> increases
 downward, and fractional coordinates are allowed.</p>
-<p>Angle conventions: Angles are in degrees; 0° at the positive x‑axis;
-clockwise is positive unless stated otherwise.</p>
+<p>Angle conventions: Angles are in degrees, 0° at the positive x‑axis,
+clockwise is positive.</p>
 <h2 id="list-grouping">List grouping</h2>
 <p>In ImpD, you normally separate list values with commas:</p>
 <pre><code>LINE 30,40,140,70,200,120,260,150,310,170</code></pre>
@@ -321,8 +321,8 @@ long coordinate lists:</p>
 <p>The two forms are equivalent. Bracketed lists are often easier to
 read for geometry with many points.</p>
 <h2 id="error-handling">Error handling</h2>
-<p>Malformed input—such as unknown directives, incorrect argument
-counts, or out-of-range values—triggers a run-time error and halts
+<p>Malformed input, such as unknown directives, incorrect argument
+counts or out-of-range values, triggers a run-time error and halts
 rendering.</p>
 <h2 id="ivg-1-vs-ivg-2-vs-ivg-3">IVG-1 vs IVG-2 vs IVG-3</h2>
 <ul>
@@ -350,9 +350,10 @@ ellipse.</p></li>
 <li><p><code>&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;]</code> is the radius of
 the ellipse. If you only provide one value, it will be used for both
 axes, creating a circle.</p></li>
-<li><p>With <code>sweep</code>, draws a closed partial ellipse sector;
+<li><p>With <code>sweep</code>, draws a closed partial ellipse sector.
 <code>&lt;start&gt;</code> and <code>&lt;degrees&gt;</code> follow the
-angle conventions.</p></li>
+angle conventions (0° at the positive x‑axis, clockwise is
+positive).</p></li>
 <li><p><code>type</code> is either <code>chord</code> or
 <code>pie</code>:</p>
 <ul>
@@ -523,8 +524,6 @@ href="#define-path"><code>define path</code></a>.</p></li>
 drawing, using the same syntax as <a
 href="#image"><code>IMAGE</code></a>.</p></li>
 </ul>
-<p>Inside <code>&lt;instructions&gt;</code>, lists are bracketed; commas
-between coordinate pairs may be omitted.</p>
 <p><em>The <code>PATH svg:</code> form is available in all IVG versions.
 The instruction-list variant requires IVG-3.</em></p>
 <h4 id="path-instructions">Path Instructions</h4>
@@ -533,8 +532,15 @@ coordinate pairs.</p>
 <ul>
 <li><code>move-to &lt;x&gt;,&lt;y&gt;</code> sets the starting point for
 a new sub-path.</li>
+<li><code>move-angle &lt;angle&gt;,&lt;length&gt;</code> moves the
+current point by <code>&lt;length&gt;</code> at
+<code>&lt;angle&gt;</code> (0° is the positive x-axis; angles increase
+clockwise).</li>
 <li><code>line-to &lt;x&gt;,&lt;y&gt;[,&lt;x&gt;,&lt;y&gt;,...]</code>
 draws one or more line segments from the current point.</li>
+<li><code>line-angle &lt;angle&gt;,&lt;length&gt;</code> draws a line of
+length <code>&lt;length&gt;</code> from the current point at
+<code>&lt;angle&gt;</code>.</li>
 <li><code>bezier-to &lt;cx&gt;,&lt;cy&gt;,&lt;x&gt;,&lt;y&gt;</code>
 draws a quadratic Bézier curve.</li>
 <li><code>bezier-to &lt;c1x&gt;,&lt;c1y&gt;,&lt;c2x&gt;,&lt;c2y&gt;,&lt;x&gt;,&lt;y&gt;</code>
@@ -546,36 +552,39 @@ an arc around a center point, sweeping by the given angle (positive is
 clockwise).</li>
 <li><code>arc-move &lt;cx&gt;,&lt;cy&gt;,&lt;degrees&gt;</code> moves
 the current point along an arc sweep without drawing.</li>
-<li><code>anchor [&lt;x&gt;,&lt;y&gt;]</code> sets a new local origin
-(translation only) for subsequent <code>PATH</code> coordinates. With no
-arguments, uses the current point; with coordinates, interprets them as
-global.</li>
-<li><code>cursor &lt;var&gt; | ( [x:&lt;var&gt;] [y:&lt;var&gt;] )</code>
-stores the global cursor position. <code>cursor p</code> sets
-<code>$p = "x,y"</code>. <code>cursor (x:px y:py)</code> sets
-<code>$px</code> and <code>$py</code>. At least one of <code>x:</code>
-or <code>y:</code> is required.</li>
-<li><code>path &lt;name&gt; | svg:&lt;data&gt; | [&lt;instructions&gt;] [transform:&lt;transform&gt;]</code>
-splices another path’s geometry into the current <code>PATH</code>; it
-does not paint by itself.</li>
 <li><code>close</code> closes the current sub-path by drawing a line
-back to its starting point.</li>
+back to its starting point. (No effect if already closed.)</li>
+</ul>
+<h4 id="coordinate-system-and-state">Coordinate System and State</h4>
+<ul>
+<li><code>anchor [&lt;x&gt;,&lt;y&gt;]</code> sets a new local origin
+(translation only) for subsequent <code>PATH</code> coordinates. Uses
+the current point if no arguments are supplied, otherwise the
+coordinates are interpreted as global (unrelated to any previous
+<code>anchor</code> calls).</li>
+<li><code>cursor [&lt;var&gt;] [x:&lt;var&gt;] [y:&lt;var&gt;]</code>
+stores the global cursor position (indifferent to any previous
+<code>anchor</code> calls). At least one target must be provided.</li>
 </ul>
 <h4 id="sub-path-commands">Sub-path Commands</h4>
 <p>These commands mirror their drawing-instruction counterparts but only
 append path geometry (they don’t paint by themselves):</p>
 <ul>
+<li><code>ellipse &lt;cx&gt;,&lt;cy&gt;,&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;] [ sweep:&lt;start&gt;,&lt;degrees&gt; [ type:(pie|chord)=chord ] ]</code>
+appends a full ellipse or a closed sector.</li>
 <li><code>line &lt;x0&gt;,&lt;y0&gt;,&lt;x1&gt;,&lt;y1&gt;[,&lt;x2&gt;,&lt;y2&gt; ...]</code>
 appends an open polyline starting at
 <code>&lt;x0&gt;,&lt;y0&gt;</code>.</li>
-<li><code>rect &lt;x&gt;,&lt;y&gt;,&lt;w&gt;,&lt;h&gt; [rounded:&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;]</code>
-appends an axis-aligned rectangle.</li>
-<li><code>ellipse &lt;cx&gt;,&lt;cy&gt;,&lt;r&gt;[,&lt;ry&gt;=&lt;r&gt;] [ sweep:&lt;start&gt;,&lt;degrees&gt; [ type:(pie|chord)=chord ] ]</code>
-appends a full ellipse or a closed sector.</li>
-<li><code>star &lt;cx&gt;,&lt;cy&gt;,&lt;points&gt;,&lt;r1&gt;[,&lt;r2&gt;=&lt;r1&gt;] [rotation:&lt;angle&gt;]</code>
-appends a star or regular polygon.</li>
+<li><code>path &lt;name&gt; | svg:&lt;data&gt; | [&lt;instructions&gt;] [transform:&lt;transform&gt;]</code>
+splices another path’s geometry into the current <code>PATH</code>. If
+the spliced path doesn’t begin with move-to, its first segment continues
+from the current point</li>
 <li><code>polygon &lt;x0&gt;,&lt;y0&gt; &lt;x1&gt;,&lt;y1&gt; [&lt;x2&gt;,&lt;y2&gt; ...]</code>
 appends a closed polygon.</li>
+<li><code>rect &lt;x&gt;,&lt;y&gt;,&lt;w&gt;,&lt;h&gt; [rounded:&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;]</code>
+appends an axis-aligned rectangle.</li>
+<li><code>star &lt;cx&gt;,&lt;cy&gt;,&lt;points&gt;,&lt;r1&gt;[,&lt;r2&gt;=&lt;r1&gt;] [rotation:&lt;angle&gt;]</code>
+appends a star or regular polygon.</li>
 <li><code>text [at:&lt;x,y&gt;] [anchor:left|center|right=left] &lt;text&gt;</code>
 appends a text outline.</li>
 </ul>
@@ -1469,8 +1478,6 @@ a gradient is as follows:</p>
 <pre><code>&lt;gradient&gt; = (linear &lt;x0&gt;,&lt;y0&gt;,&lt;x1&gt;,&lt;y1&gt; | radial &lt;cx&gt;,&lt;cy&gt;,(&lt;r&gt;|&lt;rx&gt;,&lt;ry&gt;))
             (from:&lt;color&gt; to:&lt;color&gt; | stops:&lt;number&gt;,&lt;color&gt;,[&lt;number&gt;,&lt;color&gt;,...])</code></pre>
 <ul>
-<li><p>The coordinates are comma-separated without spaces; the
-space-separated form from earlier versions is not supported.</p></li>
 <li><p>The <code>linear</code> alternative creates a linear gradient
 that transitions between colors along a straight line defined by two
 points (<code>&lt;x0&gt;,&lt;y0&gt;</code> and
@@ -1635,8 +1642,7 @@ can provide an optional second value to specify a different scaling
 factor for the x and y-axis.</p></li>
 <li><p>The <code>rotate</code> alternative rotates the context/object by
 the specified <code>&lt;degrees&gt;</code> amount.
-<code>&lt;degrees&gt;</code> follows the global angle conventions (0° at
-+x, clockwise positive).</p></li>
+<code>&lt;degrees&gt;</code> is clockwise positive.</p></li>
 <li><p>The <code>shear</code> alternative skews the context/object by
 the specified <code>&lt;x&gt;</code> and <code>&lt;y&gt;</code>
 amount.</p></li>
