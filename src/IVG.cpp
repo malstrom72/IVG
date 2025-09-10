@@ -653,8 +653,8 @@ static double anchorOffset(TextAnchor anchor, double advance);
 static AffineTransformation parseTransformationBlock(Interpreter& impd, const String& source);
 
 class PathInstructionExecutor : public Executor {
-	public:		PathInstructionExecutor(Executor& parentExecutor, Path& path, double curveQuality, IVGExecutor::FormatVersion formatVersion)
-						: parentExecutor(parentExecutor), path(path), curveQuality(curveQuality), formatVersion(formatVersion)
+	public:		PathInstructionExecutor(IVGExecutor& ivgExecutor, Path& path, double curveQuality, IVGExecutor::FormatVersion formatVersion)
+						: ivgExecutor(ivgExecutor), path(path), curveQuality(curveQuality), formatVersion(formatVersion)
 						, anchorOrigin(0.0, 0.0) {
 				};
 	public:		virtual bool format(Interpreter& impd, const String& identifier, const vector<String>& uses
@@ -822,34 +822,32 @@ class PathInstructionExecutor : public Executor {
 						}
 						case PATH_TEXT_INSTRUCTION: {
 							const String* s;
-							double at[2] = {0.0, 0.0};
+							double at[2] = { 0.0, 0.0 };
 							if ((s = args.fetchOptional("at", true)) != 0) parseNumberList(impd, *s, at, 2, 2);
 							TextAnchor anchor = parseAnchor(impd, args.fetchOptional("anchor", true));
 							const UniString text = impd.unescapeToUni(args.fetchRequired(0, true));
 							args.throwIfAnyUnfetched();
-							IVGExecutor& ivg = static_cast<IVGExecutor&>(parentExecutor);
-							const State& state = ivg.currentContext->accessState();
+							const State& state = ivgExecutor.currentContext->accessState();
 							double advance;
-							Path textPath = ivg.makeTextPath(impd, state, text, advance);
+							Path textPath = ivgExecutor.makeTextPath(impd, state, text, advance);
 							at[0] -= anchorOffset(anchor, advance);
 							textPath.transform(AffineTransformation().translate(at[0], at[1]));
 							appendChecked(textPath);
 							return true;
 						}
 						case PATH_PATH_INSTRUCTION: {
-							IVGExecutor& ivg = static_cast<IVGExecutor&>(parentExecutor);
 							const String* nameArg = args.fetchOptional(0, false);
 							const String* svg = args.fetchOptional("svg");
 							Path fragment;
 							if (svg == 0 && nameArg != 0 && !nameArg->empty() && (*nameArg)[0] != '[') {
 								const WideString name = impd.unescapeToWide(impd.expand(*nameArg));
-								IVGExecutor::PathMap::const_iterator it = ivg.definedPaths.find(name);
-								if (it == ivg.definedPaths.end()) {
+								IVGExecutor::PathMap::const_iterator it = ivgExecutor.definedPaths.find(name);
+								if (it == ivgExecutor.definedPaths.end()) {
 									Interpreter::throwRunTimeError(String("Undefined path: ") + String(name.begin(), name.end()));
 								}
 								fragment = it->second;
 							} else {
-								ivg.buildPath(impd, nameArg, svg, args, String("path"), fragment);
+								ivgExecutor.buildPath(impd, nameArg, svg, args, String("path"), fragment);
 							}
 							const String* transformArg = args.fetchOptional("transform");
 							if (transformArg != 0) {
@@ -867,9 +865,9 @@ class PathInstructionExecutor : public Executor {
 					}
 					return false;
 				}
-	public:		virtual void trace(Interpreter& impd, const WideString& s) { parentExecutor.trace(impd, s); }
-	public:		virtual bool progress(Interpreter& impd, int maxStatementsLeft) { return parentExecutor.progress(impd, maxStatementsLeft); }
-	public:		virtual bool load(Interpreter& impd, const WideString& filename, String& contents) { return parentExecutor.load(impd, filename, contents); }
+	public:		virtual void trace(Interpreter& impd, const WideString& s) { ivgExecutor.trace(impd, s); }
+	public:		virtual bool progress(Interpreter& impd, int maxStatementsLeft) { return ivgExecutor.progress(impd, maxStatementsLeft); }
+	public:		virtual bool load(Interpreter& impd, const WideString& filename, String& contents) { return ivgExecutor.load(impd, filename, contents); }
 	protected:	void appendChecked(Path& p) {
 					if (anchorOrigin.x != 0.0 || anchorOrigin.y != 0.0) {
 						p.transform(AffineTransformation().translate(anchorOrigin.x, anchorOrigin.y));
@@ -879,7 +877,7 @@ class PathInstructionExecutor : public Executor {
 					}
 					path.append(p);
 				}
-	protected:	Executor& parentExecutor;
+	protected:	IVGExecutor& ivgExecutor;
 	protected:	Path& path;
 	protected:	const double curveQuality;
 	protected:	const IVGExecutor::FormatVersion formatVersion;
@@ -1366,7 +1364,7 @@ void IVGExecutor::buildPath(Interpreter& impd, const String* blockArg, const Str
 	} else {
 		versionRequired(impd, IVG_3, instruction);
 		const String& block = (blockArg != 0 ? *blockArg : args.fetchRequired(0, false));
-		PathInstructionExecutor pathExecutor(impd.getExecutor(), path, curveQuality, formatVersion);
+		PathInstructionExecutor pathExecutor(*this, path, curveQuality, formatVersion);
 		Interpreter pathInterpreter(pathExecutor, impd);
 		pathInterpreter.run(block);
 	}
