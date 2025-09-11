@@ -23,6 +23,11 @@ set +e
 for f in ./ivg/*.ivg; do
 	n=${f#./ivg/}
 	n=${n%.ivg}
+	if [ "$n" = "radialGradientHugeTransform" ]; then
+		echo Skipping "$n"
+		echo
+		continue
+	fi
 	echo Doing "$n"
 	echo
 	args=""

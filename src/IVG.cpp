@@ -931,10 +931,16 @@ GradientSpec::GradientSpec(const Interpreter& impd, const String& source, bool r
 	if (count == 3) {
 		coords[3] = coords[2];
 	}
-	if (isRadial && (coords[2] < 0.0 || coords[3] < 0.0)) {
-		impd.throwRunTimeError(String("Negative radial gradient radius: ")
-				+ impd.toString(coords[coords[2] < 0.0 ? 2 : 3]));
-	}
+	   if (isRadial) {
+			   if (coords[2] < 0.0 || coords[3] < 0.0) {
+					   impd.throwRunTimeError(String("Negative radial gradient radius: ")
+									   + impd.toString(coords[coords[2] < 0.0 ? 2 : 3]));
+			   }
+			   if (coords[2] > 32767.0 || coords[3] > 32767.0) {
+					   impd.throwRunTimeError(String("Radial gradient radius out of range [0..32767]: ")
+									   + impd.toString(coords[coords[2] > 32767.0 ? 2 : 3]));
+			   }
+	   }
 
 	const String* s = gradientArgs.fetchOptional("stops");
 	if (s != 0) {
