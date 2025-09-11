@@ -1059,14 +1059,19 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 			assert(i == leftEdge);
 						
 			const int steps = x + i - rowStartInt;
+			if (steps < 0 || steps >= (1 << 16)) {
+				output.addTransparent(rightEdge - i);
+				i = rightEdge;
+				continue;
+			}
 			assert(steps >= 0);
+			assert(steps < (1 << 16));
 			const double dx = rowStartInt - centerX;
 			const double dpp = 2.0 * wk;
 			const double dp = (2.0 * dx - 1.0) * wk + dpp * 0.5;
 			const double d = dy * dy * hk + dx * dx * wk + dp * 0.5;
 			assert(dpp >= 0.0);
 			const unsigned int dppi = roundToInt(dpp);
-			assert(steps < (1 << 16));
 			const int dp0 = roundToInt(dp);
 			
 			// Calculate steps * (steps + 1) / 2 in a way that avoids overflow.
