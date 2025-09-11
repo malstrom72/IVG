@@ -1,3 +1,6 @@
 # Mark generated files from IVG Fiddle build as linguist-generated
 /tools/ivgfiddle/output/** linguist-generated=true
 /tools/ivgfiddle/src/rasterizeIVG.js linguist-generated=true
+
+# Ensure IVG files are treated as text for diffs
+*.ivg text

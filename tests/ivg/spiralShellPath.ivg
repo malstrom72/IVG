@@ -1,0 +1,18 @@
+format IVG-3 requires:ImpD-1
+bounds 0,0,300,300
+
+define path shell [
+	move-to 150,150
+	move-angle -90,100
+	for a from:{360/12} to:{360*2} step:{360/12} [
+		arc-sweep 150,150,{360/12}
+		line-angle {90+$a},20
+		move-angle {-90+$a},17
+	]
+]
+
+WIPE white
+pen #f0f0f0 width:4
+PATH shell transform:[scale 0.9 anchor:150,150]
+pen black width:1
+PATH shell

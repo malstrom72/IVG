@@ -333,8 +333,6 @@ _The `PATH svg:` form is available in all IVG versions. The instruction-list var
 
 #### Path Instructions
 
-Within `PATH [ ... ]`, commas may be omitted between coordinate pairs.
-
 - `move-to <x>,<y>` sets the starting point for a new sub-path.
 - `move-angle <angle>,<length>` moves the current point by `<length>` at `<angle>` (0° is the positive x-axis; angles increase clockwise).
 - `line-to <x>,<y>[,<x>,<y>,...]` draws one or more line segments from the current point.

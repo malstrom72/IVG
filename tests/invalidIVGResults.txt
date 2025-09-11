@@ -49,6 +49,8 @@ Testing path_close_has_args: expecting "Unrecognized labels or too many argument
 Testing path_size_out_of_range: expecting "path instruction limit exceeded" ... PASS
 Testing path_text_missing_text: expecting "Missing indexed argument 1" ... PASS
 Testing pattern_unknown_reference: expecting "Unrecognized instruction: missing" ... PASS
+Testing radialGradientHugeTransform: expecting "Radial gradient radius too large" ... PASS
+Testing radial_gradient_radius_out_of_range: expecting "Radial gradient radius too large" ... PASS
 Testing star_points_out_of_range: expecting "star points out of range [1..10000]: 0" ... PASS
 Testing text_invalid_anchor: expecting "Unrecognized anchor: upside" ... PASS
 Testing text_missing_font: expecting "Need to set font before writing" ... PASS

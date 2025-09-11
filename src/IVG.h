@@ -488,6 +488,10 @@ template<class PIXEL_TYPE> class RadialGradientPainter : public GradientPainter<
 					NuXPixels::Vertex xfVSize = xf.transform(Vertex(center.x, center.y + size.y));
 					double hSize = sqrt(square(xfHSize.x - xfCenter.x) + square(xfHSize.y - xfCenter.y));
 					double vSize = sqrt(square(xfVSize.x - xfCenter.x) + square(xfVSize.y - xfCenter.y));
+					// Validate transformed radii are within allowed range
+					if (hSize > 32767.0 || vSize > 32767.0) {
+						IMPD::Interpreter::throwRunTimeError("Radial gradient radius too large");
+					}
 					if (hSize == 0 || vSize == 0) {
 						inContext.accessCanvas().blend(NuXPixels::Solid<PIXEL_TYPE>
 								(PIXEL_TYPE::multiply(this->gradient[0], withPaint.opacity)) * mask);
