@@ -1,2 +1,2 @@
 format IVG-3
-fill gradient:[radial 0,0,32768 from:white to:black]
+wipe gradient:[radial 0,0,200000 from:white to:black]

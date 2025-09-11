@@ -1,0 +1,7 @@
+// radial gradient under massive transform
+FORMAT IVG-3 requires:IMPD-1
+BOUNDS 0,0,10,10
+context [
+	scale 100000
+	wipe gradient:[radial 5,5,32767 from:white to:black]
+]

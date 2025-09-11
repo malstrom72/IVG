@@ -1,0 +1,17 @@
+format IVG-3 requires:ImpD-1
+bounds 0,0,300,300
+WIPE black
+fill gradient:[linear 100,100,200,200 from:green to:red]
+pen yellow width:8 opacity:0.3
+
+define path wave [ bezier-to 50,-20,50,20,100,0 ]
+PATH [
+	move-to 150,150
+	move-angle -90,75
+	move-angle -180,{100*0.25*0.5}
+	for i from:0 to:{360/20-1} [
+		anchor
+		path wave transform:[rotate {$i*20}; scale 0.25,0.75]
+	]
+	close
+]

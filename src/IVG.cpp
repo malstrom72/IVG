@@ -679,18 +679,24 @@ class PathInstructionExecutor : public Executor {
 							return true;
 						}
 						case PATH_MOVE_ANGLE_INSTRUCTION: {
-							double nums[2];
-							parseNumberList(impd, args.fetchRequired(0), nums, 2, 2);
+							StringVector elems;
+							int count = impd.parseList(args.fetchRequired(0), elems, true, false, 2, MAX_LINE_COORDINATES);
+							if ((count & 1) != 0) {
+								impd.throwBadSyntax("move-angle requires an even number of values");
+							}
 							args.throwIfAnyUnfetched();
-							const Vertex pos(path.getPosition());
-							const double a = nums[0] * DEGREES;
-							const double l = nums[1];
-							path.moveTo(pos.x + cos(a) * l, pos.y + sin(a) * l);
+							Vertex pos(path.getPosition());
+							for (int i = 0; i < count; i += 2) {
+								const double a = impd.toDouble(elems[i]) * DEGREES;
+								const double l = impd.toDouble(elems[i + 1]);
+								pos = Vertex(pos.x + cos(a) * l, pos.y + sin(a) * l);
+							}
+							path.moveTo(pos.x, pos.y);
 							return true;
 						}
 						case PATH_LINE_TO_INSTRUCTION: {
 							StringVector elems;
-							int count = impd.parseList(args.fetchRequired(0), elems, true, false, 2, MAX_LINE_COORDINATES);
+							const int count = impd.parseList(args.fetchRequired(0), elems, true, false, 2, MAX_LINE_COORDINATES);
 							if ((count & 1) != 0) {
 								impd.throwBadSyntax("line-to requires an even number of coordinates");
 							}
@@ -701,18 +707,24 @@ class PathInstructionExecutor : public Executor {
 							return true;
 						}
 						case PATH_LINE_ANGLE_INSTRUCTION: {
-							double nums[2];
-							parseNumberList(impd, args.fetchRequired(0), nums, 2, 2);
+							StringVector elems;
+							const int count = impd.parseList(args.fetchRequired(0), elems, true, false, 2, MAX_LINE_COORDINATES);
+							if ((count & 1) != 0) {
+								impd.throwBadSyntax("line-angle requires an even number of values");
+							}
 							args.throwIfAnyUnfetched();
-							const Vertex pos(path.getPosition());
-							double a = nums[0] * DEGREES;
-							double l = nums[1];
-							path.lineTo(pos.x + cos(a) * l, pos.y + sin(a) * l);
+							Vertex pos(path.getPosition());
+							for (int i = 0; i < count; i += 2) {
+								const double a = impd.toDouble(elems[i]) * DEGREES;
+								const double l = impd.toDouble(elems[i + 1]);
+								pos = Vertex(pos.x + cos(a) * l, pos.y + sin(a) * l);
+								path.lineTo(pos.x, pos.y);
+							}
 							return true;
 						}
 						case PATH_BEZIER_TO_INSTRUCTION: {
 							double n[6];
-							int count = parseNumberList(impd, args.fetchRequired(0), n, 4, 6);
+							const int count = parseNumberList(impd, args.fetchRequired(0), n, 4, 6);
 							args.throwIfAnyUnfetched();
 							if (count == 4) {
 								path.quadraticTo(n[0] + ao.x, n[1] + ao.y, n[2] + ao.x, n[3] + ao.y, curveQuality);
@@ -725,10 +737,10 @@ class PathInstructionExecutor : public Executor {
 						}
 						case PATH_ARC_TO_INSTRUCTION: {
 							double nums[4];
-							int count = parseNumberList(impd, args.fetchRequired(0), nums, 3, 4);
+							const int count = parseNumberList(impd, args.fetchRequired(0), nums, 3, 4);
 							double end[2] = { nums[0], nums[1] };
-							double rx = nums[2];
-							double ry = (count == 4 ? nums[3] : rx);
+							const double rx = nums[2];
+							const double ry = (count == 4 ? nums[3] : rx);
 							bool sweepCW = true;
 							bool largeArc = false;
 							double rotate = 0.0;
@@ -931,16 +943,10 @@ GradientSpec::GradientSpec(const Interpreter& impd, const String& source, bool r
 	if (count == 3) {
 		coords[3] = coords[2];
 	}
-	   if (isRadial) {
-			   if (coords[2] < 0.0 || coords[3] < 0.0) {
-					   impd.throwRunTimeError(String("Negative radial gradient radius: ")
-									   + impd.toString(coords[coords[2] < 0.0 ? 2 : 3]));
-			   }
-			   if (coords[2] > 32767.0 || coords[3] > 32767.0) {
-					   impd.throwRunTimeError(String("Radial gradient radius out of range [0..32767]: ")
-									   + impd.toString(coords[coords[2] > 32767.0 ? 2 : 3]));
-			   }
-	   }
+	if (isRadial && (coords[2] < 0.0 || coords[3] < 0.0)) {
+			impd.throwRunTimeError(String("Negative radial gradient radius: ")
+					+ impd.toString(coords[coords[2] < 0.0 ? 2 : 3]));
+	}
 
 	const String* s = gradientArgs.fetchOptional("stops");
 	if (s != 0) {
