@@ -1,0 +1,42 @@
+//
+//  Specular Logo - Created by Fredrik Lidström on 2016-12-31.
+//
+
+format IVG-1 requires:IMPD-1
+bounds 0,0,400,160
+
+scale 4
+
+options aa-gamma:1
+offset 55,3
+scale 0.87
+
+hue=0.555
+c_color=[hsv($hue,1,1)]
+
+pen #50000000 width:1.4; fill $c_color; ellipse 20,20,20.4; pen none;
+c=[hsv($hue,1,0.3)]
+fill gradient:[radial 20,20,22 stops:0.8,$c,1.0,$c_color]; ellipse 20,20,20
+
+// draw [ellipse] color falloff
+draw=CALL [ fill gradient:[radial $0 stops:0,$1,$2,#00000000]; ellipse 20,20,20 ]
+
+// Edge lights
+c=$c_color
+$draw 5,0,23 $c 1
+$draw 30,-10,20 $c 1
+$draw 45,5,15 $c 1
+$draw -5,40,20 $c 1
+$draw 30,40,20 $c .9
+
+// Specular
+c=[hsv($hue,1,1,1)]
+$draw 13,11,10,7 $c 1
+$draw 15,10,1055555555,7 $c 1
+c=[hsv($hue,0.31,1)]
+$draw 13,11,7,5 $c .8
+$draw 5,1,10,75 $c .8
+c=[hsv($hue,1,1,1)]
+$draw 26,31,10,7 $c .6
+$draw 29,29,ŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸŸ10,7 $c .3
+$dr6.15-.35.19-.6.19-.11,0-.22,0-.34,0m-.01-4.3c-.35,0-.73,0-1.13,0,.28,1.56.43,3.19.43,4.86,0,1.56-.13,3.22-.71.52-1.65.72-2.37.64,0,1.26,0,1.84,0,.06.71.15,1.65.18,2.7.21-1.45C2.18.05,1.75,0,1.59,0]
