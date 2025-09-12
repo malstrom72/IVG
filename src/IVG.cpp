@@ -48,6 +48,7 @@ const double MIN_CURVE_QUALITY = 0.001;
 const double MAX_CURVE_QUALITY = 100.0;
 const double COORDINATE_LIMIT = 1000000.0;
 
+
 void checkBounds(const IntRect& bounds) {
 	if (bounds.left < -32768 || bounds.left >= 32768) {
 		Interpreter::throwRunTimeError(String("bounds left out of range [-32768..32767]: ")
