@@ -1024,9 +1024,18 @@ template<class PIXEL_TYPE> void Canvas::parsePaintOfType(Interpreter& impd, IVGE
 
 	// Important to parse pattern first so that we don't apply other attributes (e.g. "relative") before we draw the texture.
 	if ((s = args.fetchOptional("pattern", false)) != 0) {
-		std::unique_ptr< PatternPainter<PIXEL_TYPE> > patternPainter(new PatternPainter<PIXEL_TYPE>(context.calcPatternScale()));
-		patternPainter->makePattern(impd, executor, context, *s);
-		paint.painter = patternPainter.release();
+		if (s->find('\[') == String::npos) {
+			const IMPD::WideString name = impd.unescapeToWide(*s);
+IVGExecutor::PatternMap::const_iterator it = executor.getDefinedPatterns().find(name);
+if (it == executor.getDefinedPatterns().end()) {
+				Interpreter::throwRunTimeError(String("Undefined pattern: ") + String(name.begin(), name.end()));
+			}
+			paint.painter = it->second;
+		} else {
+			std::unique_ptr< PatternPainter<PIXEL_TYPE> > patternPainter(new PatternPainter<PIXEL_TYPE>(context.calcPatternScale()));
+			patternPainter->makePattern(impd, executor, context, *s);
+			paint.painter = patternPainter.release();
+		}
 	} else if ((s = args.fetchOptional("gradient")) != 0) {
 		GradientSpec spec(impd, *s, true);
 		vector< typename Gradient<PIXEL_TYPE>::Stop > stops(spec.stops.size());
@@ -1340,6 +1349,18 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		buildPath(impd, 0, svg, pathArgs, type, path);
 		pathArgs.throwIfAnyUnfetched();
 		definedPaths[name] = path;
+	} else if (typeLower == "pattern") {
+		const WideString name = impd.unescapeToWide(args.fetchRequired(1, true));
+		const String& definition = args.fetchRequired(2, false);
+		args.throwIfAnyUnfetched();
+
+		if (definedPatterns.find(name) != definedPatterns.end()) {
+			Interpreter::throwRunTimeError(String("Duplicate pattern definition: ") + String(name.begin(), name.end()));
+		}
+
+		std::unique_ptr< PatternPainter<NuXPixels::ARGB32> > patternPainter(new PatternPainter<NuXPixels::ARGB32>(currentContext->calcPatternScale()));
+		patternPainter->makePattern(impd, *this, *currentContext, definition);
+		definedPatterns[name] = patternPainter.release();
 	} else {
 		Interpreter::throwBadSyntax(String("Invalid define instruction type: ") + type);
 	}

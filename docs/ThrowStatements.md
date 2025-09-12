@@ -36,7 +36,7 @@ why they occur.
 ## IVG
 
 - `Duplicate font definition: <name>`, `Duplicate image definition: <name>`,
-	`Duplicate path definition: <name>`: objects must be uniquely defined.
+		`Duplicate path definition: <name>`, `Duplicate pattern definition: <name>`: objects must be uniquely defined.
 - `resolution out of range [0.0001..inf): <value>`: invalid resolution value.
 - `Invalid define instruction type: <type>`: unknown type passed to a `define` instruction.
 - `Unrecognized alignment: <value>` or duplicate alignment tokens: invalid alignment directives.
@@ -45,7 +45,7 @@ why they occur.
 	`Negative ellipse radius`, `Negative star radius`: geometry values must be non-negative.
 - `star points out of range [1..10000]: <value>`: star shape uses an invalid number of points.
 - `Need to set font before writing`, `Missing font: <name>`: text operations without a valid font.
-- `Unrecognized fill rule: <value>` or `Undefined path: <name>`: painting references unknown values.
+- `Unrecognized fill rule: <value>` or `Undefined path: <name>`, `Undefined pattern: <name>`: painting references unknown values.
 - `Relative paint is not allowed with wipe`: invalid combination of paint options.
 - `aa-gamma out of range (0..100): <value>`,
 	`curve-quality out of range (0..100): <value>`,

@@ -381,6 +381,9 @@ class IVGExecutor : public IMPD::Executor {
 	protected:	ImageMap definedImages;
 	protected:	typedef std::map<IMPD::WideString, Path> PathMap;
 	protected:	PathMap definedPaths;
+	public: typedef std::map<IMPD::WideString, Inheritable<Painter> > PatternMap;
+	protected:	PatternMap definedPatterns;
+	public: const PatternMap& getDefinedPatterns() const { return definedPatterns; }
 	protected:	FormatVersion formatVersion;
 };
 
