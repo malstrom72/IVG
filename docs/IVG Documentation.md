@@ -812,8 +812,30 @@ Example:
 				fill black
 				rect 0,0,2,4
 		]
-		fill pattern:stripes
-		rect 0,0,20,20
+fill pattern:stripes
+rect 0,0,20,20
+
+#### define mask
+
+You can define a reusable mask and reference it later with the [`mask`](#mask) instruction.
+
+Syntax:
+
+		define mask <name> <instructions> [ inverted:(yes|no)=no ]
+
+-		`<name>` is a unique identifier for the mask. Mask names are case-sensitive and may only be defined once.
+-		`<instructions>` are the drawing commands for the mask, enclosed in brackets `[` and `]`.
+-		The optional `inverted` flag inverts the mask when it is defined.
+
+Example:
+
+		define mask hole [
+				fill black
+				circle 5,5,5
+		]
+		mask hole
+		fill red
+		rect 0,0,10,10
 
 ### fill
 

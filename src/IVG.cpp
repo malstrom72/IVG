@@ -1327,10 +1327,10 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 			Interpreter::throwRunTimeError(String("Duplicate path definition: ") + String(name.begin(), name.end()));
 		}
 
-        ArgumentsContainer pathArgs(ArgumentsContainer::parse(impd, definition));
-        Path path;
-        buildPath(impd, pathArgs, type, path);
-        definedPaths[name] = path;
+		ArgumentsContainer pathArgs(ArgumentsContainer::parse(impd, definition));
+		Path path;
+		buildPath(impd, pathArgs, type, path);
+		definedPaths[name] = path;
 	} else if (typeLower == "pattern") {
 		const WideString name = impd.unescapeToWide(args.fetchRequired(1, true));
 		const String& definition = args.fetchRequired(2, false);
@@ -1343,9 +1343,33 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		std::unique_ptr< PatternPainter<NuXPixels::ARGB32> > patternPainter(new PatternPainter<NuXPixels::ARGB32>(currentContext->calcPatternScale()));
 		patternPainter->makePattern(impd, *this, *currentContext, definition);
 		definedPatterns[name] = patternPainter.release();
-	} else {
-		Interpreter::throwBadSyntax(String("Invalid define instruction type: ") + type);
-	}
+		} else if (typeLower == "mask") {
+				const WideString name = impd.unescapeToWide(args.fetchRequired(1, true));
+				const String& definition = args.fetchRequired(2, false);
+				bool inverted = false;
+				const String* s = args.fetchOptional("inverted");
+				if (s != 0) inverted = impd.toBool(*s);
+				args.throwIfAnyUnfetched();
+
+				if (definedMasks.find(name) != definedMasks.end()) {
+						Interpreter::throwRunTimeError(String("Duplicate mask definition: ") + String(name.begin(), name.end()));
+				}
+
+				MaskMakerCanvas maskMaker(currentContext->accessCanvas().getBounds());
+				Context maskContext(maskMaker, *currentContext);
+				State& maskState = maskContext.accessState();
+				maskState.pen = Stroke();
+				maskState.fill = Paint();
+				maskState.fill.painter = new ColorPainter<Mask8>(0xFF);
+				maskState.textStyle.fill = Paint();
+				maskState.textStyle.fill.painter = new ColorPainter<Mask8>(0xFF);
+				maskState.textStyle.outline = Stroke();
+				maskState.evenOddFillRule = false;
+				runInNewContext(impd, maskContext, definition);
+				definedMasks[name] = maskMaker.finish(inverted);
+		} else {
+				Interpreter::throwBadSyntax(String("Invalid define instruction type: ") + type);
+		}
 }
 
 /* Built with QuickHashGen */
@@ -1373,35 +1397,35 @@ static IntRect expandToIntRect(const Rect<double>& floatRect) {
 }
 
 void IVGExecutor::buildPath(Interpreter& impd, ArgumentsContainer& args, const String& instruction, Path& path) {
-    const double curveQuality = currentContext->calcCurveQuality();
-    const String* svg = args.fetchOptional("svg");
-    if (svg != 0) {
-        const char* errorString;
-        if (!buildPathFromSVG(*svg, curveQuality, path, errorString)) {
-            impd.throwBadSyntax(errorString);
-        }
-    } else {
-        const String& arg0 = args.fetchRequired(0, false);
-        versionRequired(impd, IVG_3, instruction);
-        if (!Interpreter::isBracketBlock(arg0)) {
-            const WideString name = impd.unescapeToWide(impd.expand(arg0));
-            PathMap::const_iterator it = definedPaths.find(name);
-            if (it == definedPaths.end()) {
-                Interpreter::throwRunTimeError(String("Undefined path: ") + String(name.begin(), name.end()));
-            }
-            path = it->second;
-        } else {
-            PathInstructionExecutor pathExecutor(*this, path, curveQuality);
-            Interpreter pathInterpreter(pathExecutor, impd);
-            pathInterpreter.run(arg0);
-        }
-    }
+	const double curveQuality = currentContext->calcCurveQuality();
+	const String* svg = args.fetchOptional("svg");
+	if (svg != 0) {
+		const char* errorString;
+		if (!buildPathFromSVG(*svg, curveQuality, path, errorString)) {
+			impd.throwBadSyntax(errorString);
+		}
+	} else {
+		const String& arg0 = args.fetchRequired(0, false);
+		versionRequired(impd, IVG_3, instruction);
+		if (!Interpreter::isBracketBlock(arg0)) {
+			const WideString name = impd.unescapeToWide(impd.expand(arg0));
+			PathMap::const_iterator it = definedPaths.find(name);
+			if (it == definedPaths.end()) {
+				Interpreter::throwRunTimeError(String("Undefined path: ") + String(name.begin(), name.end()));
+			}
+			path = it->second;
+		} else {
+			PathInstructionExecutor pathExecutor(*this, path, curveQuality);
+			Interpreter pathInterpreter(pathExecutor, impd);
+			pathInterpreter.run(arg0);
+		}
+	}
 
-    const String* transform = args.fetchOptional("transform");
-    if (transform != 0) {
-        path.transform(parseTransformationBlock(impd, *transform));
-    }
-    args.throwIfAnyUnfetched();
+	const String* transform = args.fetchOptional("transform");
+	if (transform != 0) {
+		path.transform(parseTransformationBlock(impd, *transform));
+	}
+	args.throwIfAnyUnfetched();
 }
 
 void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
@@ -1888,26 +1912,39 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		}
 
 		case MASK_INSTRUCTION: {
-			const String& block = args.fetchRequired(0, false);
-			bool inverted = false;
-			const String* s = args.fetchOptional("inverted");
-			if (s != 0) inverted = impd.toBool(*s);
+		const String& arg0 = args.fetchRequired(0, false);
+		bool inverted = false;
+		const String* s = args.fetchOptional("inverted");
+		if (s != 0) inverted = impd.toBool(*s);
 
-			args.throwIfAnyUnfetched();
-			MaskMakerCanvas maskMaker(currentContext->accessCanvas().getBounds());
-			Context maskContext(maskMaker, *currentContext);
-			State& maskState = maskContext.accessState();
-			maskState.pen = Stroke();
-			maskState.fill = Paint();
-			maskState.fill.painter = new ColorPainter<Mask8>(0xFF);
-			maskState.textStyle.fill = Paint();
-			maskState.textStyle.fill.painter = new ColorPainter<Mask8>(0xFF);
-			maskState.textStyle.outline = Stroke();
-			maskState.evenOddFillRule = false;
-			runInNewContext(impd, maskContext, block);
-			currentContext->accessState().mask = maskMaker.finish(inverted);
-			break;
+		args.throwIfAnyUnfetched();
+		if (!Interpreter::isBracketBlock(arg0)) {
+				const WideString name = impd.unescapeToWide(impd.expand(arg0));
+				MaskMap::const_iterator it = definedMasks.find(name);
+				if (it == definedMasks.end()) {
+						Interpreter::throwRunTimeError(String("Undefined mask: ") + String(name.begin(), name.end()));
+				}
+				if (inverted) {
+						currentContext->accessState().mask = new Inverter<Mask8>(*it->second);
+				} else {
+						currentContext->accessState().mask = it->second;
+				}
+		} else {
+				MaskMakerCanvas maskMaker(currentContext->accessCanvas().getBounds());
+				Context maskContext(maskMaker, *currentContext);
+				State& maskState = maskContext.accessState();
+				maskState.pen = Stroke();
+				maskState.fill = Paint();
+				maskState.fill.painter = new ColorPainter<Mask8>(0xFF);
+				maskState.textStyle.fill = Paint();
+				maskState.textStyle.fill.painter = new ColorPainter<Mask8>(0xFF);
+				maskState.textStyle.outline = Stroke();
+				maskState.evenOddFillRule = false;
+				runInNewContext(impd, maskContext, arg0);
+				currentContext->accessState().mask = maskMaker.finish(inverted);
 		}
+		break;
+}
 		
 		case BOUNDS_INSTRUCTION: {
 			StringVector elems;
