@@ -157,15 +157,30 @@ class IVGExecutorWithExternalFiles : public IVGExecutor {
 
 
 #ifdef LIBFUZZ
+const int BOUNDS_PIXEL_LIMIT = 1 << 24; // 16M pixels
+
+struct FuzzerCanvas : public SelfContainedARGB32Canvas {
+	using SelfContainedARGB32Canvas::SelfContainedARGB32Canvas;
+	virtual void defineBounds(const IntRect& newBounds) override {
+		if (newBounds.width > 0 && newBounds.height > 0
+			&& newBounds.width * newBounds.height > BOUNDS_PIXEL_LIMIT) {
+			Interpreter::throwRunTimeError(String("bounds area out of range [1..")
+				+ Interpreter::toString(BOUNDS_PIXEL_LIMIT)
+				+ String("]: ") + Interpreter::toString(newBounds.width * newBounds.height));
+		}
+		SelfContainedARGB32Canvas::defineBounds(newBounds);
+	}
+};
+
 struct FuzzerExecutor : public IVGExecutor {
 	FuzzerExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform = NuXPixels::AffineTransformation())
-			: IVGExecutor(canvas, initialTransform) { }
+		: IVGExecutor(canvas, initialTransform) { }
 	virtual void trace(IMPD::Interpreter& interpreter, const IMPD::WideString& s) { }
 };
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 	const std::string ivgSource(reinterpret_cast<const char*>(Data), reinterpret_cast<const char*>(Data) + Size);
-	SelfContainedARGB32Canvas canvas;
+	FuzzerCanvas canvas;
 	try {
 		{
 			STLMapVariables topVars;
