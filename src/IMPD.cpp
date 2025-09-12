@@ -769,9 +769,9 @@ String Interpreter::toLower(const StringRange& r) {
 	return d;
 }
 
-bool Interpreter::isBracketBlock(const String& s) { return (s.size() >= 2 && s[0] == '[' && s[s.size() - 1] == ']'); }
-bool Interpreter::isQuotedString(const String& s) { return (s.size() >= 2 && s[0] == '"' && s[s.size() - 1] == '"'); }
-bool Interpreter::isCurlyExpression(const String& s) { return (s.size() >= 2 && s[0] == '{' && s[s.size() - 1] == '}'); }
+bool Interpreter::isBracketBlock(const String& s) { return (s.size() >= 2 && s[0] == '[' && s.back() == ']'); }
+bool Interpreter::isQuotedString(const String& s) { return (s.size() >= 2 && s[0] == '"' && s.back() == '"'); }
+bool Interpreter::isCurlyExpression(const String& s) { return (s.size() >= 2 && s[0] == '{' && s.back() == '}'); }
 
 StringIt Interpreter::numericOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence
 		, Char op, Precedence opPrecedence, bool dry) const {
