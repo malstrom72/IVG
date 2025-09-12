@@ -180,30 +180,35 @@ class Interpreter {
 	public:		static void throwRunTimeError(const String& how);											///< Run-time error should be thrown when dynamic processing fails. E.g. variable contents is of wrong type for operation.
 	public:		static void throwRunTimeError(const char* how);
 
-	public:		static String toString(bool b);																			///< Returns "yes" or "no".
-	public:		static String toString(int32_t i, int radix = 10, int minLength = 1);									///< Converts integer to string with choosable `radix` (from 2 to 16). `minLength` should be between 0 and 8 * sizeof (int).
-	public:		static String toString(double d, int precision = NUMBER_PRECISION_DIGITS);								///< Converts double to string in scientific e notation, e.g. -12.34e-3.
+	public:		static String toString(bool b);																///< Returns "yes" or "no".
+	public:		static String toString(int32_t i, int radix = 10, int minLength = 1);						///< Converts integer to string with choosable `radix` (from 2 to 16). `minLength` should be between 0 and 8 * sizeof (int).
+	public:		static String toString(double d, int precision = NUMBER_PRECISION_DIGITS);					///< Converts double to string in scientific e notation, e.g. -12.34e-3.
 
-	public:		static bool toBool(const String& s);																	///< Tries to convert string (either "yes" or "no") to boolean. Throws a run-time error if the string isn't "yes" or "no".
-	public:		static int toInt(const StringRange& r);																	///< Tries to convert a string range to signed integer. Throws a run-time error if the string range could not be fully converted. Notice that a StringRange can be implicitly constructed from String, so you can pass a String as the argument to this function as well. See also parseInt().
-	public:		static double toDouble(const StringRange& r);															///< Tries to convert a string range to double. Throws a run-time error if the string could not be fully converted. Notice that a StringRange can be implicitly constructed from String, so you can pass a String as the argument to this function as well. See also parseDouble().
-	public:		static String toLower(const StringRange& r);															///< Converts string to lower case. Only ASCII characters 'A' to 'Z' will be treated.
-	public:		static UniString unescapeToUni(const StringRange& r);													///< Converts any escaped characters in a string to their unicode values. Special escape sequences are: @code \a \b \f \n \r \t \v \xHH \uHHHH \UHHHHHHHH \<decimal> @endcode. Any other escaped character is simply replaced by itself (without the backslash). Notice that a StringRange can be implicitly constructed from String, so you can pass a String as the argument to this function as well. Returned format is UTF32.
-	public:		static WideString unescapeToWide(const StringRange& r);													///< Like unescapeToUni(), but returned type is std::wstring, which may be UTF32 or UTF16 depending on target platform.
+	public:		static bool toBool(const String& s);														///< Tries to convert string (either "yes" or "no") to boolean. Throws a run-time error if the string isn't "yes" or "no".
+	public:		static int toInt(const StringRange& r);														///< Tries to convert a string range to signed integer. Throws a run-time error if the string range could not be fully converted. Notice that a StringRange can be implicitly constructed from String, so you can pass a String as the argument to this function as well. See also parseInt().
+	public:		static double toDouble(const StringRange& r);												///< Tries to convert a string range to double. Throws a run-time error if the string could not be fully converted. Notice that a StringRange can be implicitly constructed from String, so you can pass a String as the argument to this function as well. See also parseDouble().
+	public:		static String toLower(const StringRange& r);												///< Converts string to lower case. Only ASCII characters 'A' to 'Z' will be treated.
+	public:		static UniString unescapeToUni(const StringRange& r);										///< Converts any escaped characters in a string to their unicode values. Special escape sequences are: @code \a \b \f \n \r \t \v \xHH \uHHHH \UHHHHHHHH \<decimal> @endcode. Any other escaped character is simply replaced by itself (without the backslash). Notice that a StringRange can be implicitly constructed from String, so you can pass a String as the argument to this function as well. Returned format is UTF32.
+	public:		static WideString unescapeToWide(const StringRange& r);										///< Like unescapeToUni(), but returned type is std::wstring, which may be UTF32 or UTF16 depending on target platform.
 
-	public:		static StringIt parseHex(StringIt p, const StringIt& e, uint32_t& i);									///< Parses and converts as much as possible of hexadecimal string starting at `p` and ending at `e` into an unsigned int. Returns an iterator pointing to the first character that could not be parsed.
-	public:		static StringIt parseUnsignedInt(StringIt p, const StringIt& e, uint32_t& i);							///< Parses and converts as much as possible of decimal string starting at `p` and ending at `e` into an unsigned int (does not accept leading '+' or '-'). Returns an iterator pointing to the first character that could not be parsed.
-	public:		static StringIt parseInt(StringIt p, const StringIt& e, int& i);										///< Parses and converts as much as possible of decimal string starting at `p` and ending at `e` into a signed int (accepts leading '+' or '-'). Returns an iterator pointing to the first character that could not be parsed.
-	public:		static StringIt parseDouble(StringIt p, const StringIt& e, double& d);			/// Parses a floating point string starting at `p` and ending at `e` (supports scientific e notation). Returns an iterator pointing to the first character that could not be parsed. Returns `p` on failure.
-		
-	public:		Interpreter(Executor& executor, Variables& vars, int statementsLimit = DEFAULT_STATEMENTS_LIMIT
-						, int recursionLimit = DEFAULT_RECURSION_LIMIT);												///< Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`.
+	public:		static StringIt parseHex(StringIt p, const StringIt& e, uint32_t& i);						///< Parses and converts as much as possible of hexadecimal string starting at `p` and ending at `e` into an unsigned int. Returns an iterator pointing to the first character that could not be parsed.
+	public:		static StringIt parseUnsignedInt(StringIt p, const StringIt& e, uint32_t& i);				///< Parses and converts as much as possible of decimal string starting at `p` and ending at `e` into an unsigned int (does not accept leading '+' or '-'). Returns an iterator pointing to the first character that could not be parsed.
+	public:		static StringIt parseInt(StringIt p, const StringIt& e, int& i);							///< Parses and converts as much as possible of decimal string starting at `p` and ending at `e` into a signed int (accepts leading '+' or '-'). Returns an iterator pointing to the first character that could not be parsed.
+	public:		static StringIt parseDouble(StringIt p, const StringIt& e, double& d);						/// Parses a floating point string starting at `p` and ending at `e` (supports scientific e notation). Returns an iterator pointing to the first character that could not be parsed. Returns `p` on failure.
+	
+	public:		static bool isBracketBlock(const String& s);
+	public:		static bool isQuotedString(const String& s);
+	public:		static bool isCurlyExpression(const String& s);
+
+	public:		Interpreter(Executor& executor, Variables& vars
+						, int statementsLimit = DEFAULT_STATEMENTS_LIMIT
+						, int recursionLimit = DEFAULT_RECURSION_LIMIT);									///< Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`.
 	public:		Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame);
 	public:		Interpreter(Executor& executor, Interpreter& enclosingInterpreter);
 	public:		Executor& getExecutor() const { return executor; }
 	public:		Variables& getVariables() const { return vars; }
 	public:		int mapArguments(const ArgumentVector& allArguments, StringStringMap& labeledArguments
-						, StringVector& indexedArguments);																///< `labeledArguments` will map the labels converted to all lower case
+						, StringVector& indexedArguments);													///< `labeledArguments` will map the labels converted to all lower case
 	public:		void parseArguments(const StringRange& r, ArgumentVector& arguments) const;
 	public:		int parseList(const StringRange& r, StringVector& elements, bool expandAll 
 						, bool removeEmpty, int minElements, int maxElements) const;
@@ -214,12 +219,12 @@ class Interpreter {
 
 	protected:	class EvaluationValue;
 	protected:	static bool isComment(StringIt p, const StringIt& e);
-	protected:	static bool isSymbolLetter(Char c);																		///< _ is considered a letter in this context, . - and 0 to 9 are not
+	protected:	static bool isSymbolLetter(Char c);															///< _ is considered a letter in this context, . - and 0 to 9 are not
 	protected:	static StringIt eatComment(StringIt p, const StringIt& e);
 	protected:	static StringIt eatWhite(StringIt p, const StringIt& e);
 	protected:	static StringIt eatEscape(StringIt p, const StringIt& e);
 	protected:	static StringIt eatSymbol(StringIt p, const StringIt& e);
-	protected:	static StringIt eatSymbolForAssignment(StringIt p, const StringIt& e);									///< Doesn't accept leading '-' or 0 to 9 to prevent common accidental errors like $x = 3 (where x is a numeric value) from going unnoticed.
+	protected:	static StringIt eatSymbolForAssignment(StringIt p, const StringIt& e);						///< Doesn't accept leading '-' or 0 to 9 to prevent common accidental errors like $x = 3 (where x is a numeric value) from going unnoticed.
 	protected:	static StringIt eatBlock(StringIt p, const StringIt& e);
 	protected:	static StringIt eatQuotedString(StringIt p, const StringIt& e);
 	protected:	static StringIt eatArgumentValue(StringIt p, const StringIt& e);

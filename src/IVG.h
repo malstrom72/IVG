@@ -320,7 +320,7 @@ struct Image {
 	Executes IVG drawing instructions within a rendering context.
 **/
 class IVGExecutor : public IMPD::Executor {
-		friend class PathInstructionExecutor;
+	friend class PathInstructionExecutor;
 	public:		enum FormatVersion { UNKNOWN, IVG_1, IVG_2, IVG_3 };
 	public:		IVGExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform
 						= NuXPixels::AffineTransformation());
@@ -364,8 +364,8 @@ class IVGExecutor : public IMPD::Executor {
 	public:		virtual ~IVGExecutor();
 	protected:	void executeImage(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args);
 	protected:	void executeDefine(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args);
-	protected:	void buildPath(IMPD::Interpreter& impd, const IMPD::String* blockArg, const IMPD::String* svg
-			, IMPD::ArgumentsContainer& args, const IMPD::String& instruction, Path& path);
+	protected:	void buildPath(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args
+						, const IMPD::String& instruction, Path& path);
 	protected:	void parseStroke(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args, Stroke& stroke);
 	protected:	void versionRequired(IMPD::Interpreter& impd, FormatVersion required, const IMPD::String& instruction);
 	protected:	std::vector<const Font*> lookupExternalOrInternalFonts(IMPD::Interpreter& impd
@@ -381,6 +381,9 @@ class IVGExecutor : public IMPD::Executor {
 	protected:	ImageMap definedImages;
 	protected:	typedef std::map<IMPD::WideString, Path> PathMap;
 	protected:	PathMap definedPaths;
+	public: 	typedef std::map<IMPD::WideString, Inheritable<Painter> > PatternMap;
+	protected:	PatternMap definedPatterns;
+	public: 	const PatternMap& getDefinedPatterns() const { return definedPatterns; }
 	protected:	FormatVersion formatVersion;
 };
 

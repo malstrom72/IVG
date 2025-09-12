@@ -1,0 +1,9 @@
+FORMAT IVG-3 requires:IMPD-1
+BOUNDS 0,0,20,20
+define pattern stripes [
+	bounds 0,0,4,4
+	fill black
+	rect 0,0,2,4
+]
+fill pattern:stripes
+rect 0,0,20,20

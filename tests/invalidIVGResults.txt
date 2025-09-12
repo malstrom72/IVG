@@ -48,7 +48,7 @@ Testing path_arc_move_too_few: expecting "Too few list elements (got 2, expected
 Testing path_close_has_args: expecting "Unrecognized labels or too many arguments" ... PASS
 Testing path_size_out_of_range: expecting "path instruction limit exceeded" ... PASS
 Testing path_text_missing_text: expecting "Missing indexed argument 1" ... PASS
-Testing pattern_unknown_reference: expecting "Unrecognized instruction: missing" ... PASS
+Testing pattern_unknown_reference: expecting "Undefined pattern: missing" ... PASS
 Testing radialGradientHugeTransform: expecting "Radial gradient radius too large" ... PASS
 Testing radial_gradient_radius_out_of_range: expecting "Radial gradient radius too large" ... PASS
 Testing star_points_out_of_range: expecting "star points out of range [1..10000]: 0" ... PASS

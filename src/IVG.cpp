@@ -654,8 +654,8 @@ static double calcTextAnchorOffset(TextAnchor anchor, double advance);
 static AffineTransformation parseTransformationBlock(Interpreter& impd, const String& source);
 
 class PathInstructionExecutor : public Executor {
-	public:		PathInstructionExecutor(IVGExecutor& ivgExecutor, Path& path, double curveQuality, IVGExecutor::FormatVersion formatVersion)
-						: ivgExecutor(ivgExecutor), path(path), curveQuality(curveQuality), formatVersion(formatVersion)
+	public:		PathInstructionExecutor(IVGExecutor& ivgExecutor, Path& path, double curveQuality)
+						: ivgExecutor(ivgExecutor), path(path), curveQuality(curveQuality)
 						, anchorOrigin(0.0, 0.0) {
 				};
 	public:		virtual bool format(Interpreter& impd, const String& identifier, const vector<String>& uses
@@ -821,7 +821,7 @@ class PathInstructionExecutor : public Executor {
 							return true;
 						}
 						case PATH_ELLIPSE_INSTRUCTION: {
-							appendChecked(makeEllipsePath(subPath, impd, args, curveQuality, formatVersion));
+							appendChecked(makeEllipsePath(subPath, impd, args, curveQuality, IVGExecutor::IVG_3));
 							return true;
 						}
 						case PATH_STAR_INSTRUCTION: {
@@ -853,24 +853,8 @@ class PathInstructionExecutor : public Executor {
 							return true;
 						}
 						case PATH_PATH_INSTRUCTION: {
-							const String* nameArg = args.fetchOptional(0, false);
-							const String* svg = args.fetchOptional("svg");
 							Path fragment;
-							if (svg == 0 && nameArg != 0 && !nameArg->empty() && (*nameArg)[0] != '[') {
-								const WideString name = impd.unescapeToWide(impd.expand(*nameArg));
-								IVGExecutor::PathMap::const_iterator it = ivgExecutor.definedPaths.find(name);
-								if (it == ivgExecutor.definedPaths.end()) {
-									Interpreter::throwRunTimeError(String("Undefined path: ") + String(name.begin(), name.end()));
-								}
-								fragment = it->second;
-							} else {
-								ivgExecutor.buildPath(impd, nameArg, svg, args, String("path"), fragment);
-							}
-							const String* transformArg = args.fetchOptional("transform");
-							if (transformArg != 0) {
-								fragment.transform(parseTransformationBlock(impd, *transformArg));
-							}
-							args.throwIfAnyUnfetched();
+							ivgExecutor.buildPath(impd, args, String("path"), fragment);
 							appendChecked(fragment);
 							return true;
 						}
@@ -897,7 +881,6 @@ class PathInstructionExecutor : public Executor {
 	protected:	IVGExecutor& ivgExecutor;
 	protected:	Path& path;
 	protected:	const double curveQuality;
-	protected:	const IVGExecutor::FormatVersion formatVersion;
 	protected:	Vertex anchorOrigin;
 };
 
@@ -1025,9 +1008,18 @@ template<class PIXEL_TYPE> void Canvas::parsePaintOfType(Interpreter& impd, IVGE
 
 	// Important to parse pattern first so that we don't apply other attributes (e.g. "relative") before we draw the texture.
 	if ((s = args.fetchOptional("pattern", false)) != 0) {
-		std::unique_ptr< PatternPainter<PIXEL_TYPE> > patternPainter(new PatternPainter<PIXEL_TYPE>(context.calcPatternScale()));
-		patternPainter->makePattern(impd, executor, context, *s);
-		paint.painter = patternPainter.release();
+		if (!Interpreter::isBracketBlock(*s)) {
+			const IMPD::WideString name = impd.unescapeToWide(*s);
+			IVGExecutor::PatternMap::const_iterator it = executor.getDefinedPatterns().find(name);
+			if (it == executor.getDefinedPatterns().end()) {
+				Interpreter::throwRunTimeError(String("Undefined pattern: ") + String(name.begin(), name.end()));
+			}
+			paint.painter = it->second;
+		} else {
+			std::unique_ptr< PatternPainter<PIXEL_TYPE> > patternPainter(new PatternPainter<PIXEL_TYPE>(context.calcPatternScale()));
+			patternPainter->makePattern(impd, executor, context, *s);
+			paint.painter = patternPainter.release();
+		}
 	} else if ((s = args.fetchOptional("gradient")) != 0) {
 		GradientSpec spec(impd, *s, true);
 		vector< typename Gradient<PIXEL_TYPE>::Stop > stops(spec.stops.size());
@@ -1335,12 +1327,22 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 			Interpreter::throwRunTimeError(String("Duplicate path definition: ") + String(name.begin(), name.end()));
 		}
 
-		ArgumentsContainer pathArgs(ArgumentsContainer::parse(impd, definition));
-		Path path;
-		const String* svg = pathArgs.fetchOptional("svg");
-		buildPath(impd, 0, svg, pathArgs, type, path);
-		pathArgs.throwIfAnyUnfetched();
-		definedPaths[name] = path;
+        ArgumentsContainer pathArgs(ArgumentsContainer::parse(impd, definition));
+        Path path;
+        buildPath(impd, pathArgs, type, path);
+        definedPaths[name] = path;
+	} else if (typeLower == "pattern") {
+		const WideString name = impd.unescapeToWide(args.fetchRequired(1, true));
+		const String& definition = args.fetchRequired(2, false);
+		args.throwIfAnyUnfetched();
+
+		if (definedPatterns.find(name) != definedPatterns.end()) {
+			Interpreter::throwRunTimeError(String("Duplicate pattern definition: ") + String(name.begin(), name.end()));
+		}
+
+		std::unique_ptr< PatternPainter<NuXPixels::ARGB32> > patternPainter(new PatternPainter<NuXPixels::ARGB32>(currentContext->calcPatternScale()));
+		patternPainter->makePattern(impd, *this, *currentContext, definition);
+		definedPatterns[name] = patternPainter.release();
 	} else {
 		Interpreter::throwBadSyntax(String("Invalid define instruction type: ") + type);
 	}
@@ -1370,21 +1372,36 @@ static IntRect expandToIntRect(const Rect<double>& floatRect) {
 	return r;
 }
 
-void IVGExecutor::buildPath(Interpreter& impd, const String* blockArg, const String* svg
-			, ArgumentsContainer& args, const String& instruction, Path& path) {
-	const double curveQuality = currentContext->calcCurveQuality();
-	if (svg != 0) {
-		const char* errorString;
-		if (!buildPathFromSVG(*svg, curveQuality, path, errorString)) {
-			impd.throwBadSyntax(errorString);
-		}
-	} else {
-		versionRequired(impd, IVG_3, instruction);
-		const String& block = (blockArg != 0 ? *blockArg : args.fetchRequired(0, false));
-		PathInstructionExecutor pathExecutor(*this, path, curveQuality, formatVersion);
-		Interpreter pathInterpreter(pathExecutor, impd);
-		pathInterpreter.run(block);
-	}
+void IVGExecutor::buildPath(Interpreter& impd, ArgumentsContainer& args, const String& instruction, Path& path) {
+    const double curveQuality = currentContext->calcCurveQuality();
+    const String* svg = args.fetchOptional("svg");
+    if (svg != 0) {
+        const char* errorString;
+        if (!buildPathFromSVG(*svg, curveQuality, path, errorString)) {
+            impd.throwBadSyntax(errorString);
+        }
+    } else {
+        const String& arg0 = args.fetchRequired(0, false);
+        versionRequired(impd, IVG_3, instruction);
+        if (!Interpreter::isBracketBlock(arg0)) {
+            const WideString name = impd.unescapeToWide(impd.expand(arg0));
+            PathMap::const_iterator it = definedPaths.find(name);
+            if (it == definedPaths.end()) {
+                Interpreter::throwRunTimeError(String("Undefined path: ") + String(name.begin(), name.end()));
+            }
+            path = it->second;
+        } else {
+            PathInstructionExecutor pathExecutor(*this, path, curveQuality);
+            Interpreter pathInterpreter(pathExecutor, impd);
+            pathInterpreter.run(arg0);
+        }
+    }
+
+    const String* transform = args.fetchOptional("transform");
+    if (transform != 0) {
+        path.transform(parseTransformationBlock(impd, *transform));
+    }
+    args.throwIfAnyUnfetched();
 }
 
 void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
@@ -1740,7 +1757,6 @@ Path IVGExecutor::makeTextPath(Interpreter& impd, const UniString& text, double&
 	return textPath;
 }
 
-
 bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const String& arguments) {
 	int foundInstruction = findIVGInstruction(instruction.size(), instruction.c_str());
 	if (foundInstruction < 0) {
@@ -1779,35 +1795,15 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 
-		case PATH_INSTRUCTION: {
-			const String* nameArg = args.fetchOptional(0, false);
-			const String* svg = args.fetchOptional("svg");
-			Path builtPath;
-			const Path* pathPointer;
-			if (svg == 0 && nameArg != 0 && !nameArg->empty() && (*nameArg)[0] != '[') {
-				const WideString name = impd.unescapeToWide(impd.expand(*nameArg));
-				PathMap::const_iterator it = definedPaths.find(name);
-				if (it == definedPaths.end()) {
-					Interpreter::throwRunTimeError(String("Undefined path: ") + String(name.begin(), name.end()));
+			case PATH_INSTRUCTION: {
+				Path builtPath;
+				buildPath(impd, args, instruction, builtPath);
+				if (builtPath.empty() || builtPath.begin()->first != Path::MOVE) {
+					Interpreter::throwRunTimeError("Invalid first path instruction: " + instruction);
 				}
-				pathPointer = &it->second;
-			} else {
-				buildPath(impd, nameArg, svg, args, instruction, builtPath);
-				pathPointer = &builtPath;
+				currentContext->draw(builtPath);
+				break;
 			}
-			const String* transform = args.fetchOptional("transform");
-			if (transform != 0) {
-				builtPath = *pathPointer;
-				builtPath.transform(parseTransformationBlock(impd, *transform));
-				pathPointer = &builtPath;
-			}
-			args.throwIfAnyUnfetched();
-			if (pathPointer->empty() || pathPointer->begin()->first != Path::MOVE) {
-				Interpreter::throwRunTimeError("Invalid first path instruction: " + instruction);
-			}
-			currentContext->draw(*pathPointer);
-			break;
-		}
 			
 		case MATRIX_INSTRUCTION:
 		case SCALE_INSTRUCTION:

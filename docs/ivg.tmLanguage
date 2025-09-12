@@ -85,7 +85,7 @@
 			<key>name</key>
 			<string>support.function.instruction.ivg</string>
 			<key>match</key>
-			<string>(?i)\b(define\s+font|define\s+image|define\s+path|font|TEXT|IMAGE|PATH)\b</string>
+<string>(?i)\b(define\s+font|define\s+image|define\s+path|define\s+pattern|font|TEXT|IMAGE|PATH)\b</string>
 		</dict>
 	</array>
 	<key>repository</key>

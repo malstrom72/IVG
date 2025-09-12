@@ -793,6 +793,28 @@ Example:
 	fill gold
 	PATH star transform:[rotate 45]
 
+#### define pattern
+
+You can define a reusable pattern and reference it later in paint specifications.
+
+Syntax:
+
+		define pattern <name> <instructions>
+
+-		`<name>` is a unique identifier for the pattern. Pattern names are case-sensitive and may only be defined once.
+-		`<instructions>` are the drawing commands defining the pattern, enclosed in brackets `[` and `]`. The pattern is
+		rendered using the current [options](#options) pattern resolution and the current transformation.
+
+Example:
+
+		define pattern stripes [
+				bounds 0,0,4,4
+				fill black
+				rect 0,0,2,4
+		]
+		fill pattern:stripes
+		rect 0,0,20,20
+
 ### fill
 
 The fill directive sets the fill style for subsequent drawing operations in the current [context](#context).
@@ -1334,13 +1356,13 @@ look like. You can select a solid color, a gradient of colors, or a pattern.
 -	The `gradient` paint type specifies a gradient of colors that can be set with a starting and ending color or
 	multiple color stops. See [Gradient Specification](#gradient-specification).
 
--	The `pattern` paint type is used to specify a repeating graphical pattern created from a set of drawing
-	instructions. You define the pattern by enclosing the instructions in brackets `[` and `]`. The drawing context
-	for the pattern inherits all settings from the current context, such as [`pen`](#pen), [`fill`](#fill), etc.,
-	except for the [`mask`](#mask) setting. A [`bounds`](#bounds) directive is required to define the pattern's
-	dimensions. The resolution used for rasterizing the pattern can be changed using the [`options`](#options)
-	directive.
-
+-		The `pattern` paint type is used to specify a repeating graphical pattern created from a set of drawing
+		instructions. You define the pattern by enclosing the instructions in brackets `[` and `]` or by
+		referencing a pattern name created with [`define pattern`](#define-pattern). The drawing context
+		for the pattern inherits all settings from the current context, such as [`pen`](#pen), [`fill`](#fill), etc.,
+		except for the [`mask`](#mask) setting. A [`bounds`](#bounds) directive is required to define the pattern's
+		dimensions. The resolution used for rasterizing the pattern can be changed using the [`options`](#options)
+		directive.
 -	The `transform` option allows you to apply a series of transformations on the paint. These transformations are
 	relative to the current transformation of the active [context](#context). See [Transform
 	Specification](#transform-specification). (Irrelevant for solid colors.)
