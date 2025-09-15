@@ -924,17 +924,19 @@ See [TEXT](#text) for an example of how to set the font.
 
 The `mask` instruction is used to create a mask that will be applied to subsequent drawing operations. You define the
 mask with a set of instructions that draws the mask. The effect of the mask lasts until the end of the current
-[context](#context) or until it is [reset](#reset).
+[context](#context) or until `mask reset` is used.
 
 Syntax:
 
 		mask [ <instructions> | <name> ] [ inverted:(yes|no)=no ]
 		mask invert
+		mask reset
 
 -	`<instructions>` defines the mask and must be enclosed in brackets `[` and `]`.
 -	`<name>` references a mask previously created with [`define mask`](#define-mask).
 -	The `inverted` option flips the supplied mask before applying it.
--	`mask invert` toggles the current mask by computing its bitwise complement. Omitting the argument is an error; use [`reset`](#reset) to clear the mask.
+-	`mask invert` toggles the current mask by computing its bitwise complement.
+-	`mask reset` removes the current mask. Omitting the argument is an error; use `mask reset` to clear the mask.
 
 When the mask is not inverted, it will reveal all painted areas and hide everything else. On the other hand, if the mask is inverted, it will hide all painted areas and reveal everything else.
 In mask definitions, drawing directives and instructions work like normal, and you can even nest masks in masks. The one
