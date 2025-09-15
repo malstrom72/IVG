@@ -1917,13 +1917,19 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			if (arg0Lower == "invert") {
 				args.throwIfAnyUnfetched();
 				State& state = currentContext->accessState();
+				// DEBUG
+				// std::cerr << "DEBUG: mask invert begin, have mask? " << (state.mask ? "yes" : "no") << std::endl;
 				if (state.mask) {
-					std::unique_ptr<Renderer<Mask8>> prev = state.mask.release();
-					state.mask = new RLERaster<Mask8>(prev->calcBounds(), ~*prev);
+					// Don't release here: `state.mask` may not own the pointer (it can reference a shared mask).
+					// Instead, read through the reference and create a new owned inverted raster.
+					const Renderer<Mask8>& prev = *state.mask;
+					state.mask = new RLERaster<Mask8>(prev.calcBounds(), ~prev);
+					// std::cerr << "DEBUG: mask invert created inverted raster" << std::endl;
 				} else {
 					state.mask = new RLERaster<Mask8>(currentContext->accessCanvas().getBounds()
 										, Solid<Mask8>(0x00));
 				}
+				// std::cerr << "DEBUG: mask invert end" << std::endl;
 			} else if (arg0Lower == "reset") {
 				args.throwIfAnyUnfetched();
 				currentContext->accessState().mask = 0;
@@ -1946,7 +1952,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 															   + String(name.begin(), name.end()));
 									   }
 									   if (inverted) {
-											   std::unique_ptr<Renderer<Mask8>> prev = it->second.release();
+											   std::unique_ptr<Renderer<Mask8> > prev = it->second.release();
 											   it->second = new RLERaster<Mask8>(prev->calcBounds(), ~*prev);
 									   }
 									   const Renderer<Mask8>& src = *it->second;
@@ -1964,8 +1970,11 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 											   double maxY = max(max(tl.y, tr.y), max(bl.y, br.y));
 											   IntRect dstBounds = expandToIntRect(Rect<double>(minX, minY,
 						maxX - minX, maxY - minY));
+											   // Texture requires a Raster<T>; convert renderer to a self-contained raster first.
+											   SelfContainedRaster<Mask8> srcRaster(srcBounds);
+											   srcRaster = src;
 											   currentContext->accessState().mask = new RLERaster<Mask8>(dstBounds,
-						Texture<Mask8>(src, false, texXF));
+						Texture<Mask8>(srcRaster, false, texXF));
 									   } else {
 											   currentContext->accessState().mask = it->second;
 									   }
@@ -1981,7 +1990,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 									   maskState.textStyle.outline = Stroke();
 									   maskState.evenOddFillRule = false;
 									   runInNewContext(impd, maskContext, arg0);
-									   std::unique_ptr<Renderer<Mask8>> result(maskMaker.finish(inverted));
+									   std::unique_ptr<Renderer<Mask8> > result(maskMaker.finish(inverted));
 									   if (doTransform) {
 											   IntRect srcBounds = result->calcBounds();
 											   AffineTransformation texXF = maskTransform.transform(
@@ -1996,8 +2005,11 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 											   double maxY = max(max(tl.y, tr.y), max(bl.y, br.y));
 											   IntRect dstBounds = expandToIntRect(Rect<double>(minX, minY,
 						maxX - minX, maxY - minY));
+											   // Texture requires a Raster<T>; convert renderer to a self-contained raster first.
+											   SelfContainedRaster<Mask8> resultRaster(srcBounds);
+											   resultRaster = *result;
 											   currentContext->accessState().mask = new RLERaster<Mask8>(dstBounds,
-						Texture<Mask8>(*result, false, texXF));
+						Texture<Mask8>(resultRaster, false, texXF));
 									   } else {
 											   currentContext->accessState().mask = result.release();
 									   }
