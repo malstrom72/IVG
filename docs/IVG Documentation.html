@@ -1120,7 +1120,7 @@ set of instructions that draws the mask. The effect of the mask lasts
 until the end of the current <a href="#context">context</a> or until
 <code>mask reset</code> is used.</p>
 <p>Syntax:</p>
-<pre><code>	   mask [ &lt;instructions&gt; | &lt;name&gt; ] [ inverted:(yes|no)=no ]
+<pre><code>	   mask [ &lt;instructions&gt; | &lt;name&gt; ] [ inverted:(yes|no)=no ] [ transform:&lt;transform&gt; ]
 	mask invert
 	mask reset</code></pre>
 <ul>
@@ -1130,6 +1130,8 @@ enclosed in brackets <code>[</code> and <code>]</code>.</li>
 <a href="#define-mask"><code>define mask</code></a>.</li>
 <li>The <code>inverted</code> option flips the supplied mask before
 applying it.</li>
+<li><pre><code>	 `transform:` applies an additional transformation to the mask before it is used.</code></pre></li>
+<li><pre><code>	 Transforming a mask treats it as a texture and re-samples its pixels, so large or repeated transforms can soften edges.</code></pre></li>
 <li><code>mask invert</code> toggles the current mask by computing its
 bitwise complement.</li>
 <li><code>mask reset</code> removes the current mask. Omitting the

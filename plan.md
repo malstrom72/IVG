@@ -35,13 +35,21 @@
 	   - In the same `MASK_INSTRUCTION` case, handle the `reset` argument to clear `currentContext->accessState().mask` and reject `inverted`.
 - [ ] Run `timeout 600 ./build.sh`
 
-## Milestone 4: Document `define mask` feature
+## Milestone 4: Allow transforming masks
+- [ ] **Support optional `transform:` in `mask`**
+	- In `src/IVG.cpp` case `MASK_INSTRUCTION` (~line 1890), parse a `transform` block when a mask name or instructions are supplied.
+	- If present, render the referenced mask through `Texture<Mask8>` using the parsed transform and assign the resulting raster to `currentContext->accessState().mask`.
+	- Leave entries in `definedMasks` untouched; only the active mask is replaced.
+	- Mention in the documentation that texture-based transforms resample the mask and may soften edges.
+- [ ] Run `timeout 600 ./build.sh`
+
+## Milestone 5: Document `define mask` feature
 - [ ] **Update user documentation**
 	- In `docs/IVG Documentation.md` after the `define pattern` section, add a `define mask` subsection describing syntax `define mask <name> [inverted] { ... }`, referencing via `mask <name>` and `mask <name> inverted`, plus a short example.
 	- Regenerate `docs/IVG Documentation.html` by running `bash tools/updateDocumentation.sh`.
 - [ ] Run `timeout 600 ./build.sh`
 
-## Milestone 5: Add regression tests for reusable masks
+## Milestone 6: Add regression tests for reusable masks
 - [ ] **Create regression test**
 	- Add `tests/ivg/defineMaskTest.ivg` that defines a mask (e.g. `starMask`), applies it normally and with `inverted`.
 	- Add expected output images/baselines so the test harness can verify results.

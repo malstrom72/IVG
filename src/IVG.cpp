@@ -1928,38 +1928,83 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				args.throwIfAnyUnfetched();
 				currentContext->accessState().mask = 0;
 			} else {
-				bool inverted = false;
-				const String* s;
-				if ((s = args.fetchOptional("inverted")) != 0) inverted = impd.toBool(*s);
-				args.throwIfAnyUnfetched();
-				if (!Interpreter::isBracketBlock(arg0)) {
-					const WideString name = impd.unescapeToWide(impd.expand(arg0));
-					MaskMap::iterator it = definedMasks.find(name);
-					if (it == definedMasks.end()) {
-						Interpreter::throwRunTimeError(String("Undefined mask: ") + String(name.begin(), name.end()));
-					}
-					if (inverted) {
-						std::unique_ptr<Renderer<Mask8>> prev = it->second.release();
-						it->second = new RLERaster<Mask8>(prev->calcBounds(), ~*prev);
-					}
-					currentContext->accessState().mask = it->second;
-				} else {
-					MaskMakerCanvas maskMaker(currentContext->accessCanvas().getBounds());
-					Context maskContext(maskMaker, *currentContext);
-					State& maskState = maskContext.accessState();
-					maskState.pen = Stroke();
-					maskState.fill = Paint();
-					maskState.fill.painter = new ColorPainter<Mask8>(0xFF);
-					maskState.textStyle.fill = Paint();
-					maskState.textStyle.fill.painter = new ColorPainter<Mask8>(0xFF);
-					maskState.textStyle.outline = Stroke();
-					maskState.evenOddFillRule = false;
-					runInNewContext(impd, maskContext, arg0);
-					currentContext->accessState().mask = maskMaker.finish(inverted);
-				}
-			}
-			break;
-		}
+							   bool inverted = false;
+							   const String* s;
+							   if ((s = args.fetchOptional("inverted")) != 0) inverted = impd.toBool(*s);
+							   AffineTransformation maskTransform;
+							   bool doTransform = false;
+							   if ((s = args.fetchOptional("transform", false)) != 0) {
+									   maskTransform = parseTransformationBlock(impd, *s);
+									   doTransform = true;
+							   }
+							   args.throwIfAnyUnfetched();
+							   if (!Interpreter::isBracketBlock(arg0)) {
+									   const WideString name = impd.unescapeToWide(impd.expand(arg0));
+									   MaskMap::iterator it = definedMasks.find(name);
+									   if (it == definedMasks.end()) {
+											   Interpreter::throwRunTimeError(String("Undefined mask: ")
+															   + String(name.begin(), name.end()));
+									   }
+									   if (inverted) {
+											   std::unique_ptr<Renderer<Mask8>> prev = it->second.release();
+											   it->second = new RLERaster<Mask8>(prev->calcBounds(), ~*prev);
+									   }
+									   const Renderer<Mask8>& src = *it->second;
+									   if (doTransform) {
+											   IntRect srcBounds = src.calcBounds();
+											   AffineTransformation texXF = maskTransform.transform(
+															   AffineTransformation().translate(srcBounds.left, srcBounds.top));
+											   Vertex tl = texXF.transform(Vertex(0.0, 0.0));
+											   Vertex tr = texXF.transform(Vertex(srcBounds.width, 0.0));
+											   Vertex bl = texXF.transform(Vertex(0.0, srcBounds.height));
+											   Vertex br = texXF.transform(Vertex(srcBounds.width, srcBounds.height));
+											   double minX = min(min(tl.x, tr.x), min(bl.x, br.x));
+											   double maxX = max(max(tl.x, tr.x), max(bl.x, br.x));
+											   double minY = min(min(tl.y, tr.y), min(bl.y, br.y));
+											   double maxY = max(max(tl.y, tr.y), max(bl.y, br.y));
+											   IntRect dstBounds = expandToIntRect(Rect<double>(minX, minY,
+						maxX - minX, maxY - minY));
+											   currentContext->accessState().mask = new RLERaster<Mask8>(dstBounds,
+						Texture<Mask8>(src, false, texXF));
+									   } else {
+											   currentContext->accessState().mask = it->second;
+									   }
+							   } else {
+									   MaskMakerCanvas maskMaker(currentContext->accessCanvas().getBounds());
+									   Context maskContext(maskMaker, *currentContext);
+									   State& maskState = maskContext.accessState();
+									   maskState.pen = Stroke();
+									   maskState.fill = Paint();
+									   maskState.fill.painter = new ColorPainter<Mask8>(0xFF);
+									   maskState.textStyle.fill = Paint();
+									   maskState.textStyle.fill.painter = new ColorPainter<Mask8>(0xFF);
+									   maskState.textStyle.outline = Stroke();
+									   maskState.evenOddFillRule = false;
+									   runInNewContext(impd, maskContext, arg0);
+									   std::unique_ptr<Renderer<Mask8>> result(maskMaker.finish(inverted));
+									   if (doTransform) {
+											   IntRect srcBounds = result->calcBounds();
+											   AffineTransformation texXF = maskTransform.transform(
+															   AffineTransformation().translate(srcBounds.left, srcBounds.top));
+											   Vertex tl = texXF.transform(Vertex(0.0, 0.0));
+											   Vertex tr = texXF.transform(Vertex(srcBounds.width, 0.0));
+											   Vertex bl = texXF.transform(Vertex(0.0, srcBounds.height));
+											   Vertex br = texXF.transform(Vertex(srcBounds.width, srcBounds.height));
+											   double minX = min(min(tl.x, tr.x), min(bl.x, br.x));
+											   double maxX = max(max(tl.x, tr.x), max(bl.x, br.x));
+											   double minY = min(min(tl.y, tr.y), min(bl.y, br.y));
+											   double maxY = max(max(tl.y, tr.y), max(bl.y, br.y));
+											   IntRect dstBounds = expandToIntRect(Rect<double>(minX, minY,
+						maxX - minX, maxY - minY));
+											   currentContext->accessState().mask = new RLERaster<Mask8>(dstBounds,
+						Texture<Mask8>(*result, false, texXF));
+									   } else {
+											   currentContext->accessState().mask = result.release();
+									   }
+							   }
+					   }
+					   break;
+			   }
 		case BOUNDS_INSTRUCTION: {
 			StringVector elems;
 			impd.parseList(args.fetchRequired(0), elems, true, false, 4, 4);

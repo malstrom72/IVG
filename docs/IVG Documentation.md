@@ -928,13 +928,15 @@ mask with a set of instructions that draws the mask. The effect of the mask last
 
 Syntax:
 
-		mask [ <instructions> | <name> ] [ inverted:(yes|no)=no ]
+		mask [ <instructions> | <name> ] [ inverted:(yes|no)=no ] [ transform:<transform> ]
 		mask invert
 		mask reset
 
 -	`<instructions>` defines the mask and must be enclosed in brackets `[` and `]`.
 -	`<name>` references a mask previously created with [`define mask`](#define-mask).
 -	The `inverted` option flips the supplied mask before applying it.
+-		`transform:` applies an additional transformation to the mask before it is used.
+-		Transforming a mask treats it as a texture and re-samples its pixels, so large or repeated transforms can soften edges.
 -	`mask invert` toggles the current mask by computing its bitwise complement.
 -	`mask reset` removes the current mask. Omitting the argument is an error; use `mask reset` to clear the mask.
 
