@@ -29,7 +29,8 @@
 				`WideString name = impd.unescapeToWide(firstArg);`
 				lookup `definedMasks`; throw runtime error if missing;
 				parse optional `inverted` flag;
-				assign mask with pipelining: `currentContext->accessState().mask = (inverted ? ~(*it->second) : *it->second);`
+					if `inverted` is set, replace `definedMasks[name]` with an `OwnedInverter` wrapping the previous raster;
+					assign `currentContext->accessState().mask = it->second;`
 - [ ] **Add `mask reset` command**
 	   - In the same `MASK_INSTRUCTION` case, handle the `reset` argument to clear `currentContext->accessState().mask` and reject `inverted`.
 - [ ] Run `timeout 600 ./build.sh`

@@ -97,6 +97,7 @@ template<class T> class Inheritable {
 					if (inherited != owned.get()) owned.reset();
 					return *this;
 				}
+	public:	std::unique_ptr<T> release() { inherited = 0; return std::move(owned); }
 	public:		bool operator==(T* o) const { return inherited == o; }
 	public:		bool operator!=(T* o) const { return inherited != o; }
 	public:		operator const T*() const { return inherited; }

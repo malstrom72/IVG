@@ -38,6 +38,13 @@ using namespace std;
 using namespace IMPD;
 using namespace NuXPixels;
 
+class OwnedInverter : public Inverter<Mask8> {
+	public:	OwnedInverter(std::unique_ptr<Renderer<Mask8>> s)
+			: Inverter<Mask8>(*s), owned(std::move(s)) { }
+	private:	std::unique_ptr<Renderer<Mask8>> owned;
+};
+
+
 using NuXPixels::PI;
 using NuXPixels::PI2;
 using IMPD::WideChar;
@@ -1918,7 +1925,8 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				args.throwIfAnyUnfetched();
 				State& state = currentContext->accessState();
 				if (state.mask) {
-					state.mask = new Inverter<Mask8>(*state.mask);
+					std::unique_ptr<Renderer<Mask8>> prev = state.mask.release();
+					state.mask = new OwnedInverter(std::move(prev));
 				} else {
 					state.mask = new Solid<Mask8>(0x00);
 				}
@@ -1932,11 +1940,15 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				args.throwIfAnyUnfetched();
 				if (!Interpreter::isBracketBlock(arg0)) {
 					const WideString name = impd.unescapeToWide(impd.expand(arg0));
-					MaskMap::const_iterator it = definedMasks.find(name);
+					MaskMap::iterator it = definedMasks.find(name);
 					if (it == definedMasks.end()) {
 						Interpreter::throwRunTimeError(String("Undefined mask: ") + String(name.begin(), name.end()));
 					}
-					currentContext->accessState().mask = inverted ? new Inverter<Mask8>(*it->second) : it->second;
+					if (inverted) {
+						std::unique_ptr<Renderer<Mask8>> prev = it->second.release();
+						it->second = new OwnedInverter(std::move(prev));
+					}
+					currentContext->accessState().mask = it->second;
 				} else {
 					MaskMakerCanvas maskMaker(currentContext->accessCanvas().getBounds());
 					Context maskContext(maskMaker, *currentContext);
