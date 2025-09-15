@@ -1,0 +1,15 @@
+FORMAT IVG-3 requires:IMPD-1
+BOUNDS 0,0,40,40
+WIPE black
+define mask circle [
+	ELLIPSE 20,20,15
+]
+mask circle
+FILL red
+RECT 0,0,40,40
+mask invert
+FILL blue
+RECT 0,0,40,40
+mask inverted:yes
+FILL green
+RECT 0,0,40,40

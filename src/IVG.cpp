@@ -1912,24 +1912,34 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		}
 
 		case MASK_INSTRUCTION: {
-		const String& arg0 = args.fetchRequired(0, false);
+		const String* arg0 = args.fetchOptional(0, false);
 		bool inverted = false;
-		const String* s = args.fetchOptional("inverted");
-		if (s != 0) inverted = impd.toBool(*s);
+		const String* s;
+		if ((s = args.fetchOptional("invert")) != 0) inverted = impd.toBool(*s);
+		if ((s = args.fetchOptional("inverted")) != 0) inverted = impd.toBool(*s);
 
 		args.throwIfAnyUnfetched();
-		if (!Interpreter::isBracketBlock(arg0)) {
-				const WideString name = impd.unescapeToWide(impd.expand(arg0));
+		if (arg0 != 0) {
+			String arg0Lower = impd.toLower(*arg0);
+			if (arg0Lower == "invert" || arg0Lower == "inverted") {
+				inverted = true;
+				arg0 = 0;
+			}
+		}
+
+		if (arg0 != 0) {
+			if (!Interpreter::isBracketBlock(*arg0)) {
+				const WideString name = impd.unescapeToWide(impd.expand(*arg0));
 				MaskMap::const_iterator it = definedMasks.find(name);
 				if (it == definedMasks.end()) {
-						Interpreter::throwRunTimeError(String("Undefined mask: ") + String(name.begin(), name.end()));
+					Interpreter::throwRunTimeError(String("Undefined mask: ") + String(name.begin(), name.end()));
 				}
 				if (inverted) {
-						currentContext->accessState().mask = new Inverter<Mask8>(*it->second);
+					currentContext->accessState().mask = new Inverter<Mask8>(*it->second);
 				} else {
-						currentContext->accessState().mask = it->second;
+					currentContext->accessState().mask = it->second;
 				}
-		} else {
+			} else {
 				MaskMakerCanvas maskMaker(currentContext->accessCanvas().getBounds());
 				Context maskContext(maskMaker, *currentContext);
 				State& maskState = maskContext.accessState();
@@ -1940,12 +1950,23 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				maskState.textStyle.fill.painter = new ColorPainter<Mask8>(0xFF);
 				maskState.textStyle.outline = Stroke();
 				maskState.evenOddFillRule = false;
-				runInNewContext(impd, maskContext, arg0);
+				runInNewContext(impd, maskContext, *arg0);
 				currentContext->accessState().mask = maskMaker.finish(inverted);
+			}
+		} else {
+			State& state = currentContext->accessState();
+			if (inverted) {
+				if (state.mask) {
+					state.mask = new Inverter<Mask8>(*state.mask);
+				} else {
+					state.mask = new Solid<Mask8>(0x00);
+				}
+			} else {
+				state.mask = 0;
+			}
 		}
 		break;
 }
-		
 		case BOUNDS_INSTRUCTION: {
 			StringVector elems;
 			impd.parseList(args.fetchRequired(0), elems, true, false, 4, 4);

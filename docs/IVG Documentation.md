@@ -928,15 +928,13 @@ mask with a set of instructions that draws the mask. The effect of the mask last
 
 Syntax:
 
-	mask <instructions> [ inverted:(yes|no)=no ]
+	mask [ <instructions> | <name> ] [ invert | inverted:(yes|no)=no ]
 
--	`<instructions>` defines the mask. You can use all available drawing directives and instructions. Enclose in
-	brackets `[` and `]`.
+-	`<instructions>` defines the mask and must be enclosed in brackets `[` and `]`.
+-	`<name>` references a mask previously created with [`define mask`](#define-mask).
+-	The `invert` / `inverted` option flips the specified mask. When no mask is supplied, `mask invert` or `mask inverted:yes` toggles the current mask by computing its bitwise complement. Calling `mask` with no arguments clears the current mask.
 
--	The `inverted` option specifies whether you want to invert the mask or not (default is `no`). When the mask is not
-	inverted, it will reveal all painted areas and hide everything else. On the other hand, if the mask is inverted, it
-	will hide all painted areas and reveal everything else.
-
+When the mask is not inverted, it will reveal all painted areas and hide everything else. On the other hand, if the mask is inverted, it will hide all painted areas and reveal everything else.
 In mask definitions, drawing directives and instructions work like normal, and you can even nest masks in masks. The one
 big difference is that a mask is single-channeled (grayscale effectively); therefore, all `<paint>` specifications use a
 single value between 0 and 1. Alternatively, you can use a hexadecimal value between `#00` to `#FF`.

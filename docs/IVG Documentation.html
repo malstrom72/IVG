@@ -1114,20 +1114,24 @@ set of instructions that draws the mask. The effect of the mask lasts
 until the end of the current <a href="#context">context</a> or until it
 is <a href="#reset">reset</a>.</p>
 <p>Syntax:</p>
-<pre><code>mask &lt;instructions&gt; [ inverted:(yes|no)=no ]</code></pre>
+<pre><code>mask [ &lt;instructions&gt; | &lt;name&gt; ] [ invert | inverted:(yes|no)=no ]</code></pre>
 <ul>
-<li><p><code>&lt;instructions&gt;</code> defines the mask. You can use
-all available drawing directives and instructions. Enclose in brackets
-<code>[</code> and <code>]</code>.</p></li>
-<li><p>The <code>inverted</code> option specifies whether you want to
-invert the mask or not (default is <code>no</code>). When the mask is
-not inverted, it will reveal all painted areas and hide everything else.
-On the other hand, if the mask is inverted, it will hide all painted
-areas and reveal everything else.</p></li>
+<li><code>&lt;instructions&gt;</code> defines the mask and must be
+enclosed in brackets <code>[</code> and <code>]</code>.</li>
+<li><code>&lt;name&gt;</code> references a mask previously created with
+<a href="#define-mask"><code>define mask</code></a>.</li>
+<li>The <code>invert</code> / <code>inverted</code> option flips the
+specified mask. When no mask is supplied, <code>mask invert</code> or
+<code>mask inverted:yes</code> toggles the current mask by computing its
+bitwise complement. Calling <code>mask</code> with no arguments clears
+the current mask.</li>
 </ul>
-<p>In mask definitions, drawing directives and instructions work like
-normal, and you can even nest masks in masks. The one big difference is
-that a mask is single-channeled (grayscale effectively); therefore, all
+<p>When the mask is not inverted, it will reveal all painted areas and
+hide everything else. On the other hand, if the mask is inverted, it
+will hide all painted areas and reveal everything else. In mask
+definitions, drawing directives and instructions work like normal, and
+you can even nest masks in masks. The one big difference is that a mask
+is single-channeled (grayscale effectively); therefore, all
 <code>&lt;paint&gt;</code> specifications use a single value between 0
 and 1. Alternatively, you can use a hexadecimal value between
 <code>#00</code> to <code>#FF</code>.</p>
