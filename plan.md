@@ -24,14 +24,14 @@
 
 ## Milestone 3: Support named masks in `MASK_INSTRUCTION`
 - [ ] **Reference previously defined masks**
-        - In `src/IVG.cpp` case `MASK_INSTRUCTION` (~line 1890), replace first argument handling to check whether it starts with '['. If it does, retain current block behaviour.
-        - Otherwise treat the argument as a mask name:
-                `WideString name = impd.unescapeToWide(firstArg);`
-                lookup `definedMasks`; throw runtime error if missing;
-                parse optional `inverted` flag;
-                assign mask with pipelining: `currentContext->accessState().mask = (inverted ? ~(*it->second) : *it->second);`
+		- In `src/IVG.cpp` case `MASK_INSTRUCTION` (~line 1890), replace first argument handling to check whether it starts with '['. If it does, retain current block behaviour.
+		- Otherwise treat the argument as a mask name:
+				`WideString name = impd.unescapeToWide(firstArg);`
+				lookup `definedMasks`; throw runtime error if missing;
+				parse optional `inverted` flag;
+				assign mask with pipelining: `currentContext->accessState().mask = (inverted ? ~(*it->second) : *it->second);`
 - [ ] **Add `mask reset` command**
-       - In the same `MASK_INSTRUCTION` case, handle the `reset` argument to clear `currentContext->accessState().mask` and reject `inverted`.
+	   - In the same `MASK_INSTRUCTION` case, handle the `reset` argument to clear `currentContext->accessState().mask` and reject `inverted`.
 - [ ] Run `timeout 600 ./build.sh`
 
 ## Milestone 4: Document `define mask` feature
