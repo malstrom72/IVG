@@ -38,13 +38,6 @@ using namespace std;
 using namespace IMPD;
 using namespace NuXPixels;
 
-class OwnedInverter : public Inverter<Mask8> {
-	public:	OwnedInverter(std::unique_ptr<Renderer<Mask8>> s)
-			: Inverter<Mask8>(*s), owned(std::move(s)) { }
-	private:	std::unique_ptr<Renderer<Mask8>> owned;
-};
-
-
 using NuXPixels::PI;
 using NuXPixels::PI2;
 using IMPD::WideChar;
@@ -1926,9 +1919,10 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				State& state = currentContext->accessState();
 				if (state.mask) {
 					std::unique_ptr<Renderer<Mask8>> prev = state.mask.release();
-					state.mask = new OwnedInverter(std::move(prev));
+					state.mask = new RLERaster<Mask8>(prev->calcBounds(), ~*prev);
 				} else {
-					state.mask = new Solid<Mask8>(0x00);
+					state.mask = new RLERaster<Mask8>(currentContext->accessCanvas().getBounds()
+										, Solid<Mask8>(0x00));
 				}
 			} else if (arg0Lower == "reset") {
 				args.throwIfAnyUnfetched();
@@ -1946,7 +1940,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 					}
 					if (inverted) {
 						std::unique_ptr<Renderer<Mask8>> prev = it->second.release();
-						it->second = new OwnedInverter(std::move(prev));
+						it->second = new RLERaster<Mask8>(prev->calcBounds(), ~*prev);
 					}
 					currentContext->accessState().mask = it->second;
 				} else {
