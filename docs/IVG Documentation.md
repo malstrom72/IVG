@@ -934,7 +934,7 @@ Syntax:
 -	`<instructions>` defines the mask and must be enclosed in brackets `[` and `]`.
 -	`<name>` references a mask previously created with [`define mask`](#define-mask).
 -	The `inverted` option flips the supplied mask before applying it.
--	`mask invert` toggles the current mask by computing its bitwise complement. Calling `mask` with no arguments clears the current mask.
+-	`mask invert` toggles the current mask by computing its bitwise complement. Omitting the argument is an error; use [`reset`](#reset) to clear the mask.
 
 When the mask is not inverted, it will reveal all painted areas and hide everything else. On the other hand, if the mask is inverted, it will hide all painted areas and reveal everything else.
 In mask definitions, drawing directives and instructions work like normal, and you can even nest masks in masks. The one
