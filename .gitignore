@@ -1,6 +1,4 @@
 .DS_Store
-/output/*
-!/output/ivgfiddle/
-!/output/ivgfiddle/**
+/output
 vc140.pdb
 /.vscode

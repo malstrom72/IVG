@@ -2,7 +2,7 @@
 CD /D "%~dp0"
 
 SET output=%1
-IF "%output%"=="" SET output=..\..\output\ivgfiddle
+IF "%output%"=="" SET output=.\output
 SET src=%2
 IF "%src%"=="" SET src=.\src
 SET fonts=..\..\fonts

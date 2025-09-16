@@ -99,10 +99,10 @@ Omitting `output.ivg` prints the converted ImpD to stdout. See
 Included in this repository is a standalone HTML application called **IVGFiddle**. You can open it
 in your browser to write IVG code and see the output rendered in real time.
 
-- File location: `output/ivgfiddle/ivgfiddle.html`
+- File location: `tools/ivgfiddle/output/ivgfiddle.html`
 
 You can also try it live without cloning the repo:  
-[IVGFiddle](https://htmlpreview.github.io/?https://github.com/malstrom72/IVG/blob/main/output/ivgfiddle/ivgfiddle.html)
+[IVGFiddle](https://htmlpreview.github.io/?https://github.com/malstrom72/IVG/blob/main/tools/ivgfiddle/output/ivgfiddle.html)
 
 ## Fonts
 

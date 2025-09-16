@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e -o pipefail -u
 cd "$(dirname "$0")"
-output=${1:-../../output/ivgfiddle}
+output=${1:-./output}
 src=${2:-./src}
 fonts=../../fonts
 if ! command -v emcc >/dev/null 2>&1; then

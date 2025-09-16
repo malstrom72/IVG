@@ -3,7 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const here = __dirname;
-const outDir = path.resolve(process.argv[2] || path.join(here, "..", "..", "output", "ivgfiddle"));
+const outDir = path.resolve(process.argv[2] || path.join(here, "output"));
 
 function fail(msg){ console.error(msg); process.exit(1); }
 
