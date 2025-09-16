@@ -1,0 +1,12 @@
+FORMAT IVG-3 requires:IMPD-1
+BOUNDS 0,0,20,20
+WIPE white
+define mask hole [
+	ELLIPSE 10,10,8
+]
+mask hole
+FILL red
+RECT 0,0,20,20
+mask hole inverted:yes
+FILL blue
+RECT 0,0,20,20

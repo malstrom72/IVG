@@ -97,6 +97,7 @@ template<class T> class Inheritable {
 					if (inherited != owned.get()) owned.reset();
 					return *this;
 				}
+	public:	std::unique_ptr<T> release() { inherited = 0; return std::move(owned); }
 	public:		bool operator==(T* o) const { return inherited == o; }
 	public:		bool operator!=(T* o) const { return inherited != o; }
 	public:		operator const T*() const { return inherited; }
@@ -250,7 +251,7 @@ class State {
 	public:		Stroke pen;
 	public:		TextStyle textStyle;
 	public:		NuXPixels::Vertex textCaret;
-	public:		Inheritable< NuXPixels::RLERaster<NuXPixels::Mask8> > mask;
+	public:		Inheritable< NuXPixels::Renderer<NuXPixels::Mask8> > mask;
 };
 
 class IVGExecutor;
@@ -381,9 +382,12 @@ class IVGExecutor : public IMPD::Executor {
 	protected:	ImageMap definedImages;
 	protected:	typedef std::map<IMPD::WideString, Path> PathMap;
 	protected:	PathMap definedPaths;
-	public: 	typedef std::map<IMPD::WideString, Inheritable<Painter> > PatternMap;
+	public:		typedef std::map<IMPD::WideString, Inheritable<Painter> > PatternMap;
 	protected:	PatternMap definedPatterns;
-	public: 	const PatternMap& getDefinedPatterns() const { return definedPatterns; }
+	public:		const PatternMap& getDefinedPatterns() const { return definedPatterns; }
+	public:		typedef std::map<IMPD::WideString, Inheritable<NuXPixels::Renderer<NuXPixels::Mask8> > > MaskMap;
+	protected:	MaskMap definedMasks;
+	public:		const MaskMap& getDefinedMasks() const { return definedMasks; }
 	protected:	FormatVersion formatVersion;
 };
 

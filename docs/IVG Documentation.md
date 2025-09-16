@@ -321,45 +321,45 @@ Syntax:
 
 	PATH (<instructions> | svg:<svg data> | <name>) [transform:<transform>]
 
-- `<instructions>` is a bracketed list of sub-commands (either separated by new lines or semicolons). See below.
+-	`<instructions>` is a bracketed list of sub-commands (either separated by new lines or semicolons). See below.
 
-- `<svg data>` is a string containing SVG path data. See https://svgwg.org/specs/paths/ for details.
+-	`<svg data>` is a string containing SVG path data. See https://svgwg.org/specs/paths/ for details.
 
-- `<name>` is a path defined with [`define path`](#define-path).
+-	`<name>` is a path defined with [`define path`](#define-path).
 
-- The `transform` option applies a transformation before drawing, using the same syntax as [`IMAGE`](#image).
+-	The `transform` option applies a transformation before drawing, using the same syntax as [`IMAGE`](#image).
 
 _The `PATH svg:` form is available in all IVG versions. The instruction-list variant requires IVG-3._
 
 #### Path Instructions
 
-- `move-to <x>,<y>` sets the starting point for a new sub-path.
-- `move-angle <angle>,<length>` moves the current point by `<length>` at `<angle>` (0° is the positive x-axis; angles increase clockwise).
-- `line-to <x>,<y>[,<x>,<y>,...]` draws one or more line segments from the current point.
-- `line-angle <angle>,<length>` draws a line of length `<length>` from the current point at `<angle>`.
-- `bezier-to <cx>,<cy>,<x>,<y>` draws a quadratic Bézier curve.
-- `bezier-to <c1x>,<c1y>,<c2x>,<c2y>,<x>,<y>` draws a cubic Bézier curve.
-- `arc-to <x>,<y>,<r>[,<ry>=<r>] [turn:(cw|ccw)=cw] [large:yes|no=no] [rotate:<deg>=0]` draws an elliptical arc.
-- `arc-sweep <cx>,<cy>,<degrees>` draws an arc around a center point, sweeping by the given angle (positive is clockwise).
-- `arc-move <cx>,<cy>,<degrees>` moves the current point along an arc sweep without drawing.
-- `close` closes the current sub-path by drawing a line back to its starting point. (No effect if already closed.)
+-	`move-to <x>,<y>` sets the starting point for a new sub-path.
+-	`move-angle <angle>,<length>` moves the current point by `<length>` at `<angle>` (0° is the positive x-axis; angles increase clockwise).
+-	`line-to <x>,<y>[,<x>,<y>,...]` draws one or more line segments from the current point.
+-	`line-angle <angle>,<length>` draws a line of length `<length>` from the current point at `<angle>`.
+-	`bezier-to <cx>,<cy>,<x>,<y>` draws a quadratic Bézier curve.
+-	`bezier-to <c1x>,<c1y>,<c2x>,<c2y>,<x>,<y>` draws a cubic Bézier curve.
+-	`arc-to <x>,<y>,<r>[,<ry>=<r>] [turn:(cw|ccw)=cw] [large:yes|no=no] [rotate:<deg>=0]` draws an elliptical arc.
+-	`arc-sweep <cx>,<cy>,<degrees>` draws an arc around a center point, sweeping by the given angle (positive is clockwise).
+-	`arc-move <cx>,<cy>,<degrees>` moves the current point along an arc sweep without drawing.
+-	`close` closes the current sub-path by drawing a line back to its starting point. (No effect if already closed.)
 
 #### Coordinate System and State
 
-- `anchor [<x>,<y>]` sets a new local origin (translation only) for subsequent `PATH` coordinates. Uses the current point if no arguments are supplied, otherwise the coordinates are interpreted as global (unrelated to any previous `anchor` calls).
-- `cursor [<var>] [x:<var>] [y:<var>]` stores the global cursor position (indifferent to any previous `anchor` calls). At least one target must be provided.
+-	`anchor [<x>,<y>]` sets a new local origin (translation only) for subsequent `PATH` coordinates. Uses the current point if no arguments are supplied, otherwise the coordinates are interpreted as global (unrelated to any previous `anchor` calls).
+-	`cursor [<var>] [x:<var>] [y:<var>]` stores the global cursor position (indifferent to any previous `anchor` calls). At least one target must be provided.
 
 #### Sub-path Commands
 
 These commands mirror their drawing-instruction counterparts but only append path geometry (they don’t paint by themselves):
 
-- `ellipse <cx>,<cy>,<r>[,<ry>=<r>] [ sweep:<start>,<degrees> [ type:(pie|chord)=chord ] ]` appends a full ellipse or a closed sector.
-- `line <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]` appends an open polyline starting at `<x0>,<y0>`.
-- `path <name> | svg:<data> | [<instructions>] [transform:<transform>]` splices another path’s geometry into the current `PATH`. If the spliced path doesn’t begin with move-to, its first segment continues from the current point
-- `polygon <x0>,<y0> <x1>,<y1> [<x2>,<y2> ...]` appends a closed polygon.
-- `rect <x>,<y>,<w>,<h> [rounded:<r>|<rx>,<ry>]` appends an axis-aligned rectangle.
-- `star <cx>,<cy>,<points>,<r1>[,<r2>=<r1>] [rotation:<angle>]` appends a star or regular polygon.
-- `text [at:<x,y>] [anchor:left|center|right=left] <text>` appends a text outline.
+-	`ellipse <cx>,<cy>,<r>[,<ry>=<r>] [ sweep:<start>,<degrees> [ type:(pie|chord)=chord ] ]` appends a full ellipse or a closed sector.
+-	`line <x0>,<y0>,<x1>,<y1>[,<x2>,<y2> ...]` appends an open polyline starting at `<x0>,<y0>`.
+-	`path <name> | svg:<data> | [<instructions>] [transform:<transform>]` splices another path’s geometry into the current `PATH`. If the spliced path doesn’t begin with move-to, its first segment continues from the current point
+-	`polygon <x0>,<y0> <x1>,<y1> [<x2>,<y2> ...]` appends a closed polygon.
+-	`rect <x>,<y>,<w>,<h> [rounded:<r>|<rx>,<ry>]` appends an axis-aligned rectangle.
+-	`star <cx>,<cy>,<points>,<r1>[,<r2>=<r1>] [rotation:<angle>]` appends a star or regular polygon.
+-	`text [at:<x,y>] [anchor:left|center|right=left] <text>` appends a text outline.
 
 #### Examples
 
@@ -801,8 +801,8 @@ Syntax:
 
 		define pattern <name> <instructions>
 
--		`<name>` is a unique identifier for the pattern. Pattern names are case-sensitive and may only be defined once.
--		`<instructions>` are the drawing commands defining the pattern, enclosed in brackets `[` and `]`. The pattern is
+-	`<name>` is a unique identifier for the pattern. Pattern names are case-sensitive and may only be defined once.
+-	`<instructions>` are the drawing commands defining the pattern, enclosed in brackets `[` and `]`. The pattern is
 		rendered using the current [options](#options) pattern resolution and the current transformation.
 
 Example:
@@ -812,8 +812,30 @@ Example:
 				fill black
 				rect 0,0,2,4
 		]
-		fill pattern:stripes
-		rect 0,0,20,20
+fill pattern:stripes
+rect 0,0,20,20
+
+#### define mask
+
+You can define a reusable mask and reference it later with the [`mask`](#mask) instruction.
+
+Syntax:
+
+		define mask <name> <instructions> [ inverted:(yes|no)=no ]
+
+-	`<name>` is a unique identifier for the mask. Mask names are case-sensitive and may only be defined once.
+-	`<instructions>` are the drawing commands for the mask, enclosed in brackets `[` and `]`.
+-	The optional `inverted` flag inverts the mask when it is defined.
+
+Example:
+
+		define mask hole [
+				fill black
+				circle 5,5,5
+		]
+		mask hole
+		fill red
+		rect 0,0,10,10
 
 ### fill
 
@@ -902,19 +924,23 @@ See [TEXT](#text) for an example of how to set the font.
 
 The `mask` instruction is used to create a mask that will be applied to subsequent drawing operations. You define the
 mask with a set of instructions that draws the mask. The effect of the mask lasts until the end of the current
-[context](#context) or until it is [reset](#reset).
+[context](#context) or until `mask reset` is used.
 
 Syntax:
 
-	mask <instructions> [ inverted:(yes|no)=no ]
+		mask [ <instructions> | <name> ] [ inverted:(yes|no)=no ] [ transform:<transform> ]
+		mask invert
+		mask reset
 
--	`<instructions>` defines the mask. You can use all available drawing directives and instructions. Enclose in
-	brackets `[` and `]`.
+-	`<instructions>` defines the mask and must be enclosed in brackets `[` and `]`.
+-	`<name>` references a mask previously created with [`define mask`](#define-mask).
+-	The `inverted` option flips the supplied mask before applying it.
+-		`transform:` applies an additional transformation to the mask before it is used.
+-		Transforming a mask treats it as a texture and re-samples its pixels, so large or repeated transforms can soften edges.
+-	`mask invert` toggles the current mask by computing its bitwise complement.
+-	`mask reset` removes the current mask. Omitting the argument is an error; use `mask reset` to clear the mask.
 
--	The `inverted` option specifies whether you want to invert the mask or not (default is `no`). When the mask is not
-	inverted, it will reveal all painted areas and hide everything else. On the other hand, if the mask is inverted, it
-	will hide all painted areas and reveal everything else.
-
+When the mask is not inverted, it will reveal all painted areas and hide everything else. On the other hand, if the mask is inverted, it will hide all painted areas and reveal everything else.
 In mask definitions, drawing directives and instructions work like normal, and you can even nest masks in masks. The one
 big difference is that a mask is single-channeled (grayscale effectively); therefore, all `<paint>` specifications use a
 single value between 0 and 1. Alternatively, you can use a hexadecimal value between `#00` to `#FF`.
@@ -1356,7 +1382,7 @@ look like. You can select a solid color, a gradient of colors, or a pattern.
 -	The `gradient` paint type specifies a gradient of colors that can be set with a starting and ending color or
 	multiple color stops. See [Gradient Specification](#gradient-specification).
 
--		The `pattern` paint type is used to specify a repeating graphical pattern created from a set of drawing
+-	The `pattern` paint type is used to specify a repeating graphical pattern created from a set of drawing
 		instructions. You define the pattern by enclosing the instructions in brackets `[` and `]` or by
 		referencing a pattern name created with [`define pattern`](#define-pattern). The drawing context
 		for the pattern inherits all settings from the current context, such as [`pen`](#pen), [`fill`](#fill), etc.,

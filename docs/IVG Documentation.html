@@ -60,10 +60,6 @@
 	img {
 	  max-width: 100%;
 	}
-	svg {
-	  height: auto;
-	  max-width: 100%;
-	}
 	h1, h2, h3, h4, h5, h6 {
 	  margin-top: 1.4em;
 	}
@@ -107,8 +103,8 @@
 	 overflow: visible;
 	}
 	hr {
+	  background-color: #1a1a1a;
 	  border: none;
-	  border-top: 1px solid #1a1a1a;
 	  height: 1px;
 	  margin: 1em 0;
 	}
@@ -527,8 +523,6 @@ href="#image"><code>IMAGE</code></a>.</p></li>
 <p><em>The <code>PATH svg:</code> form is available in all IVG versions.
 The instruction-list variant requires IVG-3.</em></p>
 <h4 id="path-instructions">Path Instructions</h4>
-<p>Within <code>PATH [ ... ]</code>, commas may be omitted between
-coordinate pairs.</p>
 <ul>
 <li><code>move-to &lt;x&gt;,&lt;y&gt;</code> sets the starting point for
 a new sub-path.</li>
@@ -992,24 +986,48 @@ data or path instructions inside brackets.</p></li>
 <pre><code>define path star [svg:[M0,0 L10,0 L5,8 z]]
 fill gold
 PATH star transform:[rotate 45]</code></pre>
-<h3 id="fill">fill</h3>
 <h4 id="define-pattern">define pattern</h4>
-<p>You can define a reusable pattern and reference it by name in <a href="#paint-specification">paint specifications</a>.</p>
+<p>You can define a reusable pattern and reference it later in paint
+specifications.</p>
 <p>Syntax:</p>
-<pre><code>define pattern &lt;name&gt; &lt;instructions&gt;</code></pre>
+<pre><code>	   define pattern &lt;name&gt; &lt;instructions&gt;</code></pre>
 <ul>
-<li><p><code>&lt;name&gt;</code> is a unique identifier for the pattern. Pattern names are case-sensitive and may only be defined once.</p></li>
-<li><p><code>&lt;instructions&gt;</code> are the drawing commands defining the pattern, enclosed in brackets <code>[</code> and <code>]</code>. The pattern is rendered using the current <a href="#options"><code>options</code></a> pattern resolution and the current transformation.</p></li>
+<li><code>&lt;name&gt;</code> is a unique identifier for the pattern.
+Pattern names are case-sensitive and may only be defined once.</li>
+<li><code>&lt;instructions&gt;</code> are the drawing commands defining
+the pattern, enclosed in brackets <code>[</code> and <code>]</code>. The
+pattern is rendered using the current <a href="#options">options</a>
+pattern resolution and the current transformation.</li>
 </ul>
 <p>Example:</p>
-<pre><code>define pattern stripes [
-		bounds 0,0,4,4
-		fill black
-		rect 0,0,2,4
-]
-fill pattern:stripes
-rect 0,0,20,20</code></pre>
-
+<pre><code>	   define pattern stripes [
+			bounds 0,0,4,4
+			fill black
+			rect 0,0,2,4
+	]</code></pre>
+<p>fill pattern:stripes rect 0,0,20,20</p>
+<h4 id="define-mask">define mask</h4>
+<p>You can define a reusable mask and reference it later with the <a
+href="#mask"><code>mask</code></a> instruction.</p>
+<p>Syntax:</p>
+<pre><code>	   define mask &lt;name&gt; &lt;instructions&gt; [ inverted:(yes|no)=no ]</code></pre>
+<ul>
+<li><code>&lt;name&gt;</code> is a unique identifier for the mask. Mask
+names are case-sensitive and may only be defined once.</li>
+<li><code>&lt;instructions&gt;</code> are the drawing commands for the
+mask, enclosed in brackets <code>[</code> and <code>]</code>.</li>
+<li>The optional <code>inverted</code> flag inverts the mask when it is
+defined.</li>
+</ul>
+<p>Example:</p>
+<pre><code>	   define mask hole [
+			fill black
+			circle 5,5,5
+	]
+	mask hole
+	fill red
+	rect 0,0,10,10</code></pre>
+<h3 id="fill">fill</h3>
 <p>The fill directive sets the fill style for subsequent drawing
 operations in the current <a href="#context">context</a>.</p>
 <pre><code>fill &lt;paint&gt;
@@ -1099,23 +1117,33 @@ font.</p>
 <p>The <code>mask</code> instruction is used to create a mask that will
 be applied to subsequent drawing operations. You define the mask with a
 set of instructions that draws the mask. The effect of the mask lasts
-until the end of the current <a href="#context">context</a> or until it
-is <a href="#reset">reset</a>.</p>
+until the end of the current <a href="#context">context</a> or until
+<code>mask reset</code> is used.</p>
 <p>Syntax:</p>
-<pre><code>mask &lt;instructions&gt; [ inverted:(yes|no)=no ]</code></pre>
+<pre><code>	   mask [ &lt;instructions&gt; | &lt;name&gt; ] [ inverted:(yes|no)=no ] [ transform:&lt;transform&gt; ]
+	mask invert
+	mask reset</code></pre>
 <ul>
-<li><p><code>&lt;instructions&gt;</code> defines the mask. You can use
-all available drawing directives and instructions. Enclose in brackets
-<code>[</code> and <code>]</code>.</p></li>
-<li><p>The <code>inverted</code> option specifies whether you want to
-invert the mask or not (default is <code>no</code>). When the mask is
-not inverted, it will reveal all painted areas and hide everything else.
-On the other hand, if the mask is inverted, it will hide all painted
-areas and reveal everything else.</p></li>
+<li><code>&lt;instructions&gt;</code> defines the mask and must be
+enclosed in brackets <code>[</code> and <code>]</code>.</li>
+<li><code>&lt;name&gt;</code> references a mask previously created with
+<a href="#define-mask"><code>define mask</code></a>.</li>
+<li>The <code>inverted</code> option flips the supplied mask before
+applying it.</li>
+<li><pre><code>	 `transform:` applies an additional transformation to the mask before it is used.</code></pre></li>
+<li><pre><code>	 Transforming a mask treats it as a texture and re-samples its pixels, so large or repeated transforms can soften edges.</code></pre></li>
+<li><code>mask invert</code> toggles the current mask by computing its
+bitwise complement.</li>
+<li><code>mask reset</code> removes the current mask. Omitting the
+argument is an error; use <code>mask reset</code> to clear the
+mask.</li>
 </ul>
-<p>In mask definitions, drawing directives and instructions work like
-normal, and you can even nest masks in masks. The one big difference is
-that a mask is single-channeled (grayscale effectively); therefore, all
+<p>When the mask is not inverted, it will reveal all painted areas and
+hide everything else. On the other hand, if the mask is inverted, it
+will hide all painted areas and reveal everything else. In mask
+definitions, drawing directives and instructions work like normal, and
+you can even nest masks in masks. The one big difference is that a mask
+is single-channeled (grayscale effectively); therefore, all
 <code>&lt;paint&gt;</code> specifications use a single value between 0
 and 1. Alternatively, you can use a hexadecimal value between
 <code>#00</code> to <code>#FF</code>.</p>
@@ -1572,11 +1600,12 @@ Specification</a>.</p></li>
 <li><p>The <code>pattern</code> paint type is used to specify a
 repeating graphical pattern created from a set of drawing instructions.
 You define the pattern by enclosing the instructions in brackets
-<code>[</code> and <code>]</code> or by referencing a pattern name created
-with <a href="#define-pattern"><code>define pattern</code></a>. The drawing context for the pattern
-inherits all settings from the current context, such as <a
-href="#pen"><code>pen</code></a>, <a href="#fill"><code>fill</code></a>,
-etc., except for the <a href="#mask"><code>mask</code></a> setting. A <a
+<code>[</code> and <code>]</code> or by referencing a pattern name
+created with <a href="#define-pattern"><code>define pattern</code></a>.
+The drawing context for the pattern inherits all settings from the
+current context, such as <a href="#pen"><code>pen</code></a>, <a
+href="#fill"><code>fill</code></a>, etc., except for the <a
+href="#mask"><code>mask</code></a> setting. A <a
 href="#bounds"><code>bounds</code></a> directive is required to define
 the pattern’s dimensions. The resolution used for rasterizing the
 pattern can be changed using the <a
@@ -1724,69 +1753,69 @@ context [
 <h2 id="defaults">Defaults</h2>
 <table>
 <thead>
-<tr>
+<tr class="header">
 <th>Setting</th>
 <th>Initial value</th>
 </tr>
 </thead>
 <tbody>
-<tr>
+<tr class="odd">
 <td>pen paint</td>
 <td>none</td>
 </tr>
-<tr>
+<tr class="even">
 <td>pen width</td>
 <td>1</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>pen caps</td>
 <td>butt</td>
 </tr>
-<tr>
+<tr class="even">
 <td>pen joints</td>
 <td>miter</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>pen miter-limit</td>
 <td>2</td>
 </tr>
-<tr>
+<tr class="even">
 <td>pen dash</td>
 <td>none</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>fill paint</td>
 <td>none</td>
 </tr>
-<tr>
+<tr class="even">
 <td>font name</td>
 <td>(none; must set before <code>TEXT</code>)</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>font size</td>
 <td>20</td>
 </tr>
-<tr>
+<tr class="even">
 <td>font color</td>
 <td>black</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>font outline</td>
 <td>none</td>
 </tr>
-<tr>
+<tr class="even">
 <td>font tracking</td>
 <td>0</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>options aa-gamma</td>
 <td>1</td>
 </tr>
-<tr>
+<tr class="even">
 <td>options curve-quality</td>
 <td>1</td>
 </tr>
-<tr>
+<tr class="odd">
 <td>options pattern-resolution</td>
 <td>1</td>
 </tr>

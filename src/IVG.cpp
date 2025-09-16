@@ -1327,10 +1327,10 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 			Interpreter::throwRunTimeError(String("Duplicate path definition: ") + String(name.begin(), name.end()));
 		}
 
-        ArgumentsContainer pathArgs(ArgumentsContainer::parse(impd, definition));
-        Path path;
-        buildPath(impd, pathArgs, type, path);
-        definedPaths[name] = path;
+		ArgumentsContainer pathArgs(ArgumentsContainer::parse(impd, definition));
+		Path path;
+		buildPath(impd, pathArgs, type, path);
+		definedPaths[name] = path;
 	} else if (typeLower == "pattern") {
 		const WideString name = impd.unescapeToWide(args.fetchRequired(1, true));
 		const String& definition = args.fetchRequired(2, false);
@@ -1343,9 +1343,33 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		std::unique_ptr< PatternPainter<NuXPixels::ARGB32> > patternPainter(new PatternPainter<NuXPixels::ARGB32>(currentContext->calcPatternScale()));
 		patternPainter->makePattern(impd, *this, *currentContext, definition);
 		definedPatterns[name] = patternPainter.release();
-	} else {
-		Interpreter::throwBadSyntax(String("Invalid define instruction type: ") + type);
-	}
+		} else if (typeLower == "mask") {
+				const WideString name = impd.unescapeToWide(args.fetchRequired(1, true));
+				const String& definition = args.fetchRequired(2, false);
+				bool inverted = false;
+				const String* s = args.fetchOptional("inverted");
+				if (s != 0) inverted = impd.toBool(*s);
+				args.throwIfAnyUnfetched();
+
+				if (definedMasks.find(name) != definedMasks.end()) {
+						Interpreter::throwRunTimeError(String("Duplicate mask definition: ") + String(name.begin(), name.end()));
+				}
+
+				MaskMakerCanvas maskMaker(currentContext->accessCanvas().getBounds());
+				Context maskContext(maskMaker, *currentContext);
+				State& maskState = maskContext.accessState();
+				maskState.pen = Stroke();
+				maskState.fill = Paint();
+				maskState.fill.painter = new ColorPainter<Mask8>(0xFF);
+				maskState.textStyle.fill = Paint();
+				maskState.textStyle.fill.painter = new ColorPainter<Mask8>(0xFF);
+				maskState.textStyle.outline = Stroke();
+				maskState.evenOddFillRule = false;
+				runInNewContext(impd, maskContext, definition);
+				definedMasks[name] = maskMaker.finish(inverted);
+		} else {
+				Interpreter::throwBadSyntax(String("Invalid define instruction type: ") + type);
+		}
 }
 
 /* Built with QuickHashGen */
@@ -1373,35 +1397,35 @@ static IntRect expandToIntRect(const Rect<double>& floatRect) {
 }
 
 void IVGExecutor::buildPath(Interpreter& impd, ArgumentsContainer& args, const String& instruction, Path& path) {
-    const double curveQuality = currentContext->calcCurveQuality();
-    const String* svg = args.fetchOptional("svg");
-    if (svg != 0) {
-        const char* errorString;
-        if (!buildPathFromSVG(*svg, curveQuality, path, errorString)) {
-            impd.throwBadSyntax(errorString);
-        }
-    } else {
-        const String& arg0 = args.fetchRequired(0, false);
-        versionRequired(impd, IVG_3, instruction);
-        if (!Interpreter::isBracketBlock(arg0)) {
-            const WideString name = impd.unescapeToWide(impd.expand(arg0));
-            PathMap::const_iterator it = definedPaths.find(name);
-            if (it == definedPaths.end()) {
-                Interpreter::throwRunTimeError(String("Undefined path: ") + String(name.begin(), name.end()));
-            }
-            path = it->second;
-        } else {
-            PathInstructionExecutor pathExecutor(*this, path, curveQuality);
-            Interpreter pathInterpreter(pathExecutor, impd);
-            pathInterpreter.run(arg0);
-        }
-    }
+	const double curveQuality = currentContext->calcCurveQuality();
+	const String* svg = args.fetchOptional("svg");
+	if (svg != 0) {
+		const char* errorString;
+		if (!buildPathFromSVG(*svg, curveQuality, path, errorString)) {
+			impd.throwBadSyntax(errorString);
+		}
+	} else {
+		const String& arg0 = args.fetchRequired(0, false);
+		versionRequired(impd, IVG_3, instruction);
+		if (!Interpreter::isBracketBlock(arg0)) {
+			const WideString name = impd.unescapeToWide(impd.expand(arg0));
+			PathMap::const_iterator it = definedPaths.find(name);
+			if (it == definedPaths.end()) {
+				Interpreter::throwRunTimeError(String("Undefined path: ") + String(name.begin(), name.end()));
+			}
+			path = it->second;
+		} else {
+			PathInstructionExecutor pathExecutor(*this, path, curveQuality);
+			Interpreter pathInterpreter(pathExecutor, impd);
+			pathInterpreter.run(arg0);
+		}
+	}
 
-    const String* transform = args.fetchOptional("transform");
-    if (transform != 0) {
-        path.transform(parseTransformationBlock(impd, *transform));
-    }
-    args.throwIfAnyUnfetched();
+	const String* transform = args.fetchOptional("transform");
+	if (transform != 0) {
+		path.transform(parseTransformationBlock(impd, *transform));
+	}
+	args.throwIfAnyUnfetched();
 }
 
 void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
@@ -1888,27 +1912,111 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		}
 
 		case MASK_INSTRUCTION: {
-			const String& block = args.fetchRequired(0, false);
-			bool inverted = false;
-			const String* s = args.fetchOptional("inverted");
-			if (s != 0) inverted = impd.toBool(*s);
-
-			args.throwIfAnyUnfetched();
-			MaskMakerCanvas maskMaker(currentContext->accessCanvas().getBounds());
-			Context maskContext(maskMaker, *currentContext);
-			State& maskState = maskContext.accessState();
-			maskState.pen = Stroke();
-			maskState.fill = Paint();
-			maskState.fill.painter = new ColorPainter<Mask8>(0xFF);
-			maskState.textStyle.fill = Paint();
-			maskState.textStyle.fill.painter = new ColorPainter<Mask8>(0xFF);
-			maskState.textStyle.outline = Stroke();
-			maskState.evenOddFillRule = false;
-			runInNewContext(impd, maskContext, block);
-			currentContext->accessState().mask = maskMaker.finish(inverted);
-			break;
-		}
-		
+			const String& arg0 = args.fetchRequired(0, false);
+			String arg0Lower = impd.toLower(arg0);
+			if (arg0Lower == "invert") {
+				args.throwIfAnyUnfetched();
+				State& state = currentContext->accessState();
+				// DEBUG
+				// std::cerr << "DEBUG: mask invert begin, have mask? " << (state.mask ? "yes" : "no") << std::endl;
+				if (state.mask) {
+					// Don't release here: `state.mask` may not own the pointer (it can reference a shared mask).
+					// Instead, read through the reference and create a new owned inverted raster.
+					const Renderer<Mask8>& prev = *state.mask;
+					state.mask = new RLERaster<Mask8>(prev.calcBounds(), ~prev);
+					// std::cerr << "DEBUG: mask invert created inverted raster" << std::endl;
+				} else {
+					state.mask = new RLERaster<Mask8>(currentContext->accessCanvas().getBounds()
+										, Solid<Mask8>(0x00));
+				}
+				// std::cerr << "DEBUG: mask invert end" << std::endl;
+			} else if (arg0Lower == "reset") {
+				args.throwIfAnyUnfetched();
+				currentContext->accessState().mask = 0;
+			} else {
+							   bool inverted = false;
+							   const String* s;
+							   if ((s = args.fetchOptional("inverted")) != 0) inverted = impd.toBool(*s);
+							   AffineTransformation maskTransform;
+							   bool doTransform = false;
+							   if ((s = args.fetchOptional("transform", false)) != 0) {
+									   maskTransform = parseTransformationBlock(impd, *s);
+									   doTransform = true;
+							   }
+							   args.throwIfAnyUnfetched();
+							   if (!Interpreter::isBracketBlock(arg0)) {
+									   const WideString name = impd.unescapeToWide(impd.expand(arg0));
+									   MaskMap::iterator it = definedMasks.find(name);
+									   if (it == definedMasks.end()) {
+											   Interpreter::throwRunTimeError(String("Undefined mask: ")
+															   + String(name.begin(), name.end()));
+									   }
+									   if (inverted) {
+											   std::unique_ptr<Renderer<Mask8> > prev = it->second.release();
+											   it->second = new RLERaster<Mask8>(prev->calcBounds(), ~*prev);
+									   }
+									   const Renderer<Mask8>& src = *it->second;
+									   if (doTransform) {
+											   IntRect srcBounds = src.calcBounds();
+											   AffineTransformation texXF = maskTransform.transform(
+															   AffineTransformation().translate(srcBounds.left, srcBounds.top));
+											   Vertex tl = texXF.transform(Vertex(0.0, 0.0));
+											   Vertex tr = texXF.transform(Vertex(srcBounds.width, 0.0));
+											   Vertex bl = texXF.transform(Vertex(0.0, srcBounds.height));
+											   Vertex br = texXF.transform(Vertex(srcBounds.width, srcBounds.height));
+											   double minX = min(min(tl.x, tr.x), min(bl.x, br.x));
+											   double maxX = max(max(tl.x, tr.x), max(bl.x, br.x));
+											   double minY = min(min(tl.y, tr.y), min(bl.y, br.y));
+											   double maxY = max(max(tl.y, tr.y), max(bl.y, br.y));
+											   IntRect dstBounds = expandToIntRect(Rect<double>(minX, minY,
+						maxX - minX, maxY - minY));
+											   // Texture requires a Raster<T>; convert renderer to a self-contained raster first.
+											   SelfContainedRaster<Mask8> srcRaster(srcBounds);
+											   srcRaster = src;
+											   currentContext->accessState().mask = new RLERaster<Mask8>(dstBounds,
+						Texture<Mask8>(srcRaster, false, texXF));
+									   } else {
+											   currentContext->accessState().mask = it->second;
+									   }
+							   } else {
+									   MaskMakerCanvas maskMaker(currentContext->accessCanvas().getBounds());
+									   Context maskContext(maskMaker, *currentContext);
+									   State& maskState = maskContext.accessState();
+									   maskState.pen = Stroke();
+									   maskState.fill = Paint();
+									   maskState.fill.painter = new ColorPainter<Mask8>(0xFF);
+									   maskState.textStyle.fill = Paint();
+									   maskState.textStyle.fill.painter = new ColorPainter<Mask8>(0xFF);
+									   maskState.textStyle.outline = Stroke();
+									   maskState.evenOddFillRule = false;
+									   runInNewContext(impd, maskContext, arg0);
+									   std::unique_ptr<Renderer<Mask8> > result(maskMaker.finish(inverted));
+									   if (doTransform) {
+											   IntRect srcBounds = result->calcBounds();
+											   AffineTransformation texXF = maskTransform.transform(
+															   AffineTransformation().translate(srcBounds.left, srcBounds.top));
+											   Vertex tl = texXF.transform(Vertex(0.0, 0.0));
+											   Vertex tr = texXF.transform(Vertex(srcBounds.width, 0.0));
+											   Vertex bl = texXF.transform(Vertex(0.0, srcBounds.height));
+											   Vertex br = texXF.transform(Vertex(srcBounds.width, srcBounds.height));
+											   double minX = min(min(tl.x, tr.x), min(bl.x, br.x));
+											   double maxX = max(max(tl.x, tr.x), max(bl.x, br.x));
+											   double minY = min(min(tl.y, tr.y), min(bl.y, br.y));
+											   double maxY = max(max(tl.y, tr.y), max(bl.y, br.y));
+											   IntRect dstBounds = expandToIntRect(Rect<double>(minX, minY,
+						maxX - minX, maxY - minY));
+											   // Texture requires a Raster<T>; convert renderer to a self-contained raster first.
+											   SelfContainedRaster<Mask8> resultRaster(srcBounds);
+											   resultRaster = *result;
+											   currentContext->accessState().mask = new RLERaster<Mask8>(dstBounds,
+						Texture<Mask8>(resultRaster, false, texXF));
+									   } else {
+											   currentContext->accessState().mask = result.release();
+									   }
+							   }
+					   }
+					   break;
+			   }
 		case BOUNDS_INSTRUCTION: {
 			StringVector elems;
 			impd.parseList(args.fetchRequired(0), elems, true, false, 4, 4);
