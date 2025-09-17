@@ -44,10 +44,12 @@ options aa-gamma:0.9
 fill #72c0a8
 
 context [
-	mask [ wipe relative:no pattern:[bounds 0,0,8,8; rect 0,0,1000,4] transform:[scale 0.7] ]
+	M=[ wipe relative:no pattern:[bounds 0,0,8,8; rect 0,0,1000,4] transform:[scale 0.7] ]
+	mask $M
 	fill opacity:0.5
 	offset 2.0,1.75
 	$TEXT
+	mask $M
 	mask invert
 	fill opacity:1.0
 	offset -2.0,-1.0
