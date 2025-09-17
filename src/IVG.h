@@ -75,17 +75,40 @@ inline double square(double d) { return d * d; }
 void checkBounds(const NuXPixels::IntRect& bounds);
 
 /**
-	Small helper that wraps a pointer which might live on the heap.
-	
-	- If you assign a freshly created object it is kept in a std::unique_ptr
-	  and deleted automatically when the Inheritable instance goes away.
-	
-	- If you only pass in an existing object the class just stores the pointer
-	  and never attempts to free it.
+	Lightweight ownership wrapper for pointers that are sometimes "inherited" and sometimes owned.
 
-	IVG keeps optional gamma tables, painters and masks in stack classes using
-	this wrapper so dynamic helpers are cleaned up through RAII without extra
-	code.
+	Summary
+	- Provides a single `const T*` view (`inherited`) that callers can use directly.
+	- Optionally retains ownership via an internal `std::unique_ptr<T>` (`owned`).
+	- Copying an `Inheritable<T>` does not transfer ownership; the copy merely references the same pointer.
+	- Assigning a freshly created object (a raw `T*`) makes this instance the sole owner (RAII clean‑up).
+
+	Why it exists
+	Rendering state in IVG is frequently cloned (for nested contexts) and sometimes overridden.
+	For example, masks, painters and gamma tables may be:
+	- Inherited from a parent context (child should not delete them), or
+	- Created in the current context (must be deleted when this scope ends).
+	`Inheritable<T>` captures this pattern so state copying is trivial and memory is cleaned up when appropriate.
+
+	Ownership rules
+	- Construct or assign from `T*`: this instance owns the pointer (`owned.reset(p)`) and will delete it on destruction.
+	- Copy‑construct or assign from another `Inheritable<T>`: keep only the pointer value; do not adopt ownership.
+	  If this instance previously owned a different pointer it is released first. If it already owns the very same
+	  pointer, ownership is preserved (avoids double free and keeps a single responsible owner).
+	- Construct from `const T*`: treated as owning as well (internally `const_cast<T*>` to store in `unique_ptr`).
+	  This is convenient because IVG often exposes pointers as `const` to readers while the creator remains the owner.
+
+	Usage examples
+	- Own a newly created helper:
+		`state.mask = new NuXPixels::RLERaster<NuXPixels::Mask8>(bounds, source);`
+	- Inherit from parent without taking ownership:
+		`state.mask = parent.state.mask;`
+	- Clear and release any previously owned object:
+		`state.mask = 0;`
+
+	Invariant
+	- When `owned.get() != 0` it always equals `inherited`. When non‑owning, `owned.get() == 0` and `inherited`
+	  simply points at an external object whose lifetime is managed elsewhere.
 **/
 template<class T> class Inheritable {
 	public:		Inheritable() : inherited(0) { }

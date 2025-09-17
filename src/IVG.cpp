@@ -1895,20 +1895,20 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		}
 
 		case MASK_INSTRUCTION: { // mask
+			State& currentState = currentContext->accessState();
+			const IntRect canvasBounds = currentContext->accessCanvas().getBounds();
 			const String& arg0 = args.fetchRequired(0, false);
 			if (!Interpreter::isBracketBlock(arg0)) {
 				const String arg0Lower = impd.toLower(impd.expand(arg0));
 				args.throwIfAnyUnfetched();
 				if (arg0Lower == "invert") {
 					const RLERaster<Mask8>* baselineMask = currentContext->getInitialMask();
-					const IntRect bounds(currentContext->accessCanvas().getBounds());
-					std::unique_ptr< RLERaster<Mask8> > combined;
-					const RLERaster<Mask8>* currentMask = currentContext->accessState().mask;
-					combined.reset(new RLERaster<Mask8>(bounds, (currentMask == 0)
+					std::unique_ptr< RLERaster<Mask8> > newMask(new RLERaster<Mask8>
+							(canvasBounds, (currentState.mask == 0)
 							? static_cast<const Renderer<Mask8>&>(Solid<Mask8>(Mask8::transparent()))
-							: (baselineMask == 0) ? static_cast<const Renderer<Mask8>&>(~(*currentMask))
-							: static_cast<const Renderer<Mask8>&>((*baselineMask) * ~(*currentMask))));
-					currentContext->accessState().mask = combined.release();
+							: (baselineMask == 0) ? static_cast<const Renderer<Mask8>&>(~(*currentState.mask))
+							: static_cast<const Renderer<Mask8>&>((*baselineMask) * ~(*currentState.mask))));
+					currentState.mask = newMask.release();
 					break;
 				} else if (arg0Lower == "reset") {
 					currentContext->restoreInitialMask();
@@ -1918,7 +1918,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			const String* invertedOption = args.fetchOptional("inverted");
 			args.throwIfAnyUnfetched();
 			const bool inverted = (invertedOption != 0 && impd.toBool(*invertedOption));
-			MaskMakerCanvas maskMaker(currentContext->accessCanvas().getBounds());
+			MaskMakerCanvas maskMaker(canvasBounds);
 			Context maskContext(maskMaker, *currentContext);
 			State& maskState = maskContext.accessState();
 			maskState.pen = Stroke();
@@ -1931,16 +1931,14 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			maskState.mask = static_cast< RLERaster<Mask8>* >(0);
 			runInNewContext(impd, maskContext, arg0);
 			std::unique_ptr< RLERaster<Mask8> > newMask(maskMaker.finish());
-			const RLERaster<Mask8>* currentMask = currentContext->accessState().mask;
 			if (inverted) {
-				const IntRect maskBounds(currentContext->accessCanvas().getBounds());
-				(*newMask) = ((currentMask != 0)
-						? static_cast<const Renderer<Mask8>&>((*currentMask) * ~(*newMask))
+				(*newMask) = ((currentState.mask != 0)
+						? static_cast<const Renderer<Mask8>&>((*currentState.mask) * ~(*newMask))
 						: static_cast<const Renderer<Mask8>&>(~(*newMask)));
-			} else if (currentMask != 0) {
-				(*newMask) *= (*currentMask);
+			} else if (currentState.mask != 0) {
+				(*newMask) *= (*currentState.mask);
 			}
-			currentContext->accessState().mask = newMask.release();
+			currentState.mask = newMask.release();
 			break;
 		}
 		

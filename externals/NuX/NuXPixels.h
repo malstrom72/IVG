@@ -639,7 +639,7 @@ template<class T> void Raster<T>::setPixel(int x, int y, const typename T::Pixel
 **/
 template<class T> class SelfContainedRaster : public Raster<T> {
 	public:		SelfContainedRaster();
-	public:		SelfContainedRaster(const IntRect& bounds, bool opaque = false);	/// Warning! If opaque is true you must never have transparent pixels in this raster.
+	public:		explicit SelfContainedRaster(const IntRect& bounds, bool opaque = false);	/// Warning! If opaque is true you must never have transparent pixels in this raster.
 	public:		SelfContainedRaster(const SelfContainedRaster& that);
 	public:		SelfContainedRaster& operator=(const SelfContainedRaster& that);
 	public:		Raster<T>& operator=(const Renderer<T>& source) { return Raster<T>::operator=(source); }
@@ -654,7 +654,7 @@ template<class T> class SelfContainedRaster : public Raster<T> {
 	Solid<ARGB32> blue(0xff0000ff);
 **/
 template<class T> class Solid : public Renderer<T> {
-	public:		Solid(const typename T::Pixel& pixel);
+	public:		explicit Solid(const typename T::Pixel& pixel);
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<T>& output) const;
 	protected:	typename T::Pixel pixel;
@@ -667,7 +667,7 @@ template<class T> class Solid : public Renderer<T> {
 	RLERaster<Mask8> cache(area, mask);
 **/
 template<class T> class RLERaster : public Renderer<T> {
-	public:		RLERaster(const IntRect& bounds, const Renderer<T>& source = Solid<T>(T::transparent()));
+	public:		explicit RLERaster(const IntRect& bounds, const Renderer<T>& source = Solid<T>(T::transparent()));
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<T>& output) const;
 	public:		void fill(const Renderer<T>& source);
@@ -740,7 +740,7 @@ template<class T> class Offsetter : public Renderer<T> {
 	UnaryOperator processes each pixel from a source renderer individually.
 **/
 template<class S, class T> class UnaryOperator : public Renderer<T> {
-	public:		UnaryOperator(const Renderer<S>& source);
+	public:		explicit UnaryOperator(const Renderer<S>& source);
 	public:		virtual void process(int count, const typename S::Pixel* source, typename T::Pixel* target, bool& opaque) const = 0;
 	protected:	void render(int x, int y, int length, SpanBuffer<S>& inputBuffer, SpanBuffer<T>& output) const;
 	protected:	template<class U> void render(int x, int y, int length, const Renderer<U>&, SpanBuffer<T>& output) const;
@@ -770,7 +770,7 @@ template<class T, class L> class Lookup : public UnaryOperator<Mask8, T> {
 	Inverter<ARGB32> neg(image);
 **/
 template<class T> class Inverter : public UnaryOperator<T, T> {
-	public:		Inverter(const Renderer<T>& source);
+	public:		explicit Inverter(const Renderer<T>& source);
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void process(int count, const typename T::Pixel* source, typename T::Pixel* target, bool& opaque) const;
 };
@@ -783,7 +783,7 @@ template<class T> class Inverter : public UnaryOperator<T, T> {
 **/
 template<class S, class T> class Converter : public UnaryOperator<S, T> {
 	public:		typedef UnaryOperator<S, T> super;
-	public:		Converter(const Renderer<S>& source);
+	public:		explicit Converter(const Renderer<S>& source);
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void process(int count, const typename S::Pixel* source, typename T::Pixel* target, bool& opaque) const;
 };
@@ -831,7 +831,7 @@ class RadialAscend : public Renderer<Mask8> {
 	Texture<ARGB32> tex(image, true, AffineTransformation().scale(2));
 **/
 template<class T> class Texture : public Renderer<T> {
-	public:		Texture(const Raster<T>& image, bool wrap = true, const AffineTransformation& transformation = AffineTransformation(), const IntRect& sourceRect = FULL_RECT);
+	public:		explicit Texture(const Raster<T>& image, bool wrap = true, const AffineTransformation& transformation = AffineTransformation(), const IntRect& sourceRect = FULL_RECT);
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<T>& output) const;
 	public:		virtual ~Texture();
@@ -894,7 +894,7 @@ template<class A, class B> class Multiplier : public BinaryOperator<A, B> {
 	Optimizer analyzes spans from a renderer to minimize redundant output.
 **/
 template<class T> class Optimizer : public Renderer<T> {
-	public:		Optimizer(const Renderer<T>& source);
+	public:		explicit Optimizer(const Renderer<T>& source);
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<T>& output) const;
 	protected:	static const typename T::Pixel* outputVariable(const typename T::Pixel* b, const typename T::Pixel* e, bool opaque, SpanBuffer<T>& output);
