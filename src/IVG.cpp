@@ -1895,62 +1895,53 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		}
 
 		case MASK_INSTRUCTION: { // mask
-			const String* inlineArgument = args.fetchOptional(0, false);
-			const String* invertedOption = args.fetchOptional("inverted");
-			args.throwIfAnyUnfetched();
-			if (inlineArgument == 0) {
-				impd.throwBadSyntax("Invalid MASK arguments (missing block or command)");
-			}
-			const String inlineLower = impd.toLower(*inlineArgument);
-			if (inlineLower == "invert") {
-				if (invertedOption != 0) {
-					impd.throwBadSyntax("mask invert does not support additional options");
+			const String& arg0 = args.fetchRequired(0, false);
+			if (!Interpreter::isBracketBlock(arg0)) {
+				const String arg0Lower = impd.toLower(impd.expand(arg0));
+				if (arg0Lower == "invert") {
+					args.throwIfAnyUnfetched();
+					const RLERaster<Mask8>* baselineMask = currentContext->getInitialMask();
+					const IntRect bounds(currentContext->accessCanvas().getBounds());
+					std::unique_ptr< RLERaster<Mask8> > combined(baselineMask != 0
+							? new RLERaster<Mask8>(*baselineMask)
+							: new RLERaster<Mask8>(bounds, Solid<Mask8>(Mask8::maximum())));
+					const RLERaster<Mask8>* currentMask = currentContext->accessState().mask;
+					if (currentMask != 0) (*combined) *= ~(*currentMask);
+					else (*combined) *= Solid<Mask8>(Mask8::transparent());
+					currentContext->accessState().mask = combined.release();
+				} else if (arg0Lower == "reset") {
+					args.throwIfAnyUnfetched();
+					currentContext->restoreInitialMask();
 				}
-				const RLERaster<Mask8>* baselineMask = currentContext->getInitialMask();
-				const IntRect bounds(currentContext->accessCanvas().getBounds());
-				std::unique_ptr< RLERaster<Mask8> > combined(baselineMask != 0
-						? new RLERaster<Mask8>(*baselineMask)
-						: new RLERaster<Mask8>(bounds, Solid<Mask8>(Mask8::maximum())));
-				const RLERaster<Mask8>* currentMask = currentContext->accessState().mask;
-				if (currentMask != 0) (*combined) *= ~(*currentMask);
-				else (*combined) *= Solid<Mask8>(Mask8::transparent());
-				currentContext->accessState().mask = combined.release();
-				break;
-			}
-			if (inlineLower == "reset") {
-				if (invertedOption != 0) {
-					impd.throwBadSyntax("mask reset does not support additional options");
-				}
-				currentContext->restoreInitialMask();
-				break;
-			}
-			bool inverted = false;
-			if (invertedOption != 0) inverted = impd.toBool(*invertedOption);
-			const String& block = *inlineArgument;
-			MaskMakerCanvas maskMaker(currentContext->accessCanvas().getBounds());
-			Context maskContext(maskMaker, *currentContext);
-			State& maskState = maskContext.accessState();
-			maskState.pen = Stroke();
-			maskState.fill = Paint();
-			maskState.fill.painter = new ColorPainter<Mask8>(0xFF);
-			maskState.textStyle.fill = Paint();
-			maskState.textStyle.fill.painter = new ColorPainter<Mask8>(0xFF);
-			maskState.textStyle.outline = Stroke();
-			maskState.evenOddFillRule = false;
-			maskState.mask = static_cast< RLERaster<Mask8>* >(0);
-			runInNewContext(impd, maskContext, block);
-			std::unique_ptr< RLERaster<Mask8> > segment(maskMaker.finish());
-			const RLERaster<Mask8>* outerMask = currentContext->accessState().mask;
-			if (!inverted) {
-				if (outerMask != 0) (*segment) *= (*outerMask);
-				currentContext->accessState().mask = segment.release();
 			} else {
-				const IntRect maskBounds(currentContext->accessCanvas().getBounds());
-				std::unique_ptr< RLERaster<Mask8> > combined(outerMask != 0
-						? new RLERaster<Mask8>(*outerMask)
-						: new RLERaster<Mask8>(maskBounds, Solid<Mask8>(Mask8::maximum())));
-				(*combined) *= ~(*segment);
-				currentContext->accessState().mask = combined.release();
+				const String* invertedOption = args.fetchOptional("inverted");
+				args.throwIfAnyUnfetched();
+				const bool inverted = (invertedOption != 0 && impd.toBool(*invertedOption));
+				MaskMakerCanvas maskMaker(currentContext->accessCanvas().getBounds());
+				Context maskContext(maskMaker, *currentContext);
+				State& maskState = maskContext.accessState();
+				maskState.pen = Stroke();
+				maskState.fill = Paint();
+				maskState.fill.painter = new ColorPainter<Mask8>(0xFF);
+				maskState.textStyle.fill = Paint();
+				maskState.textStyle.fill.painter = new ColorPainter<Mask8>(0xFF);
+				maskState.textStyle.outline = Stroke();
+				maskState.evenOddFillRule = false;
+				maskState.mask = static_cast< RLERaster<Mask8>* >(0);
+				runInNewContext(impd, maskContext, arg0);
+				std::unique_ptr< RLERaster<Mask8> > segment(maskMaker.finish());
+				const RLERaster<Mask8>* outerMask = currentContext->accessState().mask;
+				if (!inverted) {
+					if (outerMask != 0) (*segment) *= (*outerMask);
+					currentContext->accessState().mask = segment.release();
+				} else {
+					const IntRect maskBounds(currentContext->accessCanvas().getBounds());
+					std::unique_ptr< RLERaster<Mask8> > combined(outerMask != 0
+							? new RLERaster<Mask8>(*outerMask)
+							: new RLERaster<Mask8>(maskBounds, Solid<Mask8>(Mask8::maximum())));
+					(*combined) *= ~(*segment);
+					currentContext->accessState().mask = combined.release();
+				}
 			}
 			break;
 		}
