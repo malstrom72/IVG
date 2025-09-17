@@ -390,9 +390,10 @@ class IVGExecutor : public IMPD::Executor {
 	protected:	void executeImage(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args);
 	protected:	void executeDefine(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args);
 	protected:	void buildPath(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args
-						, const IMPD::String& instruction, Path& path);
+						, const IMPD::String& instruction, const IMPD::String& arguments, Path& path);
 	protected:	void parseStroke(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args, Stroke& stroke);
-	protected:	void versionRequired(IMPD::Interpreter& impd, FormatVersion required, const IMPD::String& instruction);
+	protected:	void versionRequired(IMPD::Interpreter& impd, FormatVersion required, const IMPD::String& instruction
+						, const IMPD::String& arguments);
 	protected:	std::vector<const Font*> lookupExternalOrInternalFonts(IMPD::Interpreter& impd
 						, const IMPD::WideString& name, const IMPD::UniString& forString);
 	protected:	Path makeTextPath(IMPD::Interpreter& impd, const IMPD::UniString& text, double& advance);

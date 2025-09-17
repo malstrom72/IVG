@@ -853,7 +853,7 @@ class PathInstructionExecutor : public Executor {
 						}
 						case PATH_PATH_INSTRUCTION: {
 							Path fragment;
-							ivgExecutor.buildPath(impd, args, String("path"), fragment);
+							ivgExecutor.buildPath(impd, args, String("path"), String(), fragment);
 							appendChecked(fragment);
 							return true;
 						}
@@ -1280,10 +1280,11 @@ std::vector<const Font*> IVGExecutor::lookupExternalOrInternalFonts(Interpreter&
 		return lastFontPointers;
 }
 
-void IVGExecutor::versionRequired(Interpreter& impd, FormatVersion required, const String& instruction) {
+void IVGExecutor::versionRequired(Interpreter& impd, FormatVersion required, const String& instruction, const String& arguments) {
 	if (formatVersion != UNKNOWN && formatVersion < required) {
 		const char* requiredString = (required == IVG_3 ? "IVG-3" : "IVG-2");
-		impd.throwBadSyntax(String("Instruction requires ") + requiredString + ": " + instruction);
+		impd.throwBadSyntax(String("Instruction requires ") + requiredString + ": " + instruction
+				+ (!arguments.empty() ? String(" ") + arguments : String()));
 	}
 }
 
@@ -1335,8 +1336,8 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		}
 
         ArgumentsContainer pathArgs(ArgumentsContainer::parse(impd, definition));
-        Path path;
-        buildPath(impd, pathArgs, type, path);
+		Path path;
+		buildPath(impd, pathArgs, type, definition, path);
         definedPaths[name] = path;
 	} else if (typeLower == "pattern") {
 		const WideString name = impd.unescapeToWide(args.fetchRequired(1, true));
@@ -1379,7 +1380,7 @@ static IntRect expandToIntRect(const Rect<double>& floatRect) {
 	return r;
 }
 
-void IVGExecutor::buildPath(Interpreter& impd, ArgumentsContainer& args, const String& instruction, Path& path) {
+void IVGExecutor::buildPath(Interpreter& impd, ArgumentsContainer& args, const String& instruction, const String& arguments, Path& path) {
     const double curveQuality = currentContext->calcCurveQuality();
     const String* svg = args.fetchOptional("svg");
     if (svg != 0) {
@@ -1389,7 +1390,7 @@ void IVGExecutor::buildPath(Interpreter& impd, ArgumentsContainer& args, const S
         }
     } else {
         const String& arg0 = args.fetchRequired(0, false);
-        versionRequired(impd, IVG_3, instruction);
+        versionRequired(impd, IVG_3, instruction, arguments);
         if (!Interpreter::isBracketBlock(arg0)) {
             const WideString name = impd.unescapeToWide(impd.expand(arg0));
             PathMap::const_iterator it = definedPaths.find(name);
@@ -1802,15 +1803,15 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			break;
 		}
 
-			case PATH_INSTRUCTION: {
-				Path builtPath;
-				buildPath(impd, args, instruction, builtPath);
-				if (builtPath.empty() || builtPath.begin()->first != Path::MOVE) {
-					Interpreter::throwRunTimeError("Invalid first path instruction: " + instruction);
-				}
-				currentContext->draw(builtPath);
-				break;
+		case PATH_INSTRUCTION: {
+			Path builtPath;
+			buildPath(impd, args, instruction, arguments, builtPath);
+			if (builtPath.empty() || builtPath.begin()->first != Path::MOVE) {
+				Interpreter::throwRunTimeError("Invalid first path instruction: " + instruction);
 			}
+			currentContext->draw(builtPath);
+			break;
+		}
 			
 		case MATRIX_INSTRUCTION:
 		case SCALE_INSTRUCTION:
@@ -1902,6 +1903,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				const String arg0Lower = impd.toLower(impd.expand(arg0));
 				args.throwIfAnyUnfetched();
 				if (arg0Lower == "invert") {
+					versionRequired(impd, IVG_3, instruction, arguments);
 					const RLERaster<Mask8>* baselineMask = currentContext->getInitialMask();
 					std::unique_ptr< RLERaster<Mask8> > newMask(new RLERaster<Mask8>
 							(canvasBounds, (currentState.mask == 0)
@@ -1911,6 +1913,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 					currentState.mask = newMask.release();
 					break;
 				} else if (arg0Lower == "reset") {
+					versionRequired(impd, IVG_3, instruction, arguments);
 					currentContext->restoreInitialMask();
 					break;
 				}
@@ -1952,13 +1955,13 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		}
 
 		case DEFINE_INSTRUCTION: {
-			versionRequired(impd, IVG_2, instruction);
+			versionRequired(impd, IVG_2, instruction, arguments);
 			executeDefine(impd, args);
 			break;
 		}
 		
 		case FONT_INSTRUCTION: {
-			versionRequired(impd, IVG_2, instruction);
+			versionRequired(impd, IVG_2, instruction, arguments);
 			const String* s;
 			State& state = currentContext->accessState();
 			if ((s = args.fetchOptional(0, true)) != 0) {
@@ -1999,7 +2002,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		}
 
 		case TEXT_INSTRUCTION: {
-			versionRequired(impd, IVG_2, instruction);
+			versionRequired(impd, IVG_2, instruction, arguments);
 			const String* s;
 			State& state = currentContext->accessState();
 			if ((s = args.fetchOptional("at", true)) != 0) {
@@ -2026,13 +2029,13 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		}
 
 		case IMAGE_INSTRUCTION: {
-			versionRequired(impd, IVG_2, instruction);
+			versionRequired(impd, IVG_2, instruction, arguments);
 			executeImage(impd, args);
 			break;
 		}
 
 		case LINE_INSTRUCTION: {
-			versionRequired(impd, IVG_3, instruction);
+			versionRequired(impd, IVG_3, instruction, arguments);
 			makeLinePath(drawPath, impd, args);
 			const Rect<double> pathBounds(drawPath.calcFloatBounds());
 			currentContext->stroke(drawPath, currentContext->accessState().pen, pathBounds, 1.0);
@@ -2040,7 +2043,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		}
 
 		case POLYGON_INSTRUCTION: {
-			versionRequired(impd, IVG_3, instruction);
+			versionRequired(impd, IVG_3, instruction, arguments);
 			currentContext->draw(makePolygonPath(drawPath, impd, args));
 			break;
 		}

@@ -913,17 +913,15 @@ Syntax:
 -	`<instructions>` defines the mask. You can use all available drawing directives and instructions. Enclose in
 	brackets `[` and `]`.
 
--   `mask` always multiplies the newly drawn segment with the mask inherited from the surrounding context. Supplying
-    `inverted:yes` flips only the segment painted inside `<instructions>` before that multiplication, so chained masks
-    can only carve away pixels that were already visible.
+-   `inverted:yes` flips the mask painted inside `<instructions>` before applying it. This means that areas painted
+	inside the mask definition will be excluded from subsequent drawing operations, while unpainted areas will be
+	included. The default value is `no`.
 
--   `mask invert` multiplies the mask captured at the beginning of the current context with the inverse of the mask that
-    is active now. This lets you toggle masked areas while respecting any mask inherited from outer scopes.
+-   `mask invert` inverts the current mask, swapping visible and masked-out areas. This inversion only affects the mask
+	within the current context and does not override or restore areas masked out by parent contexts; any areas already
+	masked out before entering the current context remain masked out.
 
--   `mask reset` restores the mask to the value that was active when the current context started.
-
-Multiple mask directives combine through multiplication. For example, `mask A; mask B; mask C inverted:yes` produces the
-mask `A * B * ~C`, still honoring any mask inherited from outer contexts.
+-   `mask reset` restores the mask to the state that was active when the current context started.
 
 In mask definitions, drawing directives and instructions work like normal, and you can even nest masks in masks. The one
 big difference is that a mask is single-channeled (grayscale effectively); therefore, all `<paint>` specifications use a
@@ -934,8 +932,12 @@ this color will be fully visible, while lower values will result in more transpa
 
 Initially, the pen (and font outline) is set to `none`, and the fill (and font color) to `#FF` (fully opaque).
 
-Mask operations multiply with any existing mask. Mask paints honor `opacity` and gradients, and colors are treated as
-single-channel coverage values.
+Mask operations multiply with any existing mask. Supplying `inverted:yes` inverts only the newly painted mask (from
+`<instructions>`) before it is multiplied with the current mask; this means that chaining masks with `inverted:yes` can
+only further reduce visible areas and cannot restore pixels that were already masked out by previous masks.
+
+Mask paints honor `opacity` and gradients, and colors are treated as single-channel coverage values. You cannot use named
+colors inside a mask definition.
 
 Demonstration:
 
