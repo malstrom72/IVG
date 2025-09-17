@@ -1195,7 +1195,8 @@ Syntax:
 
 Note that `reset` does not take any arguments or options. It simply resets the state of the context to what it was at
 the entry of the context. This operation includes resetting the current [mask](#mask), [pen](#pen), [fill](#fill), and
-[font](#font) settings and other options associated with the context.
+[font](#font) settings, as well as the current [transform](#transform-specification) and other [options](#options)
+associated with the context.
 
 The reset directive does not affect any previously drawn elements on the canvas.
 
@@ -1356,13 +1357,14 @@ look like. You can select a solid color, a gradient of colors, or a pattern.
 -	The `gradient` paint type specifies a gradient of colors that can be set with a starting and ending color or
 	multiple color stops. See [Gradient Specification](#gradient-specification).
 
--		The `pattern` paint type is used to specify a repeating graphical pattern created from a set of drawing
-		instructions. You define the pattern by enclosing the instructions in brackets `[` and `]` or by
-		referencing a pattern name created with [`define pattern`](#define-pattern). The drawing context
-		for the pattern inherits all settings from the current context, such as [`pen`](#pen), [`fill`](#fill), etc.,
-		except for the [`mask`](#mask) setting. A [`bounds`](#bounds) directive is required to define the pattern's
-		dimensions. The resolution used for rasterizing the pattern can be changed using the [`options`](#options)
-		directive.
+-	The `pattern` paint type is used to specify a repeating graphical pattern created from a set of drawing
+	instructions. You define the pattern by enclosing the instructions in brackets `[` and `]` or by
+	referencing a pattern name created with [`define pattern`](#define-pattern). The drawing context
+	for the pattern inherits all settings from the current context, such as [`pen`](#pen), [`fill`](#fill), etc.,
+	except for the [`mask`](#mask) setting. A [`bounds`](#bounds) directive is required to define the pattern's
+	dimensions. The resolution used for rasterizing the pattern can be changed using the [`options`](#options)
+	directive.
+	
 -	The `transform` option allows you to apply a series of transformations on the paint. These transformations are
 	relative to the current transformation of the active [context](#context). See [Transform
 	Specification](#transform-specification). (Irrelevant for solid colors.)
@@ -1414,9 +1416,9 @@ two ways:
 	subsequent drawing operations. The transformation is applied to the entire canvas when used in this way.
 
 2.	Transformations can also appear inside directives such as [`<paint>`](#paint-specification), [`font`](#font), and
-[`image`](#image) to transform specific objects. In these cases, you specify the transformation within square brackets
-`[` and `]`, and you can list multiple transformations separated with a semicolon `;`. Transformations apply left to
-right in the order written.
+	[`image`](#image) to transform specific objects. In these cases, you specify the transformation within square brackets
+	`[` and `]`, and you can list multiple transformations separated with a semicolon `;`. Transformations apply left to
+	right in the order written.
 
 The syntax for specifying a transformation is as follows:
 
