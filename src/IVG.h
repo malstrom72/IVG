@@ -82,7 +82,7 @@ void checkBounds(const NuXPixels::IntRect& bounds);
 	
 	- If you only pass in an existing object the class just stores the pointer
 	  and never attempts to free it.
-	
+
 	IVG keeps optional gamma tables, painters and masks in stack classes using
 	this wrapper so dynamic helpers are cleaned up through RAII without extra
 	code.
@@ -279,7 +279,7 @@ class MaskMakerCanvas : public Canvas {
 	public:		virtual void blendWithMask8(const NuXPixels::Renderer<NuXPixels::Mask8>& source);
 	public:		virtual void defineBounds(const NuXPixels::IntRect& newBounds);
 	public:		virtual NuXPixels::IntRect getBounds() const;
-	public:		NuXPixels::RLERaster<NuXPixels::Mask8>* finish(bool invert);
+	public:		NuXPixels::RLERaster<NuXPixels::Mask8>* finish();
 	protected:	std::unique_ptr< NuXPixels::RLERaster<NuXPixels::Mask8> > mask8RLE;
 };
 
@@ -288,10 +288,12 @@ class MaskMakerCanvas : public Canvas {
 **/
 class Context {
 	friend class PatternBase;
-	
+
 	public:		Context(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform);
 	public:		Context(Canvas& canvas, Context& parentContext);
 	public:		void resetState();
+	public:		const NuXPixels::RLERaster<NuXPixels::Mask8>* getInitialMask() const;
+	public:		void restoreInitialMask();
 	public:		double calcCurveQuality() const;
 	public:		State& accessState() { return state; }
 	public:		Canvas& accessCanvas() const { return canvas; }

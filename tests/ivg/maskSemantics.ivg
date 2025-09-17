@@ -1,0 +1,50 @@
+format IVG-1 requires:IMPD-1
+bounds 0,0,360,120
+
+wipe #f0f0f0
+
+// Panel 1: chained masks multiply segments
+context [
+	mask [
+		rect 10,10,100,100
+	]
+	mask [
+		rect 40,0,40,120
+	]
+	mask [
+		rect 30,30,60,60
+	] inverted:yes
+	fill #0033cc
+	rect 0,0,120,120
+]
+
+// Panel 2: mask invert toggles against the context baseline
+context [
+	offset 120,0
+	mask [
+		rect 10,10,100,100
+	]
+	fill #008800
+	rect 0,0,120,120
+	mask invert
+	fill #cc0000
+	rect 0,0,120,120
+]
+
+// Panel 3: mask reset restores the original mask
+context [
+	offset 240,0
+	mask [
+		rect 10,10,100,100
+	]
+	fill #0022aa
+	rect 0,0,120,120
+	mask [
+		rect 40,40,40,40
+	] inverted:yes
+	fill #aa00aa
+	rect 0,0,120,120
+	mask reset
+	fill #ffcc00
+	rect 40,40,40,40
+]

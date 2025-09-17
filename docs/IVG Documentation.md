@@ -906,14 +906,24 @@ mask with a set of instructions that draws the mask. The effect of the mask last
 
 Syntax:
 
-	mask <instructions> [ inverted:(yes|no)=no ]
+    mask <instructions> [ inverted:(yes|no)=no ]
+    mask invert
+    mask reset
 
 -	`<instructions>` defines the mask. You can use all available drawing directives and instructions. Enclose in
 	brackets `[` and `]`.
 
--	The `inverted` option specifies whether you want to invert the mask or not (default is `no`). When the mask is not
-	inverted, it will reveal all painted areas and hide everything else. On the other hand, if the mask is inverted, it
-	will hide all painted areas and reveal everything else.
+-   `mask` always multiplies the newly drawn segment with the mask inherited from the surrounding context. Supplying
+    `inverted:yes` flips only the segment painted inside `<instructions>` before that multiplication, so chained masks
+    can only carve away pixels that were already visible.
+
+-   `mask invert` multiplies the mask captured at the beginning of the current context with the inverse of the mask that
+    is active now. This lets you toggle masked areas while respecting any mask inherited from outer scopes.
+
+-   `mask reset` restores the mask to the value that was active when the current context started.
+
+Multiple mask directives combine through multiplication. For example, `mask A; mask B; mask C inverted:yes` produces the
+mask `A * B * ~C`, still honoring any mask inherited from outer contexts.
 
 In mask definitions, drawing directives and instructions work like normal, and you can even nest masks in masks. The one
 big difference is that a mask is single-channeled (grayscale effectively); therefore, all `<paint>` specifications use a

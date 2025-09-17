@@ -44,11 +44,10 @@ options aa-gamma:0.9
 fill #72c0a8
 
 context [
-	M=[ rect 0,16,50,8; rect 65,0,10,100; rect 40,20,60,10; ]
-	mask $M
+	mask [ rect 0,16,50,8; rect 65,0,10,100; rect 40,20,60,10; ]
 	offset -1.2,0
 	$TEXT
-	mask inverted:yes $M
+	mask invert
 	offset 2.0,-1.0
 	$TEXT
 ]
