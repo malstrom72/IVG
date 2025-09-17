@@ -28,7 +28,7 @@ vector graphics.
 Here are a couple of quick snippets written in ImpD. Each one produces the image right below it.
 
 ```ImpD
-format IVG-2 requires:ImpD-1
+format IVG-3 requires:ImpD-1
 bounds 0,0,300,80
 
 fill #406080
