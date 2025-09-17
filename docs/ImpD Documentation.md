@@ -43,9 +43,9 @@ does not allow unrecognized instruction and superfluous arguments.
 
 As an example, the first statement should be the `format` instruction which looks like this:
 
-    format IVG-2 requires:ImpD-1
+    format IVG-3 requires:ImpD-1
 
-The loading program must recognize the format (`IVG-2` above), or the file will not load. The labeled `requires`
+The loading program must recognize the format (`IVG-3` above), or the file will not load. The labeled `requires`
 argument tells the parser that _ImpD_ version 1 is required to interpret the file (other requirements may follow
 separated by comma).
 
