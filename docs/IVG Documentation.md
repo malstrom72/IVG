@@ -137,7 +137,7 @@ and halts rendering.
 -	`IVG-1` covers core vector drawing and styling.
 -	`IVG-2` adds text, fonts, and raster image support through `define image` and `IMAGE`.
 -	`IVG-3` adds `LINE`, `POLYGON`, and an instruction-list form for `PATH` (including `define path`).
--	`IVG-3` also introduces mask controls: the `mask invert` and `mask reset` instructions, plus an updated `mask inverted:yes` option that inverts only the mask drawn inside the current definition before it combines with the active mask.
+-	`IVG-3` also introduces mask controls: the `mask invert` and `mask reset` instructions.
 
 The interpreter processes all versions identically, but readers that only understand `IVG-1` or `IVG-2` will reject
 documents marked `IVG-3`.
