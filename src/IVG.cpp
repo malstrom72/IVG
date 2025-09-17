@@ -1898,51 +1898,49 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			const String& arg0 = args.fetchRequired(0, false);
 			if (!Interpreter::isBracketBlock(arg0)) {
 				const String arg0Lower = impd.toLower(impd.expand(arg0));
+				args.throwIfAnyUnfetched();
 				if (arg0Lower == "invert") {
-					args.throwIfAnyUnfetched();
 					const RLERaster<Mask8>* baselineMask = currentContext->getInitialMask();
 					const IntRect bounds(currentContext->accessCanvas().getBounds());
-					std::unique_ptr< RLERaster<Mask8> > combined(baselineMask != 0
-							? new RLERaster<Mask8>(*baselineMask)
-							: new RLERaster<Mask8>(bounds, Solid<Mask8>(Mask8::maximum())));
+					std::unique_ptr< RLERaster<Mask8> > combined;
 					const RLERaster<Mask8>* currentMask = currentContext->accessState().mask;
-					if (currentMask != 0) (*combined) *= ~(*currentMask);
-					else (*combined) *= Solid<Mask8>(Mask8::transparent());
+					combined.reset(new RLERaster<Mask8>(bounds, (currentMask == 0)
+							? static_cast<const Renderer<Mask8>&>(Solid<Mask8>(Mask8::transparent()))
+							: (baselineMask == 0) ? static_cast<const Renderer<Mask8>&>(~(*currentMask))
+							: static_cast<const Renderer<Mask8>&>((*baselineMask) * ~(*currentMask))));
 					currentContext->accessState().mask = combined.release();
+					break;
 				} else if (arg0Lower == "reset") {
-					args.throwIfAnyUnfetched();
 					currentContext->restoreInitialMask();
-				}
-			} else {
-				const String* invertedOption = args.fetchOptional("inverted");
-				args.throwIfAnyUnfetched();
-				const bool inverted = (invertedOption != 0 && impd.toBool(*invertedOption));
-				MaskMakerCanvas maskMaker(currentContext->accessCanvas().getBounds());
-				Context maskContext(maskMaker, *currentContext);
-				State& maskState = maskContext.accessState();
-				maskState.pen = Stroke();
-				maskState.fill = Paint();
-				maskState.fill.painter = new ColorPainter<Mask8>(0xFF);
-				maskState.textStyle.fill = Paint();
-				maskState.textStyle.fill.painter = new ColorPainter<Mask8>(0xFF);
-				maskState.textStyle.outline = Stroke();
-				maskState.evenOddFillRule = false;
-				maskState.mask = static_cast< RLERaster<Mask8>* >(0);
-				runInNewContext(impd, maskContext, arg0);
-				std::unique_ptr< RLERaster<Mask8> > segment(maskMaker.finish());
-				const RLERaster<Mask8>* outerMask = currentContext->accessState().mask;
-				if (!inverted) {
-					if (outerMask != 0) (*segment) *= (*outerMask);
-					currentContext->accessState().mask = segment.release();
-				} else {
-					const IntRect maskBounds(currentContext->accessCanvas().getBounds());
-					std::unique_ptr< RLERaster<Mask8> > combined(outerMask != 0
-							? new RLERaster<Mask8>(*outerMask)
-							: new RLERaster<Mask8>(maskBounds, Solid<Mask8>(Mask8::maximum())));
-					(*combined) *= ~(*segment);
-					currentContext->accessState().mask = combined.release();
+					break;
 				}
 			}
+			const String* invertedOption = args.fetchOptional("inverted");
+			args.throwIfAnyUnfetched();
+			const bool inverted = (invertedOption != 0 && impd.toBool(*invertedOption));
+			MaskMakerCanvas maskMaker(currentContext->accessCanvas().getBounds());
+			Context maskContext(maskMaker, *currentContext);
+			State& maskState = maskContext.accessState();
+			maskState.pen = Stroke();
+			maskState.fill = Paint();
+			maskState.fill.painter = new ColorPainter<Mask8>(0xFF);
+			maskState.textStyle.fill = Paint();
+			maskState.textStyle.fill.painter = new ColorPainter<Mask8>(0xFF);
+			maskState.textStyle.outline = Stroke();
+			maskState.evenOddFillRule = false;
+			maskState.mask = static_cast< RLERaster<Mask8>* >(0);
+			runInNewContext(impd, maskContext, arg0);
+			std::unique_ptr< RLERaster<Mask8> > newMask(maskMaker.finish());
+			const RLERaster<Mask8>* currentMask = currentContext->accessState().mask;
+			if (inverted) {
+				const IntRect maskBounds(currentContext->accessCanvas().getBounds());
+				(*newMask) = ((currentMask != 0)
+						? static_cast<const Renderer<Mask8>&>((*currentMask) * ~(*newMask))
+						: static_cast<const Renderer<Mask8>&>(~(*newMask)));
+			} else if (currentMask != 0) {
+				(*newMask) *= (*currentMask);
+			}
+			currentContext->accessState().mask = newMask.release();
 			break;
 		}
 		
