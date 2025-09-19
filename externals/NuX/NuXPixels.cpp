@@ -480,15 +480,15 @@ Path& Path::addRect(double left, double top, double width, double height) {
 /**
 	Makes an arc by rotating a point around the center of the arc.
 **/
-Path& Path::arcSweep(double centerX, double centerY, double sweepRadians, double radiusX, double radiusY, double curveQuality) {
+Path& Path::arcSweep(double centerX, double centerY, double sweepRadians, double ratioX, double ratioY, double curveQuality) {
 	assert(-PI2 <= sweepRadians && sweepRadians <= PI2);
 	assert(0.0 < curveQuality);
 
 	const Vertex pos(getPosition());
-	const double sx = (pos.x - centerX) / radiusX;
-	const double sy = (pos.y - centerY) / radiusY;
+	const double sx = (pos.x - centerX) / ratioX;
+	const double sy = (pos.y - centerY) / ratioY;
 
-	const double major = maxValue(fabs(radiusX), fabs(radiusY));
+	const double major = maxValue(fabs(ratioX), fabs(ratioY));
 	const double diameter = maxValue(major, 1.0) * 2.0 * sqrt(sx * sx + sy * sy);
 
 	double rx, ry;
@@ -508,31 +508,31 @@ Path& Path::arcSweep(double centerX, double centerY, double sweepRadians, double
 		px = nx;
 		py = ny;
 		r += t;
-		lineTo(centerX + px * radiusX, centerY + py * radiusY);
+		lineTo(centerX + px * ratioX, centerY + py * ratioY);
 	}
 	rx = cos(sweepRadians);
 	ry = sin(sweepRadians);
 	px = sx * rx - sy * ry;
 	py = sx * ry + sy * rx;
-	lineTo(centerX + px * radiusX, centerY + py * radiusY);
+	lineTo(centerX + px * ratioX, centerY + py * ratioY);
 
 	return *this;
 }
 
-Path& Path::arcMove(double centerX, double centerY, double sweepRadians, double radiusX, double radiusY) {
+Path& Path::arcMove(double centerX, double centerY, double sweepRadians, double ratioX, double ratioY) {
 	assert(-PI2 <= sweepRadians && sweepRadians <= PI2);
 
 	const Vertex pos(getPosition());
-	const double sx = (pos.x - centerX) / radiusX;
-	const double sy = (pos.y - centerY) / radiusY;
+	const double sx = (pos.x - centerX) / ratioX;
+	const double sy = (pos.y - centerY) / ratioY;
 
 	double rx = cos(sweepRadians);
 	double ry = sin(sweepRadians);
 	double px = sx * rx - sy * ry;
 	double py = sx * ry + sy * rx;
 
-	const double endX = centerX + px * radiusX;
-	const double endY = centerY + py * radiusY;
+	const double endX = centerX + px * ratioX;
+	const double endY = centerY + py * ratioY;
 
 	if (!instructions.empty() && instructions.back().first == MOVE) {
 		instructions.back().second = Vertex(endX, endY);
