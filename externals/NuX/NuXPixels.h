@@ -311,8 +311,8 @@ class Path {
 	public:		Path& lineTo(double x, double y);
 	public:		Path& quadraticTo(double controlPointX, double controlPointY, double x, double y, double curveQuality = 1.0);
 	public:		Path& cubicTo(double cpBeginX, double cpBeginY, double cpEndX, double cpEndY, double x, double y, double curveQuality = 1.0);
-	public:		Path& arcSweep(double centerX, double centerY, double sweepRadians, double radiusX, double radiusY, double curveQuality = 1.0);
-	public:		Path& arcMove(double centerX, double centerY, double sweepRadians, double radiusX, double radiusY);
+	public:		Path& arcSweep(double centerX, double centerY, double sweepRadians, double ratioX = 1.0, double ratioY = 1.0, double curveQuality = 1.0);
+	public:		Path& arcMove(double centerX, double centerY, double sweepRadians, double ratioX = 1.0, double ratioY = 1.0);
 	public:		Path& append(const Path& p);
 	public:		Path& addLine(double startX, double startY, double endX, double endY);
 	public:		Path& addRect(double left, double top, double width, double height); // FIX : <- phase out? only have addRect(Rect<double>)?
