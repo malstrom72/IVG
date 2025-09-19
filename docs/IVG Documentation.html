@@ -332,7 +332,8 @@ through <code>define image</code> and <code>IMAGE</code>.</li>
 <li><code>IVG-3</code> adds <code>LINE</code>, <code>POLYGON</code>, and
 an instruction-list form for <code>PATH</code> (including
 <code>define path</code>).</li>
-<li><code>IVG-3</code> also introduces mask controls: the <code>mask invert</code> and <code>mask reset</code> instructions, plus an updated <code>mask inverted:yes</code> option that inverts only the mask drawn inside the current definition before it combines with the active mask.</li>
+<li><code>IVG-3</code> also introduces mask controls: the
+<code>mask invert</code> and <code>mask reset</code> instructions.</li>
 </ul>
 <p>The interpreter processes all versions identically, but readers that
 only understand <code>IVG-1</code> or <code>IVG-2</code> will reject
@@ -1122,7 +1123,12 @@ current context remain masked out.</p></li>
 <li><p><code>mask reset</code> restores the mask to the state that was
 active when the current context started.</p></li>
 </ul>
-<p><em>The <code>mask invert</code> and <code>mask reset</code> commands were introduced in IVG-3. IVG-3 also changes <code>inverted:yes</code> so that it inverts only the mask definition being applied before it multiplies with the active mask; earlier specifications inverted the accumulated mask, which prevented IVG documents from restoring areas once they were masked out.</em></p>
+<p><em>The <code>mask invert</code> and <code>mask reset</code> commands
+were introduced in IVG-3. IVG-3 also changes <code>inverted:yes</code>
+so that it inverts only the mask definition being applied before it
+multiplies with the active mask; earlier specifications inverted the
+accumulated mask, which prevented IVG documents from restoring areas
+once they were masked out.</em></p>
 <p>In mask definitions, drawing directives and instructions work like
 normal, and you can even nest masks in masks. The one big difference is
 that a mask is single-channeled (grayscale effectively); therefore, all
