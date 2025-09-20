@@ -334,11 +334,12 @@ an instruction-list form for <code>PATH</code> (including
 <code>define path</code>).</li>
 <li><code>IVG-3</code> also introduces mask controls: the
 <code>mask invert</code> and <code>mask reset</code> instructions.</li>
-<li><code>IVG-3</code> replaces the legacy <code>mask inverted:yes</code>
-option with <code>inverse:yes</code>. Documents written for <code>IVG-1</code>
-or <code>IVG-2</code> (or without a declared format) may still use
-<code>inverted:yes</code>, which multiplies the new mask with the current
-mask and then inverts the entire result.</li>
+<li><code>IVG-3</code> replaces the legacy
+<code>mask inverted:yes</code> option with <code>inverse:yes</code>.
+Documents written for <code>IVG-1</code> or <code>IVG-2</code> (or
+without a declared format) may still use <code>inverted:yes</code>,
+which multiplies the new mask with the current mask and then inverts the
+entire result.</li>
 </ul>
 <p>The interpreter processes all versions identically, but readers that
 only understand <code>IVG-1</code> or <code>IVG-2</code> will reject
@@ -1128,7 +1129,6 @@ current context remain masked out.</p></li>
 <li><p><code>mask reset</code> restores the mask to the state that was
 active when the current context started.</p></li>
 </ul>
-
 <p>In mask definitions, drawing directives and instructions work like
 normal, and you can even nest masks in masks. The one big difference is
 that a mask is single-channeled (grayscale effectively); therefore, all
@@ -1198,9 +1198,9 @@ TEXT at:70,145 anchor:center &quot;B&quot;
 // C: mask circle 1 to exclude circle 2.
 offset -150,150
 context [
-    mask [
-        ELLIPSE $c2
-                ] inverse:yes
+            mask [
+                    ELLIPSE $c2
+            ] inverse:yes
     ELLIPSE $c1
 ]
 $outline
