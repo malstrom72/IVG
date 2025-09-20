@@ -138,6 +138,7 @@ and halts rendering.
 -	`IVG-2` adds text, fonts, and raster image support through `define image` and `IMAGE`.
 -	`IVG-3` adds `LINE`, `POLYGON`, and an instruction-list form for `PATH` (including `define path`).
 -	`IVG-3` also introduces mask controls: the `mask invert` and `mask reset` instructions.
+-	`IVG-3` replaces the legacy `mask inverted:yes` option with `inverse:yes`. Documents written for `IVG-1` or `IVG-2` (or without a declared format) may still use `inverted:yes`, which multiplies the new mask with the current mask and then inverts the entire result.
 
 The interpreter processes all versions identically, but readers that only understand `IVG-1` or `IVG-2` will reject
 documents marked `IVG-3`.
@@ -907,24 +908,22 @@ mask with a set of instructions that draws the mask. The effect of the mask last
 
 Syntax:
 
-    mask <instructions> [ inverted:(yes|no)=no ]
+    mask <instructions> [ inverse:(yes|no)=no ]
     mask invert
     mask reset
 
 -	`<instructions>` defines the mask. You can use all available drawing directives and instructions. Enclose in
 	brackets `[` and `]`.
 
--   `inverted:yes` flips the mask painted inside `<instructions>` before applying it. This means that areas painted
-	inside the mask definition will be excluded from subsequent drawing operations, while unpainted areas will be
-	included. The default value is `no`.
+-   `inverse:yes` multiplies the current mask with the inverse of the mask painted inside `<instructions>`. Areas
+        painted inside the mask definition are excluded from subsequent drawing operations, while unpainted areas are
+        included. The default value is `no`.
 
 -   `mask invert` inverts the current mask, swapping visible and masked-out areas. This inversion only affects the mask
 	within the current context and does not override or restore areas masked out by parent contexts; any areas already
 	masked out before entering the current context remain masked out.
 
 -   `mask reset` restores the mask to the state that was active when the current context started.
-
-_The `mask invert` and `mask reset` commands were introduced in IVG-3. IVG-3 also changes `inverted:yes` so that it inverts only the mask definition being applied before it multiplies with the active mask; earlier specifications inverted the accumulated mask, which prevented IVG documents from restoring areas once they were masked out._
 
 In mask definitions, drawing directives and instructions work like normal, and you can even nest masks in masks. The one
 big difference is that a mask is single-channeled (grayscale effectively); therefore, all `<paint>` specifications use a
@@ -935,8 +934,8 @@ this color will be fully visible, while lower values will result in more transpa
 
 Initially, the pen (and font outline) is set to `none`, and the fill (and font color) to `#FF` (fully opaque).
 
-Mask operations multiply with any existing mask. Supplying `inverted:yes` inverts only the newly painted mask (from
-`<instructions>`) before it is multiplied with the current mask; this means that chaining masks with `inverted:yes` can
+Mask operations multiply with any existing mask. Supplying `inverse:yes` inverts only the newly painted mask (from
+`<instructions>`) before it is multiplied with the current mask; this means that chaining masks with `inverse:yes` can
 only further reduce visible areas and cannot restore pixels that were already masked out by previous masks.
 
 Mask paints honor `opacity` and gradients, and colors are treated as single-channel coverage values. You cannot use named
@@ -990,9 +989,9 @@ Demonstration:
 	// C: mask circle 1 to exclude circle 2.
 	offset -150,150
 	context [
-		mask [
-			ELLIPSE $c2
-		] inverted:yes
+                mask [
+                        ELLIPSE $c2
+                ] inverse:yes
 		ELLIPSE $c1
 	]
 	$outline

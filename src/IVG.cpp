@@ -1918,9 +1918,18 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 					break;
 				}
 			}
-			const String* invertedOption = args.fetchOptional("inverted");
+			const String* inverseOption = 0;
+			if (formatVersion == UNKNOWN || formatVersion >= IVG_3) {
+				inverseOption = args.fetchOptional("inverse");
+			}
+			const String* invertedOption = 0;
+			if ((formatVersion == UNKNOWN || formatVersion <= IVG_2) && inverseOption == 0) {
+				invertedOption = args.fetchOptional("inverted");
+			}
 			args.throwIfAnyUnfetched();
+			const bool inverse = (inverseOption != 0 && impd.toBool(*inverseOption));
 			const bool inverted = (invertedOption != 0 && impd.toBool(*invertedOption));
+
 			MaskMakerCanvas maskMaker(canvasBounds);
 			Context maskContext(maskMaker, *currentContext);
 			State& maskState = maskContext.accessState();
@@ -1936,8 +1945,12 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			std::unique_ptr< RLERaster<Mask8> > newMask(maskMaker.finish());
 			if (inverted) {
 				(*newMask) = ((currentState.mask != 0)
-						? static_cast<const Renderer<Mask8>&>((*currentState.mask) * ~(*newMask))
-						: static_cast<const Renderer<Mask8>&>(~(*newMask)));
+					? static_cast<const Renderer<Mask8>&>(~((*currentState.mask) * (*newMask)))
+					: static_cast<const Renderer<Mask8>&>(~(*newMask)));
+			} else if (inverse) {
+				(*newMask) = ((currentState.mask != 0)
+					? static_cast<const Renderer<Mask8>&>((*currentState.mask) * ~(*newMask))
+					: static_cast<const Renderer<Mask8>&>(~(*newMask)));
 			} else if (currentState.mask != 0) {
 				(*newMask) *= (*currentState.mask);
 			}

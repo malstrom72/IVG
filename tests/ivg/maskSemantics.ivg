@@ -11,9 +11,9 @@ context [
 	mask [
 		rect 40,0,40,120
 	]
-	mask [
-		rect 30,30,60,60
-	] inverted:yes
+        mask [
+                rect 30,30,60,60
+        ] inverse:yes
 	fill #0033cc
 	rect 0,0,120,120
 ]
@@ -39,9 +39,9 @@ context [
 	]
 	fill #0022aa
 	rect 0,0,120,120
-	mask [
-		rect 40,40,40,40
-	] inverted:yes
+        mask [
+                rect 40,40,40,40
+        ] inverse:yes
 	fill #aa00aa
 	rect 0,0,120,120
 	mask reset
