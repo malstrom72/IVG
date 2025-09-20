@@ -1,6 +1,8 @@
 //
 //  FooBar Logo - Created by Fredrik Lidström on 2015-12-14.
 //
+format IVG-1 requires:IMPD-1;
+
 // standard Permut8 firmware sticker bounds
 bounds 0,0,100,40
 
@@ -44,13 +46,13 @@ options aa-gamma:0.9
 fill #72c0a8
 
 context [
+	M=[ rect 0,16,50,8; rect 65,0,10,100; rect 40,20,60,10; ]
 	M=[ wipe relative:no pattern:[bounds 0,0,8,8; rect 0,0,1000,4] transform:[scale 0.7] ]
 	mask $M
 	fill opacity:0.5
 	offset 2.0,1.75
 	$TEXT
-	mask $M
-	mask invert
+	mask inverted:yes $M
 	fill opacity:1.0
 	offset -2.0,-1.0
 	$TEXT
