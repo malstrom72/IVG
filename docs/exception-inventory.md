@@ -55,7 +55,7 @@ Concatenated `String(...)` expressions should be simplified at the same time so 
 
 | Message expression | Suggested new exception text | Locations |
 | --- | --- | --- |
-| `"'while:' condition has to be enclosed in [ ]"` | Wrap the `while:` condition in `[]`. | `src/IMPD.cpp:L1327` |
+| `"'while:' condition has to be enclosed in [ ]"` | The `while:` condition must be enclosed in `[]`. | `src/IMPD.cpp:L1327` |
 | `"Duplicate metrics instruction in font definition"` | Duplicate `metrics` instruction in the font definition. | `src/IVG.cpp:L2262` |
 | `"Expected :"` | Expected `:` delimiter. | `src/IMPD.cpp:L921` |
 | `"Expected ="` | Expected `=` after the name. | `src/IMPD.cpp:L1294` |
@@ -84,7 +84,7 @@ Concatenated `String(...)` expressions should be simplified at the same time so 
 | `String("Duplicate kerning pair in font definition: ") + impd.toString(static_cast<int>(*itA)) + "," + impd.toString(static_cast<int>(*itB))` | Duplicate kerning pair `{first}`, `{second}` in the font definition. | `src/IVG.cpp:L2315` |
 | `String("Duplicate label: ") + kv.first` | Duplicate label `{label}`. | `src/IMPD.cpp:L162` |
 | `String("Duplicate vertical alignment: " + *s)` | Duplicate vertical alignment `{alignment}`. | `src/IVG.cpp:L1459` |
-| `String("Ellipse sweep requires IVG-3")` | The `ellipse-sweep` instruction requires IVG-3. | `src/IVG.cpp:L1670` |
+| `String("Ellipse sweep requires IVG-3")` | The ellipse `sweep` option requires IVG-3 format. | `src/IVG.cpp:L1670` |
 | `String("Instruction requires ") + requiredString + ": " + instruction + (!arguments.empty() ? String(" ") + arguments : String())` | The `{instruction}` instruction requires {requiredString}: `{instruction}`{arguments}. | `src/IVG.cpp:L1286` |
 | `String("Invalid color name: ") + String(r.b, r.e)` | Invalid color name `{name}`. | `src/IVG.cpp:L503` |
 | `String("Invalid color: ") + String(r.b + 1, r.e)` | Invalid color value `{value}`. | `src/IVG.cpp:L482` |
@@ -130,7 +130,7 @@ Concatenated `String(...)` expressions should be simplified at the same time so 
 | `"Math error"` | Math error. | `src/IMPD.cpp:L790`<br>`src/IMPD.cpp:L1077` |
 | `"Modulo by zero"` | Modulo by zero. | `src/IMPD.cpp:L813` |
 | `"Multiple bounds declarations"` | Multiple `bounds` declarations. | `src/IVG.cpp:L2105` |
-| `"Need to set font before writing"` | Set a font before writing text. | `src/IVG.cpp:L1752` |
+| `"Need to set font before writing"` | Writing text requires a font to be set first. | `src/IVG.cpp:L1752` |
 | `"Number overflow"` | Number overflow. | `src/IMPD.cpp:L793`<br>`src/IMPD.cpp:L863`<br>`src/IMPD.cpp:L868`<br>`src/IMPD.cpp:L1057`<br>`src/IMPD.cpp:L1078` |
 | `"Recursion limit reached"` | Recursion limit reached. | `src/IMPD.cpp:L597` |
 | `"Relative paint is not allowed with wipe"` | Relative paint is not allowed with the `wipe` instruction. | `src/IVG.cpp:L1843` |
