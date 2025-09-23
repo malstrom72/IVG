@@ -1682,8 +1682,25 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 		double sweepVals[2];
 		parseNumberList(impd, *sweepArg, sweepVals, 2, 2);
 		double startRadians = sweepVals[0] * DEGREES;
-		double sweepRadians = min(max(sweepVals[1] * DEGREES, -PI2), PI2);
-		
+		double sweepRadians = sweepVals[1] * DEGREES;
+		if (!isfinite(startRadians)) {
+			impd.throwRunTimeError(String("Invalid start angle for ellipse: ") + impd.toString(sweepVals[0]));
+		}
+		if (!isfinite(sweepRadians)) {
+			impd.throwRunTimeError(String("Invalid sweep angle for ellipse: ") + impd.toString(sweepVals[1]));
+		}
+		startRadians = fmod(startRadians, PI2);
+		sweepRadians = min(max(sweepRadians, -PI2), PI2);
+
+		// Move to the 0-degree point and then advance along the arc without drawing to the start angle
+		path.moveTo(cx + rx, cy);
+		path.arcMove(cx, cy, startRadians, rx, ry);
+		path.arcSweep(cx, cy, sweepRadians, rx, ry, curveQuality);
+		if (typeIsPie) {
+			path.lineTo(cx, cy);
+		}
+		path.close();
+
 		// Move to the 0-degree point and then advance along the arc without drawing to the start angle
 		path.moveTo(cx + rx, cy);
 		path.arcMove(cx, cy, startRadians, rx, ry);
