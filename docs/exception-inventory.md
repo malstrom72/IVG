@@ -49,6 +49,16 @@ Concatenated `String(...)` expressions should be simplified at the same time so 
 4. **Clean up helper overloads.** Replace non-literal rethrows such as `const String& how) { throw SyntaxException(how` with direct calls to the new quoted messages or adjust the extraction script so only user-facing literals remain in the inventory.
 5. **Automate enforcement.** Extend the extraction script (or add a linter) to flag new diagnostics that include bare all-caps tokens, lack quotation marks, or omit the standard punctuation so future additions follow the agreed format without manual review.
 
+### Robust source update plan for new exception texts
+
+To replace the live literals safely we should follow a guarded, automation-friendly workflow:
+
+1. **Create a tracked mapping file.** Export the tables above to a script-readable format (CSV or JSON) so each source location and its suggested replacement are recorded in a single authoritative file.
+2. **Automate string rewrites.** Write a one-off helper that loads the mapping, rewrites each affected `throw…` call in place, and preserves existing indentation and concatenation so no manual copy/paste slips through.
+3. **Run semantic validation.** After rewriting, rebuild and execute the IVG regression suite plus focused parser fixtures that cover every updated message. This catches typos in format specifiers and ensures runtime-only values still interpolate correctly.
+4. **Diff-check the result.** Compare the post-rewrite sources against the mapping file to confirm every planned change landed and that no unexpected literals were touched. If any sites differ, update the mapping or fix the helper before committing.
+5. **Lock in ongoing checks.** Extend the extraction script to diff the compiled literals against the authoritative mapping during CI so future edits cannot drift from the agreed wording without an explicit documentation update.
+
 ### Exception type audit
 
 `IMPD.h` documents that `Interpreter::throwBadSyntax` should be reserved for input the parser cannot understand, while `Interpreter::throwRunTimeError` reports failures that happen once data is being evaluated or executed.【F:src/IMPD.h†L178-L181】 Reviewing the IVG font parser uncovered several diagnostics that performed range checks and duplicate detection after the font instructions had been parsed successfully yet still raised syntax errors.【F:src/IVG.cpp†L2250-L2313】 Aligning those sites with the documented guidance keeps syntax exceptions focused on structural problems and pushes content validation into the runtime bucket where callers already expect them.
