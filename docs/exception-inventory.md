@@ -6,13 +6,13 @@ and direct throws of the custom exception types. Locations use one-based line nu
 
 ## Custom exception types
 
-* `IMPD::SyntaxException` – raised through `Interpreter::throwBadSyntax` when parsing detects invalid syntax.
+* `IMPD::SyntaxException` - raised through `Interpreter::throwBadSyntax` when parsing detects invalid syntax.
 
-* `IMPD::RunTimeException` – raised through `Interpreter::throwRunTimeError` when evaluation hits run-time constraints or invalid values.
+* `IMPD::RunTimeException` - raised through `Interpreter::throwRunTimeError` when evaluation hits run-time constraints or invalid values.
 
-* `IMPD::AbortedException` – indicates execution was stopped intentionally, such as due to a STOP instruction or executor abort.
+* `IMPD::AbortedException` - indicates execution was stopped intentionally, such as due to a STOP instruction or executor abort.
 
-* `IMPD::FormatException` – signals unsupported or malformed `format` directives.
+* `IMPD::FormatException` - signals unsupported or malformed `format` directives.
 
 
 
@@ -20,20 +20,20 @@ and direct throws of the custom exception types. Locations use one-based line nu
 
 The captured message texts fall into three broad styles:
 
-1. **Raw literals** – simple `Message` strings that match the diagnostic the user ultimately sees.
-2. **Concatenated expressions** – `String("Message: ") + value` constructs, sometimes chaining multiple additions.
-3. **Helper rethrows** – partial expressions such as `const String& how) { throw SyntaxException(how` that delegate to helper overloads without providing their own literal.
+1. **Raw literals** - simple `Message` strings that match the diagnostic the user ultimately sees.
+2. **Concatenated expressions** - `String("Message: ") + value` constructs, sometimes chaining multiple additions.
+3. **Helper rethrows** - partial expressions such as `const String& how) { throw SyntaxException(how` that delegate to helper overloads without providing their own literal.
 
 Across these styles we saw several inconsistencies:
 
-* **Capitalisation:** Most literals start with an upper-case letter, yet a handful (for example, `line-angle requires…`, `path instruction limit exceeded`) remain lower-case.
-* **Delimiter usage:** Some diagnostics append a colon and space before dynamic data (for example, `Missing font: ` + …), others omit the space (`Duplicate glyph definition …`), and some avoid punctuation entirely (`Invalid instruction`).
+* **Capitalisation:** Most literals start with an upper-case letter, yet a handful (for example, `line-angle requires...`, `path instruction limit exceeded`) remain lower-case.
+* **Delimiter usage:** Some diagnostics append a colon and space before dynamic data (for example, `Missing font: ` + ...), others omit the space (`Duplicate glyph definition ...`), and some avoid punctuation entirely (`Invalid instruction`).
 * **Token emphasis and grammar:** Several messages mix bare tokens with quoted ones, and certain sentences end abruptly (`Missing }`, `Math error`) compared with more descriptive peers such as `Math error (sqrt of negative)`.
 * **Expression form:** Mixing literal strings with concatenated `String(...)` expressions hampers localisation and consistency checks, and the helper overload entries pollute the inventory with non-user-facing snippets.
 
 ### Instruction case conventions and message tone
 
-The [IVG user guide](IVG%20Documentation.md#case-conventions) spells out the convention that drawing instructions appear in uppercase while configuration directives stay lowercase. Several diagnostics intentionally follow that rule so the user sees exactly the token they typed—`LINE requires an even number of coordinates` mirrors the uppercase drawing command, whereas `line-angle requires an even number of values` keeps the documented lowercase compound.
+The [IVG user guide](IVG%20Documentation.md#case-conventions) spells out the convention that drawing instructions appear in uppercase while configuration directives stay lowercase. Several diagnostics intentionally follow that rule so the user sees exactly the token they typed-`LINE requires an even number of coordinates` mirrors the uppercase drawing command, whereas `line-angle requires an even number of values` keeps the documented lowercase compound.
 
 That alignment helps experienced authors map an error to the relevant section of the guide quickly, but it also means the message casing alternates between sentence-case and full uppercase and can feel visually harsh. To keep the text pleasant while still preserving the canonical token, we will present instruction names inside standard quotes ("LINE"). This keeps the reference accurate, softens the shouting effect, and makes it clear which part is a literal keyword versus surrounding prose. With that decision made, the remaining work focuses on introducing the style consistently across the codebase while keeping punctuation and structure uniform.
 
@@ -44,7 +44,7 @@ That alignment helps experienced authors map an error to the relevant section of
 3. **Rewrite literals in place.** For each affected throw site:
 * convert the surrounding sentence to sentence-case prose,
 * surround the instruction token (and similar directive keywords) with standard quotes inside the string literal, and
-* normalise punctuation to `…: ` before appended values.
+* normalise punctuation to `...: ` before appended values.
 Concatenated `String(...)` expressions should be simplified at the same time so the literal prefix carries the quoted example before any dynamic data.
 4. **Clean up helper overloads.** Replace non-literal rethrows such as `const String& how) { throw SyntaxException(how` with direct calls to the new quoted messages or adjust the extraction script so only user-facing literals remain in the inventory.
 5. **Automate enforcement.** Extend the extraction script (or add a linter) to flag new diagnostics that include bare all-caps tokens, lack quotation marks, or omit the standard punctuation so future additions follow the agreed format without manual review.
@@ -53,25 +53,26 @@ Concatenated `String(...)` expressions should be simplified at the same time so 
 
 To replace the live literals safely we should follow a guarded, automation-friendly workflow:
 
-1. **Create a tracked mapping file.** Export the tables above to a script-readable format (CSV or JSON) so each source location and its suggested replacement are recorded in a single authoritative file.
-2. **Automate string rewrites.** Write a one-off helper that loads the mapping, rewrites each affected `throw…` call in place, and preserves existing indentation and concatenation so no manual copy/paste slips through.
-3. **Run semantic validation.** After rewriting, rebuild and execute the IVG regression suite plus focused parser fixtures that cover every updated message. This catches typos in format specifiers and ensures runtime-only values still interpolate correctly.
-4. **Diff-check the result.** Compare the post-rewrite sources against the mapping file to confirm every planned change landed and that no unexpected literals were touched. If any sites differ, update the mapping or fix the helper before committing.
-5. **Lock in ongoing checks.** Extend the extraction script to diff the compiled literals against the authoritative mapping during CI so future edits cannot drift from the agreed wording without an explicit documentation update.
+1. **Create a tracked mapping file.** Export the tables above to a script-readable format (CSV or JSON) so each source location and its suggested replacement are recorded in a single authoritative file. Include a column for the intended exception type so the syntax-to-runtime reclassifications stay visible.
+2. **Automate string rewrites.** Write a one-off helper that loads the mapping, rewrites each affected `throw...` call in place, and preserves existing indentation and concatenation so no manual copy/paste slips through.
+3. **Verify the reclassified sites.** As part of the automation, assert that the font metric, glyph, and kerning diagnostics already switched to `RunTimeException` stay mapped to the runtime helper. Flag any drift so the code change for their new type lands alongside the text rewrite instead of being forgotten.
+4. **Run semantic validation.** After rewriting, rebuild and execute the IVG regression suite plus focused parser fixtures that cover every updated message. This catches typos in format specifiers and ensures runtime-only values still interpolate correctly.
+5. **Diff-check the result.** Compare the post-rewrite sources against the mapping file to confirm every planned change landed and that no unexpected literals were touched. If any sites differ, update the mapping or fix the helper before committing.
+6. **Lock in ongoing checks.** Extend the extraction script to diff the compiled literals against the authoritative mapping during CI so future edits cannot drift from the agreed wording without an explicit documentation update.
 
 ### Exception type audit
 
-`IMPD.h` documents that `Interpreter::throwBadSyntax` should be reserved for input the parser cannot understand, while `Interpreter::throwRunTimeError` reports failures that happen once data is being evaluated or executed.【F:src/IMPD.h†L178-L181】 Reviewing the IVG font parser uncovered several diagnostics that performed range checks and duplicate detection after the font instructions had been parsed successfully yet still raised syntax errors.【F:src/IVG.cpp†L2250-L2313】 Aligning those sites with the documented guidance keeps syntax exceptions focused on structural problems and pushes content validation into the runtime bucket where callers already expect them.
+`IMPD.h` documents that `Interpreter::throwBadSyntax` should be reserved for input the parser cannot understand, while `Interpreter::throwRunTimeError` reports failures that happen once data is being evaluated or executed.[F:src/IMPD.h^L178-L181] Reviewing the IVG font parser uncovered several diagnostics that performed range checks and duplicate detection after the font instructions had been parsed successfully yet still raised syntax errors.[F:src/IVG.cpp^L2250-L2313] Aligning those sites with the documented guidance keeps syntax exceptions focused on structural problems and pushes content validation into the runtime bucket where callers already expect them.
 
 #### Reclassifications applied
 
-* Font metrics duplicates and value checks now raise `RunTimeException` so invalid `define font` blocks surface as execution-time validation failures rather than parse errors.【F:src/IVG.cpp†L2250-L2298】
-* Glyph shape and kerning validations moved to `RunTimeException` because they depend on values decoded from the file rather than parser structure.【F:src/IVG.cpp†L2299-L2313】
+* Font metrics duplicates and value checks now raise `RunTimeException` so invalid `define font` blocks surface as execution-time validation failures rather than parse errors.[F:src/IVG.cpp^L2250-L2298]
+* Glyph shape and kerning validations moved to `RunTimeException` because they depend on values decoded from the file rather than parser structure.[F:src/IVG.cpp^L2299-L2313]
 
 #### Additional observations
 
-* Alignment, anchor, and fill-rule diagnostics remain syntax errors because they run while tokenising instruction arguments and reject contradictory keywords before any state changes occur.【F:src/IVG.cpp†L1419-L1460】【F:src/IVG.cpp†L1730-L1799】
-* Numeric conversion helpers continue to throw runtime errors—the values may come from evaluated expressions, and `IMPD.h` calls out that run-time failures cover wrong variable types or computed values.【F:src/IMPD.cpp†L740-L758】【F:src/IMPD.h†L180-L181】
+* Alignment, anchor, and fill-rule diagnostics remain syntax errors because they run while tokenising instruction arguments and reject contradictory keywords before any state changes occur.[F:src/IVG.cpp^L1419-L1460][F:src/IVG.cpp^L1730-L1799]
+* Numeric conversion helpers continue to throw runtime errors-the values may come from evaluated expressions, and `IMPD.h` calls out that run-time failures cover wrong variable types or computed values.[F:src/IMPD.cpp^L740-L758][F:src/IMPD.h^L180-L181]
 
 
 
@@ -206,10 +207,10 @@ delimiters or other Markdown-sensitive characters.
 | > `String("ellipse aspect ratio out of range: ") + Interpreter::toString(aspectRatio)` | Ellipse aspect ratio "{ratio}" out of range. | `src/IVG.cpp:L168` |
 | > `String("font size out of range (0..1000000]: ") + impd.toString(d)` | Font size "{size}" out of range (0..1000000]. | `src/IVG.cpp:L2005` |
 | > `String("hsv value number ") + impd.toString(i + 1) + " out of range [0..1]: " + impd.toString(n[i])` | HSV value #{index} "{value}" out of range [0..1]. | `src/IVG.cpp:L457` |
-| > `String("miter-limit out of range [1..inf): ") + impd.toString(d)` | "miter-limit" value "{value}" out of range [1..∞). | `src/IVG.cpp:L1193` |
+| > `String("miter-limit out of range [1..inf): ") + impd.toString(d)` | "miter-limit" value "{value}" out of range [1..infinity). | `src/IVG.cpp:L1193` |
 | > `String("opacity out of range [0..1]: ") + impd.toString(d)` | Opacity "{value}" out of range [0..1]. | `src/IVG.cpp:L135` |
 | > `String("pattern-resolution out of range (0..100): ") + impd.toString(d)` | "pattern-resolution" value "{value}" out of range (0..100). | `src/IVG.cpp:L1873` |
-| > `String("resolution out of range [0.0001..inf): ") + impd.toString(resolution)` | Resolution "{value}" out of range [0.0001..∞). | `src/IVG.cpp:L1314` |
+| > `String("resolution out of range [0.0001..inf): ") + impd.toString(resolution)` | Resolution "{value}" out of range [0.0001..infinity). | `src/IVG.cpp:L1314` |
 | > `String("star points out of range [1..10000]: ") + impd.toString(points)` | Star points "{count}" out of range [1..10000]. | `src/IVG.cpp:L1711` |
 | > `const String& how) { throw RunTimeException(how` | Propagate the caller-provided runtime message. | `src/IMPD.cpp:L356` |
 | > `const char* how) { throwRunTimeError(String(how)` | Convert the caller-provided runtime message to a String. | `src/IMPD.cpp:L358` |
