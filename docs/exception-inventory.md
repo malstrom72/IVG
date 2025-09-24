@@ -143,8 +143,8 @@ delimiters or other Markdown-sensitive characters.
 | > `"Bounds cannot be declared for mask"` | Cannot declare "bounds" for a mask. | `src/IVG.cpp:L385` |
 | > `"Cannot return in global frame"` | Cannot return from the global frame. | `src/IMPD.cpp:L1299` |
 | > `"Division by zero"` | Division by zero. | `src/IMPD.cpp:L789` |
-| > `"Image coordinates out of range"` | Image coordinates out of range. | `src/IVG.cpp:L1419` |
-| > `"Image scale out of range"` | Image scale out of range. | `src/IVG.cpp:L1580` |
+| > `String("Image coordinates out of range (-1000000..1000000): (") + impd.toString(numbers[0]) + String(", ") + impd.toString(numbers[1]) + ")"` | Image coordinates ({x}, {y}) out of range (-1000000..1000000). | `src/IVG.cpp:L1419` |
+| > `String("Image scale out of range (0..") + Interpreter::toString(maxScale) + "): " + Interpreter::toString(actualScale)` | Image scale {actual} out of range (0..{limit}). | `src/IVG.cpp:L1580` |
 | > `"Invalid first path instruction: " + instruction` | Invalid first path instruction "{instruction}". | `src/IVG.cpp:L1810` |
 | > `"Invalid font name"` | Invalid font name. | `src/IVG.cpp:L1983` |
 | > `"Math error (log of 0 or less)"` | Math error: "log" requires a value greater than 0. | `src/IMPD.cpp:L240` |
@@ -159,7 +159,7 @@ delimiters or other Markdown-sensitive characters.
 | > `"Relative paint is not allowed with wipe"` | Relative paint is not allowed with the "wipe" instruction. | `src/IVG.cpp:L1843` |
 | > `"Statements limit reached"` | Statements limit reached. | `src/IMPD.cpp:L608` |
 | > `"Undeclared bounds"` | Undeclared "bounds" definition. | `src/IVG.cpp:L984`<br>`src/IVG.cpp:L2096` |
-| > `"Vertices outside valid coordinate range"` | Vertices fall outside the valid coordinate range. | `src/IVG.cpp:L1082`<br>`src/IVG.cpp:L1098` |
+| > `"Vertices out of range (-8388607..8388607)"` | Vertices fall outside the valid coordinate range (-8388607..8388607). | `src/IVG.cpp:L1082`<br>`src/IVG.cpp:L1098` |
 | > `"path instruction limit exceeded"` | Path instruction limit exceeded. | `src/IVG.cpp:L183`<br>`src/IVG.cpp:L876`<br>`src/IVG.cpp:L1071`<br>`src/IVG.cpp:L1075`<br>`src/IVG.cpp:L2209` |
 | > `String("Could not include file: ") + String(file.begin(), file.end())` | Could not include file "{file}". | `src/IMPD.cpp:L1385` |
 | > `String("Could not set variable ") + name` | Could not set variable "{name}". | `src/IMPD.cpp:L503` |
@@ -175,8 +175,8 @@ delimiters or other Markdown-sensitive characters.
 | > `String("Duplicate glyph definition in font definition (unicode: ") + impd.toString(static_cast<int>(glyph.character)) + ")"` | Duplicate glyph definition for code point "{glyph}" in the font definition. | `src/IVG.cpp:L2299` |
 | > `String("Duplicate kerning pair in font definition: ") + impd.toString(static_cast<int>(*itA)) + "," + impd.toString(static_cast<int>(*itB))` | Duplicate kerning pair "{first}", "{second}" in the font definition. | `src/IVG.cpp:L2315` |
 | > `String("Invalid boolean (should be 'yes' or 'no'): ") + s` | Invalid boolean value "{value}"; expected "yes" or "no". | `src/IMPD.cpp:L758` |
-| > `String("Invalid image height: ") + impd.toString(fitHeight)` | Invalid image height "{height}". | `src/IVG.cpp:L1477` |
-| > `String("Invalid image width: ") + impd.toString(fitWidth)` | Invalid image width "{width}". | `src/IVG.cpp:L1470` |
+| > `String("Image height out of range (0..1000000): ") + impd.toString(fitHeight)` | Image height "{height}" out of range (0..1000000). | `src/IVG.cpp:L1477` |
+| > `String("Image width out of range (0..1000000): ") + impd.toString(fitWidth)` | Image width "{width}" out of range (0..1000000). | `src/IVG.cpp:L1470` |
 | > `String("Invalid integer: ") + String(r.b, r.e)` | Invalid integer "{value}". | `src/IMPD.cpp:L740` |
 | > `String("Invalid number: ") + String(r.b, r.e)` | Invalid number "{value}". | `src/IMPD.cpp:L748` |
 | > `String("Missing font: ") + String(newFontName.begin(), newFontName.end())` | Missing font "{name}". | `src/IVG.cpp:L1986` |
@@ -199,21 +199,41 @@ delimiters or other Markdown-sensitive characters.
 | > `String("Variable ") + name + " does not exist"` | Variable "{name}" does not exist. | `src/IMPD.cpp:L514` |
 | > `String("Variable ") + varName + " already declared"` | Variable "{name}" is already declared. | `src/IMPD.cpp:L1301` |
 | > `String("aa-gamma out of range (0..100): ") + impd.toString(d)` | "aa-gamma" value "{value}" out of range (0..100). | `src/IVG.cpp:L1859` |
-| > `String("bounds height out of range [1..32767]: ") + Interpreter::toString(bounds.height)` | "bounds" height "{height}" out of range [1..32767]. | `src/IVG.cpp:L66` |
-| > `String("bounds left out of range [-32768..32767]: ") + Interpreter::toString(bounds.left)` | "bounds" left "{left}" out of range [-32768..32767]. | `src/IVG.cpp:L54` |
-| > `String("bounds top out of range [-32768..32767]: ") + Interpreter::toString(bounds.top)` | "bounds" top "{top}" out of range [-32768..32767]. | `src/IVG.cpp:L58` |
-| > `String("bounds width out of range [1..32767]: ") + Interpreter::toString(bounds.width)` | "bounds" width "{width}" out of range [1..32767]. | `src/IVG.cpp:L62` |
+| > `String("bounds height out of range (1..32767): ") + Interpreter::toString(bounds.height)` | "bounds" height "{height}" out of range (1..32767). | `src/IVG.cpp:L66` |
+| > `String("bounds left out of range (-32768..32767): ") + Interpreter::toString(bounds.left)` | "bounds" left "{left}" out of range (-32768..32767). | `src/IVG.cpp:L54` |
+| > `String("bounds top out of range (-32768..32767): ") + Interpreter::toString(bounds.top)` | "bounds" top "{top}" out of range (-32768..32767). | `src/IVG.cpp:L58` |
+| > `String("bounds width out of range (1..32767): ") + Interpreter::toString(bounds.width)` | "bounds" width "{width}" out of range (1..32767). | `src/IVG.cpp:L62` |
 | > `String("curve-quality out of range (0..100): ") + impd.toString(d)` | "curve-quality" value "{value}" out of range (0..100). | `src/IVG.cpp:L1866` |
-| > `String("ellipse aspect ratio out of range: ") + Interpreter::toString(aspectRatio)` | Ellipse aspect ratio "{ratio}" out of range. | `src/IVG.cpp:L168` |
+| > `String("ellipse aspect ratio out of range (0..1000000): ") + Interpreter::toString(aspectRatio)` | Ellipse aspect ratio "{ratio}" out of range (0..1000000). | `src/IVG.cpp:L168` |
 | > `String("font size out of range (0..1000000]: ") + impd.toString(d)` | Font size "{size}" out of range (0..1000000]. | `src/IVG.cpp:L2005` |
-| > `String("hsv value number ") + impd.toString(i + 1) + " out of range [0..1]: " + impd.toString(n[i])` | HSV value #{index} "{value}" out of range [0..1]. | `src/IVG.cpp:L457` |
-| > `String("miter-limit out of range [1..inf): ") + impd.toString(d)` | "miter-limit" value "{value}" out of range [1..infinity). | `src/IVG.cpp:L1193` |
-| > `String("opacity out of range [0..1]: ") + impd.toString(d)` | Opacity "{value}" out of range [0..1]. | `src/IVG.cpp:L135` |
+| > `String("hsv value number ") + impd.toString(i + 1) + " out of range (0..1): " + impd.toString(n[i])` | HSV value #{index} "{value}" out of range (0..1). | `src/IVG.cpp:L457` |
+| > `String("miter-limit out of range (1..infinity): ") + impd.toString(d)` | "miter-limit" value "{value}" out of range (1..infinity). | `src/IVG.cpp:L1193` |
+| > `String("opacity out of range (0..1): ") + impd.toString(d)` | Opacity "{value}" out of range (0..1). | `src/IVG.cpp:L135` |
 | > `String("pattern-resolution out of range (0..100): ") + impd.toString(d)` | "pattern-resolution" value "{value}" out of range (0..100). | `src/IVG.cpp:L1873` |
-| > `String("resolution out of range [0.0001..inf): ") + impd.toString(resolution)` | Resolution "{value}" out of range [0.0001..infinity). | `src/IVG.cpp:L1314` |
-| > `String("star points out of range [1..10000]: ") + impd.toString(points)` | Star points "{count}" out of range [1..10000]. | `src/IVG.cpp:L1711` |
+| > `String("resolution out of range (0.0001..infinity): ") + impd.toString(resolution)` | Resolution "{value}" out of range (0.0001..infinity). | `src/IVG.cpp:L1314` |
+| > `String("star points out of range (1..10000): ") + impd.toString(points)` | Star points "{count}" out of range (1..10000). | `src/IVG.cpp:L1711` |
 | > `const String& how) { throw RunTimeException(how` | Propagate the caller-provided runtime message. | `src/IMPD.cpp:L356` |
 | > `const char* how) { throwRunTimeError(String(how)` | Convert the caller-provided runtime message to a String. | `src/IMPD.cpp:L358` |
+
+### Range diagnostic audit
+
+The IVG runtime uses explicit range checks for canvas bounds, numeric parameters, and stateful options, so we verified each
+message now spells out the enforced interval while matching the code that throws it.
+
+* Canvas bounds now advertise the exact integer limits enforced in `checkBounds`, aligning the string literals with the
+  `[-32768, 32767]` window used for each edge.【F:src/IVG.cpp†L52-L69】
+* Value clamps such as opacity, HSV components, and miter limit retain their original numeric guards but now surface the
+  `0..1` and `1..infinity` ranges verbatim in the diagnostics.【F:src/IVG.cpp†L124-L137】【F:src/IVG.cpp†L446-L462】【F:src/IVG.cpp†L1184-L1214】
+* Resolution and image fitting checks continue to reject non-positive or oversized values using the `COORDINATE_LIMIT`
+  constant, and the refreshed messages surface both the derived bounds and the offending value.【F:src/IVG.cpp†L1304-L1322】【F:src/IVG.cpp†L1458-L1482】
+* Image placement validates both raw coordinates and cumulative scale against the million-unit coordinate ceiling, so the
+  messages now report the allowed window and include the computed coordinates or scaling pair for context.【F:src/IVG.cpp†L1414-L1431】【F:src/IVG.cpp†L1556-L1590】
+* Polygon masks inherit their vertex limit from the NuX rasterizer (`0x7FFFFFFF >> 8`), and the runtime message now echoes
+  the derived ±8,388,607 range so callers see why oversized paths fail validation.【F:externals/NuX/NuXPixels.cpp†L1197-L1234】【F:src/IVG.cpp†L1074-L1105】
+* Star point counts, font sizes, gamma values, and other documented ranges retain their existing guard code but now present
+  the intervals in the shared `(min..max)` format for consistency.【F:src/IVG.cpp†L1704-L1721】【F:src/IVG.cpp†L1854-L1880】【F:src/IVG.cpp†L1995-L2014】
+* The fuzzing harness enforces an upper bound on pixel count; its helper now emits the `(1..limit)` notation so off-by-one
+  errors show the precise threshold.【F:tools/IVG2PNG.cpp†L160-L184】
 
 ## IMPD::AbortedException
 

@@ -50,20 +50,20 @@ const double COORDINATE_LIMIT = 1000000.0;
 
 
 void checkBounds(const IntRect& bounds) {
-	if (bounds.left < -32768 || bounds.left >= 32768) {
-		Interpreter::throwRunTimeError(String("bounds left out of range [-32768..32767]: ")
+	if (bounds.left < -32768 || bounds.left > 32767) {
+		Interpreter::throwRunTimeError(String("bounds left out of range (-32768..32767): ")
 				+ Interpreter::toString(bounds.left));
 	}
-	if (bounds.top < -32768 || bounds.top >= 32768) {
-		Interpreter::throwRunTimeError(String("bounds top out of range [-32768..32767]: ")
+	if (bounds.top < -32768 || bounds.top > 32767) {
+		Interpreter::throwRunTimeError(String("bounds top out of range (-32768..32767): ")
 				+ Interpreter::toString(bounds.top));
 	}
-	if (bounds.width <= 0 || bounds.width >= 32768) {
-		Interpreter::throwRunTimeError(String("bounds width out of range [1..32767]: ")
+	if (bounds.width < 1 || bounds.width > 32767) {
+		Interpreter::throwRunTimeError(String("bounds width out of range (1..32767): ")
 				+ Interpreter::toString(bounds.width));
 	}
-	if (bounds.height <= 0 || bounds.height >= 32768) {
-		Interpreter::throwRunTimeError(String("bounds height out of range [1..32767]: ")
+	if (bounds.height < 1 || bounds.height > 32767) {
+		Interpreter::throwRunTimeError(String("bounds height out of range (1..32767): ")
 				+ Interpreter::toString(bounds.height));
 	}
 }
@@ -132,7 +132,7 @@ static Mask8::Pixel parseOpacity(const Interpreter& impd, const StringRange& r) 
 		if (p - (r.b + 1) != 2) impd.throwBadSyntax(String("Invalid opacity: ") + String(r.b + 1, r.e));
 	} else {
 		double d = impd.toDouble(r);
-		if (d < 0.0 || d > 1.0) impd.throwRunTimeError(String("opacity out of range [0..1]: ") + impd.toString(d));
+		if (d < 0.0 || d > 1.0) impd.throwRunTimeError(String("opacity out of range (0..1): ") + impd.toString(d));
 		i = min(static_cast<int>(d * 256), 255);
 	}
 	assert(0 <= i && i < 256);
@@ -165,7 +165,7 @@ static void appendArcSegment(const Vertex& startPos, const Vertex& endPos, doubl
 	const double sweepSign = (sweepCW ? largeArcSign : -largeArcSign);
 	const double aspectRatio = rx / ry;
 	if (!(aspectRatio > EPSILON && aspectRatio < 1e6)) {
-		Interpreter::throwRunTimeError(String("ellipse aspect ratio out of range: ")
+		Interpreter::throwRunTimeError(String("ellipse aspect ratio out of range (0..1000000): ")
 				+ Interpreter::toString(aspectRatio));
 	}
 	const double l = dx * dx + (aspectRatio * dy) * (aspectRatio * dy);
@@ -455,7 +455,7 @@ static bool parseNumericColor(Interpreter& impd, const StringRange& r, ARGB32::P
 			for (int i = 0; i < count; ++i) {
 				if (n[i] < 0.0 || n[i] > 1.0) {
 					impd.throwRunTimeError(String("hsv value number ") + impd.toString(i + 1)
-							+ " out of range [0..1]: " + impd.toString(n[i]));
+							+ " out of range (0..1): " + impd.toString(n[i]));
 				}
 			}
 			assert(count == 3 || count == 4);
@@ -1079,7 +1079,7 @@ void Context::stroke(const Path& path, Stroke& stroke, const Rect<double>& paint
 		strokePath.transform(state.transformation);
 		PolygonMask polygonMask(strokePath, canvas.getBounds());
 		if (!polygonMask.isValid()) {
-			Interpreter::throwRunTimeError("Vertices outside valid coordinate range");
+			Interpreter::throwRunTimeError("Vertices out of range (-8388607..8388607)");
 		}
 		stroke.paint.doPaint(*this, paintSourceBounds, CombinedMask(polygonMask, state.mask, state.options.gammaTable));
 	}
@@ -1095,7 +1095,7 @@ void Context::fill(const Path& path, Paint& fill, bool evenOddFillRule, const Re
 		fillPath.transform(state.transformation);
 		PolygonMask polygonMask(fillPath, canvas.getBounds(), *fillRule);
 		if (!polygonMask.isValid()) {
-			Interpreter::throwRunTimeError("Vertices outside valid coordinate range");
+			Interpreter::throwRunTimeError("Vertices out of range (-8388607..8388607)");
 		}
 		fill.doPaint(*this, paintSourceBounds, CombinedMask(polygonMask, state.mask, state.options.gammaTable));
 	}
@@ -1190,7 +1190,7 @@ void IVGExecutor::parseStroke(Interpreter& impd, ArgumentsContainer& args, Strok
 	}
 	if ((s = args.fetchOptional("miter-limit")) != 0) {
 		double d = impd.toDouble(*s);
-		if (d < 1.0) impd.throwRunTimeError(String("miter-limit out of range [1..inf): ") + impd.toString(d));
+		if (d < 1.0) impd.throwRunTimeError(String("miter-limit out of range (1..infinity): ") + impd.toString(d));
 		stroke.miterLimit = d;
 	}
 	if ((s = args.fetchOptional("dash")) != 0) {
@@ -1311,7 +1311,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		const String* s = args.fetchOptional("resolution");
 		const double resolution = (s != 0 ? impd.toDouble(*s) : 1.0);
 		if (resolution < 0.0001) {
-			impd.throwRunTimeError(String("resolution out of range [0.0001..inf): ") + impd.toString(resolution));
+			impd.throwRunTimeError(String("resolution out of range (0.0001..infinity): ") + impd.toString(resolution));
 		}
 		args.throwIfAnyUnfetched();
 
@@ -1416,7 +1416,8 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	double numbers[4];
 	parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
 	if (fabs(numbers[0]) > COORDINATE_LIMIT || fabs(numbers[1]) > COORDINATE_LIMIT) {
-		Interpreter::throwRunTimeError("Image coordinates out of range");
+		Interpreter::throwRunTimeError(String("Image coordinates out of range (-1000000..1000000): (")
+				+ impd.toString(numbers[0]) + String(", ") + impd.toString(numbers[1]) + ")");
 	}
 	const Vertex atPosition = Vertex(numbers[0], numbers[1]);
 	const WideString imageName = impd.unescapeToWide(args.fetchRequired(1));
@@ -1467,14 +1468,14 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 		doFitWidth = true;
 		fitWidth = impd.toDouble(*s);
 		if (fitWidth < 0.0 || fitWidth > COORDINATE_LIMIT) {
-			impd.throwRunTimeError(String("Invalid image width: ") + impd.toString(fitWidth));
+			impd.throwRunTimeError(String("Image width out of range (0..1000000): ") + impd.toString(fitWidth));
 		}
 	}
 	if ((s = args.fetchOptional("height")) != 0) {
 		doFitHeight = true;
 		fitHeight = impd.toDouble(*s);
 		if (fitHeight < 0.0 || fitHeight > COORDINATE_LIMIT) {
-			impd.throwRunTimeError(String("Invalid image height: ") + impd.toString(fitHeight));
+			impd.throwRunTimeError(String("Image height out of range (0..1000000): ") + impd.toString(fitHeight));
 		}
 	}
 	if (doFitWidth || doFitHeight) {
@@ -1577,7 +1578,15 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	if (!isfinite(totalXScale) || !isfinite(totalYScale)
 			|| totalXScale * subRasterBounds.width > COORDINATE_LIMIT
 			|| totalYScale * subRasterBounds.height > COORDINATE_LIMIT) {
-		impd.throwRunTimeError("Image scale out of range");
+		const double maxXScale = (subRasterBounds.width > 0.0
+				? COORDINATE_LIMIT / subRasterBounds.width : COORDINATE_LIMIT);
+		const double maxYScale = (subRasterBounds.height > 0.0
+				? COORDINATE_LIMIT / subRasterBounds.height : COORDINATE_LIMIT);
+		const double maxScale = min(maxXScale, maxYScale);
+		const double actualScale = max(totalXScale, totalYScale);
+		impd.throwRunTimeError(String("Image scale out of range (0..")
+				+ Interpreter::toString(maxScale) + "): "
+				+ Interpreter::toString(actualScale));
 	}
 	
 	// FIX : sub in nuxpixels for making a sub-raster?
@@ -1708,7 +1717,7 @@ static Path& makeStarPath(Path& path, Interpreter& impd, ArgumentsContainer& arg
 	double r2 = (count == 5 ? numbers[4] : r1);
 	double rotation = (s != 0 ? impd.toDouble(*s) * DEGREES : 0.0);
 	if (points <= 0 || points > 10000) {
-		impd.throwRunTimeError(String("star points out of range [1..10000]: ") + impd.toString(points));
+		impd.throwRunTimeError(String("star points out of range (1..10000): ") + impd.toString(points));
 	}
 	if (r1 < 0.0 || r2 < 0.0) {
 		impd.throwRunTimeError(String("Negative star radius: ") + impd.toString(r1 < 0.0 ? r1 : r2));
