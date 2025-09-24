@@ -2259,7 +2259,7 @@ bool FontParser::execute(Interpreter& impd, const String& instruction, const Str
 	switch (fontInstruction) {
 		case FONT_METRICS_INSTRUCTION: {
 			if (metrics.upm != 0.0) {
-				impd.throwBadSyntax("Duplicate metrics instruction in font definition");
+				impd.throwRunTimeError("Duplicate metrics instruction in font definition");
 			}
 
 			metrics.upm = impd.toDouble(args.fetchRequired("upm"));
@@ -2272,7 +2272,7 @@ bool FontParser::execute(Interpreter& impd, const String& instruction, const Str
 			args.throwIfAnyUnfetched();
 
 			if (metrics.upm <= 0.0 || metrics.ascent < 0 || metrics.descent > 0) {
-				impd.throwBadSyntax("Invalid metrics instruction in font definition");
+				impd.throwRunTimeError("Invalid metrics instruction in font definition");
 			}
 			return true;
 		}
@@ -2281,7 +2281,7 @@ bool FontParser::execute(Interpreter& impd, const String& instruction, const Str
 			Font::Glyph glyph;
 			const UniString ws = impd.unescapeToUni(args.fetchRequired(0));
 			if (ws.size() != 1) {
-				impd.throwBadSyntax(String("Invalid glyph character (length is not 1): ") + String(ws.begin(), ws.end()));
+				impd.throwRunTimeError(String("Invalid glyph character (length is not 1): ") + String(ws.begin(), ws.end()));
 			}
 			glyph.character = static_cast<UniChar>(ws[0]);
 			glyph.advance = impd.toDouble(args.fetchRequired(1));
@@ -2289,14 +2289,14 @@ bool FontParser::execute(Interpreter& impd, const String& instruction, const Str
 			args.throwIfAnyUnfetched();
 
 			if (metrics.upm == 0.0) {
-				impd.throwBadSyntax("Missing metrics before glyph instruction in font definition");
+				impd.throwRunTimeError("Missing metrics before glyph instruction in font definition");
 			}
 			if (glyph.advance < 0.0) {
-				impd.throwBadSyntax(String("Negative glyph advance in font definition: ")
+				impd.throwRunTimeError(String("Negative glyph advance in font definition: ")
 						+ impd.toString(glyph.advance));
 			}
 			if (!glyphs.insert(std::make_pair(glyph.character, glyph)).second) {
-				impd.throwBadSyntax(String("Duplicate glyph definition in font definition (unicode: ")
+				impd.throwRunTimeError(String("Duplicate glyph definition in font definition (unicode: ")
 						+ impd.toString(static_cast<int>(glyph.character)) + ")");
 			}
 			return true;
@@ -2312,7 +2312,7 @@ bool FontParser::execute(Interpreter& impd, const String& instruction, const Str
 				for (UniString::const_iterator itA = a.begin(); itA != a.end(); ++itA) {
 					for (UniString::const_iterator itB = b.begin(); itB != b.end(); ++itB) {
 						if (!kerningPairs.insert(std::make_pair(std::make_pair(*itA, *itB), adjust)).second) {
-							impd.throwBadSyntax(String("Duplicate kerning pair in font definition: ")
+							impd.throwRunTimeError(String("Duplicate kerning pair in font definition: ")
 									+ impd.toString(static_cast<int>(*itA)) + "," + impd.toString(static_cast<int>(*itB)));
 						}
 					}
