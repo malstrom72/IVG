@@ -129,7 +129,7 @@ static Mask8::Pixel parseOpacity(const Interpreter& impd, const StringRange& r) 
 	unsigned int i;
 	if (r.e != r.b && *r.b == '#') {
 		StringIt p = Interpreter::parseHex(r.b + 1, r.e, i);
-		if (p - (r.b + 1) != 2) impd.throwBadSyntax(String("Invalid opacity: ") + String(r.b + 1, r.e));
+		if (p - (r.b + 1) != 2) impd.throwBadSyntax(String("Invalid opacity \"") + String(r.b + 1, r.e) + "\".");
 	} else {
 		double d = impd.toDouble(r);
 		if (d < 0.0 || d > 1.0) impd.throwRunTimeError(String("opacity out of range (0..1): ") + impd.toString(d));
@@ -382,7 +382,7 @@ void MaskMakerCanvas::blendWithMask8(const Renderer<Mask8>& source) { (*mask8RLE
 
 void MaskMakerCanvas::defineBounds(const IntRect& newBounds) {
 	(void)newBounds;
-	Interpreter::throwRunTimeError("Bounds cannot be declared for mask");
+	Interpreter::throwRunTimeError("Cannot declare \"bounds\" for a mask.");
 }
 
 IntRect MaskMakerCanvas::getBounds() const { return mask8RLE->calcBounds(); }
@@ -479,11 +479,11 @@ template<> ARGB32::Pixel parseColor<ARGB32>(Interpreter& impd, const StringRange
 		unsigned int i;
 		StringIt p = Interpreter::parseHex(r.b + 1, r.e, i);
 		switch (p - (r.b + 1)) {
-			default: impd.throwBadSyntax(String("Invalid color: ") + String(r.b + 1, r.e));
+			default: impd.throwBadSyntax(String("Invalid color value \"") + String(r.b + 1, r.e) + "\".");
 			case 6: return 0xFF000000 | i;
 			case 8: {
 				if (!ARGB32::isValid(i)) {
-					impd.throwBadSyntax(String("Invalid pre-multiplied alpha color: ") + String(r.b + 1, r.e));
+					impd.throwBadSyntax(String("Invalid pre-multiplied alpha color \"") + String(r.b + 1, r.e) + "\".");
 				}
 				return i;
 			}
@@ -500,7 +500,7 @@ template<> ARGB32::Pixel parseColor<ARGB32>(Interpreter& impd, const StringRange
 		int i = findStandardColorName(IMPD::lossless_cast<int>(r.e - r.b), impd.toLower(r).c_str());
 		assert(i < 17);
 		if (i < 0) {
-			impd.throwBadSyntax(String("Invalid color name: ") + String(r.b, r.e));
+			impd.throwBadSyntax(String("Invalid color name \"") + String(r.b, r.e) + "\".");
 		}
 		return STANDARD_COLORS[i];
 	}
@@ -682,7 +682,7 @@ class PathInstructionExecutor : public Executor {
 							StringVector elems;
 							int count = impd.parseList(args.fetchRequired(0), elems, true, false, 2, MAX_LINE_COORDINATES);
 							if ((count & 1) != 0) {
-								impd.throwBadSyntax("move-angle requires an even number of values");
+								impd.throwBadSyntax("The \"move-angle\" instruction requires an even number of values.");
 							}
 							args.throwIfAnyUnfetched();
 							Vertex pos(path.getPosition());
@@ -698,7 +698,7 @@ class PathInstructionExecutor : public Executor {
 							StringVector elems;
 							const int count = impd.parseList(args.fetchRequired(0), elems, true, false, 2, MAX_LINE_COORDINATES);
 							if ((count & 1) != 0) {
-								impd.throwBadSyntax("line-to requires an even number of coordinates");
+								impd.throwBadSyntax("The \"line-to\" instruction requires an even number of coordinates.");
 							}
 							args.throwIfAnyUnfetched();
 							for (int i = 0; i < count; i += 2) {
@@ -710,7 +710,7 @@ class PathInstructionExecutor : public Executor {
 							StringVector elems;
 							const int count = impd.parseList(args.fetchRequired(0), elems, true, false, 2, MAX_LINE_COORDINATES);
 							if ((count & 1) != 0) {
-								impd.throwBadSyntax("line-angle requires an even number of values");
+								impd.throwBadSyntax("The \"line-angle\" instruction requires an even number of values.");
 							}
 							args.throwIfAnyUnfetched();
 							Vertex pos(path.getPosition());
@@ -731,7 +731,7 @@ class PathInstructionExecutor : public Executor {
 							} else if (count == 6) {
 								path.cubicTo(n[0] + ao.x, n[1] + ao.y, n[2] + ao.x, n[3] + ao.y, n[4] + ao.x, n[5] + ao.y, curveQuality);
 							} else {
-								impd.throwBadSyntax("bezier-to requires 4 or 6 numbers");
+								impd.throwBadSyntax("The \"bezier-to\" instruction requires 4 or 6 numbers.");
 							}
 							return true;
 						}
@@ -750,7 +750,7 @@ class PathInstructionExecutor : public Executor {
 								if (turnLower == "ccw") {
 									sweepCW = false;
 								} else if (turnLower != "cw") {
-									impd.throwBadSyntax(String("Invalid turn for arc-to: ") + *turn);
+									impd.throwBadSyntax(String("Invalid \"arc-to\" turn \"") + *turn + "\".");
 								}
 							}
 							const String* large = args.fetchOptional("large");
@@ -918,7 +918,7 @@ GradientSpec::GradientSpec(const Interpreter& impd, const String& source, bool r
 	if (gradientTypeLower == "radial") {
 		isRadial = true;
 	} else if (gradientTypeLower != "linear") {
-		impd.throwBadSyntax(String("Unrecognized gradient type: ") + gradientType);
+		impd.throwBadSyntax(String("Unrecognized gradient type \"") + gradientType + "\".");
 	}
 	reverseRadialStops = reverseRadialStops && isRadial;
 
@@ -936,7 +936,7 @@ GradientSpec::GradientSpec(const Interpreter& impd, const String& source, bool r
 		StringVector stopsList;
 		int stopsListCount = impd.parseList(*s, stopsList, true, false, 2, 100000);
 		if ((stopsListCount & 1) != 0) {
-			impd.throwBadSyntax(String("Invalid stops for gradient (odd number of elements): ") + *s);
+			impd.throwBadSyntax(String("Invalid gradient stop list \"") + *s + "\" (odd number of elements).");
 		}
 
 		double lastPosition = 0.0;
@@ -945,7 +945,7 @@ GradientSpec::GradientSpec(const Interpreter& impd, const String& source, bool r
 		for (StringVector::const_iterator it = stopsList.begin(), e = stopsList.end(); it != e; it += 2) {
 			double position = impd.toDouble(*it);
 			if (position < lastPosition || position > 1.0) {
-				impd.throwBadSyntax(String("Invalid stops for gradient (invalid position: ") + impd.toString(position) + ")");
+				impd.throwBadSyntax(String("Invalid gradient stop position \"") + impd.toString(position) + "\".");
 			}
 			lastPosition = position;
 			outIt->position = (reverseRadialStops ? 1.0 - position : position);
@@ -1179,14 +1179,14 @@ void IVGExecutor::parseStroke(Interpreter& impd, ArgumentsContainer& args, Strok
 		if (capsString == "butt") stroke.caps = Path::BUTT;
 		else if (capsString == "round") stroke.caps = Path::ROUND;
 		else if (capsString == "square") stroke.caps = Path::SQUARE;
-		else impd.throwBadSyntax(String("Unrecognized stroke caps: ") + *s);
+		else impd.throwBadSyntax(String("Unrecognized stroke caps \"") + *s + "\".");
 	}
 	if ((s = args.fetchOptional("joints")) != 0) {
 		String jointsString = impd.toLower(*s);
 		if (jointsString == "bevel") stroke.joints = Path::BEVEL;
 		else if (jointsString == "curve") stroke.joints = Path::CURVE;
 		else if (jointsString == "miter") stroke.joints = Path::MITER;
-		else impd.throwBadSyntax(String("Unrecognized stroke joints: ") + *s);
+		else impd.throwBadSyntax(String("Unrecognized stroke joints \"") + *s + "\".");
 	}
 	if ((s = args.fetchOptional("miter-limit")) != 0) {
 		double d = impd.toDouble(*s);
@@ -1283,8 +1283,12 @@ std::vector<const Font*> IVGExecutor::lookupExternalOrInternalFonts(Interpreter&
 void IVGExecutor::versionRequired(Interpreter& impd, FormatVersion required, const String& instruction, const String& arguments) {
 	if (formatVersion != UNKNOWN && formatVersion < required) {
 		const char* requiredString = (required == IVG_3 ? "IVG-3" : "IVG-2");
-		impd.throwBadSyntax(String("Instruction requires ") + requiredString + ": " + instruction
-				+ (!arguments.empty() ? String(" ") + arguments : String()));
+		String message = String("The \"") + instruction + "\" instruction requires " + requiredString;
+		if (!arguments.empty()) {
+			message += String(": \"") + instruction + " " + arguments + "\"";
+		}
+		message += String(".");
+		impd.throwBadSyntax(message);
 	}
 }
 
@@ -1352,7 +1356,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		patternPainter->makePattern(impd, *this, *currentContext, definition);
 		definedPatterns[name] = patternPainter.release();
 	} else {
-		Interpreter::throwBadSyntax(String("Invalid define instruction type: ") + type);
+		Interpreter::throwBadSyntax(String("Invalid \"define\" instruction type \"") + type + "\".");
 	}
 }
 
@@ -1416,8 +1420,8 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	double numbers[4];
 	parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
 	if (fabs(numbers[0]) > COORDINATE_LIMIT || fabs(numbers[1]) > COORDINATE_LIMIT) {
-		Interpreter::throwRunTimeError(String("Image coordinates out of range (-1000000..1000000): (")
-				+ impd.toString(numbers[0]) + String(", ") + impd.toString(numbers[1]) + ")");
+		Interpreter::throwRunTimeError(String("Image coordinates (") + impd.toString(numbers[0]) + String(", ")
+				+ impd.toString(numbers[1]) + ") out of range (-1000000..1000000).");
 	}
 	const Vertex atPosition = Vertex(numbers[0], numbers[1]);
 	const WideString imageName = impd.unescapeToWide(args.fetchRequired(1));
@@ -1447,17 +1451,17 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 			const String alignmentLower = impd.toLower(alignment);
 			int foundAlignment = findAlignmentKeyword(alignmentLower.size(), alignmentLower.c_str());
 			if (foundAlignment < 0) {
-				impd.throwBadSyntax(String("Unrecognized alignment: ") + alignment);
+				impd.throwBadSyntax(String("Unrecognized alignment \"") + alignment + "\".");
 			} else if (foundAlignment < 3) {
 				if (gotHorizontalAlignment) {
-					impd.throwBadSyntax(String("Duplicate horizontal alignment: " + *s));
+					impd.throwBadSyntax(String("Duplicate horizontal alignment \"") + *s + "\".");
 				}
 				gotHorizontalAlignment = true;
 				horizontalAlignment = static_cast<HorizontalAlignment>(foundAlignment + 1);
 			} else {
 				assert(foundAlignment < 6);
 				if (gotVerticalAlignment) {
-					impd.throwBadSyntax(String("Duplicate vertical alignment: " + *s));
+					impd.throwBadSyntax(String("Duplicate vertical alignment \"") + *s + "\".");
 				}
 				gotVerticalAlignment = true;
 				verticalAlignment = static_cast<VerticalAlignment>(foundAlignment - 3 + 1);
@@ -1584,9 +1588,8 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 				? COORDINATE_LIMIT / subRasterBounds.height : COORDINATE_LIMIT);
 		const double maxScale = min(maxXScale, maxYScale);
 		const double actualScale = max(totalXScale, totalYScale);
-		impd.throwRunTimeError(String("Image scale out of range (0..")
-				+ Interpreter::toString(maxScale) + "): "
-				+ Interpreter::toString(actualScale));
+		impd.throwRunTimeError(String("Image scale ") + Interpreter::toString(actualScale)
+				+ String(" out of range (0..") + Interpreter::toString(maxScale) + ").");
 	}
 	
 	// FIX : sub in nuxpixels for making a sub-raster?
@@ -1619,7 +1622,7 @@ static Path& makeLinePath(Path& path, Interpreter& impd, ArgumentsContainer& arg
 	int count = impd.parseList(args.fetchRequired(0), elems, true, false, minPairs * 2, MAX_LINE_COORDINATES);
 	args.throwIfAnyUnfetched();
 	if ((count & 1) != 0) {
-		impd.throwBadSyntax("LINE requires an even number of coordinates");
+		impd.throwBadSyntax("The \"LINE\" instruction requires an even number of coordinates.");
 	}
 	path.moveTo(impd.toDouble(elems[0]), impd.toDouble(elems[1]));
 	for (int i = 2; i < count; i += 2) {
@@ -1676,7 +1679,7 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 		}
 	} else {
 		if (formatVersion != IVGExecutor::UNKNOWN && formatVersion < IVGExecutor::IVG_3) {
-			impd.throwBadSyntax(String("Ellipse sweep requires IVG-3"));
+			impd.throwBadSyntax(String("The ellipse \"sweep\" option requires IVG-3 format."));
 		}
 		const String* typeArg = args.fetchOptional("type");
 		bool typeIsPie = false;
@@ -1684,7 +1687,7 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 			String t = impd.toLower(*typeArg);
 			if (t == "pie") typeIsPie = true;
 			else if (t == "chord") typeIsPie = false;
-			else impd.throwBadSyntax(String("Unrecognized ellipse type: ") + *typeArg);
+			else impd.throwBadSyntax(String("Unrecognized ellipse type \"") + *typeArg + "\".");
 		}
 		args.throwIfAnyUnfetched();
 
@@ -1740,7 +1743,7 @@ static TextAnchor parseAnchor(Interpreter& impd, const String* s) {
 		} else if (anchorString == "right") {
 			anchor = RIGHT_ANCHOR;
 		} else {
-			impd.throwBadSyntax(String("Unrecognized anchor: ") + *s);
+			impd.throwBadSyntax(String("Unrecognized anchor \"") + *s + "\".");
 		}
 	}
 	return anchor;
@@ -1758,7 +1761,7 @@ static double calcTextAnchorOffset(TextAnchor anchor, double advance) {
 Path IVGExecutor::makeTextPath(Interpreter& impd, const UniString& text, double& advance) {
 	const State& state = currentContext->accessState();
 	if (state.textStyle.fontName.empty()) {
-		Interpreter::throwRunTimeError("Need to set font before writing");
+		Interpreter::throwRunTimeError("Writing text requires a font to be set first.");
 	}
 	const std::vector<const Font*> fonts = lookupExternalOrInternalFonts(impd, state.textStyle.fontName, text);
 	if (fonts.empty()) {
@@ -1805,7 +1808,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				String ruleString = impd.toLower(*s);
 				if (ruleString == "non-zero") state.evenOddFillRule = false;
 				else if (ruleString == "even-odd") state.evenOddFillRule = true;
-				else impd.throwBadSyntax(String("Unrecognized fill rule: ") + *s);
+				else impd.throwBadSyntax(String("Unrecognized fill rule \"") + *s + "\".");
 			}
 			args.throwIfNoneFetched();
 			args.throwIfAnyUnfetched();
@@ -1816,7 +1819,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			Path builtPath;
 			buildPath(impd, args, instruction, arguments, builtPath);
 			if (builtPath.empty() || builtPath.begin()->first != Path::MOVE) {
-				Interpreter::throwRunTimeError("Invalid first path instruction: " + instruction);
+				Interpreter::throwRunTimeError(String("Invalid first path instruction \"") + instruction + "\".");
 			}
 			currentContext->draw(builtPath);
 			break;
@@ -1849,7 +1852,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			args.throwIfNoneFetched();
 			args.throwIfAnyUnfetched();
 			if (wipePaint.relative) {
-				impd.throwRunTimeError("Relative paint is not allowed with wipe");
+				impd.throwRunTimeError("Relative paint is not allowed with the \"wipe\" instruction.");
 			}
 			if (wipePaint.isVisible()) {
 				State& state = currentContext->accessState();
@@ -1989,7 +1992,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			if ((s = args.fetchOptional(0, true)) != 0) {
 				const WideString newFontName = impd.unescapeToWide(*s);
 				if (newFontName.empty()) {
-					Interpreter::throwRunTimeError("Invalid font name");
+					Interpreter::throwRunTimeError("Invalid font name.");
 				}
 				if (lookupExternalOrInternalFonts(impd, newFontName, UniString()).empty()) {
 					Interpreter::throwRunTimeError(String("Missing font: ")
@@ -2111,7 +2114,7 @@ void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
 		scaledBounds = expandToIntRect(Rect<double>(newBounds.left * rescaleBounds
 				, newBounds.top * rescaleBounds, newBounds.width * rescaleBounds, newBounds.height * rescaleBounds));
 	}
-	if (raster.get() != 0) Interpreter::throwRunTimeError("Multiple bounds declarations");
+	if (raster.get() != 0) Interpreter::throwRunTimeError("Multiple bounds declarations.");
 	checkBounds(scaledBounds);
 	raster.reset(new SelfContainedRaster<ARGB32>(scaledBounds));
 	(*raster) = Solid<ARGB32>(ARGB32::transparent());
