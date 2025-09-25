@@ -1700,15 +1700,6 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 			path.lineTo(cx, cy);
 		}
 		path.close();
-
-		// Move to the 0-degree point and then advance along the arc without drawing to the start angle
-		path.moveTo(cx + rx, cy);
-		path.arcMove(cx, cy, startRadians, rx, ry);
-		path.arcSweep(cx, cy, sweepRadians, rx, ry, curveQuality);
-		if (typeIsPie) {
-			path.lineTo(cx, cy);
-		}
-		path.close();
 	}
 	return path;
 }
