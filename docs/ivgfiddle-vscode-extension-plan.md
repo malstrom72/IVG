@@ -15,8 +15,17 @@
 	- [x] Add a matching Windows `.cmd` script performing the same copy using `robocopy` or `xcopy` with built-in flags.
 	- [x] Update the README to instruct contributors to re-run the sync script whenever IVGFiddle changes.
 - [ ] **Tests:**
-	- [x] Run `npm run compile` using only TypeScript compiler bundled via `devDependencies` and confirm `dist/extension.js` is emitted.
-	- [ ] Launch the extension in VS Code’s Extension Development Host (`F5`) and trigger the `ivgfiddle.open` command, checking the developer console for the activation log line and the absence of missing file errors. *(Pending manual verification in the Extension Development Host.)*
+        - [ ] _Terminal build check_
+                - [ ] Open a terminal in the repository root: `code` → **Terminal** → **New Terminal**.
+                - [ ] Change into the extension folder: `cd tools/ivgfiddle-vscode`.
+                - [ ] Run the TypeScript compile script: `npm run compile`.
+                - [ ] Confirm the command exits with status `0` and that `dist/extension.js` has a fresh timestamp (use `ls -l dist/extension.js`).
+        - [ ] _Extension Development Host smoke test_
+                - [ ] From the same terminal, start the extension in VS Code by pressing `F5` (or **Run and Debug** → **Start Debugging**) which launches an **Extension Development Host** window.
+                - [ ] In the dev host window, press `Ctrl+Shift+P` / `Cmd+Shift+P`, type `IVGFiddle: Open`, and run the `ivgfiddle.open` command.
+                - [ ] Open the Webview developer tools via **Help** → **Toggle Developer Tools** and switch to the **Console** tab.
+                - [ ] Verify the console contains the activation message `IVGFiddle extension activated` and that no red error entries about missing files or CSP violations appear when the panel loads.
+                - [ ] Close the dev tools and ensure the panel content area is blank (expected until Milestone 2 wiring is complete).
 
 ## Milestone 2: Webview Integration with Static IVGFiddle
 - [ ] Instantiate a Webview panel in `extension.ts` that loads `ivgfiddle.html` from the bundled assets using `asWebviewUri`.
@@ -29,8 +38,14 @@
 	- [ ] Parse `ivgfiddle.html` for `src`, `href`, and `url(...)` references; for data attributes in JavaScript, replace string literals (e.g., `"./assets/foo.png"`) using a small transformation step executed when reading the file.
 	- [ ] Provide a fallback that throws if a referenced asset is missing to surface issues early during activation.
 - [ ] **Tests:**
-	- [ ] Trigger the command inside the Extension Development Host and confirm the Webview renders IVGFiddle without console errors.
-	- [ ] Manually interact with the IVGFiddle UI elements (editing IVG text, toggling controls) to confirm the UI behaves identically to the standalone page, including verifying that external network requests are absent.
+        - [ ] _Webview rendering check_
+                - [ ] Launch the Extension Development Host as described in Milestone 1.
+                - [ ] Run `IVGFiddle: Open` and observe that the panel immediately displays the IVGFiddle interface (editor, preview, and controls).
+                - [ ] Open the Webview developer tools console and confirm there are no red errors or blocked resource warnings during load.
+        - [ ] _Functional parity walk-through_
+                - [ ] In the IVGFiddle editor pane, replace the default IVG text with a simple shape (e.g., a rectangle) and confirm the preview updates in real time.
+                - [ ] Toggle each UI control (render mode, guides, checkerboard, etc.) and verify the preview responds as it does in the standalone browser build.
+                - [ ] With the developer tools **Network** tab open, ensure no requests are made to remote domains (everything should resolve from the `vscode-resource:` origin).
 
 ## Milestone 3: Document Synchronization (One-Way)
 - [ ] Use the `vscode.workspace.onDidOpenTextDocument` and `onDidChangeTextDocument` events to forward `.ivg` file contents into the Webview via `postMessage`.
@@ -44,9 +59,16 @@
 	- [ ] Create a `vscode.StatusBarItem` aligned left with text like `$(sync) IVGFiddle: filename.ivg` updated on selection change.
 	- [ ] Dispose of the item when the panel closes to avoid stale indicators.
 - [ ] **Tests:**
-	- [ ] Open a `.ivg` file in the Extension Development Host and confirm the Webview updates immediately (validate both newly created and existing files).
-	- [ ] Modify the file and ensure the Webview reflects the changes without reloading while the status bar text updates to show the active filename.
-	- [ ] Close the document to verify the status bar indicator clears and no further messages are sent (use Webview devtools to watch network traffic).
+        - [ ] _One-way synchronization sanity check_
+                - [ ] Create or open a `.ivg` file in the Extension Development Host.
+                - [ ] Run `IVGFiddle: Open` and ensure the Webview editor instantly mirrors the file contents.
+                - [ ] Type changes in VS Code and confirm they propagate to the Webview without a full reload.
+        - [ ] _Status bar telemetry review_
+                - [ ] Observe that a status bar entry appears showing the active IVG filename after the panel opens.
+                - [ ] Switch to a different editor tab and confirm the status bar entry updates or hides according to the new context.
+        - [ ] _Clean shutdown confirmation_
+                - [ ] Close the `.ivg` document and verify the status bar entry disappears.
+                - [ ] With the Webview devtools **Network** or **Console** tab open, confirm no further synchronization messages are logged after closing.
 
 ## Milestone 4: Two-Way Editing Support
 - [ ] Emit `postMessage` events from the Webview when IVGFiddle content changes (e.g., ACE editor change event) and apply edits to the active VS Code document via `TextEditorEdit`.
@@ -59,9 +81,15 @@
 	- [ ] Before applying Webview edits, check `activeTextEditor.document.isDirty`; if true, show `vscode.window.showWarningMessage` with options to overwrite, save, or cancel.
 	- [ ] Respect the user’s choice by skipping the incoming edit when they cancel and sending a `revert` message back to the Webview to resynchronize.
 - [ ] **Tests:**
-	- [ ] Edit within the Webview and confirm the VS Code document updates in near real-time, inspecting document version increments in the VS Code log output channel.
-	- [ ] Edit within VS Code and ensure the Webview stays synchronized (verify no infinite loops by watching the console for repeated messages and by logging suppression flag transitions).
-	- [ ] Toggle the dirty state by introducing unsaved changes and confirm the warning logic behaves correctly by choosing each action (overwrite, save, cancel) and observing the resulting state in both the editor and Webview.
+        - [ ] _Round-trip editing validation_
+                - [ ] With a `.ivg` document open and the Webview visible, make edits inside IVGFiddle and watch the VS Code text editor update within the configured debounce delay.
+                - [ ] Reverse the direction by typing inside VS Code and ensuring the Webview mirrors the text without lag or duplication.
+        - [ ] _Feedback loop guardrail_
+                - [ ] Enable Webview devtools and monitor the console for rapid alternating host/webview messages to confirm no infinite update loop occurs.
+                - [ ] Temporarily reduce the debounce delay in the extension settings to stress the synchronization logic; ensure the loop protection still prevents runaway updates.
+        - [ ] _Dirty document protection_
+                - [ ] Modify the file in VS Code without saving (dirty state) and then trigger an edit from the Webview.
+                - [ ] Exercise each prompt option (overwrite, save, cancel) and verify the document contents and Webview stay consistent with the selected action.
 
 ## Milestone 5: Packaging, Configuration, and Documentation
 - [ ] Add contribution points to `package.json` (command palette entry, activation events, basic configuration options) without pulling extra schemas.
@@ -75,6 +103,12 @@
 	- [ ] Add `scripts/package.sh` that checks for `vsce` and falls back to `npx vsce package` (bundled with npm) so no global install is required.
 	- [ ] Document manual installation: `code --install-extension ivgfiddle-vscode-0.0.1.vsix` and alternative `code --extensionDevelopmentPath` workflow.
 - [ ] **Tests:**
-	- [ ] Run `npm run lint` using TypeScript’s built-in diagnostics or a simple `tsc --noEmit` if linting is unnecessary, capturing the output in the README troubleshooting section.
-	- [ ] Package the extension with `vsce package` and confirm the resulting `.vsix` installs and runs inside VS Code by opening a fresh Extension Development Host window.
-	- [ ] Follow the README instructions from a clean environment (e.g., another workspace) to ensure they are accurate, keeping notes on any missing prerequisites and updating the doc accordingly.
+        - [ ] _Lint gate_
+                - [ ] From `tools/ivgfiddle-vscode`, run `npm run lint` (or `npx tsc --noEmit` if lint isn’t configured) and confirm the command exits with status `0`.
+                - [ ] Append any warnings or corrective actions to the README troubleshooting section before proceeding.
+        - [ ] _Packaging dry run_
+                - [ ] Execute `npx vsce package` and ensure a `.vsix` file appears in the extension folder.
+                - [ ] Install the package locally with `code --install-extension *.vsix` and launch an Extension Development Host to verify the bundled IVGFiddle loads as in previous milestones.
+        - [ ] _Documentation validation_
+                - [ ] Follow the README installation section from a clean workspace (use `File` → `Open Recent` → `Clear Items`, then reopen the repository).
+                - [ ] Perform each documented step exactly as written, checking off the README instructions and updating the document if any steps are ambiguous or missing prerequisites.
