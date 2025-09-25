@@ -1,0 +1,31 @@
+{
+	"name": "ivgfiddle-vscode",
+	"displayName": "IVGFiddle",
+	"description": "Embed IVGFiddle as a webview inside Visual Studio Code.",
+	"version": "0.0.1",
+	"publisher": "ivg",
+	"engines": {
+		"vscode": "^1.84.0"
+	},
+	"activationEvents": [
+		"onCommand:ivgfiddle.open"
+	],
+	"main": "./dist/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "ivgfiddle.open",
+				"title": "Open IVGFiddle",
+				"category": "IVGFiddle"
+			}
+		]
+	},
+	"scripts": {
+		"compile": "tsc -p .",
+		"watch": "tsc -w -p ."
+	},
+	"devDependencies": {
+		"@types/vscode": "^1.84.0",
+		"typescript": "^5.6.3"
+	}
+}
