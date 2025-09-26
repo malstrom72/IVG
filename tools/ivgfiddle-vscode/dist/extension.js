@@ -41,6 +41,7 @@ let webviewReady = false;
 let statusBarItem;
 let scheduledDocument;
 let lastPreviewDocumentUri;
+let currentStatusDocumentUri;
 let updateTimer;
 const pendingMessages = [];
 const PREVIEW_LANGUAGE_ID = 'ivg';
@@ -90,9 +91,7 @@ function activate(context) {
             ivgPanel = undefined;
             webviewReady = false;
             pendingMessages.length = 0;
-            if (statusBarItem) {
-                statusBarItem.hide();
-            }
+            hideStatusBar();
         });
         if (initialDocument) {
             syncDocument(initialDocument, 'open');
@@ -121,14 +120,24 @@ function activate(context) {
             syncActiveDocument('clear');
         }
     }), vscode.workspace.onDidCloseTextDocument((document) => {
-        if (statusBarItem && (!vscode.window.visibleTextEditors.some((editor) => editor.document === document))) {
-            statusBarItem.hide();
-        }
         if (scheduledDocument && scheduledDocument === document) {
             scheduledDocument = undefined;
         }
         if (lastPreviewDocumentUri === document.uri.toString()) {
             lastPreviewDocumentUri = undefined;
+        }
+        if (currentStatusDocumentUri === document.uri.toString()) {
+            const active = getActiveIvgDocument();
+            if (active) {
+                syncDocument(active, 'focus');
+                return;
+            }
+            const fallback = getLastPreviewDocument();
+            if (fallback) {
+                showStatusBar(fallback, 'focus');
+                return;
+            }
+            hideStatusBar();
         }
     }));
 }
@@ -287,11 +296,13 @@ function showStatusBar(document, reason) {
     statusBarItem.text = `$(${icon}) IVGFiddle Preview: ${fileName}`;
     statusBarItem.tooltip = document.uri.fsPath;
     statusBarItem.show();
+    currentStatusDocumentUri = document.uri.toString();
 }
 function hideStatusBar() {
     if (statusBarItem) {
         statusBarItem.hide();
     }
+    currentStatusDocumentUri = undefined;
 }
 function getActiveIvgDocument() {
     const editor = vscode.window.activeTextEditor;

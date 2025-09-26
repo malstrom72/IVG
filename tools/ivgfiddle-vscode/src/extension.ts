@@ -5,6 +5,7 @@ let webviewReady = false;
 let statusBarItem: vscode.StatusBarItem | undefined;
 let scheduledDocument: vscode.TextDocument | undefined;
 let lastPreviewDocumentUri: string | undefined;
+let currentStatusDocumentUri: string | undefined;
 let updateTimer: ReturnType<typeof setTimeout> | undefined;
 const pendingMessages: unknown[] = [];
 const PREVIEW_LANGUAGE_ID = 'ivg';
@@ -65,9 +66,7 @@ panel.onDidDispose(() => {
 ivgPanel = undefined;
 webviewReady = false;
 pendingMessages.length = 0;
-	if (statusBarItem) {
-			statusBarItem.hide();
-	}
+        hideStatusBar();
 });
 
 if (initialDocument) {
@@ -99,15 +98,25 @@ syncActiveDocument('clear');
 }
 }),
 vscode.workspace.onDidCloseTextDocument((document) => {
-if (statusBarItem && (!vscode.window.visibleTextEditors.some((editor) => editor.document === document))) {
-statusBarItem.hide();
-}
-if (scheduledDocument && scheduledDocument === document) {
-scheduledDocument = undefined;
-}
-if (lastPreviewDocumentUri === document.uri.toString()) {
-lastPreviewDocumentUri = undefined;
-}
+        if (scheduledDocument && scheduledDocument === document) {
+                scheduledDocument = undefined;
+        }
+        if (lastPreviewDocumentUri === document.uri.toString()) {
+                lastPreviewDocumentUri = undefined;
+        }
+        if (currentStatusDocumentUri === document.uri.toString()) {
+                const active = getActiveIvgDocument();
+                if (active) {
+                        syncDocument(active, 'focus');
+                        return;
+                }
+                const fallback = getLastPreviewDocument();
+                if (fallback) {
+                        showStatusBar(fallback, 'focus');
+                        return;
+                }
+                hideStatusBar();
+        }
 })
 );
 }
@@ -283,20 +292,22 @@ function fileNameFromDocument(document: vscode.TextDocument): string {
 }
 
 function showStatusBar(document: vscode.TextDocument, reason: 'open' | 'focus' | 'change'): void {
-	if (!statusBarItem) {
-		return;
-	}
-	const fileName = fileNameFromDocument(document);
-	const icon = reason === 'change' ? 'sync~spin' : 'sync';
-	statusBarItem.text = `$(${icon}) IVGFiddle Preview: ${fileName}`;
-	statusBarItem.tooltip = document.uri.fsPath;
-	statusBarItem.show();
+        if (!statusBarItem) {
+                return;
+        }
+        const fileName = fileNameFromDocument(document);
+        const icon = reason === 'change' ? 'sync~spin' : 'sync';
+        statusBarItem.text = `$(${icon}) IVGFiddle Preview: ${fileName}`;
+        statusBarItem.tooltip = document.uri.fsPath;
+        statusBarItem.show();
+        currentStatusDocumentUri = document.uri.toString();
 }
 
 function hideStatusBar(): void {
-	if (statusBarItem) {
-		statusBarItem.hide();
-	}
+        if (statusBarItem) {
+                statusBarItem.hide();
+        }
+        currentStatusDocumentUri = undefined;
 }
 
 function getActiveIvgDocument(): vscode.TextDocument | undefined {
