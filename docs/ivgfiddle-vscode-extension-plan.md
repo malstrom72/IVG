@@ -57,35 +57,38 @@
 - [x] Provide a status bar item indicating when a document is synchronized.
         - [x] Create a `vscode.StatusBarItem` aligned left with text like `$(sync) IVGFiddle Preview: filename.ivg` updated on selection change.
         - [x] Dispose of the item when the panel closes to avoid stale indicators.
-- [ ] **Tests:**
-        - [ ] _One-way synchronization sanity check_
-                - [ ] Create or open a `.ivg` file in the Extension Development Host (the language contribution should automatically classify the file as `IVG`).
-                - [ ] Run `IVGFiddle: Open` and ensure the Webview preview updates to reflect the file contents without requiring manual refresh.
-                - [ ] Type changes in VS Code and confirm the preview rerenders within the debounce window without flicker (expect ~150 ms delay).
-        - [ ] _Status bar telemetry review_
-                - [ ] Observe that a status bar entry appears showing the active IVG filename after the panel opens.
-                - [ ] Switch to a different editor tab and confirm the status bar entry updates or hides according to the new context.
-        - [ ] _Clean shutdown confirmation_
-                - [ ] Close the `.ivg` document and verify the status bar entry disappears.
-                - [ ] With the Webview devtools **Console** tab open, confirm no further synchronization messages are logged after closing.
+- [x] **Tests:**
+        - [x] _One-way synchronization sanity check_
+                - [x] Create or open a `.ivg` file in the Extension Development Host (the language contribution should automatically classify the file as `IVG`).
+                - [x] Run `IVGFiddle: Open` and ensure the Webview preview updates to reflect the file contents without requiring manual refresh.
+                - [x] Type changes in VS Code and confirm the preview rerenders within the debounce window without flicker (expect ~150 ms delay).
+        - [x] _Status bar telemetry review_
+                - [x] Observe that a status bar entry appears showing the active IVG filename after the panel opens.
+                - [x] Switch to a different editor tab and confirm the status bar entry updates or hides according to the new context.
+        - [x] _Clean shutdown confirmation_
+                - [x] Close the `.ivg` document and verify the status bar entry disappears.
+                - [x] With the Webview devtools **Console** tab open, confirm no further synchronization messages are logged after closing.
 ## Milestone 4: Preview Controls and Host Feedback
-- [ ] Emit host-to-webview control messages without embedding a secondary editor.
-	- [ ] Add an `ivgfiddle.refreshPreview` command that sends a `rerender` message so users can force a redraw after changing renderer settings.
-	- [ ] Provide a `ivgfiddle.clearTrace` command that instructs the Webview to wipe the log while retaining the current preview.
-- [ ] Surface preview diagnostics back to VS Code.
-	- [ ] Listen for `{ type: 'status', level, message }` notifications from the Webview and present them via `vscode.window.setStatusBarMessage` or `showErrorMessage` as appropriate.
-	- [ ] Persist the most recent preview duration in the status bar item created in Milestone 3.
-- [ ] Expose lightweight configuration options for preview behavior without new dependencies.
-	- [ ] Add `ivgfiddle.preview.autoRefresh` (boolean) and `ivgfiddle.preview.debounceMs` (number) to `package.json`, defaulting to current behavior.
-	- [ ] Respect these settings when deciding whether to push `setSource` updates automatically or require the manual refresh command.
+- [x] Emit host-to-webview control messages without embedding a secondary editor.
+        - [x] Add an `ivgfiddle.refreshPreview` command that sends a `rerender` message so users can force a redraw after changing renderer settings.
+        - [x] Provide a `ivgfiddle.clearTrace` command that instructs the Webview to wipe the log while retaining the current preview.
+- [x] Surface preview diagnostics back to VS Code.
+        - [x] Listen for `{ type: 'status', level, message }` notifications from the Webview and present them via `vscode.window.setStatusBarMessage` or `showErrorMessage` as appropriate.
+        - [x] Persist the most recent preview duration in the status bar item created in Milestone 3.
+- [x] Expose lightweight configuration options for preview behavior without new dependencies.
+        - [x] Add `ivgfiddle.preview.autoRefresh` (boolean) and `ivgfiddle.preview.debounceMs` (number) to `package.json`, defaulting to current behavior.
+        - [x] Respect these settings when deciding whether to push `setSource` updates automatically or require the manual refresh command.
 - [ ] **Tests:**
-	- [ ] _Manual refresh sanity check_
-		- [ ] Change the active `.ivg` file, disable `autoRefresh`, invoke `IVGFiddle: Refresh Preview`, and confirm the Webview rerenders immediately.
-		- [ ] Re-enable `autoRefresh` and verify subsequent edits trigger automatic rerenders without using the command.
-	- [ ] _Trace management review_
-		- [ ] Execute `IVGFiddle: Clear Preview Trace` and ensure the on-canvas image remains while the log resets to empty.
-	- [ ] _Status relay validation_
-		- [ ] Cause a rendering failure (e.g., by introducing a syntax error) and confirm the extension surfaces the error via a VS Code notification as well as the Webview status banner.
+        - [ ] _Manual refresh sanity check_
+                - [ ] Open **Settings** (gear icon → **Settings**), search for `IVGFiddle Preview`, and uncheck **Auto Refresh**.
+                - [ ] Change the active `.ivg` file in the Extension Development Host and note that the status bar shows a clock icon plus “refresh required”.
+                - [ ] Invoke **IVGFiddle: Refresh Preview** from the Command Palette and confirm the Webview rerenders immediately using the latest document contents.
+                - [ ] Re-enable **Auto Refresh** in Settings, make further edits, and verify the preview resumes automatic rerenders governed by **Debounce (ms)**.
+        - [ ] _Trace management review_
+                - [ ] With the preview panel visible, run **IVGFiddle: Clear Preview Trace** and ensure the canvas stays unchanged while the trace panel becomes empty and the VS Code status message reports “Preview trace cleared.”
+        - [ ] _Status relay validation_
+                - [ ] Introduce an IVG syntax error (for example, delete a closing brace) and save the file.
+                - [ ] Confirm the preview draws the failure cross, the status banner reads “Rendering failed…”, and VS Code displays an error notification alongside the recorded render duration in the status bar entry.
 ## Milestone 5: Packaging, Configuration, and Documentation
 - [ ] Add contribution points to `package.json` (command palette entry, activation events, basic configuration options) without pulling extra schemas.
 	- [ ] Define `contributes.commands` with title `"Open IVGFiddle"` and category `"IVGFiddle"`, plus `contributes.menus.commandPalette` to expose it.

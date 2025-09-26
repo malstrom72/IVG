@@ -1,4 +1,4 @@
-# IVGFiddle VS Code Extension (Milestone 3 In Progress)
+# IVGFiddle VS Code Extension (Milestone 4 In Progress)
 
 This folder contains the work-in-progress extension that embeds the IVGFiddle renderer inside Visual Studio Code. The initial milestone focuses on preparing the project structure, static assets, and helper scripts without introducing extra build dependencies. The bundled webview omits the ACE editor so the VS Code panel operates strictly as a preview surface that will render `.ivg` documents provided by the host extension logic.
 
@@ -26,9 +26,13 @@ npm run compile
 
 1. Open or create a `.ivg` file in VS Code. The extension contributes a simple language configuration so the document is tagged with the `ivg` language ID automatically.
 2. Run **IVGFiddle: Open** from the Command Palette. If the panel is already open it will be focused instead of spawning duplicates.
-3. The preview canvas renders the active document after the WebAssembly runtime loads. As you edit the file, the extension debounces updates (150 ms) and re-renders without additional commands.
-4. A status bar entry titled `IVGFiddle Preview` shows the currently synchronized filename. It disappears whenever the active editor is not an `.ivg` document or when the document closes.
-5. Close the panel to stop synchronization; reopening the panel reuses the current editor contents.
+3. The preview canvas renders the active document after the WebAssembly runtime loads. When `ivgfiddle.preview.autoRefresh` is enabled (default), edits debounce according to `ivgfiddle.preview.debounceMs` (150 ms by default) before triggering a rerender.
+4. Toggle auto refresh or adjust the debounce value under **Settings** → **Extensions** → **IVGFiddle Preview**. When auto refresh is disabled, the status bar switches to a clock icon and waits for a manual refresh.
+5. Use **IVGFiddle: Refresh Preview** to force an immediate rerender of the active (or last previewed) IVG document.
+6. Use **IVGFiddle: Clear Preview Trace** to reset the trace log without changing the rendered image.
+7. Preview diagnostics from the webview surface inside VS Code—successful renders appear as transient status bar messages, while failures trigger error notifications.
+8. A status bar entry titled `IVGFiddle Preview` shows the synchronized filename and the most recent render duration. It disappears whenever no IVG document is active and reappears when the panel regains focus.
+9. Close the panel to stop synchronization; reopening the panel reuses the current editor contents.
 
 ## Updating IVGFiddle Assets
 

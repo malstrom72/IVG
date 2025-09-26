@@ -9,6 +9,8 @@
 	},
         "activationEvents": [
                 "onCommand:ivgfiddle.open",
+                "onCommand:ivgfiddle.refreshPreview",
+                "onCommand:ivgfiddle.clearTrace",
                 "onLanguage:ivg"
         ],
         "main": "./dist/extension.js",
@@ -17,6 +19,16 @@
                         {
                                 "command": "ivgfiddle.open",
                                 "title": "Open IVGFiddle",
+                                "category": "IVGFiddle"
+                        },
+                        {
+                                "command": "ivgfiddle.refreshPreview",
+                                "title": "Refresh IVGFiddle Preview",
+                                "category": "IVGFiddle"
+                        },
+                        {
+                                "command": "ivgfiddle.clearTrace",
+                                "title": "Clear IVGFiddle Preview Trace",
                                 "category": "IVGFiddle"
                         }
                 ],
@@ -32,7 +44,23 @@
                                 ],
                                 "configuration": "./language-configuration.json"
                         }
-                ]
+                ],
+                "configuration": {
+                        "title": "IVGFiddle Preview",
+                        "properties": {
+                                "ivgfiddle.preview.autoRefresh": {
+                                        "type": "boolean",
+                                        "default": true,
+                                        "description": "Automatically update the IVGFiddle preview when IVG documents change."
+                                },
+                                "ivgfiddle.preview.debounceMs": {
+                                        "type": "number",
+                                        "default": 150,
+                                        "minimum": 0,
+                                        "description": "Delay in milliseconds before automatic preview refresh when auto refresh is enabled."
+                                }
+                        }
+                }
         },
 	"scripts": {
 		"compile": "tsc -p .",

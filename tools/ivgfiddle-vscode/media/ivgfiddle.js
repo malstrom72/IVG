@@ -18,10 +18,35 @@ let moduleReady = false;
 let currentSource = "";
 let pendingSource = null;
 
-function setStatus(message) {
-	if (statusElement) {
-		statusElement.textContent = message;
-	}
+function postStatus(level, message, options) {
+        if (!vscodeApi) {
+                return;
+        }
+        const text = typeof message === "string" ? message : "";
+        if (!text) {
+                return;
+        }
+        const payload = {
+                type: "status",
+                level: typeof level === "string" ? level : "info",
+                message: text
+        };
+        if (options && typeof options.durationMs === "number" && options.durationMs >= 0) {
+                payload.durationMs = options.durationMs;
+        }
+        vscodeApi.postMessage(payload);
+}
+
+function setStatus(message, options) {
+        const text = typeof message === "string" ? message : "";
+        if (statusElement) {
+                statusElement.textContent = text;
+        }
+        const opts = options || {};
+        if (opts.notify === false) {
+                return;
+        }
+        postStatus(opts.level, text, opts);
 }
 
 function clearTrace() {
@@ -107,11 +132,13 @@ function renderCurrentSource() {
 		return;
 	}
 	clearTrace();
-	if (!currentSource) {
-		ivgContext.clearRect(0, 0, ivgCanvas.width, ivgCanvas.height);
-		setStatus("Renderer ready. Waiting for IVG data…");
-		return;
-	}
+        if (!currentSource) {
+                ivgContext.clearRect(0, 0, ivgCanvas.width, ivgCanvas.height);
+                setStatus("Renderer ready. Waiting for IVG data…", {
+                        level: "info"
+                });
+                return;
+        }
 	trace("Running IVG");
 	const start = Date.now();
 	let ok = false;
@@ -140,7 +167,10 @@ function renderCurrentSource() {
 			ivgContext.putImageData(imageData, 0, 0);
 			trace("Completed IVG");
 			trace("Time spent: " + (end - start) + "ms");
-			setStatus("Preview updated in " + (end - start) + " ms.");
+                        setStatus("Preview updated in " + (end - start) + " ms.", {
+                                level: "info",
+                                durationMs: end - start
+                        });
 			ok = true;
 		} else {
 			trace("Rasterization returned no data");
@@ -151,7 +181,9 @@ function renderCurrentSource() {
 	}
 	if (!ok) {
 		drawFailureCross();
-		setStatus("Rendering failed. Check trace output for details.");
+                setStatus("Rendering failed. Check trace output for details.", {
+                        level: "error"
+                });
 	}
 }
 
@@ -180,20 +212,22 @@ function handleHostMessage(message) {
 		} else {
 			setSource(message.source, { persist: false });
 		}
-		if (typeof message.status === "string") {
-			setStatus(message.status);
-		} else if (moduleReady) {
-			setStatus("Preview updated.");
-		}
-		break;
-	case "clearTrace":
-		clearTrace();
-		break;
-	case "rerender":
-		if (moduleReady) {
-			renderCurrentSource();
-		}
-		break;
+                if (typeof message.status === "string") {
+                        setStatus(message.status, { notify: false });
+                } else if (moduleReady) {
+                        setStatus("Preview updated.", { notify: false });
+                }
+                break;
+        case "clearTrace":
+                clearTrace();
+                setStatus("Preview trace cleared.", { level: "info" });
+                break;
+        case "rerender":
+                if (moduleReady) {
+                        setStatus("Re-rendering current IVG…", { level: "info" });
+                        renderCurrentSource();
+                }
+                break;
 	default:
 		break;
 	}
@@ -214,7 +248,7 @@ window.ivgPreviewModuleInitialized = function(initialSource) {
 	}
 	const queuedSource = pendingSource;
 	pendingSource = null;
-	setStatus("Renderer ready.");
+        setStatus("Renderer ready.", { level: "info" });
 	if (typeof queuedSource === "string") {
 		setSource(queuedSource, { persist: false });
 	} else {
@@ -228,8 +262,8 @@ window.ivgPreviewModuleInitialized = function(initialSource) {
 const cachedSource = localStorage.getItem("ivgSource");
 if (typeof cachedSource === "string" && cachedSource.length > 0) {
 	currentSource = cachedSource;
-	setStatus("Loaded cached IVG source. Waiting for renderer…");
+        setStatus("Loaded cached IVG source. Waiting for renderer…", { level: "info" });
 } else {
-	setStatus("Waiting for renderer…");
+        setStatus("Waiting for renderer…", { level: "info" });
 }
 

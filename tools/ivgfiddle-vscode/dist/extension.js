@@ -43,16 +43,20 @@ let scheduledDocument;
 let lastPreviewDocumentUri;
 let currentStatusDocumentUri;
 let updateTimer;
+let lastPreviewDurationMs;
+let transientStatusMessage;
 const pendingMessages = [];
 const PREVIEW_LANGUAGE_ID = 'ivg';
-const PREVIEW_DEBOUNCE_MS = 150;
+const DEFAULT_DEBOUNCE_MS = 150;
+const CONFIG_SECTION = 'ivgfiddle.preview';
+let previewConfig = readPreviewConfig();
 function activate(context) {
     console.log('IVGFiddle extension activated');
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
     statusBarItem.command = 'ivgfiddle.open';
     statusBarItem.hide();
     context.subscriptions.push(statusBarItem);
-    const disposable = vscode.commands.registerCommand('ivgfiddle.open', async () => {
+    const openCommand = vscode.commands.registerCommand('ivgfiddle.open', async () => {
         if (ivgPanel) {
             ivgPanel.reveal(ivgPanel.viewColumn ?? vscode.ViewColumn.Active);
             return;
@@ -76,10 +80,18 @@ function activate(context) {
         webviewReady = false;
         pendingMessages.length = 0;
         panel.webview.onDidReceiveMessage((message) => {
-            if (message && message.type === 'ready') {
+            if (!message || typeof message !== 'object') {
+                return;
+            }
+            const type = message.type;
+            if (type === 'ready') {
                 webviewReady = true;
                 flushPendingMessages();
                 syncActiveDocument('panelFocus');
+                return;
+            }
+            if (type === 'status') {
+                processStatusMessage(message);
             }
         });
         panel.onDidChangeViewState(() => {
@@ -91,6 +103,8 @@ function activate(context) {
             ivgPanel = undefined;
             webviewReady = false;
             pendingMessages.length = 0;
+            lastPreviewDurationMs = undefined;
+            clearTransientStatusMessage();
             hideStatusBar();
         });
         if (initialDocument) {
@@ -100,7 +114,8 @@ function activate(context) {
             syncActiveDocument('open');
         }
     });
-    context.subscriptions.push(disposable);
+    context.subscriptions.push(openCommand);
+    context.subscriptions.push(vscode.commands.registerCommand('ivgfiddle.refreshPreview', handleRefreshPreviewCommand), vscode.commands.registerCommand('ivgfiddle.clearTrace', handleClearTraceCommand));
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((document) => {
         if (isIvgDocument(document)) {
             syncDocument(document, 'open');
@@ -138,6 +153,15 @@ function activate(context) {
                 return;
             }
             hideStatusBar();
+        }
+    }), vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration(`${CONFIG_SECTION}.autoRefresh`) ||
+            event.affectsConfiguration(`${CONFIG_SECTION}.debounceMs`)) {
+            previewConfig = readPreviewConfig();
+            refreshStatusBar();
+            if (scheduledDocument && previewConfig.autoRefresh) {
+                syncDocument(scheduledDocument, 'change');
+            }
         }
     }));
 }
@@ -202,6 +226,14 @@ function isIvgDocument(document) {
 }
 function scheduleDocument(document) {
     scheduledDocument = document;
+    if (!previewConfig.autoRefresh) {
+        if (updateTimer) {
+            clearTimeout(updateTimer);
+            updateTimer = undefined;
+        }
+        showStatusBar(document, 'manualPending');
+        return;
+    }
     if (updateTimer) {
         clearTimeout(updateTimer);
     }
@@ -210,7 +242,7 @@ function scheduleDocument(document) {
         if (scheduledDocument) {
             syncDocument(scheduledDocument, 'change');
         }
-    }, PREVIEW_DEBOUNCE_MS);
+    }, Math.max(0, previewConfig.debounceMs));
 }
 function syncActiveDocument(reason) {
     if (reason === 'clear') {
@@ -292,9 +324,27 @@ function showStatusBar(document, reason) {
         return;
     }
     const fileName = fileNameFromDocument(document);
-    const icon = reason === 'change' ? 'sync~spin' : 'sync';
-    statusBarItem.text = `$(${icon}) IVGFiddle Preview: ${fileName}`;
-    statusBarItem.tooltip = document.uri.fsPath;
+    let icon = 'sync';
+    let suffix = '';
+    if (reason === 'change') {
+        icon = 'sync~spin';
+    }
+    else if (reason === 'manualPending') {
+        icon = 'clock';
+        suffix = ' — refresh required';
+    }
+    if (typeof lastPreviewDurationMs === 'number' && lastPreviewDurationMs >= 0 && reason !== 'manualPending') {
+        suffix = `${suffix} • ${Math.round(lastPreviewDurationMs)} ms`;
+    }
+    statusBarItem.text = `$(${icon}) IVGFiddle Preview: ${fileName}${suffix}`;
+    const tooltipLines = [document.uri.fsPath];
+    if (!previewConfig.autoRefresh) {
+        tooltipLines.push('Auto-refresh disabled');
+    }
+    if (typeof lastPreviewDurationMs === 'number' && lastPreviewDurationMs >= 0) {
+        tooltipLines.push(`Last render: ${Math.round(lastPreviewDurationMs)} ms`);
+    }
+    statusBarItem.tooltip = tooltipLines.join('\n');
     statusBarItem.show();
     currentStatusDocumentUri = document.uri.toString();
 }
@@ -316,4 +366,67 @@ function getLastPreviewDocument() {
         return undefined;
     }
     return vscode.workspace.textDocuments.find((openDocument) => openDocument.uri.toString() === lastPreviewDocumentUri);
+}
+function handleRefreshPreviewCommand() {
+    const targetDocument = getActiveIvgDocument() ?? getLastPreviewDocument();
+    if (!targetDocument) {
+        vscode.window.showInformationMessage('Open an IVG document to refresh the preview.');
+        return;
+    }
+    if (!ivgPanel) {
+        vscode.commands.executeCommand('ivgfiddle.open').then(() => {
+            syncDocument(targetDocument, 'change');
+        });
+        return;
+    }
+    syncDocument(targetDocument, 'change');
+}
+function handleClearTraceCommand() {
+    if (!ivgPanel) {
+        vscode.window.showInformationMessage('Open the IVGFiddle preview before clearing the trace.');
+        return;
+    }
+    queueMessage({ type: 'clearTrace' });
+}
+function readPreviewConfig() {
+    const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+    const autoRefresh = config.get('autoRefresh', true);
+    const configuredDebounce = config.get('debounceMs', DEFAULT_DEBOUNCE_MS);
+    const debounceMs = Number.isFinite(configuredDebounce) && configuredDebounce >= 0 ? configuredDebounce : DEFAULT_DEBOUNCE_MS;
+    return {
+        autoRefresh,
+        debounceMs,
+    };
+}
+function processStatusMessage(message) {
+    const level = typeof message.level === 'string' ? message.level : 'info';
+    const text = typeof message.message === 'string' ? message.message : '';
+    if (typeof message.durationMs === 'number' && message.durationMs >= 0) {
+        lastPreviewDurationMs = message.durationMs;
+        refreshStatusBar();
+    }
+    if (!text) {
+        return;
+    }
+    if (level === 'error') {
+        vscode.window.showErrorMessage(text);
+        return;
+    }
+    clearTransientStatusMessage();
+    transientStatusMessage = vscode.window.setStatusBarMessage(text, 5000);
+}
+function refreshStatusBar() {
+    if (!currentStatusDocumentUri) {
+        return;
+    }
+    const document = vscode.workspace.textDocuments.find((openDocument) => openDocument.uri.toString() === currentStatusDocumentUri);
+    if (document) {
+        showStatusBar(document, 'focus');
+    }
+}
+function clearTransientStatusMessage() {
+    if (transientStatusMessage) {
+        transientStatusMessage.dispose();
+        transientStatusMessage = undefined;
+    }
 }
