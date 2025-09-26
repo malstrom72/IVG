@@ -50,6 +50,7 @@ panel.webview.onDidReceiveMessage((message) => {
 if (message && message.type === 'ready') {
 webviewReady = true;
 flushPendingMessages();
+syncActiveDocument('focus');
 }
 });
 panel.onDidChangeViewState(() => {
