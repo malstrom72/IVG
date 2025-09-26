@@ -15,28 +15,28 @@
 	- [x] Add a matching Windows `.cmd` script performing the same copy using `robocopy` or `xcopy` with built-in flags.
 	- [x] Update the README to instruct contributors to re-run the sync script whenever IVGFiddle changes.
 - [ ] **Tests:**
-        - [ ] _Terminal build check_
-                - [ ] Open a terminal in the repository root: `code` → **Terminal** → **New Terminal**.
-                - [ ] Change into the extension folder: `cd tools/ivgfiddle-vscode`.
-                - [ ] Run the TypeScript compile script: `npm run compile`.
-                - [ ] Confirm the command exits with status `0` and that `dist/extension.js` has a fresh timestamp (use `ls -l dist/extension.js`).
-        - [ ] _Extension Development Host smoke test_
-                - [ ] From the same terminal, start the extension in VS Code by pressing `F5` (or **Run and Debug** → **Start Debugging**) which launches an **Extension Development Host** window.
-                - [ ] In the dev host window, press `Ctrl+Shift+P` / `Cmd+Shift+P`, type `IVGFiddle: Open`, and run the `ivgfiddle.open` command.
-                - [ ] Open the Webview developer tools via **Help** → **Toggle Developer Tools** and switch to the **Console** tab.
-                - [ ] Verify the console contains the activation message `IVGFiddle extension activated` and that no red error entries about missing files or CSP violations appear when the panel loads.
-                - [ ] Close the dev tools and ensure the panel content area is blank (expected until Milestone 2 wiring is complete).
+        - [x] _Terminal build check_
+                - [x] Open a terminal in the repository root: `code` → **Terminal** → **New Terminal**.
+                - [x] Change into the extension folder: `cd tools/ivgfiddle-vscode`.
+                - [x] Run the TypeScript compile script: `npm run compile`.
+                - [x] Confirm the command exits with status `0` and that `dist/extension.js` has a fresh timestamp (use `ls -l dist/extension.js`).
+        - [x] _Extension Development Host smoke test_
+                - [x] From the same terminal, start the extension in VS Code by pressing `F5` (or **Run and Debug** → **Start Debugging**) which launches an **Extension Development Host** window.
+                - [x] In the dev host window, press `Ctrl+Shift+P` / `Cmd+Shift+P`, type `IVGFiddle: Open`, and run the `ivgfiddle.open` command.
+                - [x] Open the Webview developer tools via **Help** → **Toggle Developer Tools** and switch to the **Console** tab.
+                - [x] Verify the console contains the activation message `IVGFiddle extension activated` and that no red error entries about missing files or CSP violations appear when the panel loads.
+                - [x] Close the dev tools and ensure the panel content area is blank (expected until Milestone 2 wiring is complete).
 
 ## Milestone 2: Webview Integration with Static IVGFiddle
-- [ ] Instantiate a Webview panel in `extension.ts` that loads `ivgfiddle.html` from the bundled assets using `asWebviewUri`.
-	- [ ] Build a helper `getWebviewContent(webview: vscode.Webview)` that reads `media/ivgfiddle.html` from disk, then rewrites `src`/`href` attributes via regex to call `webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", path))`.
-	- [ ] Store the panel instance in a module-level variable to keep a single shared view (focus if already open).
-- [ ] Adjust the HTML to satisfy VS Code’s default Content Security Policy (move inline scripts/styles into separate files if necessary).
-	- [ ] Extract inline `<script>` blocks to files under `media/scripts/` and reference them with `<script src="..." nonce="${nonce}"></script>` using a generated nonce in the extension code.
-	- [ ] Replace inline styles with a dedicated CSS file or `webview.cspSource`-scoped `<style>` tag emitted from the extension.
-- [ ] Ensure all asset URIs are rewritten to use Webview URIs without relying on additional build tooling.
-	- [ ] Parse `ivgfiddle.html` for `src`, `href`, and `url(...)` references; for data attributes in JavaScript, replace string literals (e.g., `"./assets/foo.png"`) using a small transformation step executed when reading the file.
-	- [ ] Provide a fallback that throws if a referenced asset is missing to surface issues early during activation.
+- [x] Instantiate a Webview panel in `extension.ts` that loads `ivgfiddle.html` from the bundled assets using `asWebviewUri`.
+	- [x] Build a helper `getWebviewContent(webview: vscode.Webview)` that reads `media/ivgfiddle.html` from disk, then rewrites `src`/`href` attributes via regex to call `webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", path))`.
+	- [x] Store the panel instance in a module-level variable to keep a single shared view (focus if already open).
+- [x] Adjust the HTML to satisfy VS Code’s default Content Security Policy (move inline scripts/styles into separate files if necessary).
+	- [x] Extract inline `<script>` blocks to files under `media/scripts/` and reference them with `<script src="..." nonce="${nonce}"></script>` using a generated nonce in the extension code. (No inline scripts were present; external bundles now receive a nonce during injection.)
+	- [x] Replace inline styles with a dedicated CSS file or `webview.cspSource`-scoped `<style>` tag emitted from the extension.
+- [x] Ensure all asset URIs are rewritten to use Webview URIs without relying on additional build tooling.
+	- [x] Parse `ivgfiddle.html` for `src`, `href`, and `url(...)` references; for data attributes in JavaScript, replace string literals (e.g., `"./assets/foo.png"`) using a small transformation step executed when reading the file.
+	- [x] Provide a fallback that throws if a referenced asset is missing to surface issues early during activation.
 - [ ] **Tests:**
         - [ ] _Webview rendering check_
                 - [ ] Launch the Extension Development Host as described in Milestone 1.

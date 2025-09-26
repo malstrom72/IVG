@@ -1,0 +1,55 @@
+body {
+	background: black;
+}
+
+.flex-row {
+	display: flex;
+	flex-direction: row;
+}
+
+.flex-col {
+	display: flex;
+	flex-direction: column;
+}
+
+.grow {
+	flex-grow: 1;
+}
+
+#stage {
+	height: 100%;
+}
+
+#traceDiv {
+	height: 25%;
+	min-height: 50px;
+	max-height: 150px;
+	overflow-y: scroll;
+	background: black;
+	color: lime;
+	padding-left: 5px;
+}
+
+#leftRightSplit {
+	width: 3px;
+	background: green;
+	cursor: ew-resize;
+}
+
+#leftPanel {
+	width: 50%;
+	min-width: 250px;
+}
+
+#rightPanel {
+	flex-grow: 1;
+	overflow: auto;
+	background-color: #444;
+	background-image:
+		linear-gradient(45deg, #888 25%, transparent 25%),
+		linear-gradient(-45deg, #888 25%, transparent 25%),
+		linear-gradient(45deg, transparent 75%, #888 75%),
+		linear-gradient(-45deg, transparent 75%, #888 75%);
+	background-size: 20px 20px;
+	background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+}
