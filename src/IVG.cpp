@@ -2271,7 +2271,7 @@ bool FontParser::execute(Interpreter& impd, const String& instruction, const Str
 	switch (fontInstruction) {
 		case FONT_METRICS_INSTRUCTION: {
 			if (metrics.upm != 0.0) {
-				impd.throwRunTimeError("Duplicate metrics instruction in font definition");
+				impd.throwRunTimeError("Duplicate \"metrics\" instruction in the font definition.");
 			}
 
 			metrics.upm = impd.toDouble(args.fetchRequired("upm"));
@@ -2284,7 +2284,7 @@ bool FontParser::execute(Interpreter& impd, const String& instruction, const Str
 			args.throwIfAnyUnfetched();
 
 			if (metrics.upm <= 0.0 || metrics.ascent < 0 || metrics.descent > 0) {
-				impd.throwRunTimeError("Invalid metrics instruction in font definition");
+				impd.throwRunTimeError("Invalid \"metrics\" instruction in the font definition.");
 			}
 			return true;
 		}
@@ -2301,7 +2301,7 @@ bool FontParser::execute(Interpreter& impd, const String& instruction, const Str
 			args.throwIfAnyUnfetched();
 
 			if (metrics.upm == 0.0) {
-				impd.throwRunTimeError("Missing metrics before glyph instruction in font definition");
+				impd.throwRunTimeError("Missing \"metrics\" block before the glyph instruction in the font definition.");
 			}
 			if (glyph.advance < 0.0) {
 				impd.throwRunTimeError(String("Negative glyph advance \"")

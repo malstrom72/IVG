@@ -167,10 +167,10 @@ delimiters or other Markdown-sensitive characters.
 | > `String("Duplicate image definition: ") + String(name.begin(), name.end())` | Duplicate image definition "{name}". | `src/IVG.cpp:L1319` |
 | > `String("Duplicate path definition: ") + String(name.begin(), name.end())` | Duplicate path definition "{name}". | `src/IVG.cpp:L1335` |
 | > `String("Duplicate pattern definition: ") + String(name.begin(), name.end())` | Duplicate pattern definition "{name}". | `src/IVG.cpp:L1348` |
-| > `"Duplicate metrics instruction in font definition"` | Duplicate "metrics" instruction in the font definition. | `src/IVG.cpp:L2262` |
-| > `"Invalid metrics instruction in font definition"` | Invalid "metrics" instruction in the font definition. | `src/IVG.cpp:L2275` |
+| > `"Duplicate \"metrics\" instruction in the font definition."` | Duplicate "metrics" instruction in the font definition. | `src/IVG.cpp:L2262` |
+| > `"Invalid \"metrics\" instruction in the font definition."` | Invalid "metrics" instruction in the font definition. | `src/IVG.cpp:L2275` |
 | > `String("Invalid glyph character (length is not 1): ") + String(ws.begin(), ws.end())` | Invalid glyph character "{glyph}" (length must be 1). | `src/IVG.cpp:L2284` |
-| > `"Missing metrics before glyph instruction in font definition"` | Missing "metrics" block before the glyph instruction in the font definition. | `src/IVG.cpp:L2292` |
+| > `"Missing \"metrics\" block before the glyph instruction in the font definition."` | Missing "metrics" block before the glyph instruction in the font definition. | `src/IVG.cpp:L2292` |
 | > `String("Negative glyph advance in font definition: ") + impd.toString(glyph.advance)` | Negative glyph advance "{advance}" in the font definition. | `src/IVG.cpp:L2295` |
 | > `String("Duplicate glyph definition in font definition (unicode: ") + impd.toString(static_cast<int>(glyph.character)) + ")"` | Duplicate glyph definition for code point "{glyph}" in the font definition. | `src/IVG.cpp:L2299` |
 | > `String("Duplicate kerning pair in font definition: ") + impd.toString(static_cast<int>(*itA)) + "," + impd.toString(static_cast<int>(*itB))` | Duplicate kerning pair "{first}", "{second}" in the font definition. | `src/IVG.cpp:L2315` |

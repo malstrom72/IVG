@@ -1,1 +1,1 @@
-Missing metrics before glyph instruction in font definition
+Missing "metrics" block before the glyph instruction in the font definition.

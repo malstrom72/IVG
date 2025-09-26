@@ -12,8 +12,8 @@ Testing ellipse_sweep_ivg1: expecting "The ellipse "sweep" option requires IVG-3
 Testing ellipse_sweep_ivg2: expecting "The ellipse "sweep" option requires IVG-3 format." ... PASS
 Testing font_duplicate_glyph: expecting "Duplicate glyph definition for code point "97" in the font definition." ... PASS
 Testing font_duplicate_kerning_pair: expecting "Duplicate kerning pair "97", "98" in the font definition." ... PASS
-Testing font_duplicate_metrics: expecting "Duplicate metrics instruction in font definition" ... PASS
-Testing font_glyph_before_metrics: expecting "Missing metrics before glyph instruction in font definition" ... PASS
+Testing font_duplicate_metrics: expecting "Duplicate "metrics" instruction in the font definition." ... PASS
+Testing font_glyph_before_metrics: expecting "Missing "metrics" block before the glyph instruction in the font definition." ... PASS
 Testing font_long_glyph_name: expecting "Invalid glyph character "ab" (length must be 1)." ... PASS
 Testing font_size_out_of_range: expecting "Font size "1000001" out of range (0..1000000]." ... PASS
 Testing gradient_stop_position: expecting "Invalid gradient stop position "2"." ... PASS
@@ -26,7 +26,7 @@ Testing invalid_define_resolution: expecting "Resolution "0" out of range (0.000
 Testing invalid_ellipse_separator: expecting "Too few list elements (got 2, expected at least 3)." ... PASS
 Testing invalid_ellipse_type: expecting "Unrecognized ellipse type "banana"." ... PASS
 Testing invalid_fill_rule: expecting "Unrecognized fill rule "zigzag"." ... PASS
-Testing invalid_font_metrics: expecting "Invalid metrics instruction in font definition" ... PASS
+Testing invalid_font_metrics: expecting "Invalid "metrics" instruction in the font definition." ... PASS
 Testing invalid_hex_color: expecting "Invalid color value "GGGGGG"." ... PASS
 Testing invalid_image_alignment: expecting "Unrecognized alignment "side"." ... PASS
 Testing invalid_line_arguments: expecting "Too few list elements (got 1, expected at least 4)." ... PASS
