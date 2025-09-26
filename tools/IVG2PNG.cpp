@@ -163,8 +163,8 @@ struct FuzzerCanvas : public SelfContainedARGB32Canvas {
 	using SelfContainedARGB32Canvas::SelfContainedARGB32Canvas;
 	virtual void defineBounds(const IntRect& newBounds) override {
 		if (newBounds.width > 0 && newBounds.height > 0
-			&& newBounds.width * newBounds.height > BOUNDS_PIXEL_LIMIT) {
-			Interpreter::throwRunTimeError(String("bounds area out of range [1..")
+				&& newBounds.width * newBounds.height > BOUNDS_PIXEL_LIMIT) {
+			Interpreter::throwRunTimeError(String("bounds area out of range [0..")
 				+ Interpreter::toString(BOUNDS_PIXEL_LIMIT)
 				+ String("]: ") + Interpreter::toString(newBounds.width * newBounds.height));
 		}
