@@ -547,12 +547,14 @@ int Interpreter::parseList(const StringRange& r, StringVector& elements, bool ex
 		first = false;
 	}
 	if (lossless_cast<int>(elements.size()) > maxElements) {
-		throwBadSyntax(String("Too many list elements (got " + toString(lossless_cast<int>(elements.size()))
-				+ ", expected at most ") + toString(maxElements) + ")");
+		throwBadSyntax(String("Too many list elements (got ")
+				+ toString(lossless_cast<int>(elements.size()))
+				+ ", expected at most " + toString(maxElements) + ").");
 	}
 	if (lossless_cast<int>(elements.size()) < minElements) {
-		throwBadSyntax(String("Too few list elements (got " + toString(lossless_cast<int>(elements.size()))
-				+ ", expected at least ") + toString(minElements) + ")");
+		throwBadSyntax(String("Too few list elements (got ")
+				+ toString(lossless_cast<int>(elements.size()))
+				+ ", expected at least " + toString(minElements) + ").");
 	}
 	return lossless_cast<int>(elements.size());
 }
@@ -737,7 +739,7 @@ StringIt Interpreter::parseDouble(StringIt p, const StringIt& e, double& v) {
 int Interpreter::toInt(const StringRange& r) {
 	int32_t i;
 	StringIt p = parseInt(r.b, r.e, i);
-	if (p == r.b || p != r.e) throwRunTimeError(String("Invalid integer: ") + String(r.b, r.e));
+	if (p == r.b || p != r.e) throwRunTimeError(String("Invalid integer \"") + String(r.b, r.e) + "\".");
 	return i;
 }
 
@@ -745,17 +747,17 @@ double Interpreter::toDouble(const StringRange& r) {
 	double v;
 	StringIt q = parseDouble(r.b, r.e, v);
 	if (q == r.b || q != r.e) {
-		throwRunTimeError(String("Invalid number: ") + String(r.b, r.e));
+		throwRunTimeError(String("Invalid number \"") + String(r.b, r.e) + "\".");
 	}
 	if (!isFinite(v)) {
-		throwRunTimeError(String("Number overflow: ") + String(r.b, r.e));
+		throwRunTimeError(String("Number overflow \"") + String(r.b, r.e) + "\".");
 	}
 	return v;
 }
 
 bool Interpreter::toBool(const String& s) {
 	if (s == YES_STRING) return true;
-	else if (s != NO_STRING) throwRunTimeError(String("Invalid boolean (should be 'yes' or 'no'): ") + s);
+	else if (s != NO_STRING) throwRunTimeError(String("Invalid boolean value \"") + s + "\"; expected \"yes\" or \"no\".");
 	return false;
 }
 
@@ -1250,7 +1252,7 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 	int foundIndex = findBuiltInInstruction(lossless_cast<int>(instructionString.size()), instructionString.c_str());
 	if (foundIndex < 0) {
 		if (executor.execute(*this, instructionString, argumentsRange) || instructionString == "meta") return;
-		else throwBadSyntax(String("Unrecognized instruction: ") + instructionString);
+		else throwBadSyntax(String("Unrecognized instruction \"") + instructionString + "\".");
 	}
 	
 	ArgumentVector allArguments;

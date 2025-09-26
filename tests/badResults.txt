@@ -1,7 +1,7 @@
 1
 Exception: Invalid instruction keyword.
 in statement: 2
-Exception: Unrecognized instruction: grmlb
+Exception: Unrecognized instruction "grmlb".
 in statement: grmlb
 Exception: Missing "*/" terminator.
 in statement: _DEBUG unterminated /*
@@ -43,9 +43,9 @@ Exception: Invalid variable name.
 in statement: LOCAL [ $y = 23; x = $y; ]
 Exception: Variable mIxEdCase does not exist
 in statement: x = $mIxEdCase
-Exception: Invalid number: not a number
+Exception: Invalid number "not a number".
 in statement: TRACE {$a-b}
-Exception: Invalid number: not a number
+Exception: Invalid number "not a number".
 in statement: TRACE {$c-23}
 Exception: Invalid instruction keyword.
 in statement: =x
@@ -69,19 +69,19 @@ Exception: Syntax error.
 in statement: _DEBUG x = { / 0} // syntax error
 Exception: Division by zero.
 in statement: _DEBUG x = { 23 / 0 } // division by zero is not legal
-Exception: Invalid number: y
+Exception: Invalid number "y".
 in statement: _DEBUG x = { y + 3 } // y is not number
-Exception: Invalid number: y
+Exception: Invalid number "y".
 in statement: _DEBUG x = { y + } // bad ending
-Exception: Invalid number: 23z
+Exception: Invalid number "23z".
 in statement: _DEBUG x = { (23z) % 5 } // invalid number
-Exception: Invalid number: .
+Exception: Invalid number ".".
 in statement: _DEBUG x = {.+.} // invalid number
-Exception: Invalid number: a
+Exception: Invalid number "a".
 in statement: _DEBUG x = {+a} // invalid number
-Exception: Invalid number: 1e
+Exception: Invalid number "1e".
 in statement: _DEBUG x = {+(1e)} // invalid number
-Exception: Invalid number: 1e.0
+Exception: Invalid number "1e.0".
 in statement: _DEBUG x = {+(1e.0)} // invalid number
 Exception: Encountered STOP instruction
 in statement: STOP
@@ -107,7 +107,7 @@ Exception: Missing argument "from".
 in statement: FOR x to:100 []
 Exception: Missing indexed argument #2.
 in statement: FOR x from:0 to:100
-Exception: Invalid integer: 
+Exception: Invalid integer "".
 in statement: REPEAT while:[no] []
 Exception: Duplicate label "while".
 in statement: REPEAT while:[no] 100 while:[yes] []
@@ -119,7 +119,7 @@ Exception: Syntax error.
 in statement: TRACE {"abcd"{}} // syntax error
 Exception: Syntax error.
 in statement: TRACE {"abcd"{:}} // syntax error
-Exception: Invalid number: a
+Exception: Invalid number "a".
 in statement: TRACE {"abcd"{a:b}} // invalid number
 Exception: Division by zero.
 in statement: TRACE {1 / 0} // Division by zero
@@ -146,7 +146,7 @@ Exception: Missing ")".
 in statement: TRACE {(1+2}
 Exception: Number overflow.
 in statement: TRACE {1e309}
-Exception: Invalid boolean (should be 'yes' or 'no'): maybe
+Exception: Invalid boolean value "maybe"; expected "yes" or "no".
 in statement: IF maybe []
 Exception: Could not include file: missing.impd
 in statement: INCLUDE missing.impd

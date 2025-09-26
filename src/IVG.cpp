@@ -51,20 +51,20 @@ const double COORDINATE_LIMIT = 1000000.0;
 
 void checkBounds(const IntRect& bounds) {
 	if (bounds.left < -32768 || bounds.left > 32767) {
-		Interpreter::throwRunTimeError(String("bounds left out of range (-32768..32767): ")
-				+ Interpreter::toString(bounds.left));
+		Interpreter::throwRunTimeError(String("\"bounds\" left \"")
+				+ Interpreter::toString(bounds.left) + "\" out of range (-32768..32767).");
 	}
 	if (bounds.top < -32768 || bounds.top > 32767) {
-		Interpreter::throwRunTimeError(String("bounds top out of range (-32768..32767): ")
-				+ Interpreter::toString(bounds.top));
+		Interpreter::throwRunTimeError(String("\"bounds\" top \"")
+				+ Interpreter::toString(bounds.top) + "\" out of range (-32768..32767).");
 	}
 	if (bounds.width < 1 || bounds.width > 32767) {
-		Interpreter::throwRunTimeError(String("bounds width out of range (1..32767): ")
-				+ Interpreter::toString(bounds.width));
+		Interpreter::throwRunTimeError(String("\"bounds\" width \"")
+				+ Interpreter::toString(bounds.width) + "\" out of range (1..32767).");
 	}
 	if (bounds.height < 1 || bounds.height > 32767) {
-		Interpreter::throwRunTimeError(String("bounds height out of range (1..32767): ")
-				+ Interpreter::toString(bounds.height));
+		Interpreter::throwRunTimeError(String("\"bounds\" height \"")
+				+ Interpreter::toString(bounds.height) + "\" out of range (1..32767).");
 	}
 }
 
@@ -132,7 +132,7 @@ static Mask8::Pixel parseOpacity(const Interpreter& impd, const StringRange& r) 
 		if (p - (r.b + 1) != 2) impd.throwBadSyntax(String("Invalid opacity \"") + String(r.b + 1, r.e) + "\".");
 	} else {
 		double d = impd.toDouble(r);
-		if (d < 0.0 || d > 1.0) impd.throwRunTimeError(String("opacity out of range (0..1): ") + impd.toString(d));
+	if (d < 0.0 || d > 1.0) impd.throwRunTimeError(String("Opacity \"") + impd.toString(d) + "\" out of range (0..1).");
 		i = min(static_cast<int>(d * 256), 255);
 	}
 	assert(0 <= i && i < 256);
@@ -165,8 +165,8 @@ static void appendArcSegment(const Vertex& startPos, const Vertex& endPos, doubl
 	const double sweepSign = (sweepCW ? largeArcSign : -largeArcSign);
 	const double aspectRatio = rx / ry;
 	if (!(aspectRatio > EPSILON && aspectRatio < 1e6)) {
-		Interpreter::throwRunTimeError(String("ellipse aspect ratio out of range (0..1000000): ")
-				+ Interpreter::toString(aspectRatio));
+		Interpreter::throwRunTimeError(String("Ellipse aspect ratio \"")
+				+ Interpreter::toString(aspectRatio) + "\" out of range (0..1000000).");
 	}
 	const double l = dx * dx + (aspectRatio * dy) * (aspectRatio * dy);
 	const double b = max(4.0 * rx * rx / l - 1.0, EPSILON);
@@ -454,8 +454,8 @@ static bool parseNumericColor(Interpreter& impd, const StringRange& r, ARGB32::P
 			int count = parseNumberList(impd, StringRange(p, r.e - 1), n, 3, 4);
 			for (int i = 0; i < count; ++i) {
 				if (n[i] < 0.0 || n[i] > 1.0) {
-					impd.throwRunTimeError(String("hsv value number ") + impd.toString(i + 1)
-							+ " out of range (0..1): " + impd.toString(n[i]));
+				impd.throwRunTimeError(String("HSV value #") + impd.toString(i + 1)
+						+ String(" \"") + impd.toString(n[i]) + "\" out of range (0..1).");
 				}
 			}
 			assert(count == 3 || count == 4);
@@ -927,8 +927,8 @@ GradientSpec::GradientSpec(const Interpreter& impd, const String& source, bool r
 		coords[3] = coords[2];
 	}
 	if (isRadial && (coords[2] < 0.0 || coords[3] < 0.0)) {
-			impd.throwRunTimeError(String("Negative radial gradient radius: ")
-					+ impd.toString(coords[coords[2] < 0.0 ? 2 : 3]));
+			impd.throwRunTimeError(String("Negative radial gradient radius \"")
+					+ impd.toString(coords[coords[2] < 0.0 ? 2 : 3]) + "\".");
 	}
 
 	const String* s = gradientArgs.fetchOptional("stops");
@@ -1011,7 +1011,7 @@ template<class PIXEL_TYPE> void Canvas::parsePaintOfType(Interpreter& impd, IVGE
 			const IMPD::WideString name = impd.unescapeToWide(*s);
 			IVGExecutor::PatternMap::const_iterator it = executor.getDefinedPatterns().find(name);
 			if (it == executor.getDefinedPatterns().end()) {
-				Interpreter::throwRunTimeError(String("Undefined pattern: ") + String(name.begin(), name.end()));
+				Interpreter::throwRunTimeError(String("Undefined pattern \"") + String(name.begin(), name.end()) + "\".");
 			}
 			paint.painter = it->second;
 		} else {
@@ -1079,7 +1079,7 @@ void Context::stroke(const Path& path, Stroke& stroke, const Rect<double>& paint
 		strokePath.transform(state.transformation);
 		PolygonMask polygonMask(strokePath, canvas.getBounds());
 		if (!polygonMask.isValid()) {
-			Interpreter::throwRunTimeError("Vertices out of range (-8388607..8388607)");
+			Interpreter::throwRunTimeError("Vertices fall outside the valid coordinate range (-8388607..8388607).");
 		}
 		stroke.paint.doPaint(*this, paintSourceBounds, CombinedMask(polygonMask, state.mask, state.options.gammaTable));
 	}
@@ -1095,7 +1095,7 @@ void Context::fill(const Path& path, Paint& fill, bool evenOddFillRule, const Re
 		fillPath.transform(state.transformation);
 		PolygonMask polygonMask(fillPath, canvas.getBounds(), *fillRule);
 		if (!polygonMask.isValid()) {
-			Interpreter::throwRunTimeError("Vertices out of range (-8388607..8388607)");
+			Interpreter::throwRunTimeError("Vertices fall outside the valid coordinate range (-8388607..8388607).");
 		}
 		fill.doPaint(*this, paintSourceBounds, CombinedMask(polygonMask, state.mask, state.options.gammaTable));
 	}
@@ -1171,7 +1171,7 @@ void IVGExecutor::parseStroke(Interpreter& impd, ArgumentsContainer& args, Strok
 	const String* s;
 	if ((s = args.fetchOptional("width")) != 0) {
 		double d = impd.toDouble(*s);
-		if (d < 0.0) impd.throwRunTimeError(String("Negative stroke width: ") + impd.toString(d));
+		if (d < 0.0) impd.throwRunTimeError(String("Negative stroke width \"") + impd.toString(d) + "\".");
 		stroke.width = d;
 	}
 	if ((s = args.fetchOptional("caps")) != 0) {
@@ -1190,7 +1190,7 @@ void IVGExecutor::parseStroke(Interpreter& impd, ArgumentsContainer& args, Strok
 	}
 	if ((s = args.fetchOptional("miter-limit")) != 0) {
 		double d = impd.toDouble(*s);
-		if (d < 1.0) impd.throwRunTimeError(String("miter-limit out of range (1..infinity): ") + impd.toString(d));
+		if (d < 1.0) impd.throwRunTimeError(String("\"miter-limit\" value \"") + impd.toString(d) + "\" out of range (1..infinity).");
 		stroke.miterLimit = d;
 	}
 	if ((s = args.fetchOptional("dash")) != 0) {
@@ -1202,11 +1202,11 @@ void IVGExecutor::parseStroke(Interpreter& impd, ArgumentsContainer& args, Strok
 			int count = parseNumberList(impd, *s, numbers, 1, 2);
 			double dash = numbers[0];
 			if (dash < 0.0) {
-				impd.throwRunTimeError(String("Negative dash value: ") + impd.toString(dash));
+				impd.throwRunTimeError(String("Negative dash value \"") + impd.toString(dash) + "\".");
 			}
 			double gap = (count == 1 ? numbers[0] : numbers[1]);
 			if (gap < 0.0) {
-				impd.throwRunTimeError(String("Negative gap value: ") + impd.toString(gap));
+				impd.throwRunTimeError(String("Negative gap value \"") + impd.toString(gap) + "\".");
 			}
 			stroke.dash = dash;
 			stroke.gap = gap;
@@ -1301,7 +1301,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		args.throwIfAnyUnfetched();
 
 		if (embeddedFonts.find(name) != embeddedFonts.end()) {
-			Interpreter::throwRunTimeError(String("Duplicate font definition: ") + String(name.begin(), name.end()));
+			Interpreter::throwRunTimeError(String("Duplicate font definition \"") + String(name.begin(), name.end()) + "\".");
 		}
 		IVG::FontParser fontParser(this);
 		Interpreter newInterpreter(fontParser, impd);
@@ -1315,12 +1315,12 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		const String* s = args.fetchOptional("resolution");
 		const double resolution = (s != 0 ? impd.toDouble(*s) : 1.0);
 		if (resolution < 0.0001) {
-			impd.throwRunTimeError(String("resolution out of range (0.0001..infinity): ") + impd.toString(resolution));
+			impd.throwRunTimeError(String("Resolution \"") + impd.toString(resolution) + "\" out of range (0.0001..infinity).");
 		}
 		args.throwIfAnyUnfetched();
 
 		if (definedImages.find(name) != definedImages.end()) {
-			Interpreter::throwRunTimeError(String("Duplicate image definition: ") + String(name.begin(), name.end()));
+			Interpreter::throwRunTimeError(String("Duplicate image definition \"") + String(name.begin(), name.end()) + "\".");
 		}
 
 		SelfContainedARGB32Canvas offscreenCanvas(resolution);
@@ -1336,7 +1336,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		args.throwIfAnyUnfetched();
 
 		if (definedPaths.find(name) != definedPaths.end()) {
-			Interpreter::throwRunTimeError(String("Duplicate path definition: ") + String(name.begin(), name.end()));
+			Interpreter::throwRunTimeError(String("Duplicate path definition \"") + String(name.begin(), name.end()) + "\".");
 		}
 
         ArgumentsContainer pathArgs(ArgumentsContainer::parse(impd, definition));
@@ -1349,7 +1349,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		args.throwIfAnyUnfetched();
 
 		if (definedPatterns.find(name) != definedPatterns.end()) {
-			Interpreter::throwRunTimeError(String("Duplicate pattern definition: ") + String(name.begin(), name.end()));
+			Interpreter::throwRunTimeError(String("Duplicate pattern definition \"") + String(name.begin(), name.end()) + "\".");
 		}
 
 		std::unique_ptr< PatternPainter<NuXPixels::ARGB32> > patternPainter(new PatternPainter<NuXPixels::ARGB32>(currentContext->calcPatternScale()));
@@ -1399,7 +1399,7 @@ void IVGExecutor::buildPath(Interpreter& impd, ArgumentsContainer& args, const S
             const WideString name = impd.unescapeToWide(impd.expand(arg0));
             PathMap::const_iterator it = definedPaths.find(name);
             if (it == definedPaths.end()) {
-                Interpreter::throwRunTimeError(String("Undefined path: ") + String(name.begin(), name.end()));
+                Interpreter::throwRunTimeError(String("Undefined path \"") + String(name.begin(), name.end()) + "\".");
             }
             path = it->second;
         } else {
@@ -1472,14 +1472,14 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 		doFitWidth = true;
 		fitWidth = impd.toDouble(*s);
 		if (fitWidth < 0.0 || fitWidth > COORDINATE_LIMIT) {
-			impd.throwRunTimeError(String("Image width out of range (0..1000000): ") + impd.toString(fitWidth));
+			impd.throwRunTimeError(String("Image width \"") + impd.toString(fitWidth) + "\" out of range (0..1000000).");
 		}
 	}
 	if ((s = args.fetchOptional("height")) != 0) {
 		doFitHeight = true;
 		fitHeight = impd.toDouble(*s);
 		if (fitHeight < 0.0 || fitHeight > COORDINATE_LIMIT) {
-			impd.throwRunTimeError(String("Image height out of range (0..1000000): ") + impd.toString(fitHeight));
+			impd.throwRunTimeError(String("Image height \"") + impd.toString(fitHeight) + "\" out of range (0..1000000).");
 		}
 	}
 	if (doFitWidth || doFitHeight) {
@@ -1497,10 +1497,10 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	if ((s = args.fetchOptional("clip")) != 0) {
 		parseNumberList(impd, *s, numbers, 4, 4);
 		if (numbers[2] < 0.0) {
-			impd.throwRunTimeError(String("Negative clip width: ") + impd.toString(numbers[2]));
+			impd.throwRunTimeError(String("Negative clip width \"") + impd.toString(numbers[2]) + "\".");
 		}
 		if (numbers[3] < 0.0) {
-			impd.throwRunTimeError(String("Negative clip height: ") + impd.toString(numbers[2]));
+			impd.throwRunTimeError(String("Negative clip height \"") + impd.toString(numbers[2]) + "\".");
 		}
 		sourceRectangle = IntRect(static_cast<int>(floor(numbers[0]))
 				, static_cast<int>(floor(numbers[1]))
@@ -1525,7 +1525,7 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 		image = loadImage(impd, imageName, gotSourceRectangle ? &sourceRectangle : 0
 				, doStretch, forXSize, !doFitWidth, forYSize, !doFitHeight);
 		if (image.raster == 0) {
-			Interpreter::throwRunTimeError(String("Missing image: ") + String(imageName.begin(), imageName.end()));
+			Interpreter::throwRunTimeError(String("Missing image \"") + String(imageName.begin(), imageName.end()) + "\".");
 		}
 	}
 	assert(image.xResolution > 0);
@@ -1637,10 +1637,10 @@ static Path& makeRectPath(Path& path, Interpreter& impd, ArgumentsContainer& arg
 	const String* s = args.fetchOptional("rounded");
 	args.throwIfAnyUnfetched();
 	if (numbers[2] < 0.0) {
-		impd.throwRunTimeError(String("Negative rectangle width: ") + impd.toString(numbers[2]));
+		impd.throwRunTimeError(String("Negative rectangle width \"") + impd.toString(numbers[2]) + "\".");
 	}
 	if (numbers[3] < 0.0) {
-		impd.throwRunTimeError(String("Negative rectangle height: ") + impd.toString(numbers[3]));
+		impd.throwRunTimeError(String("Negative rectangle height \"") + impd.toString(numbers[3]) + "\".");
 	}
 	if (s == 0) {
 		path.addRect(numbers[0], numbers[1], numbers[2], numbers[3]);
@@ -1649,8 +1649,8 @@ static Path& makeRectPath(Path& path, Interpreter& impd, ArgumentsContainer& arg
 		int count = parseNumberList(impd, *s, rounded, 1, 2);
 		if (count == 1) rounded[1] = rounded[0];
 		if (rounded[0] < 0.0 || rounded[1] < 0.0) {
-			impd.throwRunTimeError(String("Negative rounded corner radius: ")
-					+ impd.toString(rounded[0] < 0.0 ? rounded[0] : rounded[1]));
+			impd.throwRunTimeError(String("Negative rounded corner radius \"")
+					+ impd.toString(rounded[0] < 0.0 ? rounded[0] : rounded[1]) + "\".");
 		}
 		path.addRoundedRect(numbers[0], numbers[1], numbers[2], numbers[3]
 				, min(rounded[0], numbers[2] * 0.5), min(rounded[1], numbers[3] * 0.5), curveQuality);
@@ -1666,7 +1666,7 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 	const double rx = parsed[2];
 	const double ry = (count == 4 ? parsed[3] : parsed[2]);
 	if (rx < 0.0 || ry < 0.0) {
-		impd.throwRunTimeError(String("Negative ellipse radius: ") + impd.toString(rx < 0.0 ? rx : ry));
+		impd.throwRunTimeError(String("Negative ellipse radius \"") + impd.toString(rx < 0.0 ? rx : ry) + "\".");
 	}
 
 	const String* sweepArg = args.fetchOptional("sweep");
@@ -1720,10 +1720,10 @@ static Path& makeStarPath(Path& path, Interpreter& impd, ArgumentsContainer& arg
 	double r2 = (count == 5 ? numbers[4] : r1);
 	double rotation = (s != 0 ? impd.toDouble(*s) * DEGREES : 0.0);
 	if (points <= 0 || points > 10000) {
-		impd.throwRunTimeError(String("star points out of range (1..10000): ") + impd.toString(points));
+		impd.throwRunTimeError(String("Star points \"") + impd.toString(points) + "\" out of range (1..10000).");
 	}
 	if (r1 < 0.0 || r2 < 0.0) {
-		impd.throwRunTimeError(String("Negative star radius: ") + impd.toString(r1 < 0.0 ? r1 : r2));
+		impd.throwRunTimeError(String("Negative star radius \"") + impd.toString(r1 < 0.0 ? r1 : r2) + "\".");
 	}
 	return path.addStar(cx, cy, points, r1, r2, rotation);
 }
@@ -1765,8 +1765,8 @@ Path IVGExecutor::makeTextPath(Interpreter& impd, const UniString& text, double&
 	}
 	const std::vector<const Font*> fonts = lookupExternalOrInternalFonts(impd, state.textStyle.fontName, text);
 	if (fonts.empty()) {
-		Interpreter::throwRunTimeError(String("Missing font: ")
-			+ String(state.textStyle.fontName.begin(), state.textStyle.fontName.end()));
+		Interpreter::throwRunTimeError(String("Missing font \"")
+			+ String(state.textStyle.fontName.begin(), state.textStyle.fontName.end()) + "\".");
 	}
 	const char* errorString;
 	Path textPath;
@@ -1868,21 +1868,21 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			if ((s = args.fetchOptional("aa-gamma")) != 0) {
 				double d = impd.toDouble(*s);
 				if (d < 0.0001 || d > 99.9999) {
-					impd.throwRunTimeError(String("aa-gamma out of range (0..100): ") + impd.toString(d));
+					impd.throwRunTimeError(String("\"aa-gamma\" value \"") + impd.toString(d) + "\" out of range (0..100).");
 				}
 				state.options.setGamma(d);
 			}
 			if ((s = args.fetchOptional("curve-quality")) != 0) {
 				double d = impd.toDouble(*s);
 				if (d < 0.0001 || d > 99.9999) {
-					impd.throwRunTimeError(String("curve-quality out of range (0..100): ") + impd.toString(d));
+					impd.throwRunTimeError(String("\"curve-quality\" value \"") + impd.toString(d) + "\" out of range (0..100).");
 				}
 				state.options.curveQuality = d;
 			}
 			if ((s = args.fetchOptional("pattern-resolution")) != 0) {
 				double d = impd.toDouble(*s);
 				if (d < 0.0001 || d > 99.9999) {
-					impd.throwRunTimeError(String("pattern-resolution out of range (0..100): ") + impd.toString(d));
+					impd.throwRunTimeError(String("\"pattern-resolution\" value \"") + impd.toString(d) + "\" out of range (0..100).");
 				}
 				state.options.patternResolution = d;
 			}
@@ -1995,8 +1995,8 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 					Interpreter::throwRunTimeError("Invalid font name.");
 				}
 				if (lookupExternalOrInternalFonts(impd, newFontName, UniString()).empty()) {
-					Interpreter::throwRunTimeError(String("Missing font: ")
-							+ String(newFontName.begin(), newFontName.end()));
+					Interpreter::throwRunTimeError(String("Missing font \"")
+							+ String(newFontName.begin(), newFontName.end()) + "\".");
 				}
 				state.textStyle.fontName = newFontName;
 			}
@@ -2014,7 +2014,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			if ((s = args.fetchOptional("size", true)) != 0) {
 				double d = impd.toDouble(*s);
 				if (d <= 0.0 || d > 1000000.0) {
-					impd.throwRunTimeError(String("font size out of range (0..1000000]: ") + impd.toString(d));
+					impd.throwRunTimeError(String("Font size \"") + impd.toString(d) + "\" out of range (0..1000000].");
 				}
 				state.textStyle.size = d;
 			}
@@ -2293,7 +2293,7 @@ bool FontParser::execute(Interpreter& impd, const String& instruction, const Str
 			Font::Glyph glyph;
 			const UniString ws = impd.unescapeToUni(args.fetchRequired(0));
 			if (ws.size() != 1) {
-				impd.throwRunTimeError(String("Invalid glyph character (length is not 1): ") + String(ws.begin(), ws.end()));
+				impd.throwRunTimeError(String("Invalid glyph character \"") + String(ws.begin(), ws.end()) + "\" (length must be 1).");
 			}
 			glyph.character = static_cast<UniChar>(ws[0]);
 			glyph.advance = impd.toDouble(args.fetchRequired(1));
@@ -2304,12 +2304,12 @@ bool FontParser::execute(Interpreter& impd, const String& instruction, const Str
 				impd.throwRunTimeError("Missing metrics before glyph instruction in font definition");
 			}
 			if (glyph.advance < 0.0) {
-				impd.throwRunTimeError(String("Negative glyph advance in font definition: ")
-						+ impd.toString(glyph.advance));
+				impd.throwRunTimeError(String("Negative glyph advance \"")
+						+ impd.toString(glyph.advance) + "\" in the font definition.");
 			}
 			if (!glyphs.insert(std::make_pair(glyph.character, glyph)).second) {
-				impd.throwRunTimeError(String("Duplicate glyph definition in font definition (unicode: ")
-						+ impd.toString(static_cast<int>(glyph.character)) + ")");
+				impd.throwRunTimeError(String("Duplicate glyph definition for code point \"")
+						+ impd.toString(static_cast<int>(glyph.character)) + "\" in the font definition.");
 			}
 			return true;
 		}
@@ -2324,8 +2324,8 @@ bool FontParser::execute(Interpreter& impd, const String& instruction, const Str
 				for (UniString::const_iterator itA = a.begin(); itA != a.end(); ++itA) {
 					for (UniString::const_iterator itB = b.begin(); itB != b.end(); ++itB) {
 						if (!kerningPairs.insert(std::make_pair(std::make_pair(*itA, *itB), adjust)).second) {
-							impd.throwRunTimeError(String("Duplicate kerning pair in font definition: ")
-									+ impd.toString(static_cast<int>(*itA)) + "," + impd.toString(static_cast<int>(*itB)));
+							impd.throwRunTimeError(String("Duplicate kerning pair \"")
+									+ impd.toString(static_cast<int>(*itA)) + "\", \"" + impd.toString(static_cast<int>(*itB)) + "\" in the font definition.");
 						}
 					}
 				}
