@@ -205,9 +205,12 @@ function scheduleDocument(document) {
 }
 function syncActiveDocument(reason) {
     if (reason === 'clear') {
-        if (statusBarItem) {
-            statusBarItem.hide();
+        const fallback = getLastPreviewDocument();
+        if (fallback) {
+            showStatusBar(fallback, 'focus');
+            return;
         }
+        hideStatusBar();
         return;
     }
     const activeDocument = getActiveIvgDocument();
@@ -216,16 +219,16 @@ function syncActiveDocument(reason) {
         syncDocument(activeDocument, resolved);
         return;
     }
-    if (reason === 'panelFocus') {
-        const fallback = getLastPreviewDocument();
-        if (fallback) {
+    const fallback = getLastPreviewDocument();
+    if (fallback) {
+        if (reason === 'panelFocus') {
             syncDocument(fallback, 'focus');
             return;
         }
+        showStatusBar(fallback, 'focus');
+        return;
     }
-    if (statusBarItem) {
-        statusBarItem.hide();
-    }
+    hideStatusBar();
 }
 function syncDocument(document, reason) {
     if (!ivgPanel) {
@@ -241,11 +244,7 @@ function syncDocument(document, reason) {
         status,
     });
     lastPreviewDocumentUri = document.uri.toString();
-    if (statusBarItem) {
-        statusBarItem.text = `$(sync) IVGFiddle Preview: ${fileName}`;
-        statusBarItem.tooltip = document.uri.fsPath;
-        statusBarItem.show();
-    }
+    showStatusBar(document, reason);
 }
 function queueMessage(message) {
     if (!ivgPanel) {
@@ -272,12 +271,27 @@ function flushPendingMessages() {
 function fileNameFromDocument(document) {
     const fsPath = document.fileName;
     const forwardSlash = fsPath.lastIndexOf('/');
-    const backwardSlash = fsPath.lastIndexOf('\\');
+    const backwardSlash = fsPath.lastIndexOf(String.fromCharCode(92));
     const index = Math.max(forwardSlash, backwardSlash);
     if (index >= 0) {
         return fsPath.substring(index + 1);
     }
     return fsPath;
+}
+function showStatusBar(document, reason) {
+    if (!statusBarItem) {
+        return;
+    }
+    const fileName = fileNameFromDocument(document);
+    const icon = reason === 'change' ? 'sync~spin' : 'sync';
+    statusBarItem.text = `$(${icon}) IVGFiddle Preview: ${fileName}`;
+    statusBarItem.tooltip = document.uri.fsPath;
+    statusBarItem.show();
+}
+function hideStatusBar() {
+    if (statusBarItem) {
+        statusBarItem.hide();
+    }
 }
 function getActiveIvgDocument() {
     const editor = vscode.window.activeTextEditor;

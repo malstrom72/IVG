@@ -65,9 +65,9 @@ panel.onDidDispose(() => {
 ivgPanel = undefined;
 webviewReady = false;
 pendingMessages.length = 0;
-if (statusBarItem) {
-statusBarItem.hide();
-}
+	if (statusBarItem) {
+			statusBarItem.hide();
+	}
 });
 
 if (initialDocument) {
@@ -203,97 +203,113 @@ syncDocument(scheduledDocument, 'change');
 }
 
 function syncActiveDocument(reason: 'open' | 'focus' | 'panelFocus' | 'clear'): void {
-if (reason === 'clear') {
-if (statusBarItem) {
-statusBarItem.hide();
-}
-return;
-}
-const activeDocument = getActiveIvgDocument();
-if (activeDocument) {
-const resolved: 'open' | 'focus' = reason === 'focus' ? 'focus' : 'open';
-syncDocument(activeDocument, resolved);
-return;
-}
-if (reason === 'panelFocus') {
-const fallback = getLastPreviewDocument();
-if (fallback) {
-syncDocument(fallback, 'focus');
-return;
-}
-}
-if (statusBarItem) {
-statusBarItem.hide();
-}
+	if (reason === 'clear') {
+		const fallback = getLastPreviewDocument();
+		if (fallback) {
+			showStatusBar(fallback, 'focus');
+			return;
+		}
+		hideStatusBar();
+		return;
+	}
+	const activeDocument = getActiveIvgDocument();
+	if (activeDocument) {
+		const resolved: 'open' | 'focus' = reason === 'focus' ? 'focus' : 'open';
+		syncDocument(activeDocument, resolved);
+		return;
+	}
+	const fallback = getLastPreviewDocument();
+	if (fallback) {
+		if (reason === 'panelFocus') {
+			syncDocument(fallback, 'focus');
+			return;
+		}
+		showStatusBar(fallback, 'focus');
+		return;
+	}
+	hideStatusBar();
 }
 
 function syncDocument(document: vscode.TextDocument, reason: 'open' | 'focus' | 'change'): void {
-if (!ivgPanel) {
-return;
-}
-const source = document.getText();
-const fileName = fileNameFromDocument(document);
-const status = reason === 'change' ? `Updating preview for ${fileName}…` : `Rendering ${fileName}`;
-queueMessage({
-type: 'setSource',
-uri: document.uri.toString(),
-source,
-status,
-});
-lastPreviewDocumentUri = document.uri.toString();
-if (statusBarItem) {
-statusBarItem.text = `$(sync) IVGFiddle Preview: ${fileName}`;
-statusBarItem.tooltip = document.uri.fsPath;
-statusBarItem.show();
-}
+	if (!ivgPanel) {
+		return;
+	}
+	const source = document.getText();
+	const fileName = fileNameFromDocument(document);
+	const status = reason === 'change' ? `Updating preview for ${fileName}…` : `Rendering ${fileName}`;
+	queueMessage({
+		type: 'setSource',
+		uri: document.uri.toString(),
+		source,
+		status,
+	});
+	lastPreviewDocumentUri = document.uri.toString();
+	showStatusBar(document, reason);
 }
 
 function queueMessage(message: unknown): void {
-if (!ivgPanel) {
-return;
-}
-if (!webviewReady) {
-pendingMessages.push(message);
-return;
-}
-ivgPanel.webview.postMessage(message);
+	if (!ivgPanel) {
+		return;
+	}
+	if (!webviewReady) {
+		pendingMessages.push(message);
+		return;
+	}
+	ivgPanel.webview.postMessage(message);
 }
 
 function flushPendingMessages(): void {
-if (!ivgPanel) {
-pendingMessages.length = 0;
-return;
-}
-while (pendingMessages.length > 0) {
-const message = pendingMessages.shift();
-if (message) {
-ivgPanel.webview.postMessage(message);
-}
-}
+	if (!ivgPanel) {
+		pendingMessages.length = 0;
+		return;
+	}
+	while (pendingMessages.length > 0) {
+		const message = pendingMessages.shift();
+		if (message) {
+			ivgPanel.webview.postMessage(message);
+		}
+	}
 }
 
 function fileNameFromDocument(document: vscode.TextDocument): string {
-const fsPath = document.fileName;
-const forwardSlash = fsPath.lastIndexOf('/');
-const backwardSlash = fsPath.lastIndexOf('\\');
-const index = Math.max(forwardSlash, backwardSlash);
-if (index >= 0) {
-return fsPath.substring(index + 1);
+	const fsPath = document.fileName;
+	const forwardSlash = fsPath.lastIndexOf('/');
+	const backwardSlash = fsPath.lastIndexOf(String.fromCharCode(92));
+	const index = Math.max(forwardSlash, backwardSlash);
+	if (index >= 0) {
+		return fsPath.substring(index + 1);
+	}
+	return fsPath;
 }
-return fsPath;
+
+function showStatusBar(document: vscode.TextDocument, reason: 'open' | 'focus' | 'change'): void {
+	if (!statusBarItem) {
+		return;
+	}
+	const fileName = fileNameFromDocument(document);
+	const icon = reason === 'change' ? 'sync~spin' : 'sync';
+	statusBarItem.text = `$(${icon}) IVGFiddle Preview: ${fileName}`;
+	statusBarItem.tooltip = document.uri.fsPath;
+	statusBarItem.show();
+}
+
+function hideStatusBar(): void {
+	if (statusBarItem) {
+		statusBarItem.hide();
+	}
 }
 
 function getActiveIvgDocument(): vscode.TextDocument | undefined {
-const editor = vscode.window.activeTextEditor;
-if (editor && isIvgDocument(editor.document)) {
-return editor.document;
-}
-return undefined;
+	const editor = vscode.window.activeTextEditor;
+	if (editor && isIvgDocument(editor.document)) {
+		return editor.document;
+	}
+	return undefined;
 }
 
 function getLastPreviewDocument(): vscode.TextDocument | undefined {
-if (!lastPreviewDocumentUri) {
-return undefined;
-}
-return vscode.workspace.textDocuments.find((openDocument) => openDocument.uri.toString() === lastPreviewDocumentUri);
+	if (!lastPreviewDocumentUri) {
+		return undefined;
+	}
+	return vscode.workspace.textDocuments.find((openDocument) => openDocument.uri.toString() === lastPreviewDocumentUri);
 }
