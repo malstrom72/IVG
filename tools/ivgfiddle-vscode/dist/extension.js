@@ -37,8 +37,19 @@ exports.activate = activate;
 exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
 let ivgPanel;
+let webviewReady = false;
+let statusBarItem;
+let scheduledDocument;
+let updateTimer;
+const pendingMessages = [];
+const PREVIEW_LANGUAGE_ID = 'ivg';
+const PREVIEW_DEBOUNCE_MS = 150;
 function activate(context) {
     console.log('IVGFiddle extension activated');
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+    statusBarItem.command = 'ivgfiddle.open';
+    statusBarItem.hide();
+    context.subscriptions.push(statusBarItem);
     const disposable = vscode.commands.registerCommand('ivgfiddle.open', async () => {
         if (ivgPanel) {
             ivgPanel.reveal(ivgPanel.viewColumn ?? vscode.ViewColumn.Active);
@@ -59,11 +70,48 @@ function activate(context) {
             return;
         }
         ivgPanel = panel;
+        webviewReady = false;
+        pendingMessages.length = 0;
+        panel.webview.onDidReceiveMessage((message) => {
+            if (message && message.type === 'ready') {
+                webviewReady = true;
+                flushPendingMessages();
+            }
+        });
+        panel.onDidChangeViewState(() => {
+            if (panel.visible) {
+                syncActiveDocument('focus');
+            }
+        });
         panel.onDidDispose(() => {
             ivgPanel = undefined;
+            webviewReady = false;
+            pendingMessages.length = 0;
+            if (statusBarItem) {
+                statusBarItem.hide();
+            }
         });
+        syncActiveDocument('open');
     });
     context.subscriptions.push(disposable);
+    context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((document) => {
+        if (isIvgDocument(document)) {
+            syncDocument(document, 'open');
+        }
+    }), vscode.workspace.onDidChangeTextDocument((event) => {
+        if (isIvgDocument(event.document)) {
+            scheduleDocument(event.document);
+        }
+    }), vscode.window.onDidChangeActiveTextEditor((editor) => {
+        syncActiveDocument(editor ? 'focus' : 'clear');
+    }), vscode.workspace.onDidCloseTextDocument((document) => {
+        if (statusBarItem && (!vscode.window.visibleTextEditors.some((editor) => editor.document === document))) {
+            statusBarItem.hide();
+        }
+        if (scheduledDocument && scheduledDocument === document) {
+            scheduledDocument = undefined;
+        }
+    }));
 }
 function deactivate() {
     // Intentionally empty; no teardown required for the bootstrap milestone.
@@ -120,4 +168,81 @@ function generateNonce() {
         text += possible.charAt(Math.floor(Math.random() * possible.length));
     }
     return text;
+}
+function isIvgDocument(document) {
+    return document.languageId === PREVIEW_LANGUAGE_ID || document.uri.fsPath.toLowerCase().endsWith('.ivg');
+}
+function scheduleDocument(document) {
+    scheduledDocument = document;
+    if (updateTimer) {
+        clearTimeout(updateTimer);
+    }
+    updateTimer = setTimeout(() => {
+        updateTimer = undefined;
+        if (scheduledDocument) {
+            syncDocument(scheduledDocument, 'change');
+        }
+    }, PREVIEW_DEBOUNCE_MS);
+}
+function syncActiveDocument(reason) {
+    const editor = vscode.window.activeTextEditor;
+    if (editor && isIvgDocument(editor.document)) {
+        const resolved = reason === 'focus' ? 'focus' : 'open';
+        syncDocument(editor.document, resolved);
+        return;
+    }
+    if (statusBarItem) {
+        statusBarItem.hide();
+    }
+}
+function syncDocument(document, reason) {
+    if (!ivgPanel) {
+        return;
+    }
+    const source = document.getText();
+    const fileName = fileNameFromDocument(document);
+    const status = reason === 'change' ? `Updating preview for ${fileName}…` : `Rendering ${fileName}`;
+    queueMessage({
+        type: 'setSource',
+        uri: document.uri.toString(),
+        source,
+        status,
+    });
+    if (statusBarItem) {
+        statusBarItem.text = `$(sync) IVGFiddle Preview: ${fileName}`;
+        statusBarItem.tooltip = document.uri.fsPath;
+        statusBarItem.show();
+    }
+}
+function queueMessage(message) {
+    if (!ivgPanel) {
+        return;
+    }
+    if (!webviewReady) {
+        pendingMessages.push(message);
+        return;
+    }
+    ivgPanel.webview.postMessage(message);
+}
+function flushPendingMessages() {
+    if (!ivgPanel) {
+        pendingMessages.length = 0;
+        return;
+    }
+    while (pendingMessages.length > 0) {
+        const message = pendingMessages.shift();
+        if (message) {
+            ivgPanel.webview.postMessage(message);
+        }
+    }
+}
+function fileNameFromDocument(document) {
+    const fsPath = document.fileName;
+    const forwardSlash = fsPath.lastIndexOf('/');
+    const backwardSlash = fsPath.lastIndexOf('\\');
+    const index = Math.max(forwardSlash, backwardSlash);
+    if (index >= 0) {
+        return fsPath.substring(index + 1);
+    }
+    return fsPath;
 }

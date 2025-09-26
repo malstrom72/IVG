@@ -7,19 +7,33 @@
 	"engines": {
 		"vscode": "^1.84.0"
 	},
-	"activationEvents": [
-		"onCommand:ivgfiddle.open"
-	],
-	"main": "./dist/extension.js",
-	"contributes": {
-		"commands": [
-			{
-				"command": "ivgfiddle.open",
-				"title": "Open IVGFiddle",
-				"category": "IVGFiddle"
-			}
-		]
-	},
+        "activationEvents": [
+                "onCommand:ivgfiddle.open",
+                "onLanguage:ivg"
+        ],
+        "main": "./dist/extension.js",
+        "contributes": {
+                "commands": [
+                        {
+                                "command": "ivgfiddle.open",
+                                "title": "Open IVGFiddle",
+                                "category": "IVGFiddle"
+                        }
+                ],
+                "languages": [
+                        {
+                                "id": "ivg",
+                                "aliases": [
+                                        "IVG",
+                                        "ivg"
+                                ],
+                                "extensions": [
+                                        ".ivg"
+                                ],
+                                "configuration": "./language-configuration.json"
+                        }
+                ]
+        },
 	"scripts": {
 		"compile": "tsc -p .",
 		"watch": "tsc -w -p ."
