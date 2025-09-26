@@ -4,6 +4,7 @@ let ivgPanel: vscode.WebviewPanel | undefined;
 let webviewReady = false;
 let statusBarItem: vscode.StatusBarItem | undefined;
 let scheduledDocument: vscode.TextDocument | undefined;
+let lastPreviewDocumentUri: string | undefined;
 let updateTimer: ReturnType<typeof setTimeout> | undefined;
 const pendingMessages: unknown[] = [];
 const PREVIEW_LANGUAGE_ID = 'ivg';
@@ -22,6 +23,8 @@ if (ivgPanel) {
 ivgPanel.reveal(ivgPanel.viewColumn ?? vscode.ViewColumn.Active);
 return;
 }
+
+const initialDocument = getActiveIvgDocument();
 
 const panel = vscode.window.createWebviewPanel(
 'ivgfiddle',
@@ -50,12 +53,12 @@ panel.webview.onDidReceiveMessage((message) => {
 if (message && message.type === 'ready') {
 webviewReady = true;
 flushPendingMessages();
-syncActiveDocument('focus');
+syncActiveDocument('panelFocus');
 }
 });
 panel.onDidChangeViewState(() => {
 if (panel.visible) {
-syncActiveDocument('focus');
+syncActiveDocument('panelFocus');
 }
 });
 panel.onDidDispose(() => {
@@ -67,7 +70,11 @@ statusBarItem.hide();
 }
 });
 
+if (initialDocument) {
+syncDocument(initialDocument, 'open');
+} else {
 syncActiveDocument('open');
+}
 });
 
 context.subscriptions.push(disposable);
@@ -83,7 +90,13 @@ scheduleDocument(event.document);
 }
 }),
 vscode.window.onDidChangeActiveTextEditor((editor) => {
-syncActiveDocument(editor ? 'focus' : 'clear');
+if (editor) {
+syncActiveDocument('focus');
+} else if (ivgPanel && ivgPanel.active) {
+syncActiveDocument('panelFocus');
+} else {
+syncActiveDocument('clear');
+}
 }),
 vscode.workspace.onDidCloseTextDocument((document) => {
 if (statusBarItem && (!vscode.window.visibleTextEditors.some((editor) => editor.document === document))) {
@@ -91,6 +104,9 @@ statusBarItem.hide();
 }
 if (scheduledDocument && scheduledDocument === document) {
 scheduledDocument = undefined;
+}
+if (lastPreviewDocumentUri === document.uri.toString()) {
+lastPreviewDocumentUri = undefined;
 }
 })
 );
@@ -186,12 +202,25 @@ syncDocument(scheduledDocument, 'change');
 }, PREVIEW_DEBOUNCE_MS);
 }
 
-function syncActiveDocument(reason: 'open' | 'focus' | 'clear'): void {
-const editor = vscode.window.activeTextEditor;
-if (editor && isIvgDocument(editor.document)) {
-const resolved: 'open' | 'focus' = reason === 'focus' ? 'focus' : 'open';
-syncDocument(editor.document, resolved);
+function syncActiveDocument(reason: 'open' | 'focus' | 'panelFocus' | 'clear'): void {
+if (reason === 'clear') {
+if (statusBarItem) {
+statusBarItem.hide();
+}
 return;
+}
+const activeDocument = getActiveIvgDocument();
+if (activeDocument) {
+const resolved: 'open' | 'focus' = reason === 'focus' ? 'focus' : 'open';
+syncDocument(activeDocument, resolved);
+return;
+}
+if (reason === 'panelFocus') {
+const fallback = getLastPreviewDocument();
+if (fallback) {
+syncDocument(fallback, 'focus');
+return;
+}
 }
 if (statusBarItem) {
 statusBarItem.hide();
@@ -211,6 +240,7 @@ uri: document.uri.toString(),
 source,
 status,
 });
+lastPreviewDocumentUri = document.uri.toString();
 if (statusBarItem) {
 statusBarItem.text = `$(sync) IVGFiddle Preview: ${fileName}`;
 statusBarItem.tooltip = document.uri.fsPath;
@@ -251,4 +281,19 @@ if (index >= 0) {
 return fsPath.substring(index + 1);
 }
 return fsPath;
+}
+
+function getActiveIvgDocument(): vscode.TextDocument | undefined {
+const editor = vscode.window.activeTextEditor;
+if (editor && isIvgDocument(editor.document)) {
+return editor.document;
+}
+return undefined;
+}
+
+function getLastPreviewDocument(): vscode.TextDocument | undefined {
+if (!lastPreviewDocumentUri) {
+return undefined;
+}
+return vscode.workspace.textDocuments.find((openDocument) => openDocument.uri.toString() === lastPreviewDocumentUri);
 }
