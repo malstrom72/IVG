@@ -431,8 +431,7 @@ StringIt Interpreter::eatBlock(StringIt p, const StringIt& e) {															//
 			default: ++p; break;
 		}
 	}
-	if (p == e) throwBadSyntax("Missing closing \"]\" or \"}\".");
-				
+	if (p == e) throwBadSyntax(c == '[' ? "Missing closing \"]\"." : "Missing closing \"}\".");
 	return p;
 }
 

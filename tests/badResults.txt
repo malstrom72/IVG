@@ -6,25 +6,25 @@ in statement: grmlb
 Exception: Missing "*/" terminator.
 in statement: _DEBUG unterminated /*
 
-Exception: Missing closing "]" or "}".
+Exception: Missing closing "]".
 in statement: _DEBUG unterminated [
 
-Exception: Missing closing "]" or "}".
+Exception: Missing closing "]".
 in statement: _DEBUG unterminated [ // ]
 
-Exception: Missing closing "]" or "}".
+Exception: Missing closing "]".
 in statement: _DEBUG unterminated [ [ ]
 
-Exception: Missing closing "]" or "}".
+Exception: Missing closing "}".
 in statement: _DEBUG unterminated {
 
-Exception: Missing closing "]" or "}".
+Exception: Missing closing "}".
 in statement: _DEBUG unterminated { // }
 
-Exception: Missing closing "]" or "}".
+Exception: Missing closing "}".
 in statement: _DEBUG unterminated { { }
 
-Exception: Missing closing "]" or "}".
+Exception: Missing closing "}".
 in statement: _DEBUG invalid order { [ } ]
 
 Exception: Label cannot be empty.

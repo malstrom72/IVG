@@ -52,19 +52,19 @@ const double COORDINATE_LIMIT = 1000000.0;
 void checkBounds(const IntRect& bounds) {
 	if (bounds.left < -32768 || bounds.left > 32767) {
 		Interpreter::throwRunTimeError(String("\"bounds\" left \"")
-				+ Interpreter::toString(bounds.left) + "\" out of range (-32768..32767).");
+				+ Interpreter::toString(bounds.left) + "\" out of range [-32768..32767].");
 	}
 	if (bounds.top < -32768 || bounds.top > 32767) {
 		Interpreter::throwRunTimeError(String("\"bounds\" top \"")
-				+ Interpreter::toString(bounds.top) + "\" out of range (-32768..32767).");
+				+ Interpreter::toString(bounds.top) + "\" out of range [-32768..32767].");
 	}
 	if (bounds.width < 1 || bounds.width > 32767) {
 		Interpreter::throwRunTimeError(String("\"bounds\" width \"")
-				+ Interpreter::toString(bounds.width) + "\" out of range (1..32767).");
+				+ Interpreter::toString(bounds.width) + "\" out of range [1..32767].");
 	}
 	if (bounds.height < 1 || bounds.height > 32767) {
 		Interpreter::throwRunTimeError(String("\"bounds\" height \"")
-				+ Interpreter::toString(bounds.height) + "\" out of range (1..32767).");
+				+ Interpreter::toString(bounds.height) + "\" out of range [1..32767].");
 	}
 }
 
@@ -132,7 +132,7 @@ static Mask8::Pixel parseOpacity(const Interpreter& impd, const StringRange& r) 
 		if (p - (r.b + 1) != 2) impd.throwBadSyntax(String("Invalid opacity \"") + String(r.b + 1, r.e) + "\".");
 	} else {
 		double d = impd.toDouble(r);
-	if (d < 0.0 || d > 1.0) impd.throwRunTimeError(String("Opacity \"") + impd.toString(d) + "\" out of range (0..1).");
+		if (d < 0.0 || d > 1.0) impd.throwRunTimeError(String("Opacity \"") + impd.toString(d) + "\" out of range [0..1].");
 		i = min(static_cast<int>(d * 256), 255);
 	}
 	assert(0 <= i && i < 256);
@@ -454,8 +454,8 @@ static bool parseNumericColor(Interpreter& impd, const StringRange& r, ARGB32::P
 			int count = parseNumberList(impd, StringRange(p, r.e - 1), n, 3, 4);
 			for (int i = 0; i < count; ++i) {
 				if (n[i] < 0.0 || n[i] > 1.0) {
-				impd.throwRunTimeError(String("HSV value #") + impd.toString(i + 1)
-						+ String(" \"") + impd.toString(n[i]) + "\" out of range (0..1).");
+					impd.throwRunTimeError(String("HSV value #") + impd.toString(i + 1)
+							+ String(" \"") + impd.toString(n[i]) + "\" out of range [0..1].");
 				}
 			}
 			assert(count == 3 || count == 4);
@@ -1079,7 +1079,7 @@ void Context::stroke(const Path& path, Stroke& stroke, const Rect<double>& paint
 		strokePath.transform(state.transformation);
 		PolygonMask polygonMask(strokePath, canvas.getBounds());
 		if (!polygonMask.isValid()) {
-			Interpreter::throwRunTimeError("Vertices fall outside the valid coordinate range (-8388607..8388607).");
+			Interpreter::throwRunTimeError("Vertices fall outside the valid coordinate range [-8388607..8388607].");
 		}
 		stroke.paint.doPaint(*this, paintSourceBounds, CombinedMask(polygonMask, state.mask, state.options.gammaTable));
 	}
@@ -1095,7 +1095,7 @@ void Context::fill(const Path& path, Paint& fill, bool evenOddFillRule, const Re
 		fillPath.transform(state.transformation);
 		PolygonMask polygonMask(fillPath, canvas.getBounds(), *fillRule);
 		if (!polygonMask.isValid()) {
-			Interpreter::throwRunTimeError("Vertices fall outside the valid coordinate range (-8388607..8388607).");
+			Interpreter::throwRunTimeError("Vertices fall outside the valid coordinate range [-8388607..8388607].");
 		}
 		fill.doPaint(*this, paintSourceBounds, CombinedMask(polygonMask, state.mask, state.options.gammaTable));
 	}
@@ -1190,7 +1190,7 @@ void IVGExecutor::parseStroke(Interpreter& impd, ArgumentsContainer& args, Strok
 	}
 	if ((s = args.fetchOptional("miter-limit")) != 0) {
 		double d = impd.toDouble(*s);
-		if (d < 1.0) impd.throwRunTimeError(String("\"miter-limit\" value \"") + impd.toString(d) + "\" out of range (1..infinity).");
+		if (d < 1.0) impd.throwRunTimeError(String("\"miter-limit\" value \"") + impd.toString(d) + "\" out of range [1..infinity).");
 		stroke.miterLimit = d;
 	}
 	if ((s = args.fetchOptional("dash")) != 0) {
@@ -1315,7 +1315,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		const String* s = args.fetchOptional("resolution");
 		const double resolution = (s != 0 ? impd.toDouble(*s) : 1.0);
 		if (resolution < 0.0001) {
-			impd.throwRunTimeError(String("\"resolution\" value \"") + impd.toString(resolution) + "\" out of range (0.0001..infinity).");
+			impd.throwRunTimeError(String("\"resolution\" value \"") + impd.toString(resolution) + "\" out of range [0.0001..infinity).");
 		}
 		args.throwIfAnyUnfetched();
 
@@ -1421,7 +1421,7 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	parseNumberList(impd, args.fetchRequired(0), numbers, 2, 2);
 	if (fabs(numbers[0]) > COORDINATE_LIMIT || fabs(numbers[1]) > COORDINATE_LIMIT) {
 		Interpreter::throwRunTimeError(String("Image coordinates (") + impd.toString(numbers[0]) + String(", ")
-				+ impd.toString(numbers[1]) + ") out of range (-1000000..1000000).");
+				+ impd.toString(numbers[1]) + ") out of range [-1000000..1000000].");
 	}
 	const Vertex atPosition = Vertex(numbers[0], numbers[1]);
 	const WideString imageName = impd.unescapeToWide(args.fetchRequired(1));
@@ -1472,14 +1472,14 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 		doFitWidth = true;
 		fitWidth = impd.toDouble(*s);
 		if (fitWidth < 0.0 || fitWidth > COORDINATE_LIMIT) {
-			impd.throwRunTimeError(String("Image width \"") + impd.toString(fitWidth) + "\" out of range (0..1000000).");
+			impd.throwRunTimeError(String("Image width \"") + impd.toString(fitWidth) + "\" out of range [0..1000000].");
 		}
 	}
 	if ((s = args.fetchOptional("height")) != 0) {
 		doFitHeight = true;
 		fitHeight = impd.toDouble(*s);
 		if (fitHeight < 0.0 || fitHeight > COORDINATE_LIMIT) {
-			impd.throwRunTimeError(String("Image height \"") + impd.toString(fitHeight) + "\" out of range (0..1000000).");
+			impd.throwRunTimeError(String("Image height \"") + impd.toString(fitHeight) + "\" out of range [0..1000000].");
 		}
 	}
 	if (doFitWidth || doFitHeight) {
@@ -1720,7 +1720,7 @@ static Path& makeStarPath(Path& path, Interpreter& impd, ArgumentsContainer& arg
 	double r2 = (count == 5 ? numbers[4] : r1);
 	double rotation = (s != 0 ? impd.toDouble(*s) * DEGREES : 0.0);
 	if (points <= 0 || points > 10000) {
-		impd.throwRunTimeError(String("Star points \"") + impd.toString(points) + "\" out of range (1..10000).");
+		impd.throwRunTimeError(String("Star points \"") + impd.toString(points) + "\" out of range [1..10000].");
 	}
 	if (r1 < 0.0 || r2 < 0.0) {
 		impd.throwRunTimeError(String("Negative star radius \"") + impd.toString(r1 < 0.0 ? r1 : r2) + "\".");
@@ -1868,21 +1868,21 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			if ((s = args.fetchOptional("aa-gamma")) != 0) {
 				double d = impd.toDouble(*s);
 				if (d < 0.0001 || d > 99.9999) {
-					impd.throwRunTimeError(String("\"aa-gamma\" value \"") + impd.toString(d) + "\" out of range (0..100).");
+					impd.throwRunTimeError(String("\"aa-gamma\" value \"") + impd.toString(d) + "\" out of range [0.0001..99.9999].");
 				}
 				state.options.setGamma(d);
 			}
 			if ((s = args.fetchOptional("curve-quality")) != 0) {
 				double d = impd.toDouble(*s);
 				if (d < 0.0001 || d > 99.9999) {
-					impd.throwRunTimeError(String("\"curve-quality\" value \"") + impd.toString(d) + "\" out of range (0..100).");
+					impd.throwRunTimeError(String("\"curve-quality\" value \"") + impd.toString(d) + "\" out of range [0.0001..99.9999].");
 				}
 				state.options.curveQuality = d;
 			}
 			if ((s = args.fetchOptional("pattern-resolution")) != 0) {
 				double d = impd.toDouble(*s);
 				if (d < 0.0001 || d > 99.9999) {
-					impd.throwRunTimeError(String("\"pattern-resolution\" value \"") + impd.toString(d) + "\" out of range (0..100).");
+					impd.throwRunTimeError(String("\"pattern-resolution\" value \"") + impd.toString(d) + "\" out of range [0.0001..99.9999].");
 				}
 				state.options.patternResolution = d;
 			}
@@ -2013,8 +2013,8 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			}
 			if ((s = args.fetchOptional("size", true)) != 0) {
 				double d = impd.toDouble(*s);
-				if (d <= 0.0 || d > 1000000.0) {
-					impd.throwRunTimeError(String("Font size \"") + impd.toString(d) + "\" out of range (0..1000000].");
+				if (d < 0.0001 || d > 1000000.0) {
+					impd.throwRunTimeError(String("Font size \"") + impd.toString(d) + "\" out of range [0.0001..1000000].");
 				}
 				state.textStyle.size = d;
 			}
