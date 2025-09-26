@@ -1,6 +1,6 @@
 # IVGFiddle VS Code Extension (Milestone 1)
 
-This folder contains the work-in-progress extension that embeds the IVGFiddle web application inside Visual Studio Code. The initial milestone focuses on preparing the project structure, static assets, and helper scripts without introducing extra build dependencies.
+This folder contains the work-in-progress extension that embeds the IVGFiddle renderer inside Visual Studio Code. The initial milestone focuses on preparing the project structure, static assets, and helper scripts without introducing extra build dependencies. The bundled webview omits the ACE editor so the VS Code panel operates strictly as a preview surface that will render `.ivg` documents provided by the host extension logic.
 
 ## Folder Layout
 

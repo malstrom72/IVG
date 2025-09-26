@@ -2,27 +2,21 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8">
-		<title>ivgfiddle</title>
+		<title>IVGFiddle Preview</title>
 		<link rel="stylesheet" href="./ivgfiddle.css">
-		<script type="text/javascript" src="./ace/ace.js"></script>
 		<script type="text/javascript" src="./setupModule.js"></script>
 		<script type="text/javascript" src="./rasterizeIVG.js"></script>
 	</head>
 	<body>
-		<div id="stage" class="flex-row">
-			<div id="leftPanel" class="flex-col">
-				<div id="editor" class="grow"></div>
-				<div id="traceDiv" class="grow">
-					<pre id="trace"></pre>
-				</div>
+		<div id="stage" class="flex-col">
+			<div id="screen" class="grow">
+				<canvas id="ivgCanvas">
+					This text is displayed if your browser does not support HTML5 Canvas.
+				</canvas>
 			</div>
-			<div id="leftRightSplit"></div>
-			<div id="rightPanel" class="flex-col">
-				<div id="screen">
-					<canvas id="ivgCanvas">
-						This text is displayed if your browser does not support HTML5 Canvas.
-					</canvas>
-				</div>
+			<div id="status" role="status">Initializing renderer…</div>
+			<div id="traceDiv">
+				<pre id="trace"></pre>
 			</div>
 		</div>
 		<script type="text/javascript" src="./ivgfiddle.js"></script>

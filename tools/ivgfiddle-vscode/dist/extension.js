@@ -83,7 +83,7 @@ async function getWebviewContent(extensionUri, webview) {
     const csp = [
         "default-src 'none'",
         `img-src ${webview.cspSource} data:`,
-        `script-src 'nonce-${nonce}'`,
+        `script-src 'nonce-${nonce}' 'wasm-unsafe-eval'`,
         `style-src ${webview.cspSource}`,
         `font-src ${webview.cspSource}`,
     ].join('; ');

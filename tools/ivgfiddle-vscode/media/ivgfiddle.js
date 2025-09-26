@@ -3,29 +3,37 @@
 const MAX_LOG_SIZE = 64 * 1024;
 const MAX_LOG_LINES = 1000;
 
-const leftPanelElement = document.getElementById("leftPanel");
-const leftRightSplitElement = document.getElementById('leftRightSplit');
-const traceElement = document.getElementById('trace');
-const traceDiv = document.getElementById('traceDiv');
-const ivgCanvas = document.getElementById('ivgCanvas');
+const statusElement = document.getElementById("status");
+const traceElement = document.getElementById("trace");
+const traceDiv = document.getElementById("traceDiv");
+const ivgCanvas = document.getElementById("ivgCanvas");
 const ivgContext = ivgCanvas.getContext("2d");
+const vscodeApi = typeof acquireVsCodeApi === "function" ? acquireVsCodeApi() : undefined;
 
-let allLogLines = '';
+let allLogLines = "";
 let traceLinesCount = 0;
 let lastLogLine = null;
 let repeatingLogLineCount = 0;
+let moduleReady = false;
+let currentSource = "";
+let pendingSource = null;
+
+function setStatus(message) {
+	if (statusElement) {
+		statusElement.textContent = message;
+	}
+}
 
 function clearTrace() {
-	allLogLines = '';
+	allLogLines = "";
 	traceLinesCount = 0;
 	lastLogLine = null;
 	repeatingLogLineCount = 0;
-	traceElement.textContent = '';
+	traceElement.textContent = "";
 	traceDiv.scrollTop = 0;
 }
 
 function trace(message) {
-	const allLines = traceElement.textContent;
 	while (allLogLines.length > MAX_LOG_SIZE || traceLinesCount >= MAX_LOG_LINES) {
 		const offset = allLogLines.indexOf("\n");
 		if (offset < 0) {
@@ -36,12 +44,12 @@ function trace(message) {
 	}
 	if (lastLogLine === message) {
 		if (repeatingLogLineCount > 1) {
-			const offset = allLogLines.lastIndexOf(' *');
+			const offset = allLogLines.lastIndexOf(" *");
 			if (offset >= 0) {
 				allLogLines = allLogLines.substr(0, offset);
 			}
 		} else {
-			allLogLines = allLogLines.substr(0, allLogLines.length - 1); // remove last LF
+			allLogLines = allLogLines.substr(0, allLogLines.length - 1);
 		}
 		++repeatingLogLineCount;
 		allLogLines += " *" + repeatingLogLineCount + "\n";
@@ -55,7 +63,18 @@ function trace(message) {
 	traceDiv.scrollTop = traceDiv.scrollHeight;
 }
 
-// Can't use cwrap to pass very long strings, as they are placed on the stackm and not the heap.
+function drawFailureCross() {
+	ivgContext.clearRect(0, 0, ivgCanvas.width, ivgCanvas.height);
+	ivgContext.beginPath();
+	ivgContext.moveTo(0, 0);
+	ivgContext.lineTo(ivgCanvas.width, ivgCanvas.height);
+	ivgContext.moveTo(0, ivgCanvas.height);
+	ivgContext.lineTo(ivgCanvas.width, 0);
+	ivgContext.strokeStyle = "red";
+	ivgContext.lineWidth = 6;
+	ivgContext.stroke();
+}
+
 const rasterizeIVG = function(source, scaling) {
 	const size = Module.lengthBytesUTF8(source) + 1;
 	const stringPointer = Module._malloc(size);
@@ -64,42 +83,51 @@ const rasterizeIVG = function(source, scaling) {
 	Module._free(stringPointer);
 	return result;
 };
+
 function deallocatePixels(pixelsPointer) {
 	Module._deallocatePixels(pixelsPointer);
 }
 
-function heapU32(Module) {
-	if (Module.HEAPU32) return Module.HEAPU32;
+function heapU32(moduleInstance) {
+	if (moduleInstance.HEAPU32) {
+		return moduleInstance.HEAPU32;
+	}
 	const mem =
-		Module.wasmMemory ||
-		(Module.asm && Module.asm.memory) ||
-		Module.memory;
-	if (!mem) throw new Error("No wasm memory found on Module");
+		moduleInstance.wasmMemory ||
+		(moduleInstance.asm && moduleInstance.asm.memory) ||
+		moduleInstance.memory;
+	if (!mem) {
+		throw new Error("No wasm memory found on Module");
+	}
 	return new Uint32Array(mem.buffer);
 }
 
-function runIVG() {
+function renderCurrentSource() {
+	if (!moduleReady) {
+		return;
+	}
 	clearTrace();
+	if (!currentSource) {
+		ivgContext.clearRect(0, 0, ivgCanvas.width, ivgCanvas.height);
+		setStatus("Renderer ready. Waiting for IVG data…");
+		return;
+	}
 	trace("Running IVG");
-	const linesCountWas = traceLinesCount;
 	const start = Date.now();
-	const sourceCode = aceEditor.getValue();
-	localStorage.setItem("ivgSource", sourceCode);
-	localStorage.setItem("runOnStartup", false);
 	let ok = false;
 	try {
-		const pixelRatio = window.devicePixelRatio;
-		const rasterPointer = rasterizeIVG(sourceCode, pixelRatio);
+		const pixelRatio = window.devicePixelRatio || 1;
+		const rasterPointer = rasterizeIVG(currentSource, pixelRatio);
 		const end = Date.now();
-			if (rasterPointer !== 0) {
-				const heap = heapU32(Module).buffer;
-				let dimensions = new Int32Array(heap, rasterPointer, 4);
+		if (rasterPointer !== 0) {
+			const heap = heapU32(Module).buffer;
+			let dimensions = new Int32Array(heap, rasterPointer, 4);
 			const left = dimensions[0];
 			const top = dimensions[1];
 			const width = dimensions[2];
 			const height = dimensions[3];
 			dimensions = null;
-					let pixelData = new Uint8Array(heap, rasterPointer + 4 * 4, width * height * 4);
+			let pixelData = new Uint8Array(heap, rasterPointer + 16, width * height * 4);
 			deallocatePixels(rasterPointer);
 			ivgCanvas.width = width;
 			ivgCanvas.height = height;
@@ -112,56 +140,96 @@ function runIVG() {
 			ivgContext.putImageData(imageData, 0, 0);
 			trace("Completed IVG");
 			trace("Time spent: " + (end - start) + "ms");
+			setStatus("Preview updated in " + (end - start) + " ms.");
 			ok = true;
 		} else {
-			trace("Aborted IVG");
+			trace("Rasterization returned no data");
 		}
-		localStorage.setItem("runOnStartup", true);
-	}
-	catch (e) {
+	} catch (error) {
 		trace("Rasterization crashed");
-		trace(e);
+		trace(String(error));
 	}
 	if (!ok) {
-		ivgContext.beginPath();
-		ivgContext.moveTo(0, 0);
-		ivgContext.lineTo(ivgCanvas.width, ivgCanvas.height);
-		ivgContext.moveTo(0, ivgCanvas.height);
-		ivgContext.lineTo(ivgCanvas.width, 0);
-		ivgContext.strokeStyle = "red";
-		ivgContext.lineWidth = 10;
-		ivgContext.stroke();
+		drawFailureCross();
+		setStatus("Rendering failed. Check trace output for details.");
 	}
 }
 
-const aceEditor = ace.edit("editor");
-aceEditor.setTheme("ace/theme/twilight");
-const aceSession = aceEditor.getSession();
-aceSession.setUseSoftTabs(false);
-aceSession.setMode("ace/mode/ivg");
-let recompileTimer = null;
-aceSession.on('change', function(e) {
-	if (recompileTimer !== null) {
-		clearTimeout(recompileTimer);
-		recompileTimer = null;
-	};
-	recompileTimer = setTimeout(runIVG, 500);
+function setSource(newSource, options) {
+	const opts = options || {};
+	const persist = opts.persist !== false;
+	currentSource = typeof newSource === "string" ? newSource : "";
+	if (persist) {
+		if (currentSource) {
+			localStorage.setItem("ivgSource", currentSource);
+		} else {
+			localStorage.removeItem("ivgSource");
+		}
+	}
+	renderCurrentSource();
+}
+
+function handleHostMessage(message) {
+	if (!message || typeof message !== "object") {
+		return;
+	}
+	switch (message.type) {
+	case "setSource":
+		if (!moduleReady) {
+			pendingSource = typeof message.source === "string" ? message.source : "";
+		} else {
+			setSource(message.source, { persist: false });
+		}
+		if (typeof message.status === "string") {
+			setStatus(message.status);
+		} else if (moduleReady) {
+			setStatus("Preview updated.");
+		}
+		break;
+	case "clearTrace":
+		clearTrace();
+		break;
+	case "rerender":
+		if (moduleReady) {
+			renderCurrentSource();
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+window.addEventListener("message", function(event) {
+	handleHostMessage(event.data);
 });
 
-let isDragging = false;
-let currentX;
-let currentPanelWidth;
-leftRightSplitElement.addEventListener('mousedown', function(e) {
-  isDragging = true;
-  currentX = e.clientX;
-  currentPanelWidth = leftPanelElement.offsetWidth;
-  e.preventDefault();
-});
-document.addEventListener('mousemove', function(e) {
-  if (isDragging) {
-	leftPanelElement.style.width = (currentPanelWidth + e.clientX - currentX) + 'px';
-  }
-});
-document.addEventListener('mouseup', function(e) {
-  isDragging = false;
-});
+window.ivgPreviewModuleInitialized = function(initialSource) {
+	moduleReady = true;
+	const stored = localStorage.getItem("ivgSource");
+	if (typeof stored === "string" && stored.length > 0) {
+		currentSource = stored;
+	} else if (typeof initialSource === "string" && initialSource.length > 0) {
+		currentSource = initialSource;
+		localStorage.setItem("ivgSource", currentSource);
+	}
+	const queuedSource = pendingSource;
+	pendingSource = null;
+	setStatus("Renderer ready.");
+	if (typeof queuedSource === "string") {
+		setSource(queuedSource, { persist: false });
+	} else {
+		renderCurrentSource();
+	}
+	if (vscodeApi) {
+		vscodeApi.postMessage({ type: "ready" });
+	}
+};
+
+const cachedSource = localStorage.getItem("ivgSource");
+if (typeof cachedSource === "string" && cachedSource.length > 0) {
+	currentSource = cachedSource;
+	setStatus("Loaded cached IVG source. Waiting for renderer…");
+} else {
+	setStatus("Waiting for renderer…");
+}
+

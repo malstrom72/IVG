@@ -32,65 +32,60 @@
 	- [x] Build a helper `getWebviewContent(webview: vscode.Webview)` that reads `media/ivgfiddle.html` from disk, then rewrites `src`/`href` attributes via regex to call `webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "media", path))`.
 	- [x] Store the panel instance in a module-level variable to keep a single shared view (focus if already open).
 - [x] Adjust the HTML to satisfy VS Code’s default Content Security Policy (move inline scripts/styles into separate files if necessary).
-	- [x] Extract inline `<script>` blocks to files under `media/scripts/` and reference them with `<script src="..." nonce="${nonce}"></script>` using a generated nonce in the extension code. (No inline scripts were present; external bundles now receive a nonce during injection.)
-	- [x] Replace inline styles with a dedicated CSS file or `webview.cspSource`-scoped `<style>` tag emitted from the extension.
+	- [x] Replace inline styles with a dedicated CSS file and move all script execution behind a nonce-aware `<script>` tag emitted from the extension.
+	- [x] Add `wasm-unsafe-eval` support to the CSP so the Emscripten-generated WebAssembly module can instantiate without using `unsafe-inline`.
 - [x] Ensure all asset URIs are rewritten to use Webview URIs without relying on additional build tooling.
 	- [x] Parse `ivgfiddle.html` for `src`, `href`, and `url(...)` references; for data attributes in JavaScript, replace string literals (e.g., `"./assets/foo.png"`) using a small transformation step executed when reading the file.
 	- [x] Provide a fallback that throws if a referenced asset is missing to surface issues early during activation.
 - [ ] **Tests:**
-        - [ ] _Webview rendering check_
-                - [ ] Launch the Extension Development Host as described in Milestone 1.
-                - [ ] Run `IVGFiddle: Open` and observe that the panel immediately displays the IVGFiddle interface (editor, preview, and controls).
-                - [ ] Open the Webview developer tools console and confirm there are no red errors or blocked resource warnings during load.
-        - [ ] _Functional parity walk-through_
-                - [ ] In the IVGFiddle editor pane, replace the default IVG text with a simple shape (e.g., a rectangle) and confirm the preview updates in real time.
-                - [ ] Toggle each UI control (render mode, guides, checkerboard, etc.) and verify the preview responds as it does in the standalone browser build.
-                - [ ] With the developer tools **Network** tab open, ensure no requests are made to remote domains (everything should resolve from the `vscode-resource:` origin).
-
+	- [ ] _Webview rendering check_
+		- [ ] Launch the Extension Development Host as described in Milestone 1.
+		- [ ] Run `IVGFiddle: Open` and confirm the panel shows the IVGFiddle preview canvas, status banner, and trace log without any missing-resource placeholders.
+		- [ ] Open the Webview developer tools console and verify there are no red errors, CSP violations, or blocked WebAssembly instantiation warnings during load.
+	- [ ] _Preview diagnostics walk-through_
+		- [ ] Observe that the status banner transitions from `Waiting for renderer…` to `Renderer ready.` once the runtime initializes.
+		- [ ] Inspect the trace log to ensure IVGFiddle startup messages appear and that the log remains scrollable without layout glitches.
+		- [ ] With the developer tools **Network** tab open, confirm every request resolves to the `vscode-resource:` origin (no outbound network traffic).
 ## Milestone 3: Document Synchronization (One-Way)
 - [ ] Use the `vscode.workspace.onDidOpenTextDocument` and `onDidChangeTextDocument` events to forward `.ivg` file contents into the Webview via `postMessage`.
 	- [ ] Filter events to `document.languageId === "ivg"` (define a language contribution mapping `.ivg` to `ivg`).
-	- [ ] When the panel becomes visible, send a `initialize` message carrying the active document URI, text, and version number.
+	- [ ] When the panel becomes visible, send a `setSource` message carrying the active document URI, text, and a friendly status banner (e.g., `Rendering filename.ivg`).
 	- [ ] On `onDidChangeTextDocument`, throttle emissions with `setTimeout` (e.g., 150 ms) to avoid flooding the Webview.
-- [ ] Inside the Webview, listen for incoming messages and replace the IVG editor contents without requiring external libraries.
-	- [ ] Register `window.addEventListener("message", handler)` that checks `message.type` and sets `aceEditor.getSession().setValue(payload.text)` only when versions advance.
-	- [ ] Preserve scroll position by capturing `aceEditor.session.getScrollTop()` before replacing the text and restoring afterward.
+- [ ] Inside the Webview, listen for incoming messages and refresh the preview without embedding an editor component.
+	- [ ] Ensure queued updates are replayed after the WASM runtime reports readiness so edits made during startup are not lost.
+	- [ ] Drive the existing `setSource` helper to update the cached source, rerender, and surface status text supplied by the host.
 - [ ] Provide a status bar item indicating when a document is synchronized.
-	- [ ] Create a `vscode.StatusBarItem` aligned left with text like `$(sync) IVGFiddle: filename.ivg` updated on selection change.
+	- [ ] Create a `vscode.StatusBarItem` aligned left with text like `$(sync) IVGFiddle Preview: filename.ivg` updated on selection change.
 	- [ ] Dispose of the item when the panel closes to avoid stale indicators.
 - [ ] **Tests:**
-        - [ ] _One-way synchronization sanity check_
-                - [ ] Create or open a `.ivg` file in the Extension Development Host.
-                - [ ] Run `IVGFiddle: Open` and ensure the Webview editor instantly mirrors the file contents.
-                - [ ] Type changes in VS Code and confirm they propagate to the Webview without a full reload.
-        - [ ] _Status bar telemetry review_
-                - [ ] Observe that a status bar entry appears showing the active IVG filename after the panel opens.
-                - [ ] Switch to a different editor tab and confirm the status bar entry updates or hides according to the new context.
-        - [ ] _Clean shutdown confirmation_
-                - [ ] Close the `.ivg` document and verify the status bar entry disappears.
-                - [ ] With the Webview devtools **Network** or **Console** tab open, confirm no further synchronization messages are logged after closing.
-
-## Milestone 4: Two-Way Editing Support
-- [ ] Emit `postMessage` events from the Webview when IVGFiddle content changes (e.g., ACE editor change event) and apply edits to the active VS Code document via `TextEditorEdit`.
-	- [ ] Subscribe to ACE’s `session.on('change', handler)` and send `{ type: 'edit', text, version }` only when the change originated from the Webview (skip updates triggered by incoming host edits by tracking a `suppressNextChange` flag).
-	- [ ] On the extension side, call `activeEditor.edit(editBuilder => editBuilder.replace(fullRange, text))` while recording the document version processed to prevent out-of-order application.
-- [ ] Implement debounce logic using `setTimeout` to avoid feedback loops while still avoiding extra dependencies.
-	- [ ] Wrap the outgoing Webview event in `setTimeout` with a configurable delay (default 150 ms) stored in `workspace.getConfiguration('ivgfiddle').get('webviewUpdateDelay')`.
-	- [ ] Cancel pending timers when a new edit arrives to collapse rapid keystrokes into a single update.
-- [ ] Guard against unsaved file states by warning users before overwriting dirty editors.
-	- [ ] Before applying Webview edits, check `activeTextEditor.document.isDirty`; if true, show `vscode.window.showWarningMessage` with options to overwrite, save, or cancel.
-	- [ ] Respect the user’s choice by skipping the incoming edit when they cancel and sending a `revert` message back to the Webview to resynchronize.
+	- [ ] _One-way synchronization sanity check_
+		- [ ] Create or open a `.ivg` file in the Extension Development Host.
+		- [ ] Run `IVGFiddle: Open` and ensure the Webview preview updates to reflect the file contents without requiring manual refresh.
+		- [ ] Type changes in VS Code and confirm the preview rerenders within the debounce window without flicker.
+	- [ ] _Status bar telemetry review_
+		- [ ] Observe that a status bar entry appears showing the active IVG filename after the panel opens.
+		- [ ] Switch to a different editor tab and confirm the status bar entry updates or hides according to the new context.
+	- [ ] _Clean shutdown confirmation_
+		- [ ] Close the `.ivg` document and verify the status bar entry disappears.
+		- [ ] With the Webview devtools **Console** tab open, confirm no further synchronization messages are logged after closing.
+## Milestone 4: Preview Controls and Host Feedback
+- [ ] Emit host-to-webview control messages without embedding a secondary editor.
+	- [ ] Add an `ivgfiddle.refreshPreview` command that sends a `rerender` message so users can force a redraw after changing renderer settings.
+	- [ ] Provide a `ivgfiddle.clearTrace` command that instructs the Webview to wipe the log while retaining the current preview.
+- [ ] Surface preview diagnostics back to VS Code.
+	- [ ] Listen for `{ type: 'status', level, message }` notifications from the Webview and present them via `vscode.window.setStatusBarMessage` or `showErrorMessage` as appropriate.
+	- [ ] Persist the most recent preview duration in the status bar item created in Milestone 3.
+- [ ] Expose lightweight configuration options for preview behavior without new dependencies.
+	- [ ] Add `ivgfiddle.preview.autoRefresh` (boolean) and `ivgfiddle.preview.debounceMs` (number) to `package.json`, defaulting to current behavior.
+	- [ ] Respect these settings when deciding whether to push `setSource` updates automatically or require the manual refresh command.
 - [ ] **Tests:**
-        - [ ] _Round-trip editing validation_
-                - [ ] With a `.ivg` document open and the Webview visible, make edits inside IVGFiddle and watch the VS Code text editor update within the configured debounce delay.
-                - [ ] Reverse the direction by typing inside VS Code and ensuring the Webview mirrors the text without lag or duplication.
-        - [ ] _Feedback loop guardrail_
-                - [ ] Enable Webview devtools and monitor the console for rapid alternating host/webview messages to confirm no infinite update loop occurs.
-                - [ ] Temporarily reduce the debounce delay in the extension settings to stress the synchronization logic; ensure the loop protection still prevents runaway updates.
-        - [ ] _Dirty document protection_
-                - [ ] Modify the file in VS Code without saving (dirty state) and then trigger an edit from the Webview.
-                - [ ] Exercise each prompt option (overwrite, save, cancel) and verify the document contents and Webview stay consistent with the selected action.
-
+	- [ ] _Manual refresh sanity check_
+		- [ ] Change the active `.ivg` file, disable `autoRefresh`, invoke `IVGFiddle: Refresh Preview`, and confirm the Webview rerenders immediately.
+		- [ ] Re-enable `autoRefresh` and verify subsequent edits trigger automatic rerenders without using the command.
+	- [ ] _Trace management review_
+		- [ ] Execute `IVGFiddle: Clear Preview Trace` and ensure the on-canvas image remains while the log resets to empty.
+	- [ ] _Status relay validation_
+		- [ ] Cause a rendering failure (e.g., by introducing a syntax error) and confirm the extension surfaces the error via a VS Code notification as well as the Webview status banner.
 ## Milestone 5: Packaging, Configuration, and Documentation
 - [ ] Add contribution points to `package.json` (command palette entry, activation events, basic configuration options) without pulling extra schemas.
 	- [ ] Define `contributes.commands` with title `"Open IVGFiddle"` and category `"IVGFiddle"`, plus `contributes.menus.commandPalette` to expose it.
