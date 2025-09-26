@@ -78,28 +78,28 @@
 - [x] Expose lightweight configuration options for preview behavior without new dependencies.
         - [x] Add `ivgfiddle.preview.autoRefresh` (boolean) and `ivgfiddle.preview.debounceMs` (number) to `package.json`, defaulting to current behavior.
         - [x] Respect these settings when deciding whether to push `setSource` updates automatically or require the manual refresh command.
-- [ ] **Tests:**
-        - [ ] _Manual refresh sanity check_
-                - [ ] Open **Settings** (gear icon → **Settings**), search for `IVGFiddle Preview`, and uncheck **Auto Refresh**.
-                - [ ] Change the active `.ivg` file in the Extension Development Host and note that the status bar shows a clock icon plus “refresh required”.
-                - [ ] Invoke **IVGFiddle: Refresh Preview** from the Command Palette and confirm the Webview rerenders immediately using the latest document contents.
-                - [ ] Re-enable **Auto Refresh** in Settings, make further edits, and verify the preview resumes automatic rerenders governed by **Debounce (ms)**.
-        - [ ] _Trace management review_
-                - [ ] With the preview panel visible, run **IVGFiddle: Clear Preview Trace** and ensure the canvas stays unchanged while the trace panel becomes empty and the VS Code status message reports “Preview trace cleared.”
-        - [ ] _Status relay validation_
-                - [ ] Introduce an IVG syntax error (for example, delete a closing brace) and save the file.
-                - [ ] Confirm the preview draws the failure cross, the status banner reads “Rendering failed…”, and VS Code displays an error notification alongside the recorded render duration in the status bar entry.
+- [x] **Tests:**
+        - [x] _Manual refresh sanity check_
+                - [x] Open **Settings** (gear icon → **Settings**), search for `IVGFiddle Preview`, and uncheck **Auto Refresh**.
+                - [x] Change the active `.ivg` file in the Extension Development Host and note that the status bar shows a clock icon plus “refresh required”.
+                - [x] Invoke **IVGFiddle: Refresh Preview** from the Command Palette and confirm the Webview rerenders immediately using the latest document contents.
+                - [x] Re-enable **Auto Refresh** in Settings, make further edits, and verify the preview resumes automatic rerenders governed by **Debounce (ms)**.
+        - [x] _Trace management review_
+                - [x] With the preview panel visible, run **IVGFiddle: Clear Preview Trace** and ensure the canvas stays unchanged while the trace panel becomes empty and the VS Code status message reports “Preview trace cleared.”
+        - [x] _Status relay validation_
+                - [x] Introduce an IVG syntax error (for example, delete a closing brace) and save the file.
+                - [x] Confirm the preview draws the failure cross, the status banner reads “Rendering failed…”, and VS Code displays an error notification alongside the recorded render duration in the status bar entry.
 ## Milestone 5: Packaging, Configuration, and Documentation
-- [ ] Add contribution points to `package.json` (command palette entry, activation events, basic configuration options) without pulling extra schemas.
-	- [ ] Define `contributes.commands` with title `"Open IVGFiddle"` and category `"IVGFiddle"`, plus `contributes.menus.commandPalette` to expose it.
-	- [ ] Register a JSON schema-free configuration section `ivgfiddle` with settings like `syncOnOpen` (boolean) and `webviewUpdateDelay` (number) to keep customization lightweight.
-	- [ ] Include `contributes.languages` for `.ivg` files and `contributes.snippets` pointing to a manually-authored JSON snippet file for boilerplate IVG content.
-- [ ] Write minimal documentation (`README.md`) detailing installation, commands, and dependency-free design.
-	- [ ] Document prerequisites (Node.js, VS Code), the asset sync script usage, command behavior, and troubleshooting steps for CSP issues.
-	- [ ] Provide GIF or screenshot instructions for verifying successful launch, stored under `media/docs/` and referenced relatively.
-- [ ] Use `vsce` only for packaging; if unavailable, provide manual instructions for installing from source via `code --install-extension`.
-	- [ ] Add `scripts/package.sh` that checks for `vsce` and falls back to `npx vsce package` (bundled with npm) so no global install is required.
-	- [ ] Document manual installation: `code --install-extension ivgfiddle-vscode-0.0.1.vsix` and alternative `code --extensionDevelopmentPath` workflow.
+- [x] Add contribution points to `package.json` (command palette entry, activation events, basic configuration options) without pulling extra schemas.
+        - [x] Defined the **IVGFiddle** command palette entries, exposed `ivgfiddle.open` through `contributes.menus.commandPalette`, and bundled a reusable snippet for `.ivg` documents.
+        - [x] Registered the configuration entries `ivgfiddle.syncOnOpen` and `ivgfiddle.webviewUpdateDelay` beside the existing preview settings to avoid additional schema dependencies.
+        - [x] Kept the language contribution wired so `.ivg` files continue to resolve to the custom language ID.
+- [x] Write minimal documentation (`README.md`) detailing installation, commands, and dependency-free design.
+        - [x] Documented prerequisites (Node.js, VS Code), the asset sync script usage, command behavior, and troubleshooting steps.
+        - [x] Added screenshot/GIF capture guidance stored under `media/docs/capture-preview.md` and referenced it from the README.
+- [x] Use `vsce` only for packaging; if unavailable, provide manual instructions for installing from source via `code --install-extension`.
+        - [x] Added `scripts/package.sh` that compiles first, prefers a local `vsce`, and falls back to `npx vsce package` automatically.
+        - [x] Documented manual installation commands for both packaged and development workflows.
 - [ ] **Tests:**
         - [ ] _Lint gate_
                 - [ ] From `tools/ivgfiddle-vscode`, run `npm run lint` (or `npx tsc --noEmit` if lint isn’t configured) and confirm the command exits with status `0`.

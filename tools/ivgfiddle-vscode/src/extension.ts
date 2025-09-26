@@ -13,13 +13,20 @@ const pendingMessages: unknown[] = [];
 const PREVIEW_LANGUAGE_ID = 'ivg';
 const DEFAULT_DEBOUNCE_MS = 150;
 const CONFIG_SECTION = 'ivgfiddle.preview';
+const GENERAL_CONFIG_SECTION = 'ivgfiddle';
 
 interface PreviewConfig {
 autoRefresh: boolean;
 debounceMs: number;
 }
 
+interface GeneralConfig {
+syncOnOpen: boolean;
+webviewUpdateDelay: number;
+}
+
 let previewConfig: PreviewConfig = readPreviewConfig();
+let generalConfig: GeneralConfig = readGeneralConfig();
 
 export function activate(context: vscode.ExtensionContext): void {
 console.log('IVGFiddle extension activated');
@@ -143,16 +150,26 @@ vscode.workspace.onDidCloseTextDocument((document) => {
         }
 }),
 vscode.workspace.onDidChangeConfiguration((event) => {
-        if (
-                event.affectsConfiguration(`${CONFIG_SECTION}.autoRefresh`) ||
-                event.affectsConfiguration(`${CONFIG_SECTION}.debounceMs`)
-        ) {
-                previewConfig = readPreviewConfig();
-                refreshStatusBar();
-                if (scheduledDocument && previewConfig.autoRefresh) {
-                        syncDocument(scheduledDocument, 'change');
-                }
-        }
+	if (
+		event.affectsConfiguration(`${CONFIG_SECTION}.autoRefresh`) ||
+		event.affectsConfiguration(`${CONFIG_SECTION}.debounceMs`)
+	) {
+		previewConfig = readPreviewConfig();
+		refreshStatusBar();
+		if (scheduledDocument && previewConfig.autoRefresh) {
+			syncDocument(scheduledDocument, 'change');
+		}
+	}
+	if (
+		event.affectsConfiguration(`${GENERAL_CONFIG_SECTION}.syncOnOpen`) ||
+		event.affectsConfiguration(`${GENERAL_CONFIG_SECTION}.webviewUpdateDelay`)
+	) {
+		generalConfig = readGeneralConfig();
+		refreshStatusBar();
+		if (scheduledDocument && previewConfig.autoRefresh) {
+			syncDocument(scheduledDocument, 'change');
+		}
+	}
 })
 );
 }
@@ -290,6 +307,10 @@ function syncDocument(document: vscode.TextDocument, reason: 'open' | 'focus' | 
 	const source = document.getText();
 	const fileName = fileNameFromDocument(document);
 	const status = reason === 'change' ? `Updating preview for ${fileName}…` : `Rendering ${fileName}`;
+	if (reason === 'open' && !generalConfig.syncOnOpen) {
+		showStatusBar(document, 'deferred');
+		return;
+	}
 	queueMessage({
 		type: 'setSource',
 		uri: document.uri.toString(),
@@ -308,7 +329,7 @@ function queueMessage(message: unknown): void {
 		pendingMessages.push(message);
 		return;
 	}
-	ivgPanel.webview.postMessage(message);
+	postMessageToWebview(message);
 }
 
 function flushPendingMessages(): void {
@@ -319,9 +340,25 @@ function flushPendingMessages(): void {
 	while (pendingMessages.length > 0) {
 		const message = pendingMessages.shift();
 		if (message) {
-			ivgPanel.webview.postMessage(message);
+			postMessageToWebview(message);
 		}
 	}
+}
+
+function postMessageToWebview(message: unknown): void {
+	if (!ivgPanel) {
+		return;
+	}
+	const delay = Math.max(0, generalConfig.webviewUpdateDelay);
+	if (delay === 0) {
+		ivgPanel.webview.postMessage(message);
+		return;
+	}
+	setTimeout(() => {
+		if (ivgPanel) {
+			ivgPanel.webview.postMessage(message);
+		}
+	}, delay);
 }
 
 function fileNameFromDocument(document: vscode.TextDocument): string {
@@ -335,7 +372,7 @@ function fileNameFromDocument(document: vscode.TextDocument): string {
 	return fsPath;
 }
 
-type StatusReason = 'open' | 'focus' | 'change' | 'manualPending';
+type StatusReason = 'open' | 'focus' | 'change' | 'manualPending' | 'deferred';
 
 function showStatusBar(document: vscode.TextDocument, reason: StatusReason): void {
         if (!statusBarItem) {
@@ -349,8 +386,16 @@ function showStatusBar(document: vscode.TextDocument, reason: StatusReason): voi
         } else if (reason === 'manualPending') {
                 icon = 'clock';
                 suffix = ' — refresh required';
+        } else if (reason === 'deferred') {
+                icon = 'clock';
+                suffix = ' — sync on open disabled';
         }
-        if (typeof lastPreviewDurationMs === 'number' && lastPreviewDurationMs >= 0 && reason !== 'manualPending') {
+        if (
+                typeof lastPreviewDurationMs === 'number' &&
+                lastPreviewDurationMs >= 0 &&
+                reason !== 'manualPending' &&
+                reason !== 'deferred'
+        ) {
                 suffix = `${suffix} • ${Math.round(lastPreviewDurationMs)} ms`;
         }
         statusBarItem.text = `$(${icon}) IVGFiddle Preview: ${fileName}${suffix}`;
@@ -358,7 +403,15 @@ function showStatusBar(document: vscode.TextDocument, reason: StatusReason): voi
         if (!previewConfig.autoRefresh) {
                 tooltipLines.push('Auto-refresh disabled');
         }
-        if (typeof lastPreviewDurationMs === 'number' && lastPreviewDurationMs >= 0) {
+        if (!generalConfig.syncOnOpen) {
+                tooltipLines.push('Sync on open disabled');
+        }
+        if (
+                typeof lastPreviewDurationMs === 'number' &&
+                lastPreviewDurationMs >= 0 &&
+                reason !== 'manualPending' &&
+                reason !== 'deferred'
+        ) {
                 tooltipLines.push(`Last render: ${Math.round(lastPreviewDurationMs)} ms`);
         }
         statusBarItem.tooltip = tooltipLines.join('\n');
@@ -419,6 +472,17 @@ function readPreviewConfig(): PreviewConfig {
         return {
                 autoRefresh,
                 debounceMs,
+        };
+}
+
+function readGeneralConfig(): GeneralConfig {
+        const config = vscode.workspace.getConfiguration(GENERAL_CONFIG_SECTION);
+        const syncOnOpen = config.get<boolean>('syncOnOpen', true);
+        const configuredDelay = config.get<number>('webviewUpdateDelay', 0);
+        const webviewUpdateDelay = Number.isFinite(configuredDelay) && configuredDelay >= 0 ? configuredDelay : 0;
+        return {
+                syncOnOpen,
+                webviewUpdateDelay,
         };
 }
 
