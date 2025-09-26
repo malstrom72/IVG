@@ -518,9 +518,12 @@ template<class PIXEL_TYPE> class RadialGradientPainter : public GradientPainter<
 					double hSize = sqrt(square(xfHSize.x - xfCenter.x) + square(xfHSize.y - xfCenter.y));
 					double vSize = sqrt(square(xfVSize.x - xfCenter.x) + square(xfVSize.y - xfCenter.y));
 					// Validate transformed radii are within allowed range
-					if (hSize > 32767.0 || vSize > 32767.0) {
-						IMPD::Interpreter::throwRunTimeError("Radial gradient radius too large");
-					}
+                                        if (hSize > 32767.0 || vSize > 32767.0) {
+                                                const double offendingRadius = (hSize > vSize ? hSize : vSize);
+                                                IMPD::Interpreter::throwRunTimeError(IMPD::String("Radial gradient radius \"")
+                                                                + IMPD::Interpreter::toString(offendingRadius)
+                                                                + "\" out of range (0..32767].");
+                                        }
 					if (hSize == 0 || vSize == 0) {
 						inContext.accessCanvas().blend(NuXPixels::Solid<PIXEL_TYPE>
 								(PIXEL_TYPE::multiply(this->gradient[0], withPaint.opacity)) * mask);
@@ -551,11 +554,11 @@ template<class PIXEL_TYPE> class PatternPainter : public PatternBase {
 					parsePaintOfType<PIXEL_TYPE>(impd, executor, context, args, paint);
 				}
 	public:		virtual void blendWithARGB32(const NuXPixels::Renderer<NuXPixels::ARGB32>& source) {
-					if (image.get() == 0) IMPD::Interpreter::throwRunTimeError("Undeclared bounds");
+                                        if (image.get() == 0) IMPD::Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
 					(*image) |= source;
 				}
 	public:		virtual void blendWithMask8(const NuXPixels::Renderer<NuXPixels::Mask8>& source) {
-					if (image.get() == 0) IMPD::Interpreter::throwRunTimeError("Undeclared bounds");
+                                        if (image.get() == 0) IMPD::Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
 					(*image) |= source;
 				}
 	public:		virtual bool isVisible(const Paint& withPaint) const { (void)withPaint; return (image.get() != 0); }
@@ -584,13 +587,13 @@ template<class PIXEL_TYPE> class PatternPainter : public PatternBase {
 	public:		virtual void defineBounds(const NuXPixels::IntRect& newBounds) {
 					NuXPixels::IntRect physicalBounds(newBounds.left * scale, newBounds.top * scale
 						, newBounds.width * scale, newBounds.height * scale);
-					if (image.get() != 0) IMPD::Interpreter::throwRunTimeError("Multiple bounds declarations");
+                                        if (image.get() != 0) IMPD::Interpreter::throwRunTimeError("Multiple \"bounds\" declarations.");
 					checkBounds(physicalBounds);
 					image.reset(new NuXPixels::SelfContainedRaster<PIXEL_TYPE>(physicalBounds));
 					(*image) = NuXPixels::Solid<PIXEL_TYPE>(PIXEL_TYPE::transparent());
 				}
 	public:		virtual NuXPixels::IntRect getBounds() const {
-					if (image.get() == 0) IMPD::Interpreter::throwRunTimeError("Undeclared bounds");
+                                        if (image.get() == 0) IMPD::Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
 					return image->calcBounds();
 				}
 	protected:	std::unique_ptr< NuXPixels::SelfContainedRaster<PIXEL_TYPE> > image;
