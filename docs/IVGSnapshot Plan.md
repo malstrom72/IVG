@@ -7,7 +7,7 @@
 
 ## High-Level Workflow
 1. Discover the IVG inputs provided on the command line, normalize their paths, and locate companion golden files in a deterministic folder structure (default: same directory with `.png`).
-2. Parse each IVG file looking for the most specific `meta snapshot` block. Fall back to default settings when metadata is missing.
+2. Parse each IVG file collecting every `meta snapshot` block in document order. Fall back to default settings when metadata is missing.
 3. Resolve ImpD variables declared in the meta block to build a concrete render configuration (canvas size, parameter set, golden policy, etc.).
 4. Invoke the IVG renderer (shared engine from `ivg2png`) with the configured parameters plus include/font/image search paths from CLI flags.
 5. Write the rendered PNG to a temp location, compare it bytewise to the golden (or manage `png.disabled` sentinel), and summarize the verdicts.
@@ -43,15 +43,25 @@
 - Default behavior (no meta): treat as `validate:yes` with implicit bounds derived from the render output.
 
 ## Meta Block Semantics
-- Grammar: `meta snapshot <key:value pairs> [ <ImpD statements> ]`.
+- Grammar: `meta snapshot <key:value pairs> [ <ImpD statements> ]` (repeatable in a single IVG).
 - Recognized keys:
   - `validate:(yes|no)`: toggle golden expectations.
   - Arbitrary parameter assignments (e.g., `size=5; color=green; text="foo"`) evaluated as ImpD expressions and injected into the interpreter environment before playback.
 - Execution flow:
   1. Parse doc up to meta block using existing lexer (reuse from IVG parser if possible).
   2. Evaluate the ImpD chunk using embedded interpreter from IVG runtime to seed global variables.
-  3. Track multiple `meta snapshot` blocks and select the one closest to the top of file unless a `name:"scenario"` key allows multiple scenario runs.
+  3. Track multiple `meta snapshot` blocks, preserving document order so each block can own an independent validation decision or scenario partition. When a `name:"scenario"` key is present, attach it to the block for friendly reporting and golden naming.
 - Extensibility: allow arrays/maps to support future parameter sweeps.
+
+## Multi-Block & Multi-Snapshot Scenarios
+- Extend `meta snapshot` so a single IVG can declare multiple blocks, each with its own validation policy and optional setup payload. Within a block, an ordered list of inline code entries still produces individual render passes.
+- Name golden outputs automatically using block and entry ordinals: `<basename>-<blockIndex>.png` for a single-entry block, `<basename>-<blockIndex>-<entryIndex>.png` when iterating inside a block. Indices are 1-based to match artist expectations.
+- Allow an optional `name:"friendly"` key at the block level to replace `<blockIndex>` in the generated filename (`<basename>-friendly.png` or `<basename>-friendly-<entryIndex>.png`). Per-entry overrides can follow the same pattern when the list is present.
+- Treat each block as a cluster of related scenarios that share ImpD variables but may tweak small pieces of the scene (e.g., alternate palettes, animation frames, or toggled feature flags). Separate blocks let authors freeze legacy renders under `validate:yes` while iterating in later `validate:no` sections.
+- Default snapshot remains the first block’s first entry when no list is provided to preserve backward compatibility.
+- Validation settings are scoped per block: the `validate:(yes|no)` toggle on each `meta snapshot` applies only to the snapshots declared inside that block, preventing draft experiments from suppressing comparisons on earlier sealed blocks.
+- Store per-snapshot metadata (ImpD overrides or naming hints) alongside each entry so the harness can report granular pass/fail status and regenerate only the requested golden while still respecting the owning block’s validation flag.
+- Surface block and entry identifiers in ivgfiddle: the fiddle loads the manifest, presents either numeric choices or friendly names, and reruns playback against the chosen combination. Defaults mirror the first block/entry pairing so the experience stays familiar.
 
 ## Rendering Engine Integration
 - Reuse the core rendering stack already used by `ivg2png` (ImpD evaluator + IVG rasterizer).
@@ -98,17 +108,28 @@
 - Document how `validate:no` prevents CI noise while allowing designers to preview via ivgfiddle (which ignores `meta snapshot`).
 
 ## Implementation Roadmap
-- [ ] Metadata discovery prototype: walk IVG sources, parse `meta snapshot` directives, and surface parsed key/value pairs via a lightweight API for early CLI plumbing tests.
-- [ ] Inline ImpD evaluator bridge: execute the meta block’s ImpD payload in isolation, confirm variable injection into the main render context, and add regression coverage for parameter seeding.
-- [ ] Golden lifecycle manager: codify `.png`, `.png.disabled`, and `--force-update` behaviors, including atomic rename/write operations and comprehensive logging of state transitions.
-- [ ] Renderer integration: factor shared rasterization code from `ivg2png` into `libIVGSnapshot` and confirm identical output for sample fixtures.
-- [ ] Comparison & diff suite: implement strict pixel comparison, diff artifact writing, and tolerance hooks guarded by configuration.
-- [ ] Parallel executor: add job scheduling, progress reporting, and early-exit controls to handle large scenario batches efficiently.
-- [ ] Developer tooling surface: wire VS Code tasks, ivgfiddle hooks, and documentation updates so the workflow from draft (`validate:no`) to sealed (`validate:yes`) is end-to-end demonstrable.
 
-## Naming Brainstorm
-- Harness alternatives: `IVGSnapshot`, `IVGRegression`, `IVGVerify`, `IVGGolden`, `IVGSeal`, `IVGGuardian`, `IVGCheck`,
-  `IVGReferee`, `IVGCompare`, `IVGCanary`.
-- Meta tag alternatives: `meta snapshot`, `meta proof`, `meta verify`, `meta seal`, `meta assure`, `meta expect`,
-  `meta golden`, `meta assay`, `meta audit`, `meta check`.
+### Milestone 1: Metadata & Configuration Foundation
+- [ ] Audit the existing ImpD parser and runtime to understand how it surfaces `meta` directives, then wire `meta snapshot` discovery into that infrastructure for early CLI experiments.
+- [ ] Build the inline ImpD evaluator bridge to execute `meta snapshot` payloads, seed render contexts, and capture unit tests around parameter injection.
+- [ ] Document parser and evaluator behaviors so contributors understand how multiple blocks and snapshot lists are enumerated.
+- [ ] Run `timeout 600 ./build.sh` and confirm `=== ALL BUILDS AND TESTS COMPLETED SUCCESSFULLY ===`.
+
+### Milestone 2: Golden Lifecycle & Rendering Loop
+- [ ] Implement the golden lifecycle manager covering `.png`, `.png.disabled`, and `--force-update` transitions with atomic file operations and verbose logging.
+- [ ] Factor the shared rasterization core from `ivg2png` into `libIVGSnapshot`, validating identical output on representative fixtures.
+- [ ] Establish automated regression coverage that exercises both validated and draft (`validate:no`) flows.
+- [ ] Run `timeout 600 ./build.sh` and confirm `=== ALL BUILDS AND TESTS COMPLETED SUCCESSFULLY ===`.
+
+### Milestone 3: Comparison, Parallelism, and Reporting
+- [ ] Deliver the pixel comparison engine, diff artifact writers, and tolerance configuration plumbing.
+- [ ] Add a parallel executor with progress reporting, early-exit controls, and summarized exit codes for CI dashboards.
+- [ ] Extend reporting to include per-block and per-entry identifiers so multi-snapshot scenarios surface clearly in logs.
+- [ ] Run `timeout 600 ./build.sh` and confirm `=== ALL BUILDS AND TESTS COMPLETED SUCCESSFULLY ===`.
+
+### Milestone 4: Tooling Integration & Future ivgfiddle Hooks
+- [ ] Publish developer tooling surfaces (VS Code tasks, CLI recipes) that demonstrate the end-to-end workflow from draft to sealed goldens.
+- [ ] Outline the forward-looking ivgfiddle picker integration, coordinating with the dedicated UI branch before enabling it by default.
+- [ ] Refresh documentation and onboarding materials to reflect multi-block snapshot lists and upcoming UI support.
+- [ ] Run `timeout 600 ./build.sh` and confirm `=== ALL BUILDS AND TESTS COMPLETED SUCCESSFULLY ===`.
 

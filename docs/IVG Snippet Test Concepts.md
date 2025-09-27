@@ -52,5 +52,13 @@ All proposals below keep the scenario metadata in executable IMPD or `meta` dire
 * CI filters out jobs if the current toolchain lacks the requested features, and developers receive explicit error messages rather than opaque runtime failures.
 * Requirements also provide a migration path when new IMPD opcodes or renderer capabilities are introduced—scenarios pin what they need and older branches simply skip them.
 
+## 11. Snapshot Lists inside `meta snapshot`
+* Allow each `meta snapshot` block to accept a `snapshots:[ ... ]` array containing multiple inline ImpD code blocks. Each entry executes after the shared setup payload and produces a dedicated render pass.
+* Support more than one `meta snapshot` block per IVG. Blocks are evaluated in document order so authors can partition scenarios—for example, keeping legacy goldens under `validate:yes` while experimenting with draft content under a later `validate:no` block.
+* Apply validation settings per block: each `meta snapshot` carries its own `validate:(yes|no)` toggle that governs only the snapshots declared inside that block.
+* Suggest an automatic naming convention based on block and entry indices: `<basename>-<blockIndex>.png` when a block renders a single snapshot, or `<basename>-<blockIndex>-<entryIndex>.png` when a block enumerates multiple entries (indices are 1-based). Allow authors to override either suffix with an optional `name:"alt"` key—`<basename>-alt.png` or `<basename>-alt-<entryIndex>.png` when still enumerating multiple entries.
+* Treat each `snapshots` array as a lightweight storyboard—entries can flip locals, swap palettes, or jump to different frames without duplicating the surrounding boilerplate.
+* Surface both block and entry indices to ivgfiddle so the preview UI exposes a picker. Artists can choose either the numbered default or a friendly `name` label, and the fiddle replays the matching code block (defaulting to the first block’s first entry to preserve legacy behavior). Document this as a forward-looking integration so UI updates can ship alongside the dedicated ivgfiddle branch.
+
 ## Coordinating With IDEs and Automation
 All metadata above rides on core IMPD syntax, allowing interpreters that do not recognize the keys to continue unharmed. Tooling walks the AST once, gathers every `meta` directive or procedural registration, and builds a manifest that powers ivgfiddle previews, VS Code integrations, and CI regressions. Because setup code and assertions remain valid IMPD, authors debug scenarios inside their usual workflow while the harness reuses the same snippets to hydrate locals, mount assets, and verify the rendered output.
