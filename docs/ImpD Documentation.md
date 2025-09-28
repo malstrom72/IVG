@@ -214,6 +214,7 @@ Inside curly brackets, the following functions are available:
 | `acos(x)`   | returns the inverse cosine of a number in radians                |
 | `asin(x)`   | returns the inverse sine of a number in radians                  |
 | `atan(x)`   | returns the inverse tangent of a number in radians               |
+| `atan2(y, x)` | returns the inverse tangent of `y / x` in radians, preserving quadrant |
 | `ceil(x)`   | returns the smallest integer greater than or equal to a number   |
 | `cos(x)`    | returns the cosine of a number in radians                        |
 | `cosh(x)`   | returns the hyperbolic cosine of a number                        |
@@ -227,6 +228,9 @@ Inside curly brackets, the following functions are available:
 | `sqrt(x)`   | returns the square root of a number                              |
 | `tan(x)`    | returns the tangent of a number in radians                       |
 | `tanh(x)`   | returns the hyperbolic tangent of a number                       |
+| `hypot(x, y)` | returns the Euclidean norm of `(x, y)`                           |
+| `angle(fromX, fromY, toX, toY)` | returns the angle from `(fromX, fromY)` to `(toX, toY)` in degrees |
+| `distance(fromX, fromY, toX, toY)` | returns the distance between two points     |
 | `len(s)`    | returns the length of a string                                   |
 | `def(var)`  | checks if a variable is defined (do not begin variable with `$`) |
 
