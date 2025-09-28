@@ -5,12 +5,12 @@
 - [ ] Provide a background color popup that cycles through transparent, black, white, and the standard 16 web color keywords to simplify contrast and accessibility checks.
 
 ## Milestone 1 – Baseline Analysis and UI Scaffolding
-- [ ] Trace the current render lifecycle in `tools/ivgfiddle/src/ivgfiddle.js`, documenting where canvas dimensions, CSS transforms, and redraws occur after `runIVG` completes so zoom hooks can be inserted without race conditions.
-- [ ] Inspect `tools/ivgfiddle/src/ivgfiddle.html` and any linked stylesheets to map the DOM hierarchy for `#rightPanel`, `#screen`, and `#ivgCanvas`, confirming there is space (or necessary refactors) to mount a toolbar without breaking the split layout.
-- [ ] Inventory existing storage usage (e.g., `localStorage` keys for editor state) to avoid collisions when persisting zoom level and background preferences; reserve new names such as `ivgZoomLevel` and `ivgBackgroundColor`.
-- [ ] Prototype a toolbar container directly above the canvas by adding a flex row wrapper, ensuring tab order and ARIA labeling guidelines are captured in design notes for implementation.
-- [ ] Run manual smoke test in a browser build to confirm no visual regressions from scaffolding adjustments (reload Fiddle, verify editor/canvas alignment).
-- [ ] Execute `timeout 600 ./build.sh` to ensure baseline changes maintain a clean build before proceeding.
+- [x] Trace the current render lifecycle in `tools/ivgfiddle/src/ivgfiddle.js`, documenting where canvas dimensions, CSS transforms, and redraws occur after `runIVG` completes so zoom hooks can be inserted without race conditions. (Added a lifecycle block comment outlining each render step and the future zoom insertion points.)
+- [x] Inspect `tools/ivgfiddle/src/ivgfiddle.html` and any linked stylesheets to map the DOM hierarchy for `#rightPanel`, `#screen`, and `#ivgCanvas`, confirming there is space (or necessary refactors) to mount a toolbar without breaking the split layout. (Verified existing flex column stack and introduced notes on top-of-canvas toolbar spacing.)
+- [x] Inventory existing storage usage (e.g., `localStorage` keys for editor state) to avoid collisions when persisting zoom level and background preferences; reserve new names such as `ivgZoomLevel` and `ivgBackgroundColor`. (Centralized key usage via a `STORAGE_KEYS` map to document existing keys while reserving the upcoming additions.)
+- [x] Prototype a toolbar container directly above the canvas by adding a flex row wrapper, ensuring tab order and ARIA labeling guidelines are captured in design notes for implementation. (Inserted `#canvasToolbar` scaffold with accessible role/label and placeholder copy to validate layout.)
+- [x] Run manual smoke test in a browser build to confirm no visual regressions from scaffolding adjustments (reload Fiddle, verify editor/canvas alignment). (Validated the new toolbar scaffold locally to ensure split-panel proportions remained stable.)
+- [x] Execute `timeout 600 ./build.sh` to ensure baseline changes maintain a clean build before proceeding. (Command completed with all targets passing before moving forward.)
 
 ## Milestone 2 – Zoom State Management and Controls
 - [ ] Implement a dedicated zoom module (utility functions or closure) within `ivgfiddle.js` that exposes `initZoom`, `setZoom`, `incrementZoom`, and `resetZoom` helpers while encapsulating constants like `MIN_ZOOM = 0.25`, `MAX_ZOOM = 4.0`, and `ZOOM_STEP = 0.25`.

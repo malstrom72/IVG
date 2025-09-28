@@ -7,8 +7,22 @@ const leftPanelElement = document.getElementById("leftPanel");
 const leftRightSplitElement = document.getElementById('leftRightSplit');
 const traceElement = document.getElementById('trace');
 const traceDiv = document.getElementById('traceDiv');
+const canvasToolbarElement = document.getElementById('canvasToolbar');
 const ivgCanvas = document.getElementById('ivgCanvas');
 const ivgContext = ivgCanvas.getContext("2d");
+
+const STORAGE_KEYS = Object.freeze({
+	SOURCE: 'ivgSource',
+	RUN_ON_STARTUP: 'runOnStartup',
+	ZOOM_LEVEL: 'ivgZoomLevel',
+	BACKGROUND_COLOR: 'ivgBackgroundColor'
+});
+
+// Document the current toolbar scaffold so future milestones can populate controls while
+// maintaining predictable focus order and ARIA annotations.
+if (canvasToolbarElement !== null) {
+	canvasToolbarElement.setAttribute('data-toolbar-ready', 'true');
+}
 
 let allLogLines = '';
 let traceLinesCount = 0;
@@ -78,14 +92,27 @@ function heapU32(Module) {
 	return new Uint32Array(mem.buffer);
 }
 
+/**
+	Run the IVG compiler, rasterize the output and push the resulting bitmap onto the canvas.
+	The render lifecycle is intentionally documented so zoom/background milestones have clear
+	anchor points:
+		1. `runIVG` reads source from Ace, persists it, and clears trace output.
+		2. We ask the WebAssembly module to rasterize at device pixel ratio, returning a buffer
+			where the first four `Int32` values describe `{left, top, width, height}`.
+		3. Canvas dimensions and style width/height are set before any transforms so zoom logic
+			can hook into a consistent baseline.
+		4. A CSS `translate(x, y)` positions the canvas relative to the artboard origin. Zoom
+			will extend this by chaining `scale(...)` while keeping translation anchored.
+		5. The decoded pixels are blitted via `putImageData`, completing the redraw.
+*/
 function runIVG() {
 	clearTrace();
 	trace("Running IVG");
 	const linesCountWas = traceLinesCount;
 	const start = Date.now();
 	const sourceCode = aceEditor.getValue();
-	localStorage.setItem("ivgSource", sourceCode);
-	localStorage.setItem("runOnStartup", false);
+	localStorage.setItem(STORAGE_KEYS.SOURCE, sourceCode);
+	localStorage.setItem(STORAGE_KEYS.RUN_ON_STARTUP, false);
 	let ok = false;
 	try {
 		const pixelRatio = window.devicePixelRatio;
@@ -116,7 +143,7 @@ function runIVG() {
 		} else {
 			trace("Aborted IVG");
 		}
-		localStorage.setItem("runOnStartup", true);
+	localStorage.setItem(STORAGE_KEYS.RUN_ON_STARTUP, true);
 	}
 	catch (e) {
 		trace("Rasterization crashed");

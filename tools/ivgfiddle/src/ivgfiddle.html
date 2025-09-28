@@ -46,6 +46,22 @@
 		    background-size: 20px 20px;
 		    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
 		}
+		#canvasToolbar {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding: 8px 12px;
+			border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+			background-color: rgba(0, 0, 0, 0.35);
+			color: #fff;
+		}
+		#canvasToolbarPlaceholder {
+			font-size: 12px;
+			letter-spacing: 0.03em;
+			text-transform: uppercase;
+			opacity: 0.6;
+			white-space: nowrap;
+		}
 		/*#ivgCanvas {
 			border: 0.5px dashed rgba(255, 255, 255, 0.5);
 		}*/
@@ -60,6 +76,10 @@
 			</div>
 			<div id="leftRightSplit"></div>
 			<div id="rightPanel" class="flex-col">
+				<div id="canvasToolbar" class="flex-row" role="group" aria-label="IVG canvas tools">
+					<!-- Placeholder content; real controls arrive with the zoom/background milestones. -->
+					<span id="canvasToolbarPlaceholder" aria-hidden="true">Canvas tools toolbar scaffold</span>
+				</div>
 				<div id="screen">
 					<canvas id="ivgCanvas">
 						This text is displayed if your browser does not support HTML5 Canvas.
