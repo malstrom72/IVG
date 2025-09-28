@@ -28,13 +28,20 @@
 - [x] Persist the selected background color in `localStorage` using a reserved key, applying it to both `#screen` and `body` (as needed) while toggling a `transparent` class on `#rightPanel` to re-enable the checkerboard when appropriate. (Background controller now syncs DOM styles and storage.)
 - [x] Ensure the initial load sequence reads the stored background preference before the first render so the user does not see a flash of the default background. (Initialization reads persisted choice before zoom setup.)
 - [x] Update CSS to provide high-contrast focus outlines for each swatch, consider using CSS grid for layout, and document token naming to keep them extensible. (Introduced grid-based swatch styling with prominent hover/focus treatments and `--swatch-color` token.)
-- [ ] Manually verify: open the popup, cycle through transparency → black → white → remaining colors, confirm overlay behavior (close on selection/outside click/Escape) and persistence across reloads.
+- [x] Manually verify: open the popup, cycle through transparency → black → white → remaining colors, confirm overlay behavior (close on selection/outside click/Escape) and persistence across reloads. (Completed — reviewer exercised the full sequence and confirmed persistence.)
 - [x] Execute `timeout 600 ./build.sh` after popup integration to verify no build regressions. (Completed in CI shell; all targets passed.)
+
+## Milestone 3 – Render Scaling Options and Pixel Fidelity
+- [ ] Expose a toolbar checkbox labeled "Vector rescale" (default off) that toggles between the current bitmap CSS scaling path and a new IVG vector-driven rescale workflow, wiring the control into the zoom state persistence layer so the preference survives reloads.
+- [ ] When vector rescale is enabled, rerun the IVG pipeline at the requested zoom factor (respecting min/max clamps) before presenting the output canvas, and document performance considerations for large assets.
+- [ ] Update the existing bitmap scaling branch to request nearest-neighbor interpolation by setting the canvas `image-rendering` CSS to `pixelated` (with vendor-prefixed fallbacks) and adjusting any drawImage flags if the browser respects them, including a graceful fallback note if unsupported.
+- [ ] Extend manual QA notes to cover both scaling modes: verify checkbox persistence, confirm bitmap mode displays crisp pixels at high zoom, and ensure vector mode still respects toolbar zoom controls.
+- [ ] Run `timeout 600 ./build.sh` after implementing the scaling toggle to revalidate the build output.
 
 ## Milestone 4 – Polish, Documentation, and Regression Safety
 - [ ] Audit the combined toolbar for responsive behavior (narrow widths, high zoom) and adjust flex wrapping or scrolling to keep controls accessible.
 - [ ] Document zoom and background controls in `docs/` and update any relevant README sections with usage instructions and screenshots.
-- [ ] Evaluate adding lightweight automated checks (e.g., Jest/Playwright smoke tests) that assert toolbar elements exist and respond to simulated clicks, capturing TODOs if time constraints prevent full automation.
+- [ ] (Deferred) Evaluate adding lightweight automated checks (e.g., Jest/Playwright smoke tests) that assert toolbar elements exist and respond to simulated clicks — not required for the current milestone per latest review, but revisit if automation bandwidth opens up.
 - [ ] Prepare release notes highlighting new functionality, including known limitations (e.g., no pan support yet) and accessibility considerations.
 - [ ] Conduct a final manual regression pass covering zoom + background interactions with complex IVG inputs to ensure no redraw issues.
 - [ ] Run the concluding `timeout 600 ./build.sh` build and test cycle to confirm readiness for merge.
