@@ -30,27 +30,26 @@ const STORAGE_KEYS = Object.freeze({
 });
 
 const BACKGROUND_COLORS = Object.freeze([
-        { value: 'transparent', label: 'Transparent', preview: 'transparent' },
-        { value: 'black', label: 'Black', preview: '#000000' },
-        { value: 'white', label: 'White', preview: '#ffffff' },
-        { value: 'maroon', label: 'Maroon', preview: '#800000' },
-        { value: 'red', label: 'Red', preview: '#ff0000' },
-        { value: 'orange', label: 'Orange', preview: '#ffa500' },
-        { value: 'yellow', label: 'Yellow', preview: '#ffff00' },
-        { value: 'olive', label: 'Olive', preview: '#808000' },
-        { value: 'green', label: 'Green', preview: '#008000' },
-        { value: 'purple', label: 'Purple', preview: '#800080' },
-        { value: 'fuchsia', label: 'Fuchsia', preview: '#ff00ff' },
-        { value: 'lime', label: 'Lime', preview: '#00ff00' },
-        { value: 'teal', label: 'Teal', preview: '#008080' },
-        { value: 'aqua', label: 'Aqua', preview: '#00ffff' },
-        { value: 'blue', label: 'Blue', preview: '#0000ff' },
-        { value: 'navy', label: 'Navy', preview: '#000080' },
-        { value: 'gray', label: 'Gray', preview: '#808080' },
-        { value: 'silver', label: 'Silver', preview: '#c0c0c0' }
+	{ value: 'black', label: 'Black', preview: '#000000' },
+	{ value: 'white', label: 'White', preview: '#ffffff' },
+	{ value: 'gray', label: 'Gray', preview: '#808080' },
+	{ value: 'silver', label: 'Silver', preview: '#c0c0c0' },
+	{ value: 'red', label: 'Red', preview: '#ff0000' },
+	{ value: 'maroon', label: 'Maroon', preview: '#800000' },
+	{ value: 'purple', label: 'Purple', preview: '#800080' },
+	{ value: 'fuchsia', label: 'Fuchsia', preview: '#ff00ff' },
+	{ value: 'blue', label: 'Blue', preview: '#0000ff' },
+	{ value: 'navy', label: 'Navy', preview: '#000080' },
+	{ value: 'aqua', label: 'Aqua', preview: '#00ffff' },
+	{ value: 'teal', label: 'Teal', preview: '#008080' },
+	{ value: 'green', label: 'Green', preview: '#008000' },
+	{ value: 'lime', label: 'Lime', preview: '#00ff00' },
+	{ value: 'olive', label: 'Olive', preview: '#808000' },
+	{ value: 'yellow', label: 'Yellow', preview: '#ffff00' },
+	{ value: 'none', label: 'None', preview: '#121212' }
 ]);
 
-const BACKGROUND_DEFAULT = BACKGROUND_COLORS[0].value;
+const BACKGROUND_DEFAULT = 'none';
 
 const BackgroundController = (function createBackgroundController() {
         let currentColor = BACKGROUND_DEFAULT;
@@ -69,12 +68,15 @@ const BackgroundController = (function createBackgroundController() {
                 return null;
         }
 
-        function normalizeColor(value) {
-                const definition = getColorDefinition(value);
-                if (definition === null) {
-                        return BACKGROUND_DEFAULT;
-                }
-                return definition.value;
+	function normalizeColor(value) {
+		if (value === 'transparent') {
+			return 'none';
+		}
+		const definition = getColorDefinition(value);
+		if (definition === null) {
+			return BACKGROUND_DEFAULT;
+		}
+		return definition.value;
         }
 
         function createSwatches() {
@@ -136,9 +138,10 @@ const BackgroundController = (function createBackgroundController() {
         }
 
         function applyColorToDOM() {
+                const shouldClearColor = currentColor === 'none';
                 if (rightPanelElement !== null) {
-                        if (currentColor === 'transparent') {
-                                rightPanelElement.classList.add('transparent');
+                        if (shouldClearColor) {
+                                rightPanelElement.classList.remove('transparent');
                                 rightPanelElement.style.backgroundColor = '';
                         } else {
                                 rightPanelElement.classList.remove('transparent');
@@ -146,14 +149,14 @@ const BackgroundController = (function createBackgroundController() {
                         }
                 }
                 if (screenElement !== null) {
-                        if (currentColor === 'transparent') {
+                        if (shouldClearColor) {
                                 screenElement.style.backgroundColor = '';
                         } else {
                                 screenElement.style.backgroundColor = currentColor;
                         }
                 }
                 if (bodyElement !== null) {
-                        if (currentColor === 'transparent') {
+                        if (shouldClearColor) {
                                 bodyElement.style.backgroundColor = defaultBodyBackground;
                         } else {
                                 bodyElement.style.backgroundColor = currentColor;
