@@ -34,18 +34,24 @@
 			width: 50%;
 			min-width: 250px;
 		}
-		#rightPanel {
-			flex-grow: 1;
-			overflow: auto;
-			background-color: #444;
-		    background-image:
-		        linear-gradient(45deg, #888 25%, transparent 25%),
-		        linear-gradient(-45deg, #888 25%, transparent 25%),
-		        linear-gradient(45deg, transparent 75%, #888 75%),
-		        linear-gradient(-45deg, transparent 75%, #888 75%);
-		    background-size: 20px 20px;
-		    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-		}
+               #rightPanel {
+                        position: relative;
+                        flex-grow: 1;
+                        overflow: auto;
+                }
+               #rightPanel.transparent {
+                        background-color: #444;
+                        background-image:
+                                linear-gradient(45deg, #888 25%, transparent 25%),
+                                linear-gradient(-45deg, #888 25%, transparent 25%),
+                                linear-gradient(45deg, transparent 75%, #888 75%),
+                                linear-gradient(-45deg, transparent 75%, #888 75%);
+                        background-size: 20px 20px;
+                        background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+                }
+               #rightPanel:not(.transparent) {
+                        background-image: none;
+                }
                 #canvasToolbar {
                         display: flex;
                         align-items: center;
@@ -100,6 +106,125 @@
                         font-size: 11px;
                         opacity: 0.55;
                 }
+               #backgroundOverlay {
+                       position: absolute;
+                       inset: 0;
+                       display: flex;
+                       align-items: center;
+                       justify-content: center;
+                       padding: 24px;
+                       background: rgba(0, 0, 0, 0.65);
+                       z-index: 25;
+               }
+               #backgroundOverlay.is-hidden {
+                       display: none;
+               }
+               #backgroundDialog {
+                       display: flex;
+                       flex-direction: column;
+                       gap: 16px;
+                       max-width: 420px;
+                       width: 100%;
+                       padding: 20px 24px;
+                       border-radius: 8px;
+                       background: rgba(18, 18, 18, 0.95);
+                       border: 1px solid rgba(255, 255, 255, 0.2);
+                       color: #fff;
+                       box-shadow: 0 18px 36px rgba(0, 0, 0, 0.45);
+               }
+               #backgroundDialogTitle {
+                       margin: 0;
+                       font-size: 18px;
+                       letter-spacing: 0.03em;
+               }
+               .background-dialog__header {
+                       display: flex;
+                       align-items: center;
+                       justify-content: space-between;
+                       gap: 16px;
+               }
+               #backgroundCloseButton {
+                       display: inline-flex;
+                       align-items: center;
+                       justify-content: center;
+                       width: 32px;
+                       height: 32px;
+                       border-radius: 16px;
+                       border: 1px solid rgba(255, 255, 255, 0.25);
+                       background: rgba(255, 255, 255, 0.05);
+                       color: inherit;
+                       cursor: pointer;
+                       font-size: 18px;
+                       line-height: 1;
+               }
+               #backgroundCloseButton:hover,
+               #backgroundCloseButton:focus {
+                       background: rgba(255, 255, 255, 0.15);
+                       border-color: rgba(255, 255, 255, 0.35);
+                       outline: none;
+               }
+               #backgroundDialogDescription {
+                       margin: 0;
+                       font-size: 13px;
+                       opacity: 0.7;
+               }
+               #backgroundSwatchContainer {
+                       display: grid;
+                       grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+                       gap: 12px;
+               }
+               .background-swatch {
+                       --swatch-color: transparent;
+                       display: flex;
+                       flex-direction: column;
+                       gap: 6px;
+                       align-items: center;
+                       justify-content: center;
+                       padding: 12px 8px;
+                       border-radius: 6px;
+                       border: 1px solid rgba(255, 255, 255, 0.25);
+                       background: rgba(255, 255, 255, 0.05);
+                       color: inherit;
+                       cursor: pointer;
+                       font: inherit;
+                       text-align: center;
+                       transition: border-color 120ms ease, background 120ms ease;
+               }
+               .background-swatch:focus-visible {
+                       outline: 2px solid #fff;
+                       outline-offset: 3px;
+               }
+               .background-swatch:hover {
+                       background: rgba(255, 255, 255, 0.15);
+                       border-color: rgba(255, 255, 255, 0.35);
+               }
+               .background-swatch[data-selected="true"] {
+                       border-color: #fff;
+                       box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3) inset;
+               }
+               .background-swatch__preview {
+                       width: 36px;
+                       height: 36px;
+                       border-radius: 18px;
+                       border: 1px solid rgba(255, 255, 255, 0.35);
+                       background: var(--swatch-color);
+               }
+               .background-swatch[data-background="transparent"] .background-swatch__preview {
+                       border: 1px solid rgba(255, 255, 255, 0.3);
+                       background-image:
+                               linear-gradient(45deg, #bbb 25%, transparent 25%),
+                               linear-gradient(-45deg, #bbb 25%, transparent 25%),
+                               linear-gradient(45deg, transparent 75%, #bbb 75%),
+                               linear-gradient(-45deg, transparent 75%, #bbb 75%);
+                       background-size: 12px 12px;
+                       background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
+               }
+               .background-swatch__label {
+                       font-size: 11px;
+                       letter-spacing: 0.03em;
+                       text-transform: uppercase;
+                       opacity: 0.85;
+               }
 		/*#ivgCanvas {
 			border: 0.5px dashed rgba(255, 255, 255, 0.5);
 		}*/
@@ -113,7 +238,7 @@
 				</div>
 			</div>
 			<div id="leftRightSplit"></div>
-			<div id="rightPanel" class="flex-col">
+                       <div id="rightPanel" class="flex-col transparent">
                                 <div id="canvasToolbar" class="flex-row" role="group" aria-label="IVG canvas tools">
                                         <label id="zoomLevelLabel" class="toolbar-label" for="zoomLevelSelect">Zoom</label>
                                         <button id="zoomOutButton" class="toolbar-button" type="button" aria-label="Zoom out">&minus;</button>
@@ -133,11 +258,22 @@
                                         </select>
                                         <button id="zoomInButton" class="toolbar-button" type="button" aria-label="Zoom in">+</button>
                                         <button id="zoomResetButton" class="toolbar-button" type="button">Reset</button>
+                                        <button id="backgroundButton" class="toolbar-button" type="button" aria-haspopup="dialog" aria-controls="backgroundDialog">Background</button>
                                         <span id="zoomKeyboardHints" aria-hidden="true">Ctrl/Cmd + / &minus; / 0</span>
                                 </div>
-				<div id="screen">
-					<canvas id="ivgCanvas">
-						This text is displayed if your browser does not support HTML5 Canvas.
+                                <div id="backgroundOverlay" class="background-overlay is-hidden" aria-hidden="true">
+                                        <div id="backgroundDialog" class="background-dialog" role="dialog" aria-modal="true" aria-labelledby="backgroundDialogTitle" aria-describedby="backgroundDialogDescription">
+                                                <div class="background-dialog__header">
+                                                        <h2 id="backgroundDialogTitle">Canvas background</h2>
+                                                        <button id="backgroundCloseButton" type="button" aria-label="Close background picker">&times;</button>
+                                                </div>
+                                                <p id="backgroundDialogDescription">Select a background swatch to preview your artwork on common colors.</p>
+                                                <div id="backgroundSwatchContainer" class="background-swatches" role="listbox" aria-labelledby="backgroundDialogTitle"></div>
+                                        </div>
+                                </div>
+                                <div id="screen">
+                                        <canvas id="ivgCanvas">
+                                                This text is displayed if your browser does not support HTML5 Canvas.
 					</canvas>
 				</div>
 			</div>

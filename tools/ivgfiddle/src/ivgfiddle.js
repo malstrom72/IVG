@@ -8,26 +8,383 @@ const leftRightSplitElement = document.getElementById('leftRightSplit');
 const traceElement = document.getElementById('trace');
 const traceDiv = document.getElementById('traceDiv');
 const canvasToolbarElement = document.getElementById('canvasToolbar');
+const rightPanelElement = document.getElementById('rightPanel');
+const screenElement = document.getElementById('screen');
 const zoomOutButton = document.getElementById('zoomOutButton');
 const zoomInButton = document.getElementById('zoomInButton');
 const zoomResetButton = document.getElementById('zoomResetButton');
 const zoomLevelSelect = document.getElementById('zoomLevelSelect');
+const backgroundButton = document.getElementById('backgroundButton');
+const backgroundOverlay = document.getElementById('backgroundOverlay');
+const backgroundDialog = document.getElementById('backgroundDialog');
+const backgroundCloseButton = document.getElementById('backgroundCloseButton');
+const backgroundSwatchContainer = document.getElementById('backgroundSwatchContainer');
 const ivgCanvas = document.getElementById('ivgCanvas');
 const ivgContext = ivgCanvas.getContext("2d");
 
 const STORAGE_KEYS = Object.freeze({
-	SOURCE: 'ivgSource',
-	RUN_ON_STARTUP: 'runOnStartup',
-	ZOOM_LEVEL: 'ivgZoomLevel',
-	BACKGROUND_COLOR: 'ivgBackgroundColor'
+        SOURCE: 'ivgSource',
+        RUN_ON_STARTUP: 'runOnStartup',
+        ZOOM_LEVEL: 'ivgZoomLevel',
+        BACKGROUND_COLOR: 'ivgBackgroundColor'
 });
 
+const BACKGROUND_COLORS = Object.freeze([
+        { value: 'transparent', label: 'Transparent', preview: 'transparent' },
+        { value: 'black', label: 'Black', preview: '#000000' },
+        { value: 'white', label: 'White', preview: '#ffffff' },
+        { value: 'maroon', label: 'Maroon', preview: '#800000' },
+        { value: 'red', label: 'Red', preview: '#ff0000' },
+        { value: 'orange', label: 'Orange', preview: '#ffa500' },
+        { value: 'yellow', label: 'Yellow', preview: '#ffff00' },
+        { value: 'olive', label: 'Olive', preview: '#808000' },
+        { value: 'green', label: 'Green', preview: '#008000' },
+        { value: 'purple', label: 'Purple', preview: '#800080' },
+        { value: 'fuchsia', label: 'Fuchsia', preview: '#ff00ff' },
+        { value: 'lime', label: 'Lime', preview: '#00ff00' },
+        { value: 'teal', label: 'Teal', preview: '#008080' },
+        { value: 'aqua', label: 'Aqua', preview: '#00ffff' },
+        { value: 'blue', label: 'Blue', preview: '#0000ff' },
+        { value: 'navy', label: 'Navy', preview: '#000080' },
+        { value: 'gray', label: 'Gray', preview: '#808080' },
+        { value: 'silver', label: 'Silver', preview: '#c0c0c0' }
+]);
+
+const BACKGROUND_DEFAULT = BACKGROUND_COLORS[0].value;
+
+const BackgroundController = (function createBackgroundController() {
+        let currentColor = BACKGROUND_DEFAULT;
+        let isOpen = false;
+        let lastTrigger = null;
+        const bodyElement = document.body;
+        const defaultBodyBackground = bodyElement.style.backgroundColor;
+
+        function getColorDefinition(value) {
+                for (let index = 0; index < BACKGROUND_COLORS.length; ++index) {
+                        const entry = BACKGROUND_COLORS[index];
+                        if (entry.value === value) {
+                                return entry;
+                        }
+                }
+                return null;
+        }
+
+        function normalizeColor(value) {
+                const definition = getColorDefinition(value);
+                if (definition === null) {
+                        return BACKGROUND_DEFAULT;
+                }
+                return definition.value;
+        }
+
+        function createSwatches() {
+                if (backgroundSwatchContainer === null) {
+                        return;
+                }
+                backgroundSwatchContainer.innerHTML = '';
+                const fragment = document.createDocumentFragment();
+                for (let index = 0; index < BACKGROUND_COLORS.length; ++index) {
+                        const color = BACKGROUND_COLORS[index];
+                        const swatchButton = document.createElement('button');
+                        swatchButton.type = 'button';
+                        swatchButton.className = 'background-swatch';
+                        swatchButton.setAttribute('role', 'option');
+                        swatchButton.setAttribute('aria-selected', 'false');
+                        swatchButton.setAttribute('data-background', color.value);
+                        swatchButton.style.setProperty('--swatch-color', color.preview);
+                        const preview = document.createElement('span');
+                        preview.className = 'background-swatch__preview';
+                        const label = document.createElement('span');
+                        label.className = 'background-swatch__label';
+                        label.textContent = color.label;
+                        swatchButton.appendChild(preview);
+                        swatchButton.appendChild(label);
+                        fragment.appendChild(swatchButton);
+                }
+                backgroundSwatchContainer.appendChild(fragment);
+        }
+
+        function updateSelectionUI() {
+                if (backgroundSwatchContainer === null) {
+                        return;
+                }
+                const buttons = backgroundSwatchContainer.querySelectorAll('.background-swatch');
+                for (let index = 0; index < buttons.length; ++index) {
+                        const button = buttons[index];
+                        const value = button.getAttribute('data-background');
+                        if (value === currentColor) {
+                                button.setAttribute('data-selected', 'true');
+                                button.setAttribute('aria-selected', 'true');
+                        } else {
+                                button.removeAttribute('data-selected');
+                                button.setAttribute('aria-selected', 'false');
+                        }
+                }
+        }
+
+        function updateTriggerLabel() {
+                if (backgroundButton === null) {
+                        return;
+                }
+                const definition = getColorDefinition(currentColor);
+                const labelText = definition ? definition.label : currentColor;
+                backgroundButton.setAttribute('aria-label', 'Change canvas background (current: ' + labelText + ')');
+        }
+
+        function persistColor() {
+                localStorage.setItem(STORAGE_KEYS.BACKGROUND_COLOR, currentColor);
+        }
+
+        function applyColorToDOM() {
+                if (rightPanelElement !== null) {
+                        if (currentColor === 'transparent') {
+                                rightPanelElement.classList.add('transparent');
+                                rightPanelElement.style.backgroundColor = '';
+                        } else {
+                                rightPanelElement.classList.remove('transparent');
+                                rightPanelElement.style.backgroundColor = currentColor;
+                        }
+                }
+                if (screenElement !== null) {
+                        if (currentColor === 'transparent') {
+                                screenElement.style.backgroundColor = '';
+                        } else {
+                                screenElement.style.backgroundColor = currentColor;
+                        }
+                }
+                if (bodyElement !== null) {
+                        if (currentColor === 'transparent') {
+                                bodyElement.style.backgroundColor = defaultBodyBackground;
+                        } else {
+                                bodyElement.style.backgroundColor = currentColor;
+                        }
+                }
+        }
+
+        function applyColor(value, options) {
+                const settings = options || {};
+                const normalized = normalizeColor(value);
+                if (normalized === currentColor && settings.force !== true) {
+                        updateSelectionUI();
+                        updateTriggerLabel();
+                        return;
+                }
+                currentColor = normalized;
+                applyColorToDOM();
+                updateSelectionUI();
+                updateTriggerLabel();
+                if (!settings.skipPersist) {
+                        persistColor();
+                }
+        }
+
+        function focusCurrentSwatch() {
+                if (backgroundSwatchContainer === null) {
+                        return;
+                }
+                const active = backgroundSwatchContainer.querySelector('.background-swatch[data-background="' + currentColor + '"]');
+                if (active) {
+                        active.focus();
+                }
+        }
+
+        function focusRelativeSwatch(startButton, delta) {
+                if (backgroundSwatchContainer === null) {
+                        return;
+                }
+                const buttons = backgroundSwatchContainer.querySelectorAll('.background-swatch');
+                if (buttons.length === 0) {
+                        return;
+                }
+                const buttonList = Array.prototype.slice.call(buttons);
+                let index = buttonList.indexOf(startButton);
+                if (index === -1) {
+                        index = 0;
+                }
+                index = (index + delta + buttonList.length) % buttonList.length;
+                buttonList[index].focus();
+        }
+
+        function focusFirstSwatch() {
+                if (backgroundSwatchContainer === null) {
+                        return;
+                }
+                const first = backgroundSwatchContainer.querySelector('.background-swatch');
+                if (first) {
+                        first.focus();
+                }
+        }
+
+        function focusLastSwatch() {
+                if (backgroundSwatchContainer === null) {
+                        return;
+                }
+                const buttons = backgroundSwatchContainer.querySelectorAll('.background-swatch');
+                if (buttons.length > 0) {
+                        buttons[buttons.length - 1].focus();
+                }
+        }
+
+        function handleSwatchClick(event) {
+                const target = event.target;
+                if (target === null) {
+                        return;
+                }
+                const button = target.closest ? target.closest('.background-swatch') : null;
+                if (button === null) {
+                        return;
+                }
+                const value = button.getAttribute('data-background');
+                if (!value) {
+                        return;
+                }
+                event.preventDefault();
+                applyColor(value);
+                close();
+        }
+
+        function handleSwatchKeydown(event) {
+                const target = event.target;
+                if (target === null || !target.classList || !target.classList.contains('background-swatch')) {
+                        return;
+                }
+                if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        focusRelativeSwatch(target, 1);
+                        return;
+                }
+                if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        focusRelativeSwatch(target, -1);
+                        return;
+                }
+        if (event.key === 'Home') {
+                event.preventDefault();
+                focusFirstSwatch();
+                return;
+        }
+        if (event.key === 'End') {
+                event.preventDefault();
+                focusLastSwatch();
+                return;
+        }
+                if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        const value = target.getAttribute('data-background');
+                        if (value) {
+                                applyColor(value);
+                                close();
+                        }
+                }
+        }
+
+        function handleOverlayKeydown(event) {
+                if (!isOpen) {
+                        return;
+                }
+                if (event.key === 'Escape') {
+                        event.preventDefault();
+                        close();
+                }
+        }
+
+        function handleOverlayClick(event) {
+                if (!isOpen || backgroundOverlay === null) {
+                        return;
+                }
+                if (event.target === backgroundOverlay) {
+                        event.preventDefault();
+                        close();
+                }
+        }
+
+        function open(trigger) {
+                if (backgroundOverlay === null) {
+                        return;
+                }
+                if (isOpen) {
+                        focusCurrentSwatch();
+                        return;
+                }
+                isOpen = true;
+                lastTrigger = trigger || backgroundButton;
+                backgroundOverlay.classList.remove('is-hidden');
+                backgroundOverlay.setAttribute('aria-hidden', 'false');
+                if (backgroundButton !== null) {
+                        backgroundButton.setAttribute('aria-expanded', 'true');
+                }
+                document.addEventListener('keydown', handleOverlayKeydown, true);
+                window.setTimeout(focusCurrentSwatch, 0);
+        }
+
+        function close() {
+                if (!isOpen || backgroundOverlay === null) {
+                        return;
+                }
+                isOpen = false;
+                backgroundOverlay.classList.add('is-hidden');
+                backgroundOverlay.setAttribute('aria-hidden', 'true');
+                if (backgroundButton !== null) {
+                        backgroundButton.setAttribute('aria-expanded', 'false');
+                }
+                document.removeEventListener('keydown', handleOverlayKeydown, true);
+                if (lastTrigger && typeof lastTrigger.focus === 'function') {
+                        lastTrigger.focus();
+                }
+                lastTrigger = null;
+        }
+
+        function readInitialColor() {
+                const stored = localStorage.getItem(STORAGE_KEYS.BACKGROUND_COLOR);
+                if (stored === null) {
+                        return BACKGROUND_DEFAULT;
+                }
+                return normalizeColor(stored);
+        }
+
+        function bindEvents() {
+                if (backgroundButton !== null) {
+                        backgroundButton.addEventListener('click', function handleBackgroundButtonClick() {
+                                open(backgroundButton);
+                        });
+                }
+                if (backgroundCloseButton !== null) {
+                        backgroundCloseButton.addEventListener('click', function handleBackgroundCloseClick() {
+                                close();
+                        });
+                }
+                if (backgroundOverlay !== null) {
+                        backgroundOverlay.addEventListener('click', handleOverlayClick);
+                }
+                if (backgroundSwatchContainer !== null) {
+                        backgroundSwatchContainer.addEventListener('click', handleSwatchClick);
+                        backgroundSwatchContainer.addEventListener('keydown', handleSwatchKeydown);
+                }
+        }
+
+        function init() {
+                createSwatches();
+                const initialColor = readInitialColor();
+                applyColor(initialColor, { skipPersist: true, force: true });
+                bindEvents();
+        }
+
+        return {
+                init: init,
+                applyColor: applyColor,
+                open: open,
+                close: close
+        };
+})();
+
 const ZOOM_CONSTANTS = Object.freeze({
-	MIN: 0.25,
-	MAX: 4.0,
-	STEP: 0.25,
-	DEFAULT: 1.0
+        MIN: 0.25,
+        MAX: 4.0,
+        STEP: 0.25,
+        DEFAULT: 1.0
 });
+
+BackgroundController.init();
 
 const ZoomController = (function createZoomController() {
 	let currentZoom = ZOOM_CONSTANTS.DEFAULT;
