@@ -4,6 +4,64 @@ const MAX_LOG_SIZE = 64 * 1024;
 const MAX_LOG_LINES = 1000;
 const MAX_VECTOR_RASTER_DIMENSION = 8192;
 const MAX_VECTOR_RASTER_PIXELS = MAX_VECTOR_RASTER_DIMENSION * MAX_VECTOR_RASTER_DIMENSION;
+const VECTOR_MEMORY_RESERVE_BYTES = 12 * 1024 * 1024;
+
+function readHeapByteLength() {
+        if (typeof Module !== 'object' || Module === null) {
+                return 0;
+        }
+        const heaps = [];
+        if (Module.HEAPU8 && Module.HEAPU8.buffer) {
+                heaps.push(Module.HEAPU8.buffer.byteLength);
+        }
+        if (Module.HEAP8 && Module.HEAP8.buffer) {
+                heaps.push(Module.HEAP8.buffer.byteLength);
+        }
+        if (Module.wasmMemory && Module.wasmMemory.buffer) {
+                heaps.push(Module.wasmMemory.buffer.byteLength);
+        }
+        if (heaps.length === 0) {
+                return 0;
+        }
+        let maxBytes = 0;
+        for (let index = 0; index < heaps.length; ++index) {
+                const bytes = heaps[index];
+                if (Number.isFinite(bytes) && bytes > maxBytes) {
+                        maxBytes = bytes;
+                }
+        }
+        return maxBytes;
+}
+
+function estimateVectorPixelBudget() {
+        const heapBytes = readHeapByteLength();
+        if (!Number.isFinite(heapBytes) || heapBytes <= VECTOR_MEMORY_RESERVE_BYTES) {
+                return 0;
+        }
+        const availableBytes = heapBytes - VECTOR_MEMORY_RESERVE_BYTES;
+        if (availableBytes <= 0) {
+                return 0;
+        }
+        return Math.floor(availableBytes / 4);
+}
+
+function formatByteSize(bytes) {
+        if (!Number.isFinite(bytes) || bytes <= 0) {
+                return '';
+        }
+        const megabytes = bytes / (1024 * 1024);
+        if (megabytes >= 1) {
+                if (megabytes >= 100) {
+                        return Math.round(megabytes) + ' MB';
+                }
+                return megabytes.toFixed(1) + ' MB';
+        }
+        const kilobytes = bytes / 1024;
+        if (kilobytes >= 1) {
+                return kilobytes.toFixed(1) + ' KB';
+        }
+        return Math.round(bytes) + ' bytes';
+}
 
 const leftPanelElement = document.getElementById("leftPanel");
 const leftRightSplitElement = document.getElementById('leftRightSplit');
@@ -604,7 +662,7 @@ function syncZoomSelectValue() {
         if (customOption !== null) {
                 customOption.hidden = false;
                 customOption.disabled = false;
-                customOption.textContent = percentString + '% (custom)';
+                customOption.textContent = percentString + '%';
                 zoomLevelSelect.value = CUSTOM_ZOOM_OPTION_VALUE;
         }
 }
@@ -1094,6 +1152,16 @@ function runIVG(reason) {
 const zoomLevel = ZoomController.getZoom();
 const vectorRescaleEnabled = ZoomController.isVectorScalingEnabled();
 const pixelRatio = window.devicePixelRatio;
+const dynamicPixelBudget = estimateVectorPixelBudget();
+let vectorPixelBudget = MAX_VECTOR_RASTER_PIXELS;
+let pixelBudgetReason = 'pixel budget';
+let memoryBudgetPixels = 0;
+if (Number.isFinite(dynamicPixelBudget) && dynamicPixelBudget > 0 && dynamicPixelBudget < vectorPixelBudget) {
+        vectorPixelBudget = dynamicPixelBudget;
+        pixelBudgetReason = 'memory budget';
+        memoryBudgetPixels = dynamicPixelBudget;
+}
+const memoryBudgetBytes = memoryBudgetPixels > 0 ? memoryBudgetPixels * 4 + 16 : 0;
 let targetRenderZoom = vectorRescaleEnabled ? zoomLevel : 1;
 let renderZoom = targetRenderZoom;
 let vectorRenderLimit = Infinity;
@@ -1101,17 +1169,20 @@ let clampReasons = [];
 const baseMetrics = ZoomController.getBaseMetrics();
 let skipVectorRaster = false;
 let preflightReasons = [];
+let basePixelWidth = 0;
+let basePixelHeight = 0;
+let basePixelArea = 0;
 try {
 if (vectorRescaleEnabled) {
 if (baseMetrics !== null && baseMetrics.width > 0 && baseMetrics.height > 0) {
-const basePixelWidth = baseMetrics.width * pixelRatio;
-const basePixelHeight = baseMetrics.height * pixelRatio;
-const basePixelArea = basePixelWidth * basePixelHeight;
+basePixelWidth = baseMetrics.width * pixelRatio;
+basePixelHeight = baseMetrics.height * pixelRatio;
+basePixelArea = basePixelWidth * basePixelHeight;
 const zoomLimits = [];
-if (basePixelArea > 0) {
-const maxZoomByArea = Math.sqrt(MAX_VECTOR_RASTER_PIXELS / basePixelArea);
+if (vectorPixelBudget > 0 && basePixelArea > 0) {
+const maxZoomByArea = Math.sqrt(vectorPixelBudget / basePixelArea);
 if (Number.isFinite(maxZoomByArea)) {
-zoomLimits.push({ value: maxZoomByArea, reason: 'pixel budget' });
+zoomLimits.push({ value: maxZoomByArea, reason: pixelBudgetReason });
                                         }
                                 }
                                 if (basePixelWidth > 0) {
@@ -1149,20 +1220,32 @@ clampReasons = appliedReasons;
 }
 }
 }
-if (vectorRescaleEnabled && baseMetrics !== null && baseMetrics.width > 0 && baseMetrics.height > 0) {
-const basePixelWidth = baseMetrics.width * pixelRatio;
-const basePixelHeight = baseMetrics.height * pixelRatio;
+if (vectorRescaleEnabled && basePixelWidth > 0 && basePixelHeight > 0) {
 const targetPixelWidth = basePixelWidth * renderZoom;
 const targetPixelHeight = basePixelHeight * renderZoom;
 const targetPixelArea = targetPixelWidth * targetPixelHeight;
-if (targetPixelArea > MAX_VECTOR_RASTER_PIXELS) {
-preflightReasons.push('pixel budget');
+if (vectorPixelBudget <= 0 || targetPixelArea > vectorPixelBudget) {
+preflightReasons.push(pixelBudgetReason);
+if (vectorPixelBudget > 0 && basePixelArea > 0) {
+const budgetZoomLimit = Math.sqrt(vectorPixelBudget / basePixelArea);
+if (Number.isFinite(budgetZoomLimit)) {
+vectorRenderLimit = Math.min(vectorRenderLimit, budgetZoomLimit);
+}
+}
 }
 if (targetPixelWidth > MAX_VECTOR_RASTER_DIMENSION) {
 preflightReasons.push('width limit');
+const maxZoomByWidth = MAX_VECTOR_RASTER_DIMENSION / basePixelWidth;
+if (Number.isFinite(maxZoomByWidth)) {
+vectorRenderLimit = Math.min(vectorRenderLimit, maxZoomByWidth);
+}
 }
 if (targetPixelHeight > MAX_VECTOR_RASTER_DIMENSION) {
 preflightReasons.push('height limit');
+const maxZoomByHeight = MAX_VECTOR_RASTER_DIMENSION / basePixelHeight;
+if (Number.isFinite(maxZoomByHeight)) {
+vectorRenderLimit = Math.min(vectorRenderLimit, maxZoomByHeight);
+}
 }
 if (preflightReasons.length > 0) {
 skipVectorRaster = true;
@@ -1175,17 +1258,51 @@ if (skipVectorRaster) {
 const uniqueReasons = Array.from(new Set(preflightReasons));
 const reasonText = uniqueReasons.length > 0 ? ' due to ' + uniqueReasons.join(' & ') : '';
 const includePixelBudget = uniqueReasons.indexOf('pixel budget') !== -1;
+const includeMemoryBudget = uniqueReasons.indexOf('memory budget') !== -1;
 const includeDimensionCap = uniqueReasons.indexOf('width limit') !== -1 || uniqueReasons.indexOf('height limit') !== -1;
-const pixelBudgetNote = includePixelBudget ? ' (pixel budget ' + MAX_VECTOR_RASTER_PIXELS.toLocaleString('en-US') + ' px)' : '';
-const dimensionNote = includeDimensionCap ? ' (dimension cap ' + MAX_VECTOR_RASTER_DIMENSION + 'px)' : '';
-trace("Vector rescale request was " + Math.round(targetRenderZoom * 100) + "% but exceeds the safe rasterization limits" + reasonText + pixelBudgetNote + dimensionNote + ". Staying in bitmap zoom.");
+const notes = [];
+if (includePixelBudget) {
+notes.push('pixel budget ' + MAX_VECTOR_RASTER_PIXELS.toLocaleString('en-US') + ' px');
+}
+if (includeMemoryBudget) {
+if (memoryBudgetPixels > 0) {
+const approxBytes = formatByteSize(memoryBudgetBytes);
+const memoryPixels = memoryBudgetPixels.toLocaleString('en-US');
+const bytesNote = approxBytes !== '' ? ' ≈ ' + approxBytes : '';
+notes.push('memory budget ≈ ' + memoryPixels + ' px' + bytesNote);
+} else {
+notes.push('memory budget');
+}
+}
+if (includeDimensionCap) {
+notes.push('dimension cap ' + MAX_VECTOR_RASTER_DIMENSION + 'px');
+}
+const noteText = notes.length > 0 ? ' (' + notes.join(', ') + ')' : '';
+trace("Vector rescale request was " + Math.round(targetRenderZoom * 100) + "% but exceeds the safe rasterization limits" + reasonText + noteText + ". Staying in bitmap zoom.");
 } else if (renderZoom < targetRenderZoom - 0.0001) {
 const reasonText = clampReasons.length > 0 ? ' due to ' + clampReasons.join(' & ') : '';
 const includePixelBudget = clampReasons.indexOf('pixel budget') !== -1;
+const includeMemoryBudget = clampReasons.indexOf('memory budget') !== -1;
 const includeDimensionCap = clampReasons.indexOf('width limit') !== -1 || clampReasons.indexOf('height limit') !== -1;
-const pixelBudgetNote = includePixelBudget ? ' (pixel budget ' + MAX_VECTOR_RASTER_PIXELS.toLocaleString('en-US') + ' px)' : '';
-const dimensionNote = includeDimensionCap ? ' (dimension cap ' + MAX_VECTOR_RASTER_DIMENSION + 'px)' : '';
-trace("Vector rescale request was " + Math.round(targetRenderZoom * 100) + "% but clamped to " + Math.round(renderZoom * 100) + "%" + reasonText + pixelBudgetNote + dimensionNote + ".");
+const notes = [];
+if (includePixelBudget) {
+notes.push('pixel budget ' + MAX_VECTOR_RASTER_PIXELS.toLocaleString('en-US') + ' px');
+}
+if (includeMemoryBudget) {
+if (memoryBudgetPixels > 0) {
+const approxBytes = formatByteSize(memoryBudgetBytes);
+const memoryPixels = memoryBudgetPixels.toLocaleString('en-US');
+const bytesNote = approxBytes !== '' ? ' ≈ ' + approxBytes : '';
+notes.push('memory budget ≈ ' + memoryPixels + ' px' + bytesNote);
+} else {
+notes.push('memory budget');
+}
+}
+if (includeDimensionCap) {
+notes.push('dimension cap ' + MAX_VECTOR_RASTER_DIMENSION + 'px');
+}
+const noteText = notes.length > 0 ? ' (' + notes.join(', ') + ')' : '';
+trace("Vector rescale request was " + Math.round(targetRenderZoom * 100) + "% but clamped to " + Math.round(renderZoom * 100) + "%" + reasonText + noteText + ".");
 } else {
 trace("Vector rescale enabled - rasterizing at " + Math.round(renderZoom * 100) + "% (" + rasterScale.toFixed(2) + "x device ratio)");
 }
