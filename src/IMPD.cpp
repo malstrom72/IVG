@@ -1010,26 +1010,28 @@ StringIt Interpreter::substringOperation(StringIt p, const StringIt& e, Evaluati
 StringIt Interpreter::evaluateInner(StringIt b, const StringIt& e, EvaluationValue& v, Precedence precedence, bool dry) const {
 	StringIt p = evaluateOuter(b, e, v, dry);
 	while (p != b) {
-		b = p;
-		StringIt t = eatWhite(b, e);
-		if (t != e) {
-			if (*t == ',' && precedence == COMMA) {
-				p = t;
-				return p;
-			}
-			const Precedence effectivePrecedence = (precedence == COMMA ? BRACKETS : precedence);
-			StringIt q;
-			switch (*t) {
-				case '+': case '-': q = numericOperation(t, e, v, effectivePrecedence, *t, ADD_SUB, dry); break;
-				case '*': if (t + 1 != e && t[1] == '*') { q = numericOperation(t, e, v, effectivePrecedence, '^', POW, dry); break; }
+	b = p;
+	StringIt t = eatWhite(b, e);
+	if (t != e) {
+		StringIt q;
+		switch (*t) {
+			case '+': case '-': q = numericOperation(t, e, v, precedence, *t, ADD_SUB, dry); break;
+			case '*': if (t + 1 != e && t[1] == '*') { q = numericOperation(t, e, v, precedence, '^', POW, dry); break; }
 				/* else continue */
-				case '/': q = numericOperation(t, e, v, effectivePrecedence, *t, MUL_DIV_MOD, dry); break;
-				case '%': q = moduloPercentOperation(t, e, v, effectivePrecedence, dry); break;
-				case '<': case '>': case '=': case '!': q = comparisonOperation(t, e, v, effectivePrecedence, dry); break;
-				case '&': case '|': q = booleanOperation(t, e, v, effectivePrecedence, dry); break;
-				case '?': q = conditionalOperation(t, e, v, effectivePrecedence, dry); break;
-				case '{': q = substringOperation(t, e, v, effectivePrecedence, dry); break;
-				default: q = concatOperation(t, e, v, effectivePrecedence, (t == b ? SPLICE : CONCAT), dry); break;
+			case '/': q = numericOperation(t, e, v, precedence, *t, MUL_DIV_MOD, dry); break;
+			case '%': q = moduloPercentOperation(t, e, v, precedence, dry); break;
+			case '<': case '>': case '=': case '!': q = comparisonOperation(t, e, v, precedence, dry); break;
+			case '&': case '|': q = booleanOperation(t, e, v, precedence, dry); break;
+			case '?': q = conditionalOperation(t, e, v, precedence, dry); break;
+			case '{': q = substringOperation(t, e, v, precedence, dry); break;
+			case ',':
+				if (precedence == COMMA) {
+					p = t;
+				} else {
+					throwBadSyntax("Syntax error.");
+				}
+				break;
+			default: q = concatOperation(t, e, v, precedence, (t == b ? SPLICE : CONCAT), dry); break;
 			}
 			if (q != t) p = q;
 		}
