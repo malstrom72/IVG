@@ -324,6 +324,7 @@ $randomArray 20 a
 s={\[}; $foreach a [ s = $s $0 ]; s=$s{\]}
 FOR x in:$s [ TRACE $x ]
 
+format acme-1 uses:[acme-corp-ext-1] requires:[impd-1]
 META ACME-CORP-EXT-1 meta is always ok and ignored by client if the first argument is unrecognized
 
 INCLUDE includeTest.impd [first argument] [second argument] labeled:[labeled argument]
@@ -431,3 +432,7 @@ trace {($a) $b}
 trace {$a b}
 trace {($a) b}
 trace {$a$b}
+
+format multi-1 uses:[snapshot-1 snapshot-2] requires:[impd-1]
+meta snapshot
+meta snapshot-1

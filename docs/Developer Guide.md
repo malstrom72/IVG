@@ -36,7 +36,8 @@ using namespace IVG;
 SelfContainedARGB32Canvas canvas;
 STLMapVariables vars;
 IVGExecutor executor(canvas);
-IMPD::Interpreter impd(executor, vars);
+IMPD::FormatInfo formatInfo;
+IMPD::Interpreter impd(executor, vars, formatInfo);
 
 impd.run(ivgSource); // ivgSource contains the IVG text
 NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>* raster = canvas.accessRaster();

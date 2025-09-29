@@ -31,6 +31,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <stdint.h>
 
 namespace IMPD {
@@ -107,7 +108,17 @@ struct Argument {
 typedef std::vector<Argument> ArgumentVector;
 
 /**
-	Stores and validates instruction arguments during parsing.
+        Tracks format declarations for the current document scope.
+**/
+struct FormatInfo {
+        FormatInfo() { }
+        void reset() { formatId.clear(); uses.clear(); }
+        String formatId;
+        std::set<String> uses;
+};
+
+/**
+        Stores and validates instruction arguments during parsing.
 **/
 class ArgumentsContainer {
 	public:		static ArgumentsContainer parse(const Interpreter& interpreter, const StringRange& range);
@@ -196,12 +207,15 @@ class Interpreter {
 	public:		static StringIt parseInt(StringIt p, const StringIt& e, int& i);										///< Parses and converts as much as possible of decimal string starting at `p` and ending at `e` into a signed int (accepts leading '+' or '-'). Returns an iterator pointing to the first character that could not be parsed.
 	public:		static StringIt parseDouble(StringIt p, const StringIt& e, double& d);			/// Parses a floating point string starting at `p` and ending at `e` (supports scientific e notation). Returns an iterator pointing to the first character that could not be parsed. Returns `p` on failure.
 		
-	public:		Interpreter(Executor& executor, Variables& vars, int statementsLimit = DEFAULT_STATEMENTS_LIMIT
+	public:		Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo
+						, int statementsLimit = DEFAULT_STATEMENTS_LIMIT
 						, int recursionLimit = DEFAULT_RECURSION_LIMIT);												///< Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`.
-	public:		Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame);
-	public:		Interpreter(Executor& executor, Interpreter& enclosingInterpreter);
+	public:		Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, Interpreter& callingFrame);
+	public:		Interpreter(Executor& executor, FormatInfo& formatInfo, Interpreter& enclosingInterpreter);
 	public:		Executor& getExecutor() const { return executor; }
 	public:		Variables& getVariables() const { return vars; }
+	public:		FormatInfo& getFormatInfo() { return formatInfo; }
+	public:		const FormatInfo& getFormatInfo() const { return formatInfo; }
 	public:		int mapArguments(const ArgumentVector& allArguments, StringStringMap& labeledArguments
 						, StringVector& indexedArguments);																///< `labeledArguments` will map the labels converted to all lower case
 	public:		void parseArguments(const StringRange& r, ArgumentVector& arguments) const;
@@ -246,6 +260,7 @@ class Interpreter {
 	protected:	StringIt evaluateOuter(StringIt b, const StringIt& e, EvaluationValue& v, bool dry) const;
 	protected:	Executor& executor;
 	protected:	Variables& vars;
+	protected:	FormatInfo& formatInfo;
 	protected:	Interpreter* callingFrame;
 	protected:	Interpreter& rootFrame;
 	protected:	int statementsLimit;

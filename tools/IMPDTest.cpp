@@ -95,7 +95,8 @@ static bool testUniStringConversions() {
 int main(int argc, const char* argv[]) {
 	MyExecutor myExecutor;
 	STLMapVariables topVars;
-	Interpreter imp(myExecutor, topVars);
+	FormatInfo formatInfo;
+	Interpreter imp(myExecutor, topVars, formatInfo);
 
 	assert(testUniStringConversions());
 
@@ -105,6 +106,7 @@ int main(int argc, const char* argv[]) {
 		getline(std::cin, s);
 		if (s.empty()) {
 			try {
+				formatInfo.reset();
 				imp.run(code);
 			}
 			catch (const Exception& x) {

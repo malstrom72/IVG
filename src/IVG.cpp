@@ -502,7 +502,8 @@ ARGB32::Pixel parseColor(const String& color) {
 };
 	DummyExecutor executor;
 	STLMapVariables vars;
-	Interpreter impd(executor, vars);
+	FormatInfo formatInfo;	// Standalone helper runs in its own format scope.
+	Interpreter impd(executor, vars, formatInfo);
 	return parseColor<ARGB32>(impd, color);
 }
 
@@ -604,7 +605,7 @@ class TransformationExecutor : public Executor {
 
 static AffineTransformation parseTransformationBlock(Interpreter& impd, const String& source) {
 	TransformationExecutor xfExecutor(impd.getExecutor());
-	Interpreter newInterpreter(xfExecutor, impd);
+	Interpreter newInterpreter(xfExecutor, impd.getFormatInfo(), impd);	// Share the parent document's format declarations.
 	newInterpreter.run(source);
 	return xfExecutor.getTransform();
 }
@@ -977,7 +978,8 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 			Interpreter::throwRunTimeError(String("Duplicate font definition: ") + String(name.begin(), name.end()));
 		}
 		IVG::FontParser fontParser(this);
-		Interpreter newInterpreter(fontParser, impd);
+		FormatInfo fontFormatInfo;	// Fresh format scope for embedded font documents.
+		Interpreter newInterpreter(fontParser, fontFormatInfo, impd);
 		newInterpreter.run(definition);
 		embeddedFonts[name] = fontParser.finalizeFont();
 		lastFontName = WideString();	// must reset cache cause there is no guarantee that STL preserves pointers after insertion
