@@ -1274,16 +1274,17 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			transform(usesList.begin(), usesList.end(), usesList.begin(), toLower);
 			transform(requiresList.begin(), requiresList.end(), requiresList.begin(), toLower);
 			requiresList.erase(remove(requiresList.begin(), requiresList.end(), CURRENT_IMPD_REQUIRES_ID)
-			, requiresList.end());
-			FormatInfo pendingInfo;
-			pendingInfo.formatId = toLower(formatId);
+					, requiresList.end());
+			formatInfo.reset();
+			formatInfo.formatId = toLower(formatId);
 			for (StringVector::const_iterator it = usesList.begin(); it != usesList.end(); ++it) {
-			pendingInfo.uses.insert(*it);
+				formatInfo.uses.insert(*it);
 			}
-			pendingInfo.requires = requiresList;
-			if (!executor.format(*this, &pendingInfo))
-			throw FormatException("Unsupported data format");
-			formatInfo = pendingInfo;
+			formatInfo.requires = requiresList;
+			if (!executor.format(*this, &formatInfo)) {
+				formatInfo.reset();
+				throw FormatException("Unsupported data format");
+			}
 			formatInfo.requires.clear();
 			break;
 		}
@@ -1299,39 +1300,39 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			const FormatInfo& info = formatInfo;
 			String::size_type dash = metaLower.rfind('-');
 			if (dash != String::npos && dash > 0 && dash + 1 < metaLower.size()) {
-			const String metaId(metaLower.substr(0, dash));
-			const String versionString(metaLower.substr(dash + 1));
-			const String declaredToken(metaId + "-" + versionString);
-			std::set<String>::const_iterator it = info.uses.find(declaredToken);
-			if (it == info.uses.end()) throwBadSyntax(String("Undeclared meta tag: ") + declaredToken);
-			uint32_t parsedVersion;
-			StringIt parsedEnd = parseUnsignedInt(versionString.begin(), versionString.end(), parsedVersion);
-			if (parsedEnd != versionString.end() || parsedEnd == versionString.begin()) {
-			throwBadSyntax(String("Invalid meta version: ") + metaToken);
-			}
-			resolvedMeta = *it;
+				const String metaId(metaLower.substr(0, dash));
+				const String versionString(metaLower.substr(dash + 1));
+				const String declaredToken(metaId + "-" + versionString);
+				std::set<String>::const_iterator it = info.uses.find(declaredToken);
+				if (it == info.uses.end()) throwBadSyntax(String("Undeclared meta tag: ") + declaredToken);
+				uint32_t parsedVersion;
+				StringIt parsedEnd = parseUnsignedInt(versionString.begin(), versionString.end(), parsedVersion);
+				if (parsedEnd != versionString.end() || parsedEnd == versionString.begin()) {
+					throwBadSyntax(String("Invalid meta version: ") + metaToken);
+				}
+				resolvedMeta = *it;
 			} else {
-			const String metaId(metaLower);
-			const String prefix(metaId + "-");
-			std::set<String>::const_iterator it = info.uses.lower_bound(prefix);
-			uint32_t bestVersion = 0;
-			String bestToken;
-			while (it != info.uses.end() && it->compare(0, prefix.size(), prefix) == 0) {
-			StringIt versionBegin = it->begin() + prefix.size();
-			uint32_t parsedVersion;
-			StringIt parsedEnd = parseUnsignedInt(versionBegin, it->end(), parsedVersion);
-			if (parsedEnd != it->end() || versionBegin == parsedEnd) {
-			++it;
-			continue;
-			}
-			if (parsedVersion >= bestVersion) {
-			bestVersion = parsedVersion;
-			bestToken = *it;
-			}
-			++it;
-			}
-			if (bestToken.empty()) throwBadSyntax(String("Undeclared meta tag: ") + metaId);
-			resolvedMeta = bestToken;
+				const String metaId(metaLower);
+				const String prefix(metaId + "-");
+				std::set<String>::const_iterator it = info.uses.lower_bound(prefix);
+				uint32_t bestVersion = 0;
+				String bestToken;
+				while (it != info.uses.end() && it->compare(0, prefix.size(), prefix) == 0) {
+					StringIt versionBegin = it->begin() + prefix.size();
+					uint32_t parsedVersion;
+					StringIt parsedEnd = parseUnsignedInt(versionBegin, it->end(), parsedVersion);
+					if (parsedEnd != it->end() || versionBegin == parsedEnd) {
+						++it;
+						continue;
+					}
+					if (parsedVersion >= bestVersion) {
+						bestVersion = parsedVersion;
+						bestToken = *it;
+					}
+					++it;
+				}
+				if (bestToken.empty()) throwBadSyntax(String("Undeclared meta tag: ") + metaId);
+				resolvedMeta = bestToken;
 			}
 			StringIt restBegin = eatWhite(q, argumentsRange.e);
 			String normalizedArguments(resolvedMeta);
