@@ -107,7 +107,9 @@ int main(int argc, const char* argv[]) {
 		getline(std::cin, s);
 		if (s.empty()) {
 			try {
-				formatInfo.reset();
+				formatInfo.formatId.clear();
+				formatInfo.uses.clear();
+				formatInfo.requires.clear();
 				imp.run(code);
 			}
 			catch (const Exception& x) {

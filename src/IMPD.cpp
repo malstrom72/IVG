@@ -1275,18 +1275,16 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			transform(requiresList.begin(), requiresList.end(), requiresList.begin(), toLower);
 			requiresList.erase(remove(requiresList.begin(), requiresList.end(), CURRENT_IMPD_REQUIRES_ID)
 					, requiresList.end());
-			formatInfo.reset();
 			formatInfo.formatId = toLower(formatId);
+			formatInfo.uses.clear();
 			for (StringVector::const_iterator it = usesList.begin(); it != usesList.end(); ++it) {
 				formatInfo.uses.insert(*it);
 			}
+			formatInfo.requires.clear();
 			for (StringVector::const_iterator it = requiresList.begin(); it != requiresList.end(); ++it) {
 				formatInfo.requires.insert(*it);
 			}
-			if (!executor.format(*this, &formatInfo)) {
-				formatInfo.reset();
-				throw FormatException("Unsupported data format");
-			}
+			if (!executor.format(*this, &formatInfo)) throw FormatException("Unsupported data format");
 			break;
 		}
 
@@ -1310,7 +1308,6 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 				const String prefix(metaLower + "-");
 				std::set<String>::const_iterator it = info.uses.lower_bound(prefix);
 				uint32_t bestVersion = 0;
-				bool foundVersion = false;
 				while (it != info.uses.end() && it->compare(0, prefix.size(), prefix) == 0) {
 					const String& candidate = *it;
 					uint32_t parsedVersion;
@@ -1319,14 +1316,13 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 						++it;
 						continue;
 					}
-					if (!foundVersion || parsedVersion >= bestVersion) {
+					if (parsedVersion >= bestVersion) {
 						bestVersion = parsedVersion;
 						resolvedMeta = candidate;
-						foundVersion = true;
 					}
 					++it;
 				}
-				if (!foundVersion) throwBadSyntax(String("Undeclared meta tag: ") + metaToken);
+				if (resolvedMeta.empty()) throwBadSyntax(String("Undeclared meta tag: ") + metaToken);
 			}
 			StringIt restBegin = eatWhite(q, argumentsRange.e);
 			String normalizedArguments(resolvedMeta);

@@ -112,7 +112,6 @@ typedef std::vector<Argument> ArgumentVector;
 **/
 struct FormatInfo {
 	FormatInfo() { }
-	void reset() { formatId.clear(); uses.clear(); requires.clear(); }
 	String formatId;
 	std::set<String> uses;
 	std::set<String> requires;
