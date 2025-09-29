@@ -255,10 +255,6 @@ TRACE {atan2(1, 1)}
 TRACE {atan2(-1, 0)}
 TRACE {hypot(3, 4)}
 TRACE {hypot(-5, 12)}
-TRACE {angle(0, 0, 0, 1)}
-TRACE {angle(0, 0, -1, 0)}
-TRACE {distance(0, 0, 3, 4)}
-TRACE {distance(-1, -2, -4, -6)}
 
 x0=m;x1=a;x2=n;x3=x
 TRACE {$(x 0)} == m

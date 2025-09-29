@@ -229,12 +229,12 @@ Inside curly brackets, the following functions are available:
 | `tan(x)`    | returns the tangent of a number in radians                       |
 | `tanh(x)`   | returns the hyperbolic tangent of a number                       |
 | `hypot(x, y)` | returns the Euclidean norm of `(x, y)`                           |
-| `angle(fromX, fromY, toX, toY)` | returns the angle from `(fromX, fromY)` to `(toX, toY)` in degrees |
-| `distance(fromX, fromY, toX, toY)` | returns the distance between two points     |
 | `len(s)`    | returns the length of a string                                   |
 | `def(var)`  | checks if a variable is defined (do not begin variable with `$`) |
 
 There is also a single constant: `pi`.
+
+Only `atan2` and `hypot` accept more than one argument; everything else stays unary to keep the evaluator tight.
 
 ### Primitive Instructions
 

@@ -135,8 +135,6 @@ TRACE {log(-1)} // Math error
 TRACE {sqrt(-1)} // Math error
 TRACE {atan2(1)} // missing argument
 TRACE {hypot(1, 2, 3)} // too many arguments
-TRACE {angle(1,)} // missing coordinate
-TRACE {distance(0, 0, 1)} // missing target coordinate
 
 INCLUDE // missing arg
 

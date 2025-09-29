@@ -55,7 +55,7 @@ const int DEFAULT_RECURSION_LIMIT = 50;																					// To prevent stack 
 const int NUMBER_PRECISION_DIGITS = 13;
 const double NUMBER_PRECISION_MAGNITUDE = 1e-13;
 
-const int MATH_FUNCTION_COUNT = 21;
+const int MATH_FUNCTION_COUNT = 19;
 const int BUILT_IN_INSTRUCTION_COUNT = 11;
 const int ESCAPE_CODE_COUNT = 7;
 
@@ -282,8 +282,6 @@ class Interpreter {
 				TANH_FUNCTION,
 				ROUND_FUNCTION,
 				HYPOT_FUNCTION,
-				ANGLE_FUNCTION,
-				DISTANCE_FUNCTION,
 				PI_FUNCTION,
 				LEN_FUNCTION,
 				DEF_FUNCTION,
@@ -293,10 +291,8 @@ class Interpreter {
 				MathDispatch() : unary(0) { }
 				MathDispatch(double (*fn)(double)) : unary(fn) { }
 				MathDispatch(double (*fn)(double, double)) : binary(fn) { }
-				MathDispatch(double (*fn)(const double*, int)) : variadic(fn) { }
 				double (*unary)(double);
 				double (*binary)(double, double);
-				double (*variadic)(const double*, int);
 			};
 	protected:	struct MathFunction {
 				int arity;

@@ -264,27 +264,6 @@ static double computeHypot(double x, double y) {
 	return hypot(x, y);
 }
 
-static void computeDelta(const double* args, int count, double& dx, double& dy) {
-	assert(count == 4);
-	(void)count;
-	dx = args[2] - args[0];
-	dy = args[3] - args[1];
-}
-
-static double computeAngleDegrees(const double* args, int count) {
-	double dx;
-	double dy;
-	computeDelta(args, count, dx, dy);
-	return atan2(dy, dx) * (180.0 / 3.1415926535897932384626433);
-}
-
-static double computeDistance(const double* args, int count) {
-	double dx;
-	double dy;
-	computeDelta(args, count, dx, dy);
-	return hypot(dx, dy);
-}
-
 const Interpreter::MathFunction Interpreter::MATH_FUNCTIONS[MATH_FUNCTION_COUNT] = {
 	{ 1, Interpreter::MathDispatch((double (*)(double))(fabs)) },
 	{ 1, Interpreter::MathDispatch((double (*)(double))(acos)) },
@@ -304,37 +283,35 @@ const Interpreter::MathFunction Interpreter::MATH_FUNCTIONS[MATH_FUNCTION_COUNT]
 	{ 1, Interpreter::MathDispatch((double (*)(double))(tan)) },
 	{ 1, Interpreter::MathDispatch((double (*)(double))(tanh)) },
 	{ 1, Interpreter::MathDispatch((double (*)(double))(round)) },
-	{ 2, Interpreter::MathDispatch(computeHypot) },
-	{ 4, Interpreter::MathDispatch(computeAngleDegrees) },
-	{ 4, Interpreter::MathDispatch(computeDistance) }
+	{ 2, Interpreter::MathDispatch(computeHypot) }
 };
 
 const Char Interpreter::ESCAPE_CHARS[ESCAPE_CODE_COUNT] = {	 'a',  'b',	 'f',  'n',	 'r',  't',	 'v' };
 const Char Interpreter::ESCAPE_CODES[ESCAPE_CODE_COUNT] = { '\a', '\b', '\f', '\n', '\r', '\t', '\v' };
 
 /* Built with QuickHashGen CLI (Seed: 1). Command:
-	printf "abs\nacos\nasin\natan\natan2\nceil\ncos\ncosh\nexp\nfloor\nlog\nlog10\nsin\nsinh\nsqrt\ntan\ntanh\nround\nhypot\nangle\ndistance\npi\nlen\ndef\n" | node externals/QuickHashGen/QuickHashGenCLI.node.js --seed 1
+	printf "abs\nacos\nasin\natan\natan2\nceil\ncos\ncosh\nexp\nfloor\nlog\nlog10\nsin\nsinh\nsqrt\ntan\ntanh\nround\nhypot\npi\nlen\ndef\n" | node externals/QuickHashGen/QuickHashGenCLI.node.js --seed 1
 */
 int Interpreter::findFunction(int n /* string length */, const char* s /* string (zero terminated) */) {
-	static const char* STRINGS[24] = {
+	static const char* STRINGS[22] = {
 		"abs", "acos", "asin", "atan", "atan2", "ceil", "cos", "cosh", "exp", "floor",
-		"log", "log10", "sin", "sinh", "sqrt", "tan", "tanh", "round", "hypot",
-		"angle", "distance", "pi", "len", "def"
+		"log", "log10", "sin", "sinh", "sqrt", "tan", "tanh", "round", "hypot", "pi",
+		"len", "def"
 	};
 	static const int HASH_TABLE[128] = {
-		-1, 8, -1, -1, -1, -1, -1, -1, 16, -1, -1, 1, -1, -1, -1, 5,
-		-1, 12, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 13, -1,
-		21, -1, 19, -1, 22, -1, -1, -1, -1, -1, -1, -1, 23, -1, -1, -1,
-		10, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 9, 3, -1, -1,
-		-1, -1, -1, -1, -1, 2, -1, -1, -1, -1, -1, -1, 20, -1, -1, -1,
-		6, -1, -1, -1, -1, -1, -1, -1, 11, -1, -1, -1, 4, -1, -1, -1,
-		17, -1, -1, -1, -1, -1, -1, -1, -1, -1, 14, -1, -1, 7, -1, -1,
-		0, -1, -1, -1, -1, -1, -1, -1, 18, -1, -1, -1, 15, -1, -1, -1
+		19, -1, -1, -1, 6, -1, -1, 9, -1, -1, -1, -1, 12, -1, -1, -1,
+		-1, 7, -1, 0, -1, -1, -1, -1, -1, -1, 14, -1, 15, -1, -1, -1,
+		-1, -1, -1, -1, 21, -1, 11, -1, -1, 1, -1, -1, -1, -1, -1, -1,
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+		18, -1, -1, -1, -1, -1, -1, -1, -1, 5, -1, -1, -1, -1, -1, 2,
+		8, 4, -1, -1, 20, -1, 13, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+		-1, -1, -1, -1, -1, -1, 16, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+		3, -1, 17, -1, 10, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 	};
 	assert(s[n] == '\0');
 	const unsigned char* p = reinterpret_cast<const unsigned char*>(s);
-	if (n < 2 || n > 8) return -1;
-	int stringIndex = HASH_TABLE[((p[2] - n) * p[0]) & 127u];
+	if (n < 2 || n > 5) return -1;
+	int stringIndex = HASH_TABLE[(p[2] * (p[1] ^ n)) & 127u];
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
@@ -1136,7 +1113,7 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 			StringIt call = eatWhite(q, e);
 			if (call == e || *call != '(') throwBadSyntax("Missing \"(\".");
 			++call;
-			EvaluationValue parsedArgs[4];
+			EvaluationValue parsedArgs[2];
 			int argCount = 0;
 			while (true) {
                                 call = eatWhite(call, e);
@@ -1146,7 +1123,7 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
                                         ++call;
                                         break;
                                 }
-                                if (argCount == 4) throwBadSyntax("Too many arguments.");
+                                if (argCount == 2) throwBadSyntax("Too many arguments.");
                                 EvaluationValue argValue;
                                 StringIt next = evaluateInner(call, e, argValue, FUNCTION, dry);
                                 if (next == call) throwBadSyntax("Syntax error.");
@@ -1169,7 +1146,7 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 				const MathFunction& math = MATH_FUNCTIONS[funcIndex];
 				if (argCount != math.arity) throwBadSyntax("Wrong number of function arguments.");
 				if (!dry) {
-					double args[4];
+					double args[2];
 					for (int i = 0; i < argCount; ++i) {
 						args[i] = static_cast<double>(parsedArgs[i]);
 					}
@@ -1179,8 +1156,7 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 						default: assert(0); break;
 						case 1: result = math.dispatch.unary(args[0]); break;
 						case 2: result = math.dispatch.binary(args[0], args[1]); break;
-						case 4: result = math.dispatch.variadic(args, argCount); break;
-					}
+						}
 					if (errno != 0) throwRunTimeError("Math error.");
 					if (!isFinite(result)) throwRunTimeError("Number overflow.");
 					v = result;

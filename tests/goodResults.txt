@@ -154,10 +154,6 @@ yes == yes
 -1.570796326795
 5
 13
-90
-180
-5
-5
 m == m
 manx == manx
 manx == manx

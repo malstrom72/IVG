@@ -4,52 +4,29 @@ The guiding principle for every change described below is **minimalism**: extend
 
 ## Original interpreter behavior
 - ImpD registers primitive math functions through a fixed lookup table (`findFunction`) that is generated with QuickHashGen. Only 20 entries existed initially: 17 unary math functions, the `pi` constant, and the `len` and `def` helpers. The hash rejected identifiers longer than five characters, so the table could not match names such as `distance`.【F:src/IMPD.cpp†L259-L285】
-- Each math entry was implemented by a `double (*)(double)` pointer in the `MATH_FUNCTION_POINTERS` array, and callers expected a single `double` argument. The evaluator invoked the pointer directly after parsing one parenthesized argument expression and performed generic overflow checking via `errno` and `isFinite`.【F:src/IMPD.cpp†L259-L280】【F:src/IMPD.cpp†L1073-L1100】
+- Each math entry was implemented by a `double (*)(double)` pointer in the `MATH_FUNCTION_POINTERS` array, and callers expected a single `double` argument. The evaluator invoked the pointer directly after parsing one parenthesized argument expression and performed generic overflow checking via `errno` and `isFinite`.【F:src/IMPD.cpp†L267-L287】【F:src/IMPD.cpp†L1120-L1162】
 - The public documentation mirrored this unary-only capability: every primitive function listed in the language guide took a single argument in radians (for the trig operators), and multi-argument helpers were not described.【F:docs/ImpD Documentation.md†L207-L234】
 
 ## Limitations that block multi-argument functions
 - Because `findFunction` assumes identifiers are at most five characters long and maps directly into the unary function table, any new name longer than that (e.g. `distance`) is discarded before evaluation begins. Extending the hash requires regenerating the lookup tables with the existing `externals/QuickHashGen` utility and adjusting `MATH_FUNCTION_COUNT`/related bookkeeping.【F:src/IMPD.cpp†L259-L285】【F:src/IMPD.h†L60-L120】
-- `evaluateOuter` treats a recognized function call as `name(expression)` where `expression` is parsed by a recursive call to `evaluateInner`. There is no parsing for commas inside the parentheses, so `name(arg1, arg2)` would currently stop at the comma and fail to advance the iterator. `evaluateInner`’s operator loop also lacks any case that would consume `,`, reinforcing the assumption that only one argument exists.【F:src/IMPD.cpp†L979-L1005】【F:src/IMPD.cpp†L1068-L1105】
+- `evaluateOuter` treats a recognized function call as `name(expression)` where `expression` is parsed by a recursive call to `evaluateInner`. There is no parsing for commas inside the parentheses, so `name(arg1, arg2)` would currently stop at the comma and fail to advance the iterator. `evaluateInner`’s operator loop also lacks any case that would consume `,`, reinforcing the assumption that only one argument exists.【F:src/IMPD.cpp†L1010-L1034】【F:src/IMPD.cpp†L1120-L1162】
 
 ## Minimal multi-argument rollout checklist
-- [x] **Extend the function registry.**
-  - [x] Replace the single `MATH_FUNCTION_POINTERS` array with a tiny descriptor table:
-    ```cpp
-    struct MathFunction
-    {
-            int arity;                 // 1, 2, or 4 for the new helpers
-            MathDispatch dispatch;     // tagged union of function pointers
-    };
-    ```
-    Keep the struct in `IMPD.cpp` so no headers grow. The tagged union can be a `double (*unary)(double)` plus `double (*binary)(double, double)` and a bespoke `double (*variadic)(const double*, int)` for the 4-argument utilities. That avoids heap allocations and keeps lookup O(1).
-  - [x] Re-run QuickHashGen with the expanded name list to regenerate the `FUNCTION_HASH_TABLE` so identifiers longer than five characters (`angle`, `distance`) map correctly. Record the generator command in a comment next to the table (mirroring the existing approach) so the minimal workflow stays reproducible.【F:src/IMPD.cpp†L259-L285】
-  - [x] Add an `enum` or `constexpr` indexes for `atan2`, `hypot`, and any future built-ins so call sites never rely on raw integers. Update `MATH_FUNCTION_COUNT` and any loops that assume a 1:1 relationship between the hash index and a unary pointer.【F:src/IMPD.h†L60-L120】
-- [ ] **Expose a native registration API.**
-  - [ ] Promote the descriptor table into a tiny registry that owns both the static entries and any dynamically registered ones. Implement this as a fixed-capacity array (e.g. `MathFunction s_mathFunctions[STATIC_COUNT + kMaxNative];`) guarded by an atomically updated `int s_mathFunctionCount` so we avoid heap churn while keeping iteration O(1).
-  - [ ] Introduce a new `IMPD_RegisterFunction(const char* name, int arity, NativeCallback callback, void* userData)` entry point exported from `IMPD.cpp`. Keep the `NativeCallback` signature aligned with the descriptor union (`double (*)(const double*, int, void*)`) so the dispatcher can forward both built-in and user-registered functions through the same path.
-  - [ ] Gate registration behind a sanity layer: reject null pointers, enforce `1 <= arity <= 4`, and deny duplicates by hashing `name` through the regenerated `FUNCTION_HASH_TABLE`. If a duplicate collides with a built-in entry, return a failure code so callers can gracefully fall back without mutating global state.
-  - [ ] Document that registration must occur during engine bootstrap (before any expressions are parsed) because the registry is not thread-safe. Provide a tiny static initialization helper inside `IMPD.cpp` that reuses the existing mutex (if available) or performs a simple `std::lock_guard` around the mutation to keep the footprint minimal.
-  - [ ] Plumb a `NativeMathDispatch` tag into the descriptor union. For built-ins, stash pointers to the internal helpers; for registered callbacks, store the `void* userData` alongside the function pointer and feed that to the callback during evaluation.
+- [x] **Keep the function registry lean.**
+  - [x] Replace the single `MATH_FUNCTION_POINTERS` array with a compact descriptor that records an arity and either a unary or binary pointer; no variadic entries are kept.
+  - [x] Re-run QuickHashGen with the updated name list so longer identifiers like `atan2` and `hypot` resolve correctly without widening the hash more than necessary.
+  - [x] Publish stable enum indexes for the built-ins so call sites never reach into the table with raw integers.
 - [x] **Parse comma-separated arguments.**
-  - [x] In `evaluateOuter`, after consuming the identifier and `(`, loop with a local counter:
-    1. Call `evaluateInner` to compute each argument.
-    2. Push the result into a fixed-size stack array (max 4 doubles) so no allocations are needed.
-    3. If the next token is `,`, advance `p` and continue; if it is `)`, stop; otherwise forward the iterator to `throwBadSyntax`.
-- [x] In `evaluateInner`, teach the main operator loop that a comma terminates the current subexpression by returning to the caller without consuming more characters. This allows the existing recursion to remain untouched while guaranteeing the iterator always advances past separators.【F:src/IMPD.cpp†L979-L1105】
-- [x] **Implement per-function evaluation.**
-  - [x] `atan2(y, x)` and `hypot(x, y)` should call `std::atan2`/`std::hypot`. Wrap them in thin static helpers that take two doubles and apply the existing error template: `errno = 0; result = fn(a, b); if (errno || !isFinite(result)) throwMathError();` This mirrors the unary flow without duplicating boilerplate.【F:src/IMPD.cpp†L259-L280】【F:src/IMPD.cpp†L1073-L1100】
-  - [ ] Move `angle(fromX, fromY, toX, toY)` and `distance(fromX, fromY, toX, toY)` into IVG: keep their helpers (delta computation, `std::atan2`, `std::hypot`) in a new `IVGExpressionFunctions.cpp` so ImpD’s core stays lean. These helpers should adhere to the same error guards (clear `errno`, verify `isFinite`) before returning.
-  - [ ] Store only the thin binary helpers (`atan2`, `hypot`) in `IMPD.cpp` so the static footprint matches the minimal requirements for the interpreter.
+  - [x] Teach `evaluateOuter` to collect up to two arguments in a tiny stack buffer, returning early if a closing parenthesis arrives with nothing parsed.
+  - [x] Let `evaluateInner` break on commas so nested calls still reuse the existing recursion.
+- [x] **Evaluate the multi-argument helpers.**
+  - [x] Wire `atan2(y, x)` and `hypot(x, y)` through thin wrappers that clear `errno`, invoke the STL helper, and reuse the existing overflow guards.
+  - [x] Remove the experimental four-argument path (`angle`, `distance`) so the dispatcher stays binary-only.
 - [x] **Validation and documentation.**
-  - [x] Add regression tests under `tests/` that cover normal, negative, and degenerate coordinates, plus malformed invocations (`angle(1,)`) to confirm `throwBadSyntax` remains informative.
-  - [ ] Update `docs/ImpD Documentation.md` to describe only the built-in math helpers (`atan2`, `hypot`) while pointing readers to IVG’s documentation for vector utilities. Add an IVG-side note explaining that `angle`/`distance` come from the registration API so engine embedders can mimic the pattern.
-  - [ ] Extend IVG’s documentation to include the newly registered helpers and clarify the expected unit (degrees vs. radians) alongside concise usage samples.
-- [ ] **IVG hookup.**
-  - [ ] Add a tiny `RegisterImpDVectorFunctions()` routine inside IVG’s initialization sequence (e.g. invoked from `IVG::initializeImpD()` right after the interpreter instance is created). Have this routine call `IMPD_RegisterFunction("angle", 4, &ComputeAngle, nullptr)` and `IMPD_RegisterFunction("distance", 4, &ComputeDistance, nullptr)`.
-  - [ ] Implement `ComputeAngle`/`ComputeDistance` as small wrappers that read the four-element array supplied by the callback signature, reuse the shared delta helper, and pass through the optional `userData` even if IVG does not yet need it. This keeps the callback ABI compatible with future embedders that may want to carry state.
-  - [ ] If registration fails (e.g. the host application links against an older ImpD that lacks the API), surface a concise log entry and skip installing the helpers so the engine continues booting with unary math only.
+  - [x] Expand the regression tests to cover good and bad usages of the binary helpers, including comma mishandling.
+  - [x] Trim the language guide to mention only the surviving built-ins and call out that `atan2`/`hypot` are the sole multi-argument functions.
 
 ## Open questions and risks
-- The language currently treats trig inputs/outputs as radians, yet vector-based drawing commands expect degrees. Clarify the desired unit for `angle` before implementation to avoid silent mismatches between expression results and path instructions.【F:docs/IVG Documentation.md†L336-L345】【F:docs/ImpD Documentation.md†L207-L234】
-- Multi-argument evaluation introduces new failure modes (missing commas, empty arguments, unterminated parentheses). Error messages should remain consistent with existing `throwBadSyntax` usage so script authors receive actionable diagnostics.【F:src/IMPD.cpp†L1033-L1105】
+- Adding more helpers in the future will require revisiting arity limits. Document the reasoning for keeping only unary and binary built-ins so any expansion happens intentionally.【F:docs/ImpD Documentation.md†L207-L236】【F:src/IMPD.cpp†L267-L320】
+- Multi-argument evaluation introduces new failure modes (missing commas, empty arguments, unterminated parentheses). Error messages should remain consistent with existing `throwBadSyntax` usage so script authors receive actionable diagnostics.【F:src/IMPD.cpp†L1010-L1162】
 - QuickHashGen changes affect code generation. Capture the exact generator inputs (e.g. update `tools/` scripts or checked-in metadata) so the hash table can be reproduced deterministically during future maintenance.【F:src/IMPD.cpp†L270-L285】
