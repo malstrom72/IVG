@@ -1013,11 +1013,11 @@ StringIt Interpreter::evaluateInner(StringIt b, const StringIt& e, EvaluationVal
 		b = p;
 		StringIt t = eatWhite(b, e);
 		if (t != e) {
-			if (*t == ',' && precedence == FUNCTION) {
+			if (*t == ',' && precedence == COMMA) {
 				p = t;
 				return p;
 			}
-			const Precedence effectivePrecedence = (precedence == FUNCTION ? BRACKETS : precedence);
+			const Precedence effectivePrecedence = (precedence == COMMA ? BRACKETS : precedence);
 			StringIt q;
 			switch (*t) {
 				case '+': case '-': q = numericOperation(t, e, v, effectivePrecedence, *t, ADD_SUB, dry); break;
@@ -1124,9 +1124,19 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 						++call;
 						break;
 					}
+					if (argCount != 0) {
+						if (*call != ',') throwBadSyntax("Syntax error.");
+						++call;
+						call = eatWhite(call, e);
+						if (call == e) throwBadSyntax("Missing \")\".");
+						if (*call == ')') {
+							++call;
+							break;
+						}
+					}
 					if (argCount == 2) throwBadSyntax("Too many arguments.");
 					EvaluationValue argValue;
-					StringIt next = evaluateInner(call, e, argValue, FUNCTION, dry);
+					StringIt next = evaluateInner(call, e, argValue, COMMA, dry);
 					if (next == call) throwBadSyntax("Syntax error.");
 					if (!dry) parsedArgs[argCount] = argValue;
 					++argCount;
@@ -1136,8 +1146,6 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 						++call;
 						break;
 					}
-					if (*call != ',') throwBadSyntax("Syntax error.");
-					++call;
 				}
 
 						if (funcIndex < MATH_FUNCTION_COUNT) {

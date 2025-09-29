@@ -18,7 +18,7 @@ The guiding principle for every change described below is **minimalism**: extend
   - [x] Publish stable enum indexes for the built-ins so call sites never reach into the table with raw integers.
 - [x] **Parse comma-separated arguments.**
   - [x] Teach `evaluateOuter` to collect up to two arguments in a tiny stack buffer, returning early if a closing parenthesis arrives with nothing parsed.
-  - [x] Let `evaluateInner` break on commas so nested calls still reuse the existing recursion.
+  - [x] Let `evaluateInner` break on commas via a dedicated `COMMA` precedence so nested calls reuse the existing recursion without extra branching.
 - [x] **Evaluate the multi-argument helpers.**
   - [x] Wire `atan2(y, x)` and `hypot(x, y)` through thin wrappers that clear `errno`, invoke the STL helper, and reuse the existing overflow guards.
   - [x] Remove the experimental four-argument path (`angle`, `distance`) so the dispatcher stays binary-only.
