@@ -752,12 +752,6 @@ double Interpreter::toDouble(const StringRange& r) {
 	return v;
 }
 
-bool Interpreter::toBool(const String& s) {
-	if (s == YES_STRING) return true;
-	else if (s != NO_STRING) throwRunTimeError(String("Invalid boolean (should be 'yes' or 'no'): ") + s);
-	return false;
-}
-
 String Interpreter::toLower(const StringRange& r) {
 	String d(r.e - r.b, 0);
 	String::iterator q = d.begin();
@@ -766,6 +760,16 @@ String Interpreter::toLower(const StringRange& r) {
 		*q = ((c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c);
 	}
 	return d;
+}
+
+bool Interpreter::toBool(const String& s) {
+	const String lower = toLower(s);
+	if (lower == YES_STRING) {
+		return true;
+	} else if (lower != NO_STRING) {
+		throwRunTimeError(String("Invalid boolean (should be 'yes' or 'no'): ") + s);
+	}
+	return false;
 }
 
 StringIt Interpreter::numericOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence
