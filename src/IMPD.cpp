@@ -754,12 +754,6 @@ double Interpreter::toDouble(const StringRange& r) {
 	return v;
 }
 
-bool Interpreter::toBool(const String& s) {
-	if (s == YES_STRING) return true;
-	else if (s != NO_STRING) throwRunTimeError(String("Invalid boolean value \"") + s + "\"; expected \"yes\" or \"no\".");
-	return false;
-}
-
 String Interpreter::toLower(const StringRange& r) {
 	String d(r.e - r.b, 0);
 	String::iterator q = d.begin();
@@ -773,6 +767,16 @@ String Interpreter::toLower(const StringRange& r) {
 bool Interpreter::isBracketBlock(const String& s) { return (s.size() >= 2 && s[0] == '[' && s.back() == ']'); }
 bool Interpreter::isQuotedString(const String& s) { return (s.size() >= 2 && s[0] == '"' && s.back() == '"'); }
 bool Interpreter::isCurlyExpression(const String& s) { return (s.size() >= 2 && s[0] == '{' && s.back() == '}'); }
+
+bool Interpreter::toBool(const String& s) {
+	const String lower = toLower(s);
+	if (lower == YES_STRING) {
+		return true;
+	} else if (lower != NO_STRING) {
+		throwRunTimeError(String("Invalid boolean value \"") + s + "\"; expected \"yes\" or \"no\".");
+	}
+	return false;
+}
 
 StringIt Interpreter::numericOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence
 		, Char op, Precedence opPrecedence, bool dry) const {

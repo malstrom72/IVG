@@ -431,3 +431,9 @@ trace {($a) $b}
 trace {$a b}
 trace {($a) b}
 trace {$a$b}
+
+// Case-insensitivity for boolean literals "yes" and "no"
+IF [Yes] [ TRACE OK-YES-1 ] else:[ TRACE BAD ]
+IF [yEs] [ TRACE OK-YES-2 ] else:[ TRACE BAD ]
+IF [NO] [ TRACE BAD ] else:[ TRACE OK-NO-1 ]
+IF [nO] [ TRACE BAD ] else:[ TRACE OK-NO-2 ]
