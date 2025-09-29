@@ -576,6 +576,7 @@ let lastRenderZoom = 1;
 let lastVectorRenderLimit = Infinity;
 let rerenderRequestPending = false;
 let pendingVectorRerenderReason = 'vector rescale update';
+let bitmapFallbackQueued = false;
 const ZOOM_EPSILON = 0.0001;
 
 function zoomToPercent(value) {
@@ -742,6 +743,18 @@ window.requestAnimationFrame(function dispatchVectorRerender() {
 rerenderRequestPending = false;
 runIVG(pendingVectorRerenderReason);
 });
+}
+
+function queueBitmapFallback(reason) {
+        if (bitmapFallbackQueued) {
+                return;
+        }
+        bitmapFallbackQueued = true;
+        const fallbackReason = typeof reason === 'string' && reason.length > 0 ? reason : 'vector-fallback';
+        window.requestAnimationFrame(function dispatchBitmapFallback() {
+                bitmapFallbackQueued = false;
+                runIVG(fallbackReason);
+        });
 }
 
 function applyZoom() {
@@ -1347,51 +1360,46 @@ const width = dimensions[2];
                         trace("Time spent: " + (end - start) + "ms");
                         ok = true;
 } else if (!skipVectorRaster) {
-trace("Aborted IVG");
-if (vectorRescaleEnabled) {
-const vectorDisabled = ZoomController.handleVectorRasterFailure({
+	trace("Aborted IVG");
+	if (vectorRescaleEnabled) {
+		const vectorDisabled = ZoomController.handleVectorRasterFailure({
 renderZoom: renderZoom,
 vectorRenderLimit: vectorRenderLimit
-                                });
-                                if (vectorDisabled) {
-                                        trace("Vector rescale was disabled after a failed rasterization - falling back to bitmap zoom.");
-                                        window.requestAnimationFrame(function queueVectorFallback() {
-                                                runIVG('vector-fallback');
-                                        });
-                                }
-}
+});
+		if (vectorDisabled) {
+			trace("Vector rescale was disabled after a failed rasterization - falling back to bitmap zoom.");
+		}
+		queueBitmapFallback('vector-fallback');
+	}
 } else {
-ok = false;
-if (vectorRescaleEnabled) {
-const vectorDisabled = ZoomController.handleVectorRasterFailure({
+	ok = false;
+	if (vectorRescaleEnabled) {
+		const vectorDisabled = ZoomController.handleVectorRasterFailure({
 renderZoom: renderZoom,
 vectorRenderLimit: vectorRenderLimit
 });
-if (vectorDisabled) {
-window.requestAnimationFrame(function queuePreflightFallback() {
-runIVG('vector-preflight-limit');
-});
-}
-}
+		if (vectorDisabled) {
+			trace("Vector rescale was disabled after exceeding the safe rasterization limits. Falling back to bitmap zoom.");
+		}
+		queueBitmapFallback('vector-preflight-limit');
+	}
 }
 localStorage.setItem(STORAGE_KEYS.RUN_ON_STARTUP, true);
 }
 catch (e) {
-                trace("Rasterization crashed");
-                trace(e);
-                if (vectorRescaleEnabled) {
-                        const vectorDisabled = ZoomController.handleVectorRasterFailure({
-                                renderZoom: renderZoom,
-                                vectorRenderLimit: vectorRenderLimit
-                        });
-                        if (vectorDisabled) {
-                                trace("Vector rescale crashed - falling back to bitmap zoom.");
-                                window.requestAnimationFrame(function queueCrashRecovery() {
-                                        runIVG('vector-fallback');
-                                });
-                        }
-                }
-        }
+	trace("Rasterization crashed");
+	trace(e);
+	if (vectorRescaleEnabled) {
+		const vectorDisabled = ZoomController.handleVectorRasterFailure({
+renderZoom: renderZoom,
+vectorRenderLimit: vectorRenderLimit
+});
+		if (vectorDisabled) {
+			trace("Vector rescale crashed - falling back to bitmap zoom.");
+		}
+		queueBitmapFallback('vector-fallback');
+	}
+}
         if (!ok) {
                 ivgContext.beginPath();
                 ivgContext.moveTo(0, 0);
