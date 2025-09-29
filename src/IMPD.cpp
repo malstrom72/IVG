@@ -1136,16 +1136,11 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 						const MathFunction& math = MATH_FUNCTIONS[funcIndex];
 						if (argCount != math.arity) throwBadSyntax("Wrong number of function arguments.");
 						if (!dry) {
-							double args[2] = { 0.0, 0.0 };
-							for (int i = 0; i < argCount; ++i) args[i] = static_cast<double>(parsedArgs[i]);
+							assert(math.arity == 1 || math.arity == 2);
+							const double args[2] = { static_cast<double>(parsedArgs[0]), static_cast<double>(parsedArgs[1]) };
 							errno = 0;
 							double result = 0.0;
-							if (math.arity == 1) {
-								result = math.dispatch.unary(args[0]);
-							} else {
-								assert(math.arity == 2);
-								result = math.dispatch.binary(args[0], args[1]);
-							}
+							result = (math.arity == 1 ? math.dispatch.unary(args[0]) : math.dispatch.binary(args[0], args[1]));
 							if (errno != 0) throwRunTimeError("Math error.");
 							if (!isFinite(result)) throwRunTimeError("Number overflow.");
 							v = result;
