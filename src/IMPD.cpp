@@ -1280,14 +1280,16 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			for (StringVector::const_iterator it = usesList.begin(); it != usesList.end(); ++it) {
 				formatInfo.uses.insert(*it);
 			}
-			formatInfo.requires = requiresList;
+			for (StringVector::const_iterator it = requiresList.begin(); it != requiresList.end(); ++it) {
+				formatInfo.requires.insert(*it);
+			}
 			if (!executor.format(*this, &formatInfo)) {
 				formatInfo.reset();
 				throw FormatException("Unsupported data format");
 			}
-			formatInfo.requires.clear();
 			break;
 		}
+
 		case META_INSTRUCTION: {
 			if (formatInfo.formatId.empty()) throwBadSyntax("Meta instruction requires a preceding format declaration");
 			StringIt p = eatWhite(argumentsRange.b, argumentsRange.e);
@@ -1300,39 +1302,31 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			const FormatInfo& info = formatInfo;
 			String::size_type dash = metaLower.rfind('-');
 			if (dash != String::npos && dash > 0 && dash + 1 < metaLower.size()) {
-				const String metaId(metaLower.substr(0, dash));
-				const String versionString(metaLower.substr(dash + 1));
-				const String declaredToken(metaId + "-" + versionString);
-				std::set<String>::const_iterator it = info.uses.find(declaredToken);
-				if (it == info.uses.end()) throwBadSyntax(String("Undeclared meta tag: ") + declaredToken);
-				uint32_t parsedVersion;
-				StringIt parsedEnd = parseUnsignedInt(versionString.begin(), versionString.end(), parsedVersion);
-				if (parsedEnd != versionString.end() || parsedEnd == versionString.begin()) {
-					throwBadSyntax(String("Invalid meta version: ") + metaToken);
+				if (info.uses.find(metaLower) == info.uses.end()) {
+					throwBadSyntax(String("Undeclared meta tag: ") + metaToken);
 				}
-				resolvedMeta = *it;
+				resolvedMeta = metaLower;
 			} else {
-				const String metaId(metaLower);
-				const String prefix(metaId + "-");
+				const String prefix(metaLower + "-");
 				std::set<String>::const_iterator it = info.uses.lower_bound(prefix);
 				uint32_t bestVersion = 0;
-				String bestToken;
+				bool foundVersion = false;
 				while (it != info.uses.end() && it->compare(0, prefix.size(), prefix) == 0) {
-					StringIt versionBegin = it->begin() + prefix.size();
+					const String& candidate = *it;
 					uint32_t parsedVersion;
-					StringIt parsedEnd = parseUnsignedInt(versionBegin, it->end(), parsedVersion);
-					if (parsedEnd != it->end() || versionBegin == parsedEnd) {
+					StringIt parsedEnd = parseUnsignedInt(candidate.begin() + prefix.size(), candidate.end(), parsedVersion);
+					if (parsedEnd == candidate.begin() + prefix.size() || parsedEnd != candidate.end()) {
 						++it;
 						continue;
 					}
-					if (parsedVersion >= bestVersion) {
+					if (!foundVersion || parsedVersion >= bestVersion) {
 						bestVersion = parsedVersion;
-						bestToken = *it;
+						resolvedMeta = candidate;
+						foundVersion = true;
 					}
 					++it;
 				}
-				if (bestToken.empty()) throwBadSyntax(String("Undeclared meta tag: ") + metaId);
-				resolvedMeta = bestToken;
+				if (!foundVersion) throwBadSyntax(String("Undeclared meta tag: ") + metaToken);
 			}
 			StringIt restBegin = eatWhite(q, argumentsRange.e);
 			String normalizedArguments(resolvedMeta);

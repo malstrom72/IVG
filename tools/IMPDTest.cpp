@@ -32,7 +32,7 @@ class MyExecutor : public Executor {
 	public:		virtual bool format(Interpreter& interpreter, const FormatInfo* formatInfo) {
 					(void)interpreter;
 					if (formatInfo == 0) return false;
-					for (StringVector::const_iterator it = formatInfo->requires.begin(); it != formatInfo->requires.end(); ++it) {
+				for (std::set<String>::const_iterator it = formatInfo->requires.begin(); it != formatInfo->requires.end(); ++it) {
 						std::cout << *it << std::endl;
 					}
 					return formatInfo->requires.empty();
