@@ -133,6 +133,8 @@ TRACE {log(0)} // Math error
 TRACE {log(-1)} // Math error
 
 TRACE {sqrt(-1)} // Math error
+TRACE {atan2(1)} // missing argument
+TRACE {hypot(1, 2, 3)} // too many arguments
 
 INCLUDE // missing arg
 
