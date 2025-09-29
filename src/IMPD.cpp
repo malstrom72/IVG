@@ -1017,18 +1017,19 @@ StringIt Interpreter::evaluateInner(StringIt b, const StringIt& e, EvaluationVal
 				p = t;
 				return p;
 			}
+			const Precedence effectivePrecedence = (precedence == FUNCTION ? BRACKETS : precedence);
 			StringIt q;
 			switch (*t) {
-				case '+': case '-': q = numericOperation(t, e, v, precedence, *t, ADD_SUB, dry); break;
-				case '*': if (t + 1 != e && t[1] == '*') { q = numericOperation(t, e, v, precedence, '^', POW, dry); break; }
+				case '+': case '-': q = numericOperation(t, e, v, effectivePrecedence, *t, ADD_SUB, dry); break;
+				case '*': if (t + 1 != e && t[1] == '*') { q = numericOperation(t, e, v, effectivePrecedence, '^', POW, dry); break; }
 				/* else continue */
-				case '/': q = numericOperation(t, e, v, precedence, *t, MUL_DIV_MOD, dry); break;
-				case '%': q = moduloPercentOperation(t, e, v, precedence, dry); break;
-				case '<': case '>': case '=': case '!': q = comparisonOperation(t, e, v, precedence, dry); break;
-				case '&': case '|': q = booleanOperation(t, e, v, precedence, dry); break;
-				case '?': q = conditionalOperation(t, e, v, precedence, dry); break;
-				case '{': q = substringOperation(t, e, v, precedence, dry); break;
-				default: q = concatOperation(t, e, v, precedence, (t == b ? SPLICE : CONCAT), dry); break;
+				case '/': q = numericOperation(t, e, v, effectivePrecedence, *t, MUL_DIV_MOD, dry); break;
+				case '%': q = moduloPercentOperation(t, e, v, effectivePrecedence, dry); break;
+				case '<': case '>': case '=': case '!': q = comparisonOperation(t, e, v, effectivePrecedence, dry); break;
+				case '&': case '|': q = booleanOperation(t, e, v, effectivePrecedence, dry); break;
+				case '?': q = conditionalOperation(t, e, v, effectivePrecedence, dry); break;
+				case '{': q = substringOperation(t, e, v, effectivePrecedence, dry); break;
+				default: q = concatOperation(t, e, v, effectivePrecedence, (t == b ? SPLICE : CONCAT), dry); break;
 			}
 			if (q != t) p = q;
 		}
