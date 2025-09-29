@@ -131,6 +131,11 @@ Exception: Math error (log of 0 or less)
 in statement: TRACE {log(-1)} // Math error
 Exception: Math error (sqrt of negative)
 in statement: TRACE {sqrt(-1)} // Math error
+Exception: Duplicate format instruction
+in statement: format duplicate-2 uses:[snapshot-1] requires:[impd-1]
+Exception: Undeclared meta tag: unknown
+in statement: meta unknown
+Exception: Undeclared meta tag: snapshot-2
+in statement: meta snapshot-2
 Exception: Statements limit reached
 in statement: []
-Exception: Statements limit reached
