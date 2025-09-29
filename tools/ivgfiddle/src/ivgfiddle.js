@@ -2,6 +2,7 @@
 
 const MAX_LOG_SIZE = 64 * 1024;
 const MAX_LOG_LINES = 1000;
+const MAX_VECTOR_RASTER_PIXELS = 4096 * 4096;
 
 const leftPanelElement = document.getElementById("leftPanel");
 const leftRightSplitElement = document.getElementById('leftRightSplit');
@@ -400,6 +401,7 @@ let currentZoom = ZOOM_CONSTANTS.DEFAULT;
 let baseMetrics = null;
 let vectorScalingEnabled = false;
 let lastRenderZoom = 1;
+let lastVectorRenderLimit = Infinity;
 let rerenderRequestPending = false;
 let pendingVectorRerenderReason = 'vector rescale update';
 
@@ -488,7 +490,12 @@ ivgCanvas.style.transformOrigin = 'top left';
 if (vectorScalingEnabled) {
 ivgCanvas.style.transform = 'translate(' + metrics.translateX * targetZoom + 'px,' + metrics.translateY * targetZoom + 'px)';
 if (Math.abs(lastRenderZoom - currentZoom) > 0.0001) {
+const limitReached = lastVectorRenderLimit !== Infinity
+&& Math.abs(lastRenderZoom - lastVectorRenderLimit) < 0.0001
+&& lastVectorRenderLimit < currentZoom - 0.0001;
+if (!limitReached) {
 scheduleVectorRerender('zoom-change');
+}
 }
 } else {
 ivgCanvas.style.transform = 'translate(' + metrics.translateX + 'px,' + metrics.translateY + 'px) scale(' + currentZoom + ')';
@@ -656,11 +663,13 @@ applyZoom();
 function setCanvasMetrics(metrics) {
 if (metrics === null) {
 baseMetrics = null;
+lastVectorRenderLimit = Infinity;
 applyZoom();
 return;
 }
 const appliedZoom = metrics.zoomApplied || 1;
 lastRenderZoom = appliedZoom;
+lastVectorRenderLimit = Number.isFinite(metrics.vectorRenderLimit) ? metrics.vectorRenderLimit : Infinity;
 baseMetrics = {
 width: metrics.width / appliedZoom,
 height: metrics.height / appliedZoom,
@@ -678,6 +687,10 @@ function isVectorScalingEnabled() {
 return vectorScalingEnabled;
 }
 
+function getBaseMetrics() {
+return baseMetrics;
+}
+
 return {
 init: init,
 setZoom: setZoom,
@@ -687,7 +700,8 @@ applyZoom: applyZoom,
 setCanvasMetrics: setCanvasMetrics,
 setVectorScalingEnabled: setVectorScalingEnabled,
 getZoom: getZoom,
-isVectorScalingEnabled: isVectorScalingEnabled
+isVectorScalingEnabled: isVectorScalingEnabled,
+getBaseMetrics: getBaseMetrics
 };
 })();
 
@@ -805,21 +819,42 @@ function runIVG(reason) {
         localStorage.setItem(STORAGE_KEYS.SOURCE, sourceCode);
         localStorage.setItem(STORAGE_KEYS.RUN_ON_STARTUP, false);
         let ok = false;
-        try {
-                const zoomLevel = ZoomController.getZoom();
-                const vectorRescaleEnabled = ZoomController.isVectorScalingEnabled();
-                const renderZoom = vectorRescaleEnabled ? zoomLevel : 1;
-                const pixelRatio = window.devicePixelRatio;
-                const rasterScale = pixelRatio * renderZoom;
-                if (vectorRescaleEnabled) {
-                        trace("Vector rescale enabled – rasterizing at " + Math.round(renderZoom * 100) + "% (" + rasterScale.toFixed(2) + "× device ratio)");
-                } else {
-                        trace("Bitmap scaling active – requesting nearest-neighbor interpolation on the CSS transform.");
-                }
-                const rasterPointer = rasterizeIVG(sourceCode, rasterScale);
-                const end = Date.now();
-                if (rasterPointer !== 0) {
-                        const heap = heapU32(Module).buffer;
+try {
+const zoomLevel = ZoomController.getZoom();
+const vectorRescaleEnabled = ZoomController.isVectorScalingEnabled();
+const pixelRatio = window.devicePixelRatio;
+const targetRenderZoom = vectorRescaleEnabled ? zoomLevel : 1;
+let renderZoom = targetRenderZoom;
+let vectorRenderLimit = Infinity;
+if (vectorRescaleEnabled) {
+const metrics = ZoomController.getBaseMetrics();
+if (metrics !== null && metrics.width > 0 && metrics.height > 0) {
+const basePixelWidth = metrics.width * pixelRatio;
+const basePixelHeight = metrics.height * pixelRatio;
+const basePixelArea = basePixelWidth * basePixelHeight;
+if (basePixelArea > 0) {
+const maxZoomByArea = Math.sqrt(MAX_VECTOR_RASTER_PIXELS / basePixelArea);
+if (Number.isFinite(maxZoomByArea) && maxZoomByArea < renderZoom - 0.0001) {
+renderZoom = Math.max(1, maxZoomByArea);
+vectorRenderLimit = renderZoom;
+}
+}
+}
+}
+const rasterScale = pixelRatio * renderZoom;
+if (vectorRescaleEnabled) {
+if (renderZoom < targetRenderZoom - 0.0001) {
+trace("Vector rescale request was " + Math.round(targetRenderZoom * 100) + "% but clamped to " + Math.round(renderZoom * 100) + "% to keep raster size under " + MAX_VECTOR_RASTER_PIXELS.toLocaleString('en-US') + " pixels.");
+} else {
+trace("Vector rescale enabled – rasterizing at " + Math.round(renderZoom * 100) + "% (" + rasterScale.toFixed(2) + "× device ratio)");
+}
+} else {
+trace("Bitmap scaling active – requesting nearest-neighbor interpolation on the CSS transform.");
+}
+const rasterPointer = rasterizeIVG(sourceCode, rasterScale);
+const end = Date.now();
+if (rasterPointer !== 0) {
+const heap = heapU32(Module).buffer;
                         let dimensions = new Int32Array(heap, rasterPointer, 4);
                         const left = dimensions[0];
                         const top = dimensions[1];
@@ -837,13 +872,14 @@ function runIVG(reason) {
                         const cssHeight = height / pixelRatio;
                         const translateX = left / pixelRatio;
                         const translateY = top / pixelRatio;
-                        ZoomController.setCanvasMetrics({
-                                width: cssWidth,
-                                height: cssHeight,
-                                translateX: translateX,
-                                translateY: translateY,
-                                zoomApplied: renderZoom
-                        });
+ZoomController.setCanvasMetrics({
+width: cssWidth,
+height: cssHeight,
+translateX: translateX,
+translateY: translateY,
+zoomApplied: renderZoom,
+vectorRenderLimit: vectorRenderLimit
+});
                         ivgContext.putImageData(imageData, 0, 0);
                         trace("Completed IVG");
                         trace("Time spent: " + (end - start) + "ms");
