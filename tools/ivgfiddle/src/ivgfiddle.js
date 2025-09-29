@@ -23,6 +23,7 @@ const backgroundCloseButton = document.getElementById('backgroundCloseButton');
 const backgroundSwatchContainer = document.getElementById('backgroundSwatchContainer');
 const ivgCanvas = document.getElementById('ivgCanvas');
 const ivgContext = ivgCanvas.getContext("2d");
+const MIN_LEFT_PANEL_WIDTH = 250;
 
 let rasterizeInProgress = false;
 let rerunQueuedWhileBusy = false;
@@ -937,20 +938,44 @@ aceSession.on('change', function(e) {
 	recompileTimer = setTimeout(runIVG, 500);
 });
 
+if (leftPanelElement !== null) {
+	const initialWidth = leftPanelElement.offsetWidth;
+	if (initialWidth > 0) {
+		leftPanelElement.style.flexBasis = initialWidth + 'px';
+	}
+	leftPanelElement.style.removeProperty('width');
+}
+
 let isDragging = false;
-let currentX;
-let currentPanelWidth;
-leftRightSplitElement.addEventListener('mousedown', function(e) {
-  isDragging = true;
-  currentX = e.clientX;
-  currentPanelWidth = leftPanelElement.offsetWidth;
-  e.preventDefault();
+let dragStartX = 0;
+let dragStartWidth = 0;
+
+if (leftRightSplitElement !== null) {
+	leftRightSplitElement.addEventListener('mousedown', function handleSplitMouseDown(e) {
+		if (leftPanelElement === null) {
+			return;
+		}
+		isDragging = true;
+		dragStartX = e.clientX;
+		dragStartWidth = leftPanelElement.getBoundingClientRect().width;
+		document.body.classList.add('is-resizing');
+		e.preventDefault();
+	});
+}
+
+document.addEventListener('mousemove', function handleSplitMouseMove(e) {
+	if (!isDragging || leftPanelElement === null) {
+		return;
+	}
+	const delta = e.clientX - dragStartX;
+	const nextWidth = Math.max(MIN_LEFT_PANEL_WIDTH, dragStartWidth + delta);
+	leftPanelElement.style.flexBasis = nextWidth + 'px';
 });
-document.addEventListener('mousemove', function(e) {
-  if (isDragging) {
-	leftPanelElement.style.width = (currentPanelWidth + e.clientX - currentX) + 'px';
-  }
-});
-document.addEventListener('mouseup', function(e) {
-  isDragging = false;
+
+document.addEventListener('mouseup', function handleSplitMouseUp() {
+	if (!isDragging) {
+		return;
+	}
+	isDragging = false;
+	document.body.classList.remove('is-resizing');
 });

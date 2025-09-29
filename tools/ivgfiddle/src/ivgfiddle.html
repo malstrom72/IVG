@@ -25,18 +25,18 @@
 			color:lime;
 			padding-left: 5px
 		}
-		#leftRightSplit {
-			width: 3px;
-			background: green;
-			cursor: ew-resize;
-		}
-		#leftPanel {
-			width: 50%;
-			min-width: 250px;
-		}
-               #rightPanel {
+                #leftRightSplit {
+                        flex: 0 0 3px;
+                        background: green;
+                        cursor: ew-resize;
+                }
+                #leftPanel {
+                        flex: 0 0 50%;
+                        min-width: 250px;
+                }
+                #rightPanel {
                         position: relative;
-                        flex-grow: 1;
+                        flex: 1 1 0%;
                         overflow: auto;
                 }
                #rightPanel.transparent {
@@ -55,16 +55,18 @@
                #canvasToolbar {
                        display: flex;
                        align-items: center;
+                       flex-wrap: wrap;
                        gap: 12px;
                        padding: 8px 12px;
                         border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-			background-color: rgba(0, 0, 0, 0.9);
+                        background-color: rgba(0, 0, 0, 0.9);
                         color: #fff;
                 }
                 .toolbar-button {
                         display: inline-flex;
                         align-items: center;
                         justify-content: center;
+                        flex: 0 0 auto;
                         min-width: 32px;
                         height: 28px;
                         padding: 0 10px;
@@ -73,6 +75,7 @@
                         background: rgba(255, 255, 255, 0.05);
                         color: inherit;
                         font: inherit;
+                        white-space: nowrap;
                         cursor: pointer;
                         transition: background 120ms ease, border-color 120ms ease;
                 }
@@ -90,6 +93,9 @@
                         background: rgba(255, 255, 255, 0.2);
                         border-color: rgba(255, 255, 255, 0.5);
                 }
+               #vectorScalingToggle {
+                       min-width: 120px;
+               }
                 .toolbar-label {
                         font-size: 12px;
                         letter-spacing: 0.05em;
@@ -110,6 +116,15 @@
                         font-size: 11px;
                         opacity: 0.55;
                 }
+               body.is-resizing {
+                       cursor: ew-resize;
+                       user-select: none;
+               }
+
+               body.is-resizing * {
+                       cursor: inherit !important;
+               }
+
                #backgroundOverlay {
                        position: absolute;
                        inset: 0;
