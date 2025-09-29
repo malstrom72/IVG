@@ -494,7 +494,7 @@ template<> ARGB32::Pixel parseColor<ARGB32>(Interpreter& impd, const StringRange
 
 ARGB32::Pixel parseColor(const String& color) {
 	class DummyExecutor : public Executor {
-		public:		virtual bool format(Interpreter&, const String&, const StringVector&, const StringVector&) { return true; }
+		public:		virtual bool format(Interpreter&, const FormatInfo*) { return true; }
 		public:		virtual bool execute(Interpreter&, const String&, const String&) { return true; }
 		public:		virtual bool progress(Interpreter&, int) { return true; }
 		public:		virtual bool load(Interpreter&, const WideString&, String&) { return false; }
@@ -579,9 +579,8 @@ static AffineTransformation parseSingleTransformation(Interpreter& impd, Transfo
 
 class TransformationExecutor : public Executor {
 	public:		TransformationExecutor(Executor& parentExecutor) : parentExecutor(parentExecutor) { };
-	public:		virtual bool format(Interpreter& impd, const String& identifier, const vector<String>& uses
-						, const vector<String>& requires) {
-					(void)impd; (void)identifier; (void)uses; (void)requires;
+	public:		virtual bool format(Interpreter& impd, const FormatInfo* formatInfo) {
+					(void)impd; (void)formatInfo;
 					return false;
 				}
 	public:		virtual bool execute(Interpreter& impd, const String& instruction, const String& arguments) {
@@ -921,10 +920,9 @@ void IVGExecutor::runInNewContext(Interpreter& interpreter, Context& context, co
 	}
 }
 
-bool IVGExecutor::format(Interpreter& impd, const String& identifier, const vector<String>& uses
-		, const vector<String>& requires) {
-	(void)impd; (void)uses;
-	return ((identifier == "ivg-1" || identifier == "ivg-2") && requires.empty());
+bool IVGExecutor::format(Interpreter& impd, const FormatInfo* formatInfo) {
+	(void)impd;
+	return (formatInfo != 0 && (formatInfo->formatId == "ivg-1" || formatInfo->formatId == "ivg-2") && formatInfo->requires.empty());
 }
 
 void IVGExecutor::trace(Interpreter& impd, const WideString& s) {
@@ -1717,10 +1715,9 @@ bool buildPathForString(const UniString& string, const std::vector<const Font*>&
 
 FontParser::FontParser(Executor* parentExecutor) : parentExecutor(parentExecutor) { }
 
-bool FontParser::format(Interpreter& impd, const String& identifier, const StringVector& uses
-		, const StringVector& requires) {
-	(void)impd; (void)uses;
-	return (identifier == "ivgfont-1" && requires.empty());
+bool FontParser::format(Interpreter& impd, const FormatInfo* formatInfo) {
+	(void)impd;
+	return (formatInfo != 0 && formatInfo->formatId == "ivgfont-1" && formatInfo->requires.empty());
 }
 
 /* Built with QuickHashGen */

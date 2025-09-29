@@ -111,10 +111,11 @@ typedef std::vector<Argument> ArgumentVector;
         Tracks format declarations for the current document scope.
 **/
 struct FormatInfo {
-        FormatInfo() { }
-        void reset() { formatId.clear(); uses.clear(); }
-        String formatId;
-        std::set<String> uses;
+	FormatInfo() { }
+	void reset() { formatId.clear(); uses.clear(); requires.clear(); }
+	String formatId;
+	std::set<String> uses;
+	StringVector requires;
 };
 
 /**
@@ -169,8 +170,7 @@ class STLMapVariables : public Variables {
 	Abstract interface for executing instructions and loading resources.
 **/
 class Executor {
-	public:		virtual bool format(Interpreter& interpreter, const String& identifier, const StringVector& uses	
-						, const StringVector& requires) = 0;															///< Return false to throw FormatException if "identifier" is not correct or any element in "requires" is unknown / not supported. Empty requirements and requirements of 'IMPD-1' etc are removed from the list before this call. All strings are passed in lower case.
+	public:		virtual bool format(Interpreter& interpreter, const FormatInfo* formatInfo) = 0;											///< Return false to throw FormatException if the format is not supported. `formatInfo` contains the normalized identifier, declared `uses:` tokens, and the filtered `requires:` list.
 	public:		virtual bool execute(Interpreter& interpreter, const String& instruction, const String& arguments) = 0; ///< Return false to throw SyntaxException if instruction is unrecognized. `instruction` is passed in lower case.
 	public:		virtual bool progress(Interpreter& interpreter, int maxStatementsLeft) = 0;								///< Called before every statement is executed. Return false to stop processing and throw AbortedException.
 	public:		virtual bool load(Interpreter& interpreter, const WideString& filename, String& contents) = 0;			///< Called by the INCLUDE instruction. Load contents of file into `contents`. Return false to throw a RunTimeException.

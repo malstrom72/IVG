@@ -202,8 +202,7 @@ class Font {
 **/
 class FontParser : public IMPD::Executor {
 	public:		FontParser(IMPD::Executor* parentExecutor = 0);
-	public:		virtual bool format(IMPD::Interpreter& interpreter, const IMPD::String& identifier
-						, const IMPD::StringVector& uses, const IMPD::StringVector& requires);
+	public:		virtual bool format(IMPD::Interpreter& interpreter, const IMPD::FormatInfo* formatInfo);
 	public:		virtual bool execute(IMPD::Interpreter& interpreter, const IMPD::String& instruction
 						, const IMPD::String& arguments);
 	public:		virtual bool progress(IMPD::Interpreter& interpreter, int maxStatementsLeft);
@@ -315,8 +314,7 @@ struct Image {
 class IVGExecutor : public IMPD::Executor {
 	public:		IVGExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform
 						= NuXPixels::AffineTransformation());
-	public:		virtual bool format(IMPD::Interpreter& interpreter, const IMPD::String& identifier
-						, const std::vector<IMPD::String>& uses, const std::vector<IMPD::String>& requires);
+	public:		virtual bool format(IMPD::Interpreter& interpreter, const IMPD::FormatInfo* formatInfo);
 	public:		virtual bool execute(IMPD::Interpreter& interpreter, const IMPD::String& instruction
 						, const IMPD::String& arguments);
 	public:		virtual void trace(IMPD::Interpreter& interpreter, const IMPD::WideString& s);

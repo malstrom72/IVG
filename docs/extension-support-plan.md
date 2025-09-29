@@ -38,7 +38,7 @@
   - [x] Lower-case the format identifier and every entry in the `uses:` and `requires:` lists (reusing the existing `transform` calls).
   - [x] Preserve the `uses:` tokens exactly as supplied (`snapshot-1`, `snapshot-2`, ...), avoiding additional parsing.
   - [x] Strip `impd-1` from the `requires:` vector just like today so executors only see dependencies they must validate.
-- [x] Populate the shared state around the `format` dispatch by lower-casing the identifier, clearing any previous `FormatInfo`, and inserting each normalized `uses:` token so executors and later `meta` checks see the recorded declarations without changing the existing `Executor::format` signature.
+- [x] Populate the shared state around the `format` dispatch by lower-casing the identifier, clearing any previous `FormatInfo`, and inserting each normalized `uses:` token before calling `Executor::format` with a pointer to the prepared structure so executors can inspect the normalized data.
 - [x] Leave executors with the validation responsibilities they already own for identifiers, dependencies, and requirements while consulting the passed `FormatInfo` read-only.
 
 ### 4. Validate `meta` using the recorded declarations
