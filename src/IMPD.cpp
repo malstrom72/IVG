@@ -1115,32 +1115,28 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 			++call;
 			EvaluationValue parsedArgs[2];
 			int argCount = 0;
-			while (true) {
-								call = eatWhite(call, e);
-								if (call == e) throwBadSyntax("Missing \")\".");
-								if (*call == ')') {
-										if (argCount != 0) throwBadSyntax("Missing function argument.");
-										++call;
-										break;
-								}
-								if (argCount == 2) throwBadSyntax("Too many arguments.");
-								EvaluationValue argValue;
-								StringIt next = evaluateInner(call, e, argValue, FUNCTION, dry);
-								if (next == call) throwBadSyntax("Syntax error.");
-								if (!dry) parsedArgs[argCount] = argValue;
-								++argCount;
-								call = eatWhite(next, e);
-								if (call == e) throwBadSyntax("Missing \")\".");
-								if (*call == ',') {
-										++call;
-										continue;
-								}
-								if (*call == ')') {
-										++call;
-										break;
-								}
-								throwBadSyntax("Syntax error.");
-						}
+			call = eatWhite(call, e);
+			if (call == e) throwBadSyntax("Missing \")\".");
+			if (*call == ')') throwBadSyntax("Missing function argument.");
+			for (;;) {
+				if (argCount == 2) throwBadSyntax("Too many arguments.");
+				EvaluationValue argValue;
+				StringIt next = evaluateInner(call, e, argValue, FUNCTION, dry);
+				if (next == call) throwBadSyntax("Syntax error.");
+				call = eatWhite(next, e);
+				if (call == e) throwBadSyntax("Missing \")\".");
+				if (!dry) parsedArgs[argCount] = argValue;
+				++argCount;
+				if (*call == ')') {
+					++call;
+					break;
+				}
+				if (*call != ',') throwBadSyntax("Syntax error.");
+				++call;
+				call = eatWhite(call, e);
+				if (call == e) throwBadSyntax("Missing \")\".");
+				if (*call == ')') throwBadSyntax("Missing function argument.");
+			}
 
 						if (funcIndex < MATH_FUNCTION_COUNT) {
 				const MathFunction& math = MATH_FUNCTIONS[funcIndex];
