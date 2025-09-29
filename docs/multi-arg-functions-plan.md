@@ -17,8 +17,9 @@ The guiding principle for every change described below is **minimalism**: extend
   - [x] Re-run QuickHashGen with the updated name list so longer identifiers like `atan2` and `hypot` resolve correctly without widening the hash more than necessary.
   - [x] Publish stable enum indexes for the built-ins so call sites never reach into the table with raw integers.
 - [x] **Parse comma-separated arguments.**
+  - [x] Introduce a minimal `COMMA` precedence token so callers can request comma termination without touching the operator loop.
   - [x] Teach `evaluateOuter` to collect up to two arguments in a tiny stack buffer, returning early if a closing parenthesis arrives with nothing parsed.
-  - [x] Leave `evaluateInner` unchanged so it stops when a comma surfaces and let the call-site loop validate the separator without extra helpers.
+  - [x] Leave `evaluateInner` otherwise unchanged so it stops when a comma surfaces and let the call-site loop validate the separator without extra helpers.
 - [x] **Evaluate the multi-argument helpers.**
   - [x] Wire `atan2(y, x)` and `hypot(x, y)` through thin wrappers that clear `errno`, invoke the STL helper, and reuse the existing overflow guards.
   - [x] Remove the experimental four-argument path (`angle`, `distance`) so the dispatcher stays binary-only.

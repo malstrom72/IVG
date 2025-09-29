@@ -1111,50 +1111,50 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 			++call;
 			EvaluationValue parsedArgs[2];
 			int argCount = 0;
-				for (;;) {
+			for (;;) {
+				call = eatWhite(call, e);
+				if (call == e) throwBadSyntax("Missing \")\".");
+				if (*call == ')') {
+					if (argCount == 0) throwBadSyntax("Missing function argument.");
+					++call;
+					break;
+				}
+				if (argCount != 0) {
+					if (*call != ',') throwBadSyntax("Expected ',' or ')'.");
+					++call;
 					call = eatWhite(call, e);
 					if (call == e) throwBadSyntax("Missing \")\".");
-					if (*call == ')') {
-						if (argCount == 0) throwBadSyntax("Missing function argument.");
-						++call;
-						break;
-					}
-					if (argCount != 0) {
-						if (*call != ',') throwBadSyntax("Expected ',' or ')'");
-						++call;
-						call = eatWhite(call, e);
-						if (call == e) throwBadSyntax("Missing \")\".");
-						if (*call == ')') throwBadSyntax("Missing function argument.");
-					}
-					if (argCount == 2) throwBadSyntax("Too many arguments.");
-					EvaluationValue argValue;
-					StringIt next = evaluateInner(call, e, argValue, CONDITIONAL, dry);
-					if (next == call) throwBadSyntax("Syntax error.");
-					if (!dry) parsedArgs[argCount] = argValue;
-					++argCount;
-					call = next;
+					if (*call == ')') throwBadSyntax("Missing function argument.");
 				}
-
-					if (funcIndex < MATH_FUNCTION_COUNT) {
+				if (argCount == 2) throwBadSyntax("Too many arguments.");
+				EvaluationValue argValue;
+				StringIt next = evaluateInner(call, e, argValue, COMMA, dry);
+				if (next == call) throwBadSyntax("Syntax error.");
+				if (!dry) parsedArgs[argCount] = argValue;
+				++argCount;
+				call = next;
+			}
+			if (funcIndex < MATH_FUNCTION_COUNT) {
 				const MathFunction& math = MATH_FUNCTIONS[funcIndex];
 				if (argCount != math.arity) throwBadSyntax("Wrong number of function arguments.");
 				if (!dry) {
 					double args[2] = { 0.0, 0.0 };
 					for (int i = 0; i < argCount; ++i) args[i] = static_cast<double>(parsedArgs[i]);
 					errno = 0;
-					assert(math.arity == 1 || math.arity == 2);
-					double result = (math.arity == 1)
-					? math.dispatch.unary(args[0])
-					: math.dispatch.binary(args[0], args[1]);
+					double result = 0.0;
+					if (math.arity == 1) {
+						result = math.dispatch.unary(args[0]);
+					} else {
+						assert(math.arity == 2);
+						result = math.dispatch.binary(args[0], args[1]);
+					}
 					if (errno != 0) throwRunTimeError("Math error.");
 					if (!isFinite(result)) throwRunTimeError("Number overflow.");
 					v = result;
 				}
 			} else if (funcIndex == LEN_FUNCTION) {
 				if (argCount != 1) throwBadSyntax("Wrong number of function arguments.");
-				if (!dry) {
-					v = static_cast<double>(static_cast<String>(parsedArgs[0]).size());
-				}
+				if (!dry) v = static_cast<double>(static_cast<String>(parsedArgs[0]).size());
 			} else if (funcIndex == DEF_FUNCTION) {
 				if (argCount != 1) throwBadSyntax("Wrong number of function arguments.");
 				if (!dry) {
@@ -1170,13 +1170,12 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 			p = call;
 		}
 	} else {
-		if (!dry) {
-			v = sym;
-		}
+		if (!dry) v = sym;
 		p = q;
 	}
 	break;
 }
+
 
 	}
 	if (p == t) p = b;

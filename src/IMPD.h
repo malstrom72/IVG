@@ -232,7 +232,7 @@ class Interpreter {
 	protected:	static StringIt eatStatement(StringIt p, const StringIt& e);
 	protected:	static StringIt unescapeChar(StringIt p, const StringIt& e, UniChar& c);
 	protected:	enum Precedence {
-			BRACKETS, CONDITIONAL, CONCAT, BOOLEAN, COMPARE, ADD_SUB, MUL_DIV_MOD
+			BRACKETS, COMMA, CONDITIONAL, CONCAT, BOOLEAN, COMPARE, ADD_SUB, MUL_DIV_MOD
 			, PREFIX, POSTFIX, POW, EXPAND, SPLICE, FUNCTION
 			};
 	protected:	String performExpansion(const StringRange& r) const;
