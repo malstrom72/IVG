@@ -393,10 +393,10 @@ const BackgroundController = (function createBackgroundController() {
 })();
 
 const ZOOM_CONSTANTS = Object.freeze({
-        MIN: 0.25,
-        MAX: 4.0,
-        STEP: 0.25,
-        DEFAULT: 1.0
+	MIN: 0.25,
+	MAX: 10.0,
+	STEP: 0.25,
+	DEFAULT: 1.0
 });
 
 BackgroundController.init();
