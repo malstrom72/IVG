@@ -52,11 +52,11 @@
                #rightPanel:not(.transparent) {
                         background-image: none;
                 }
-                #canvasToolbar {
-                        display: flex;
-                        align-items: center;
-                        gap: 12px;
-                        padding: 8px 12px;
+               #canvasToolbar {
+                       display: flex;
+                       align-items: center;
+                       gap: 12px;
+                       padding: 8px 12px;
                         border-bottom: 1px solid rgba(255, 255, 255, 0.15);
 			background-color: rgba(0, 0, 0, 0.9);
                         color: #fff;
@@ -85,6 +85,10 @@
                         background: rgba(255, 255, 255, 0.15);
                         border-color: rgba(255, 255, 255, 0.35);
                         outline: none;
+                }
+                .toolbar-button[aria-pressed="true"] {
+                        background: rgba(255, 255, 255, 0.2);
+                        border-color: rgba(255, 255, 255, 0.5);
                 }
                 .toolbar-label {
                         font-size: 12px;
@@ -215,9 +219,17 @@
                        text-transform: uppercase;
                        opacity: 0.85;
                }
-		/*#ivgCanvas {
-			border: 0.5px dashed rgba(255, 255, 255, 0.5);
-		}*/
+               #ivgCanvas[data-scaling-mode="bitmap"] {
+                       image-rendering: -moz-crisp-edges;
+                       image-rendering: crisp-edges;
+                       image-rendering: pixelated;
+               }
+               #ivgCanvas[data-scaling-mode="vector"] {
+                       image-rendering: auto;
+               }
+                /*#ivgCanvas {
+                        border: 0.5px dashed rgba(255, 255, 255, 0.5);
+                }*/
 	</style>
 	<body style="background:black">
 		<div id="stage" class="flex-row">
@@ -247,6 +259,7 @@
                                                 <option value="400">400%</option>
                                         </select>
                                         <button id="zoomInButton" class="toolbar-button" type="button" aria-label="Zoom in">+</button>
+                                        <button id="vectorScalingToggle" class="toolbar-button" type="button" aria-pressed="false">Vector rescale</button>
                                         <button id="zoomResetButton" class="toolbar-button" type="button">Reset</button>
                                         <button id="backgroundButton" class="toolbar-button" type="button" aria-haspopup="dialog" aria-controls="backgroundDialog">Background</button>
                                         <span id="zoomKeyboardHints" aria-hidden="true">Ctrl/Cmd + / &minus; / 0</span>

@@ -13,6 +13,7 @@ const screenElement = document.getElementById('screen');
 const zoomOutButton = document.getElementById('zoomOutButton');
 const zoomInButton = document.getElementById('zoomInButton');
 const zoomResetButton = document.getElementById('zoomResetButton');
+const vectorScalingToggle = document.getElementById('vectorScalingToggle');
 const zoomLevelSelect = document.getElementById('zoomLevelSelect');
 const backgroundButton = document.getElementById('backgroundButton');
 const backgroundOverlay = document.getElementById('backgroundOverlay');
@@ -22,11 +23,16 @@ const backgroundSwatchContainer = document.getElementById('backgroundSwatchConta
 const ivgCanvas = document.getElementById('ivgCanvas');
 const ivgContext = ivgCanvas.getContext("2d");
 
+let rasterizeInProgress = false;
+let rerunQueuedWhileBusy = false;
+let rerunQueuedReason = '';
+
 const STORAGE_KEYS = Object.freeze({
         SOURCE: 'ivgSource',
         RUN_ON_STARTUP: 'runOnStartup',
         ZOOM_LEVEL: 'ivgZoomLevel',
-        BACKGROUND_COLOR: 'ivgBackgroundColor'
+        BACKGROUND_COLOR: 'ivgBackgroundColor',
+        VECTOR_SCALING: 'ivgVectorScaling'
 });
 
 const BACKGROUND_COLORS = Object.freeze([
@@ -390,195 +396,299 @@ const ZOOM_CONSTANTS = Object.freeze({
 BackgroundController.init();
 
 const ZoomController = (function createZoomController() {
-	let currentZoom = ZOOM_CONSTANTS.DEFAULT;
-	let baseMetrics = null;
+let currentZoom = ZOOM_CONSTANTS.DEFAULT;
+let baseMetrics = null;
+let vectorScalingEnabled = false;
+let lastRenderZoom = 1;
+let rerenderRequestPending = false;
+let pendingVectorRerenderReason = 'vector rescale update';
 
-	function zoomToPercent(value) {
-		return Math.round(value * 100);
-	}
+function zoomToPercent(value) {
+return Math.round(value * 100);
+}
 
-	function clampZoom(value) {
-		const numeric = Number(value);
-		if (!Number.isFinite(numeric)) {
-			return ZOOM_CONSTANTS.DEFAULT;
-		}
-		return Math.min(ZOOM_CONSTANTS.MAX, Math.max(ZOOM_CONSTANTS.MIN, numeric));
-	}
+function clampZoom(value) {
+const numeric = Number(value);
+if (!Number.isFinite(numeric)) {
+return ZOOM_CONSTANTS.DEFAULT;
+}
+return Math.min(ZOOM_CONSTANTS.MAX, Math.max(ZOOM_CONSTANTS.MIN, numeric));
+}
 
-	function percentToZoom(percentString) {
-		const percent = Number.parseInt(percentString, 10);
-		if (!Number.isFinite(percent)) {
-			return currentZoom;
-		}
-		return clampZoom(percent / 100);
-	}
+function percentToZoom(percentString) {
+const percent = Number.parseInt(percentString, 10);
+if (!Number.isFinite(percent)) {
+return currentZoom;
+}
+return clampZoom(percent / 100);
+}
 
-	function reflectUIState() {
-		if (zoomLevelSelect !== null) {
-			zoomLevelSelect.value = String(zoomToPercent(currentZoom));
-		}
-		if (zoomOutButton !== null) {
-			zoomOutButton.disabled = currentZoom <= ZOOM_CONSTANTS.MIN + 0.0001;
-		}
-		if (zoomInButton !== null) {
-			zoomInButton.disabled = currentZoom >= ZOOM_CONSTANTS.MAX - 0.0001;
-		}
-	}
+function reflectVectorScalingState() {
+if (vectorScalingToggle !== null) {
+vectorScalingToggle.setAttribute('aria-pressed', vectorScalingEnabled ? 'true' : 'false');
+}
+}
 
-	function persistZoom() {
-		localStorage.setItem(STORAGE_KEYS.ZOOM_LEVEL, currentZoom.toFixed(2));
-	}
+function reflectUIState() {
+if (zoomLevelSelect !== null) {
+zoomLevelSelect.value = String(zoomToPercent(currentZoom));
+}
+if (zoomOutButton !== null) {
+zoomOutButton.disabled = currentZoom <= ZOOM_CONSTANTS.MIN + 0.0001;
+}
+if (zoomInButton !== null) {
+zoomInButton.disabled = currentZoom >= ZOOM_CONSTANTS.MAX - 0.0001;
+}
+reflectVectorScalingState();
+}
 
-	function applyZoom() {
-		if (ivgCanvas === null) {
-			return;
-		}
-		if (baseMetrics === null) {
-			ivgCanvas.style.transformOrigin = 'top left';
-			ivgCanvas.style.transform = 'scale(' + currentZoom + ')';
-			return;
-		}
-		const metrics = baseMetrics;
-		ivgCanvas.style.width = metrics.width + 'px';
-		ivgCanvas.style.height = metrics.height + 'px';
-		ivgCanvas.style.transformOrigin = 'top left';
-		ivgCanvas.style.transform = 'translate(' + metrics.translateX + 'px,' + metrics.translateY + 'px) scale(' + currentZoom + ')';
-	}
+function persistZoom() {
+localStorage.setItem(STORAGE_KEYS.ZOOM_LEVEL, currentZoom.toFixed(2));
+}
 
-	function setZoom(value, options) {
-		const settings = options || {};
-		const clamped = clampZoom(value);
-		if (Math.abs(clamped - currentZoom) < 0.0001) {
-			reflectUIState();
-			return;
-		}
-		currentZoom = clamped;
-		if (!settings.skipPersist) {
-			persistZoom();
-		}
-		applyZoom();
-		reflectUIState();
-	}
+function persistVectorScaling() {
+localStorage.setItem(STORAGE_KEYS.VECTOR_SCALING, vectorScalingEnabled ? '1' : '0');
+}
 
-	function incrementZoom(delta) {
-		setZoom(currentZoom + delta);
-	}
+function scheduleVectorRerender(reason) {
+if (!vectorScalingEnabled) {
+return;
+}
+pendingVectorRerenderReason = reason || 'vector rescale update';
+if (rerenderRequestPending) {
+return;
+}
+rerenderRequestPending = true;
+window.requestAnimationFrame(function dispatchVectorRerender() {
+rerenderRequestPending = false;
+runIVG(pendingVectorRerenderReason);
+});
+}
 
-	function resetZoom() {
-		setZoom(ZOOM_CONSTANTS.DEFAULT);
-	}
+function applyZoom() {
+if (ivgCanvas === null) {
+return;
+}
+ivgCanvas.setAttribute('data-scaling-mode', vectorScalingEnabled ? 'vector' : 'bitmap');
+// Safari currently ignores `image-rendering: pixelated`, so bitmap mode may still interpolate there.
+if (baseMetrics === null) {
+ivgCanvas.style.transformOrigin = 'top left';
+if (vectorScalingEnabled) {
+ivgCanvas.style.transform = 'translate(0px, 0px)';
+} else {
+ivgCanvas.style.transform = 'scale(' + currentZoom + ')';
+}
+return;
+}
+const metrics = baseMetrics;
+const targetZoom = vectorScalingEnabled ? currentZoom : 1;
+ivgCanvas.style.width = metrics.width * targetZoom + 'px';
+ivgCanvas.style.height = metrics.height * targetZoom + 'px';
+ivgCanvas.style.transformOrigin = 'top left';
+if (vectorScalingEnabled) {
+ivgCanvas.style.transform = 'translate(' + metrics.translateX * targetZoom + 'px,' + metrics.translateY * targetZoom + 'px)';
+if (Math.abs(lastRenderZoom - currentZoom) > 0.0001) {
+scheduleVectorRerender('zoom-change');
+}
+} else {
+ivgCanvas.style.transform = 'translate(' + metrics.translateX + 'px,' + metrics.translateY + 'px) scale(' + currentZoom + ')';
+}
+}
 
-	function bindUIEvents() {
-		if (zoomOutButton !== null) {
-			zoomOutButton.addEventListener('click', function handleZoomOutClick() {
-				incrementZoom(-ZOOM_CONSTANTS.STEP);
-			});
-		}
-		if (zoomInButton !== null) {
-			zoomInButton.addEventListener('click', function handleZoomInClick() {
-				incrementZoom(ZOOM_CONSTANTS.STEP);
-			});
-		}
-		if (zoomResetButton !== null) {
-			zoomResetButton.addEventListener('click', function handleZoomResetClick() {
-				resetZoom();
-			});
-		}
-		if (zoomLevelSelect !== null) {
-			zoomLevelSelect.addEventListener('change', function handleZoomSelectChange(event) {
-				const target = event.target;
-				setZoom(percentToZoom(target.value));
-			});
-		}
-		document.addEventListener('keydown', handleZoomShortcut, true);
-	}
+function setZoom(value, options) {
+const settings = options || {};
+const clamped = clampZoom(value);
+if (Math.abs(clamped - currentZoom) < 0.0001) {
+reflectUIState();
+return;
+}
+currentZoom = clamped;
+if (!settings.skipPersist) {
+persistZoom();
+}
+applyZoom();
+reflectUIState();
+if (vectorScalingEnabled && settings.skipVectorRefresh !== true) {
+scheduleVectorRerender('zoom-change');
+}
+}
 
-	function targetBlocksShortcut(element) {
-		if (element === null) {
-			return false;
-		}
-		if (element.closest && element.closest('#editor') !== null) {
-			return true;
-		}
-		const tagName = element.tagName;
-		if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') {
-			return true;
-		}
-		if (element.isContentEditable === true) {
-			return true;
-		}
-		return false;
-	}
+function incrementZoom(delta) {
+setZoom(currentZoom + delta);
+}
 
-	function handleZoomShortcut(event) {
-		if (event.defaultPrevented) {
-			return;
-		}
-		if (!(event.ctrlKey || event.metaKey) || event.altKey) {
-			return;
-		}
-		const activeElement = document.activeElement;
-		if (targetBlocksShortcut(activeElement)) {
-			return;
-		}
-		const key = event.key;
-		if (key === '+' || key === '=') {
-			event.preventDefault();
-			incrementZoom(ZOOM_CONSTANTS.STEP);
-			return;
-		}
-		if (key === '-') {
-			event.preventDefault();
-			incrementZoom(-ZOOM_CONSTANTS.STEP);
-			return;
-		}
-		if (key === '0') {
-			event.preventDefault();
-			resetZoom();
-		}
-	}
+function resetZoom() {
+setZoom(ZOOM_CONSTANTS.DEFAULT);
+}
 
-	function readInitialZoom() {
-		const stored = localStorage.getItem(STORAGE_KEYS.ZOOM_LEVEL);
-		if (stored === null) {
-			return;
-		}
-		const parsed = Number.parseFloat(stored);
-		if (!Number.isFinite(parsed)) {
-			return;
-		}
-		currentZoom = clampZoom(parsed);
-	}
+function setVectorScalingEnabled(value, options) {
+const settings = options || {};
+const normalized = value === true;
+if (normalized === vectorScalingEnabled && settings.force !== true) {
+reflectVectorScalingState();
+return;
+}
+vectorScalingEnabled = normalized;
+if (!settings.skipPersist) {
+persistVectorScaling();
+}
+reflectVectorScalingState();
+applyZoom();
+if (settings.skipRerender === true) {
+return;
+}
+if (vectorScalingEnabled) {
+scheduleVectorRerender('vector-toggle');
+} else {
+window.requestAnimationFrame(function queueBitmapReraster() {
+runIVG('vector-toggle-disabled');
+});
+}
+}
 
-	function init() {
-		readInitialZoom();
-		bindUIEvents();
-		reflectUIState();
-	}
+function bindUIEvents() {
+if (zoomOutButton !== null) {
+zoomOutButton.addEventListener('click', function handleZoomOutClick() {
+incrementZoom(-ZOOM_CONSTANTS.STEP);
+});
+}
+if (zoomInButton !== null) {
+zoomInButton.addEventListener('click', function handleZoomInClick() {
+incrementZoom(ZOOM_CONSTANTS.STEP);
+});
+}
+if (zoomResetButton !== null) {
+zoomResetButton.addEventListener('click', function handleZoomResetClick() {
+resetZoom();
+});
+}
+if (zoomLevelSelect !== null) {
+zoomLevelSelect.addEventListener('change', function handleZoomSelectChange(event) {
+const target = event.target;
+setZoom(percentToZoom(target.value));
+});
+}
+if (vectorScalingToggle !== null) {
+vectorScalingToggle.addEventListener('click', function handleVectorScalingToggleClick() {
+setVectorScalingEnabled(!vectorScalingEnabled);
+});
+}
+document.addEventListener('keydown', handleZoomShortcut, true);
+}
 
-	function setCanvasMetrics(metrics) {
-		if (metrics === null) {
-			baseMetrics = null;
-			applyZoom();
-			return;
-		}
-		baseMetrics = {
-			width: metrics.width,
-			height: metrics.height,
-			translateX: metrics.translateX,
-			translateY: metrics.translateY
-		};
-		applyZoom();
-	}
+function targetBlocksShortcut(element) {
+if (element === null) {
+return false;
+}
+if (element.closest && element.closest('#editor') !== null) {
+return true;
+}
+const tagName = element.tagName;
+if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') {
+return true;
+}
+if (element.isContentEditable === true) {
+return true;
+}
+return false;
+}
 
-	return {
-		init: init,
-		setZoom: setZoom,
-		incrementZoom: incrementZoom,
-		resetZoom: resetZoom,
-		applyZoom: applyZoom,
-		setCanvasMetrics: setCanvasMetrics
-	};
+function handleZoomShortcut(event) {
+if (event.defaultPrevented) {
+return;
+}
+if (!(event.ctrlKey || event.metaKey) || event.altKey) {
+return;
+}
+const activeElement = document.activeElement;
+if (targetBlocksShortcut(activeElement)) {
+return;
+}
+const key = event.key;
+if (key === '+' || key === '=') {
+event.preventDefault();
+incrementZoom(ZOOM_CONSTANTS.STEP);
+return;
+}
+if (key === '-') {
+event.preventDefault();
+incrementZoom(-ZOOM_CONSTANTS.STEP);
+return;
+}
+if (key === '0') {
+event.preventDefault();
+resetZoom();
+}
+}
+
+function readInitialZoom() {
+const stored = localStorage.getItem(STORAGE_KEYS.ZOOM_LEVEL);
+if (stored === null) {
+return;
+}
+const parsed = Number.parseFloat(stored);
+if (!Number.isFinite(parsed)) {
+return;
+}
+currentZoom = clampZoom(parsed);
+}
+
+function readInitialVectorScaling() {
+const stored = localStorage.getItem(STORAGE_KEYS.VECTOR_SCALING);
+if (stored === null) {
+return;
+}
+setVectorScalingEnabled(stored === '1' || stored === 'true', {
+skipPersist: true,
+skipRerender: true,
+force: true
+});
+}
+
+function init() {
+readInitialZoom();
+readInitialVectorScaling();
+bindUIEvents();
+reflectUIState();
+applyZoom();
+}
+
+function setCanvasMetrics(metrics) {
+if (metrics === null) {
+baseMetrics = null;
+applyZoom();
+return;
+}
+const appliedZoom = metrics.zoomApplied || 1;
+lastRenderZoom = appliedZoom;
+baseMetrics = {
+width: metrics.width / appliedZoom,
+height: metrics.height / appliedZoom,
+translateX: metrics.translateX / appliedZoom,
+translateY: metrics.translateY / appliedZoom
+};
+applyZoom();
+}
+
+function getZoom() {
+return currentZoom;
+}
+
+function isVectorScalingEnabled() {
+return vectorScalingEnabled;
+}
+
+return {
+init: init,
+setZoom: setZoom,
+incrementZoom: incrementZoom,
+resetZoom: resetZoom,
+applyZoom: applyZoom,
+setCanvasMetrics: setCanvasMetrics,
+setVectorScalingEnabled: setVectorScalingEnabled,
+getZoom: getZoom,
+isVectorScalingEnabled: isVectorScalingEnabled
+};
 })();
 
 ZoomController.init();
@@ -670,67 +780,100 @@ function heapU32(Module) {
 			will extend this by chaining `scale(...)` while keeping translation anchored.
 		5. The decoded pixels are blitted via `putImageData`, completing the redraw.
 */
-function runIVG() {
-	clearTrace();
-	trace("Running IVG");
-	const linesCountWas = traceLinesCount;
-	const start = Date.now();
-	const sourceCode = aceEditor.getValue();
-	localStorage.setItem(STORAGE_KEYS.SOURCE, sourceCode);
-	localStorage.setItem(STORAGE_KEYS.RUN_ON_STARTUP, false);
-	let ok = false;
-	try {
-		const pixelRatio = window.devicePixelRatio;
-		const rasterPointer = rasterizeIVG(sourceCode, pixelRatio);
-		const end = Date.now();
-		if (rasterPointer !== 0) {
-			const heap = heapU32(Module).buffer;
-			let dimensions = new Int32Array(heap, rasterPointer, 4);
-			const left = dimensions[0];
-			const top = dimensions[1];
-			const width = dimensions[2];
-			const height = dimensions[3];
-			dimensions = null;
-			let pixelData = new Uint8Array(heap, rasterPointer + 4 * 4, width * height * 4);
-			deallocatePixels(rasterPointer);
-			ivgCanvas.width = width;
-			ivgCanvas.height = height;
-			const imageData = ivgContext.createImageData(width, height);
-			imageData.data.set(pixelData);
-			pixelData = null;
-			const cssWidth = width / pixelRatio;
-			const cssHeight = height / pixelRatio;
-			const translateX = left / pixelRatio;
-			const translateY = top / pixelRatio;
-			ZoomController.setCanvasMetrics({
-				width: cssWidth,
-				height: cssHeight,
-				translateX: translateX,
-				translateY: translateY
-			});
-			ivgContext.putImageData(imageData, 0, 0);
-			trace("Completed IVG");
-			trace("Time spent: " + (end - start) + "ms");
-			ok = true;
-		} else {
-			trace("Aborted IVG");
-		}
-		localStorage.setItem(STORAGE_KEYS.RUN_ON_STARTUP, true);
-	}
-	catch (e) {
-		trace("Rasterization crashed");
-		trace(e);
-	}
-	if (!ok) {
-		ivgContext.beginPath();
-		ivgContext.moveTo(0, 0);
-		ivgContext.lineTo(ivgCanvas.width, ivgCanvas.height);
-		ivgContext.moveTo(0, ivgCanvas.height);
-		ivgContext.lineTo(ivgCanvas.width, 0);
-		ivgContext.strokeStyle = "red";
-		ivgContext.lineWidth = 10;
-		ivgContext.stroke();
-	}
+function runIVG(reason) {
+        if (rasterizeInProgress) {
+                rerunQueuedWhileBusy = true;
+                if (typeof reason === 'string' && reason.length > 0) {
+                        rerunQueuedReason = reason;
+                } else if (rerunQueuedReason === '') {
+                        rerunQueuedReason = 'queued rerun';
+                }
+                return;
+        }
+        rasterizeInProgress = true;
+        rerunQueuedWhileBusy = false;
+        const invocationReason = typeof reason === 'string' ? reason : '';
+        rerunQueuedReason = '';
+        clearTrace();
+        trace("Running IVG");
+        if (invocationReason !== '') {
+                trace("Render reason: " + invocationReason);
+        }
+        const linesCountWas = traceLinesCount;
+        const start = Date.now();
+        const sourceCode = aceEditor.getValue();
+        localStorage.setItem(STORAGE_KEYS.SOURCE, sourceCode);
+        localStorage.setItem(STORAGE_KEYS.RUN_ON_STARTUP, false);
+        let ok = false;
+        try {
+                const zoomLevel = ZoomController.getZoom();
+                const vectorRescaleEnabled = ZoomController.isVectorScalingEnabled();
+                const renderZoom = vectorRescaleEnabled ? zoomLevel : 1;
+                const pixelRatio = window.devicePixelRatio;
+                const rasterScale = pixelRatio * renderZoom;
+                if (vectorRescaleEnabled) {
+                        trace("Vector rescale enabled – rasterizing at " + Math.round(renderZoom * 100) + "% (" + rasterScale.toFixed(2) + "× device ratio)");
+                } else {
+                        trace("Bitmap scaling active – requesting nearest-neighbor interpolation on the CSS transform.");
+                }
+                const rasterPointer = rasterizeIVG(sourceCode, rasterScale);
+                const end = Date.now();
+                if (rasterPointer !== 0) {
+                        const heap = heapU32(Module).buffer;
+                        let dimensions = new Int32Array(heap, rasterPointer, 4);
+                        const left = dimensions[0];
+                        const top = dimensions[1];
+                        const width = dimensions[2];
+                        const height = dimensions[3];
+                        dimensions = null;
+                        let pixelData = new Uint8Array(heap, rasterPointer + 4 * 4, width * height * 4);
+                        deallocatePixels(rasterPointer);
+                        ivgCanvas.width = width;
+                        ivgCanvas.height = height;
+                        const imageData = ivgContext.createImageData(width, height);
+                        imageData.data.set(pixelData);
+                        pixelData = null;
+                        const cssWidth = width / pixelRatio;
+                        const cssHeight = height / pixelRatio;
+                        const translateX = left / pixelRatio;
+                        const translateY = top / pixelRatio;
+                        ZoomController.setCanvasMetrics({
+                                width: cssWidth,
+                                height: cssHeight,
+                                translateX: translateX,
+                                translateY: translateY,
+                                zoomApplied: renderZoom
+                        });
+                        ivgContext.putImageData(imageData, 0, 0);
+                        trace("Completed IVG");
+                        trace("Time spent: " + (end - start) + "ms");
+                        ok = true;
+                } else {
+                        trace("Aborted IVG");
+                }
+                localStorage.setItem(STORAGE_KEYS.RUN_ON_STARTUP, true);
+        }
+        catch (e) {
+                trace("Rasterization crashed");
+                trace(e);
+        }
+        if (!ok) {
+                ivgContext.beginPath();
+                ivgContext.moveTo(0, 0);
+                ivgContext.lineTo(ivgCanvas.width, ivgCanvas.height);
+                ivgContext.moveTo(0, ivgCanvas.height);
+                ivgContext.lineTo(ivgCanvas.width, 0);
+                ivgContext.strokeStyle = "red";
+                ivgContext.lineWidth = 10;
+                ivgContext.stroke();
+        }
+        rasterizeInProgress = false;
+        if (rerunQueuedWhileBusy) {
+                const queuedReason = rerunQueuedReason;
+                rerunQueuedWhileBusy = false;
+                rerunQueuedReason = '';
+                runIVG(queuedReason);
+        }
 }
 
 const aceEditor = ace.edit("editor");
