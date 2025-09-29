@@ -846,10 +846,10 @@ if (vectorRescaleEnabled) {
 if (renderZoom < targetRenderZoom - 0.0001) {
 trace("Vector rescale request was " + Math.round(targetRenderZoom * 100) + "% but clamped to " + Math.round(renderZoom * 100) + "% to keep raster size under " + MAX_VECTOR_RASTER_PIXELS.toLocaleString('en-US') + " pixels.");
 } else {
-trace("Vector rescale enabled – rasterizing at " + Math.round(renderZoom * 100) + "% (" + rasterScale.toFixed(2) + "× device ratio)");
+trace("Vector rescale enabled - rasterizing at " + Math.round(renderZoom * 100) + "% (" + rasterScale.toFixed(2) + "x device ratio)");
 }
 } else {
-trace("Bitmap scaling active – requesting nearest-neighbor interpolation on the CSS transform.");
+trace("Bitmap scaling active - requesting nearest-neighbor interpolation on the CSS transform.");
 }
 const rasterPointer = rasterizeIVG(sourceCode, rasterScale);
 const end = Date.now();
