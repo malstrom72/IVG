@@ -1010,28 +1010,21 @@ StringIt Interpreter::substringOperation(StringIt p, const StringIt& e, Evaluati
 StringIt Interpreter::evaluateInner(StringIt b, const StringIt& e, EvaluationValue& v, Precedence precedence, bool dry) const {
 	StringIt p = evaluateOuter(b, e, v, dry);
 	while (p != b) {
-	b = p;
-	StringIt t = eatWhite(b, e);
-	if (t != e) {
-		StringIt q;
-		switch (*t) {
-			case '+': case '-': q = numericOperation(t, e, v, precedence, *t, ADD_SUB, dry); break;
-			case '*': if (t + 1 != e && t[1] == '*') { q = numericOperation(t, e, v, precedence, '^', POW, dry); break; }
-				/* else continue */
-			case '/': q = numericOperation(t, e, v, precedence, *t, MUL_DIV_MOD, dry); break;
-			case '%': q = moduloPercentOperation(t, e, v, precedence, dry); break;
-			case '<': case '>': case '=': case '!': q = comparisonOperation(t, e, v, precedence, dry); break;
-			case '&': case '|': q = booleanOperation(t, e, v, precedence, dry); break;
-			case '?': q = conditionalOperation(t, e, v, precedence, dry); break;
-			case '{': q = substringOperation(t, e, v, precedence, dry); break;
-			case ',':
-				if (precedence == COMMA) {
-					p = t;
-				} else {
-					throwBadSyntax("Syntax error.");
-				}
-				break;
-			default: q = concatOperation(t, e, v, precedence, (t == b ? SPLICE : CONCAT), dry); break;
+		b = p;
+		StringIt t = eatWhite(b, e);
+		if (t != e) {
+			StringIt q;
+			switch (*t) {
+				case '+': case '-': q = numericOperation(t, e, v, precedence, *t, ADD_SUB, dry); break;
+				case '*': if (t + 1 != e && t[1] == '*') { q = numericOperation(t, e, v, precedence, '^', POW, dry); break; }
+					/* else continue */
+				case '/': q = numericOperation(t, e, v, precedence, *t, MUL_DIV_MOD, dry); break;
+				case '%': q = moduloPercentOperation(t, e, v, precedence, dry); break;
+				case '<': case '>': case '=': case '!': q = comparisonOperation(t, e, v, precedence, dry); break;
+				case '&': case '|': q = booleanOperation(t, e, v, precedence, dry); break;
+				case '?': q = conditionalOperation(t, e, v, precedence, dry); break;
+				case '{': q = substringOperation(t, e, v, precedence, dry); break;
+				default: q = concatOperation(t, e, v, precedence, (t == b ? SPLICE : CONCAT), dry); break;
 			}
 			if (q != t) p = q;
 		}
@@ -1127,30 +1120,22 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 						break;
 					}
 					if (argCount != 0) {
-						if (*call != ',') throwBadSyntax("Syntax error.");
+						if (*call != ',') throwBadSyntax("Expected ',' or ')'");
 						++call;
 						call = eatWhite(call, e);
 						if (call == e) throwBadSyntax("Missing \")\".");
-						if (*call == ')') {
-							++call;
-							break;
-						}
+						if (*call == ')') throwBadSyntax("Missing function argument.");
 					}
 					if (argCount == 2) throwBadSyntax("Too many arguments.");
 					EvaluationValue argValue;
-					StringIt next = evaluateInner(call, e, argValue, COMMA, dry);
+					StringIt next = evaluateInner(call, e, argValue, CONDITIONAL, dry);
 					if (next == call) throwBadSyntax("Syntax error.");
 					if (!dry) parsedArgs[argCount] = argValue;
 					++argCount;
-					call = eatWhite(next, e);
-					if (call == e) throwBadSyntax("Missing \")\".");
-					if (*call == ')') {
-						++call;
-						break;
-					}
+					call = next;
 				}
 
-						if (funcIndex < MATH_FUNCTION_COUNT) {
+					if (funcIndex < MATH_FUNCTION_COUNT) {
 				const MathFunction& math = MATH_FUNCTIONS[funcIndex];
 				if (argCount != math.arity) throwBadSyntax("Wrong number of function arguments.");
 				if (!dry) {
