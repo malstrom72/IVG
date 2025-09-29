@@ -5,11 +5,16 @@
 		<script type="text/javascript" src="./rasterizeIVG.js"></script>
 		<title>ivgfiddle</title>
 	</head>
-	<style>
-		.flex-row {
-			display: flex;
-			flex-direction: row;
-		}
+<style>
+body {
+margin: 0;
+background: #050505;
+color: #fff;
+}
+.flex-row {
+display: flex;
+flex-direction: row;
+}
 		.flex-col {
 			display: flex;
 			flex-direction: column;
@@ -34,11 +39,19 @@
                         flex: 0 0 50%;
                         min-width: 250px;
                 }
-                #rightPanel {
-                        position: relative;
-                        flex: 1 1 0%;
-                        overflow: auto;
-                }
+#rightPanel {
+position: relative;
+flex: 1 1 0%;
+overflow: auto;
+}
+#screen {
+flex: 1 1 auto;
+display: flex;
+align-items: center;
+justify-content: center;
+padding: 24px;
+background: #0b0b0b;
+}
                #rightPanel.transparent {
                         background-color: #444;
                         background-image:
@@ -244,11 +257,16 @@
                        text-transform: uppercase;
                        opacity: 0.85;
                }
-               #ivgCanvas[data-scaling-mode="bitmap"] {
-                       image-rendering: -moz-crisp-edges;
-                       image-rendering: crisp-edges;
-                       image-rendering: pixelated;
-               }
+#ivgCanvas {
+display: block;
+box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+background: transparent;
+}
+#ivgCanvas[data-scaling-mode="bitmap"] {
+image-rendering: -moz-crisp-edges;
+image-rendering: crisp-edges;
+image-rendering: pixelated;
+}
                #ivgCanvas[data-scaling-mode="vector"] {
                        image-rendering: auto;
                }
@@ -256,7 +274,7 @@
                         border: 0.5px dashed rgba(255, 255, 255, 0.5);
                 }*/
 	</style>
-	<body style="background:black">
+<body>
 		<div id="stage" class="flex-row">
 			<div id="leftPanel" class="flex-col">
 				<div id="editor" class="grow"></div>  

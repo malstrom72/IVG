@@ -2,7 +2,8 @@
 
 const MAX_LOG_SIZE = 64 * 1024;
 const MAX_LOG_LINES = 1000;
-const MAX_VECTOR_RASTER_PIXELS = 4096 * 4096;
+const MAX_VECTOR_RASTER_DIMENSION = 8192;
+const MAX_VECTOR_RASTER_PIXELS = MAX_VECTOR_RASTER_DIMENSION * MAX_VECTOR_RASTER_DIMENSION;
 
 const leftPanelElement = document.getElementById("leftPanel");
 const leftRightSplitElement = document.getElementById('leftRightSplit');
@@ -64,7 +65,9 @@ const BackgroundController = (function createBackgroundController() {
         let isOpen = false;
         let lastTrigger = null;
         const bodyElement = document.body;
-        const defaultBodyBackground = bodyElement.style.backgroundColor;
+        const defaultBodyBackground = bodyElement ? window.getComputedStyle(bodyElement).backgroundColor : '';
+        const defaultScreenBackground = screenElement ? window.getComputedStyle(screenElement).backgroundColor : '';
+        const defaultCanvasBackground = ivgCanvas ? window.getComputedStyle(ivgCanvas).backgroundColor : '';
 
         function getColorDefinition(value) {
                 for (let index = 0; index < BACKGROUND_COLORS.length; ++index) {
@@ -76,15 +79,85 @@ const BackgroundController = (function createBackgroundController() {
                 return null;
         }
 
-	function normalizeColor(value) {
-		if (value === 'transparent') {
-			return 'none';
-		}
-		const definition = getColorDefinition(value);
-		if (definition === null) {
-			return BACKGROUND_DEFAULT;
-		}
-		return definition.value;
+        function normalizeColor(value) {
+                if (value === 'transparent') {
+                        return 'none';
+                }
+                const definition = getColorDefinition(value);
+                if (definition === null) {
+                        return BACKGROUND_DEFAULT;
+                }
+                return definition.value;
+        }
+
+        function parseHexColor(value) {
+                if (typeof value !== 'string') {
+                        return null;
+                }
+                const hex = value.trim().toLowerCase();
+                if (!hex.startsWith('#')) {
+                        return null;
+                }
+                if (hex.length === 4) {
+                        const r = parseInt(hex.charAt(1) + hex.charAt(1), 16);
+                        const g = parseInt(hex.charAt(2) + hex.charAt(2), 16);
+                        const b = parseInt(hex.charAt(3) + hex.charAt(3), 16);
+                        if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
+                                return null;
+                        }
+                        return { r: r, g: g, b: b };
+                }
+                if (hex.length !== 7) {
+                        return null;
+                }
+                const r = parseInt(hex.substr(1, 2), 16);
+                const g = parseInt(hex.substr(3, 2), 16);
+                const b = parseInt(hex.substr(5, 2), 16);
+                if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
+                        return null;
+                }
+                return { r: r, g: g, b: b };
+        }
+
+        function formatHexComponent(value) {
+                const clamped = Math.max(0, Math.min(255, value));
+                const hex = clamped.toString(16);
+                if (hex.length < 2) {
+                        return '0' + hex;
+                }
+                return hex;
+        }
+
+        function adjustOuterShade(definition) {
+                if (!definition || !definition.preview) {
+                        return '';
+                }
+                const components = parseHexColor(definition.preview);
+                if (components === null) {
+                        return definition.preview;
+                }
+                const luminance = (0.2126 * components.r + 0.7152 * components.g + 0.0722 * components.b) / 255;
+                const lighten = luminance < 0.5;
+                const factor = 0.18;
+                function adjustComponent(component) {
+                        if (lighten) {
+                                return Math.round(component + (255 - component) * factor);
+                        }
+                        return Math.round(component * (1 - factor));
+                }
+                const adjusted = {
+                        r: adjustComponent(components.r),
+                        g: adjustComponent(components.g),
+                        b: adjustComponent(components.b)
+                };
+                return '#' + formatHexComponent(adjusted.r) + formatHexComponent(adjusted.g) + formatHexComponent(adjusted.b);
+        }
+
+        function computeOuterBackground(definition) {
+                if (!definition || definition.value === 'none') {
+                        return '';
+                }
+                return adjustOuterShade(definition);
         }
 
         function createSwatches() {
@@ -152,27 +225,37 @@ const BackgroundController = (function createBackgroundController() {
 
         function applyColorToDOM() {
                 const shouldClearColor = currentColor === 'none';
+                const definition = getColorDefinition(currentColor);
+                const paletteColor = definition && definition.preview ? definition.preview : currentColor;
+                const outerColor = computeOuterBackground(definition);
                 if (rightPanelElement !== null) {
                         if (shouldClearColor) {
                                 rightPanelElement.classList.add('transparent');
                                 rightPanelElement.style.backgroundColor = '';
                         } else {
                                 rightPanelElement.classList.remove('transparent');
-                                rightPanelElement.style.backgroundColor = currentColor;
+                                rightPanelElement.style.backgroundColor = outerColor || paletteColor;
                         }
                 }
                 if (screenElement !== null) {
                         if (shouldClearColor) {
-                                screenElement.style.backgroundColor = '';
+                                screenElement.style.backgroundColor = defaultScreenBackground;
                         } else {
-                                screenElement.style.backgroundColor = currentColor;
+                                screenElement.style.backgroundColor = outerColor || paletteColor;
+                        }
+                }
+                if (ivgCanvas !== null) {
+                        if (shouldClearColor) {
+                                ivgCanvas.style.backgroundColor = defaultCanvasBackground;
+                        } else {
+                                ivgCanvas.style.backgroundColor = paletteColor;
                         }
                 }
                 if (bodyElement !== null) {
                         if (shouldClearColor) {
                                 bodyElement.style.backgroundColor = defaultBodyBackground;
                         } else {
-                                bodyElement.style.backgroundColor = currentColor;
+                                bodyElement.style.backgroundColor = outerColor || paletteColor;
                         }
                 }
         }
@@ -595,6 +678,22 @@ setVectorScalingEnabled(!vectorScalingEnabled);
 document.addEventListener('keydown', handleZoomShortcut, true);
 }
 
+function handleVectorRasterFailure(details) {
+if (details && Number.isFinite(details.vectorRenderLimit)) {
+lastVectorRenderLimit = details.vectorRenderLimit;
+}
+if (details && Number.isFinite(details.renderZoom)) {
+lastRenderZoom = details.renderZoom;
+}
+if (!vectorScalingEnabled) {
+return false;
+}
+setVectorScalingEnabled(false, {
+skipRerender: true
+});
+return true;
+}
+
 function targetBlocksShortcut(element) {
 if (element === null) {
 return false;
@@ -713,7 +812,8 @@ setCanvasMetrics: setCanvasMetrics,
 setVectorScalingEnabled: setVectorScalingEnabled,
 getZoom: getZoom,
 isVectorScalingEnabled: isVectorScalingEnabled,
-getBaseMetrics: getBaseMetrics
+getBaseMetrics: getBaseMetrics,
+handleVectorRasterFailure: handleVectorRasterFailure
 };
 })();
 
@@ -831,42 +931,81 @@ function runIVG(reason) {
         localStorage.setItem(STORAGE_KEYS.SOURCE, sourceCode);
         localStorage.setItem(STORAGE_KEYS.RUN_ON_STARTUP, false);
         let ok = false;
-try {
-const zoomLevel = ZoomController.getZoom();
-const vectorRescaleEnabled = ZoomController.isVectorScalingEnabled();
-const pixelRatio = window.devicePixelRatio;
-const targetRenderZoom = vectorRescaleEnabled ? zoomLevel : 1;
-let renderZoom = targetRenderZoom;
-let vectorRenderLimit = Infinity;
-if (vectorRescaleEnabled) {
-const metrics = ZoomController.getBaseMetrics();
-if (metrics !== null && metrics.width > 0 && metrics.height > 0) {
-const basePixelWidth = metrics.width * pixelRatio;
-const basePixelHeight = metrics.height * pixelRatio;
-const basePixelArea = basePixelWidth * basePixelHeight;
-if (basePixelArea > 0) {
-const maxZoomByArea = Math.sqrt(MAX_VECTOR_RASTER_PIXELS / basePixelArea);
-if (Number.isFinite(maxZoomByArea) && maxZoomByArea < renderZoom - 0.0001) {
-renderZoom = Math.max(1, maxZoomByArea);
-vectorRenderLimit = renderZoom;
-}
-}
-}
-}
-const rasterScale = pixelRatio * renderZoom;
-if (vectorRescaleEnabled) {
-if (renderZoom < targetRenderZoom - 0.0001) {
-trace("Vector rescale request was " + Math.round(targetRenderZoom * 100) + "% but clamped to " + Math.round(renderZoom * 100) + "% to keep raster size under " + MAX_VECTOR_RASTER_PIXELS.toLocaleString('en-US') + " pixels.");
-} else {
-trace("Vector rescale enabled - rasterizing at " + Math.round(renderZoom * 100) + "% (" + rasterScale.toFixed(2) + "x device ratio)");
-}
-} else {
-trace("Bitmap scaling active - requesting nearest-neighbor interpolation on the CSS transform.");
-}
-const rasterPointer = rasterizeIVG(sourceCode, rasterScale);
-const end = Date.now();
-if (rasterPointer !== 0) {
-const heap = heapU32(Module).buffer;
+        const zoomLevel = ZoomController.getZoom();
+        const vectorRescaleEnabled = ZoomController.isVectorScalingEnabled();
+        const pixelRatio = window.devicePixelRatio;
+        let targetRenderZoom = vectorRescaleEnabled ? zoomLevel : 1;
+        let renderZoom = targetRenderZoom;
+        let vectorRenderLimit = Infinity;
+        let clampReasons = [];
+        try {
+                if (vectorRescaleEnabled) {
+                        const metrics = ZoomController.getBaseMetrics();
+                        if (metrics !== null && metrics.width > 0 && metrics.height > 0) {
+                                const basePixelWidth = metrics.width * pixelRatio;
+                                const basePixelHeight = metrics.height * pixelRatio;
+                                const basePixelArea = basePixelWidth * basePixelHeight;
+                                const zoomLimits = [];
+                                if (basePixelArea > 0) {
+                                        const maxZoomByArea = Math.sqrt(MAX_VECTOR_RASTER_PIXELS / basePixelArea);
+                                        if (Number.isFinite(maxZoomByArea)) {
+                                                zoomLimits.push({ value: maxZoomByArea, reason: 'pixel budget' });
+                                        }
+                                }
+                                if (basePixelWidth > 0) {
+                                        const maxZoomByWidth = MAX_VECTOR_RASTER_DIMENSION / basePixelWidth;
+                                        if (Number.isFinite(maxZoomByWidth)) {
+                                                zoomLimits.push({ value: maxZoomByWidth, reason: 'width limit' });
+                                        }
+                                }
+                                if (basePixelHeight > 0) {
+                                        const maxZoomByHeight = MAX_VECTOR_RASTER_DIMENSION / basePixelHeight;
+                                        if (Number.isFinite(maxZoomByHeight)) {
+                                                zoomLimits.push({ value: maxZoomByHeight, reason: 'height limit' });
+                                        }
+                                }
+                                if (zoomLimits.length > 0) {
+                                        let bestLimit = Infinity;
+                                        let appliedReasons = [];
+                                        for (let index = 0; index < zoomLimits.length; ++index) {
+                                                const entry = zoomLimits[index];
+                                                if (!Number.isFinite(entry.value) || entry.value <= 0) {
+                                                        continue;
+                                                }
+                                                if (entry.value < bestLimit - 0.0001) {
+                                                        bestLimit = entry.value;
+                                                        appliedReasons = [entry.reason];
+                                                } else if (Math.abs(entry.value - bestLimit) < 0.0001) {
+                                                        appliedReasons.push(entry.reason);
+                                                }
+                                        }
+                                        if (bestLimit < Infinity && bestLimit < renderZoom - 0.0001) {
+                                                renderZoom = Math.max(1, bestLimit);
+                                                vectorRenderLimit = renderZoom;
+                                                clampReasons = appliedReasons;
+                                        }
+                                }
+                        }
+                }
+                const rasterScale = pixelRatio * renderZoom;
+                if (vectorRescaleEnabled) {
+                        if (renderZoom < targetRenderZoom - 0.0001) {
+                                const reasonText = clampReasons.length > 0 ? ' due to ' + clampReasons.join(' & ') : '';
+                                const includePixelBudget = clampReasons.indexOf('pixel budget') !== -1;
+                                const includeDimensionCap = clampReasons.indexOf('width limit') !== -1 || clampReasons.indexOf('height limit') !== -1;
+                                const pixelBudgetNote = includePixelBudget ? ' (pixel budget ' + MAX_VECTOR_RASTER_PIXELS.toLocaleString('en-US') + ' px)' : '';
+                                const dimensionNote = includeDimensionCap ? ' (dimension cap ' + MAX_VECTOR_RASTER_DIMENSION + 'px)' : '';
+                                trace("Vector rescale request was " + Math.round(targetRenderZoom * 100) + "% but clamped to " + Math.round(renderZoom * 100) + "%" + reasonText + pixelBudgetNote + dimensionNote + ".");
+                        } else {
+                                trace("Vector rescale enabled - rasterizing at " + Math.round(renderZoom * 100) + "% (" + rasterScale.toFixed(2) + "x device ratio)");
+                        }
+                } else {
+                        trace("Bitmap scaling active - requesting nearest-neighbor interpolation on the CSS transform.");
+                }
+                const rasterPointer = rasterizeIVG(sourceCode, rasterScale);
+                const end = Date.now();
+                if (rasterPointer !== 0) {
+                        const heap = heapU32(Module).buffer;
                         let dimensions = new Int32Array(heap, rasterPointer, 4);
                         const left = dimensions[0];
                         const top = dimensions[1];
@@ -884,26 +1023,50 @@ const heap = heapU32(Module).buffer;
                         const cssHeight = height / pixelRatio;
                         const translateX = left / pixelRatio;
                         const translateY = top / pixelRatio;
-ZoomController.setCanvasMetrics({
-width: cssWidth,
-height: cssHeight,
-translateX: translateX,
-translateY: translateY,
-zoomApplied: renderZoom,
-vectorRenderLimit: vectorRenderLimit
-});
+                        ZoomController.setCanvasMetrics({
+                                width: cssWidth,
+                                height: cssHeight,
+                                translateX: translateX,
+                                translateY: translateY,
+                                zoomApplied: renderZoom,
+                                vectorRenderLimit: vectorRenderLimit
+                        });
                         ivgContext.putImageData(imageData, 0, 0);
                         trace("Completed IVG");
                         trace("Time spent: " + (end - start) + "ms");
                         ok = true;
                 } else {
                         trace("Aborted IVG");
+                        if (vectorRescaleEnabled) {
+                                const vectorDisabled = ZoomController.handleVectorRasterFailure({
+                                        renderZoom: renderZoom,
+                                        vectorRenderLimit: vectorRenderLimit
+                                });
+                                if (vectorDisabled) {
+                                        trace("Vector rescale was disabled after a failed rasterization - falling back to bitmap zoom.");
+                                        window.requestAnimationFrame(function queueVectorFallback() {
+                                                runIVG('vector-fallback');
+                                        });
+                                }
+                        }
                 }
                 localStorage.setItem(STORAGE_KEYS.RUN_ON_STARTUP, true);
         }
         catch (e) {
                 trace("Rasterization crashed");
                 trace(e);
+                if (vectorRescaleEnabled) {
+                        const vectorDisabled = ZoomController.handleVectorRasterFailure({
+                                renderZoom: renderZoom,
+                                vectorRenderLimit: vectorRenderLimit
+                        });
+                        if (vectorDisabled) {
+                                trace("Vector rescale crashed - falling back to bitmap zoom.");
+                                window.requestAnimationFrame(function queueCrashRecovery() {
+                                        runIVG('vector-fallback');
+                                });
+                        }
+                }
         }
         if (!ok) {
                 ivgContext.beginPath();
