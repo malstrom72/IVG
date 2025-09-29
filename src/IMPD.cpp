@@ -1107,52 +1107,55 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 					StringIt call = eatWhite(q, e);
 					if (call == e || *call != '(') throwBadSyntax("Missing \"(\".");
 					++call;
-					EvaluationValue parsedArgs[2];
-					int argCount = 0;
-					for (;;) {
+					const bool isMathFunction = (funcIndex < MATH_FUNCTION_COUNT);
+					const int expectedArgs = (isMathFunction ? MATH_FUNCTIONS[funcIndex].arity : 1);
+					EvaluationValue firstArg;
+					EvaluationValue secondArg;
+					call = eatWhite(call, e);
+					if (call == e) throwBadSyntax("Missing \")\".");
+					if (*call == ')') throwBadSyntax("Missing function argument.");
+					StringIt next = evaluateInner(call, e, firstArg, COMMA, dry);
+					if (next == call) throwBadSyntax("Syntax error.");
+					call = eatWhite(next, e);
+					if (call == e) throwBadSyntax("Missing \")\".");
+					if (expectedArgs == 2) {
+						if (*call == ')') throwBadSyntax("Wrong number of function arguments.");
+						if (*call != ',') throwBadSyntax("Expected ','.");
+						++call;
 						call = eatWhite(call, e);
 						if (call == e) throwBadSyntax("Missing \")\".");
-						if (*call == ')') {
-							if (argCount == 0) throwBadSyntax("Missing function argument.");
-							++call;
-							break;
-						}
-						if (argCount != 0) {
-							if (*call != ',') throwBadSyntax("Expected ',' or ')'.");
-							++call;
-							call = eatWhite(call, e);
-							if (call == e) throwBadSyntax("Missing \")\".");
-							if (*call == ')') throwBadSyntax("Missing function argument.");
-						}
-						if (argCount == 2) throwBadSyntax("Too many arguments.");
-						EvaluationValue argValue;
-						StringIt next = evaluateInner(call, e, argValue, COMMA, dry);
+						if (*call == ')') throwBadSyntax("Missing function argument.");
+						next = evaluateInner(call, e, secondArg, COMMA, dry);
 						if (next == call) throwBadSyntax("Syntax error.");
-						if (!dry) parsedArgs[argCount] = argValue;
-						++argCount;
-						call = next;
+						call = eatWhite(next, e);
+						if (call == e) throwBadSyntax("Missing \")\".");
+						if (*call == ',') throwBadSyntax("Too many arguments.");
+						if (*call != ')') throwBadSyntax("Missing \")\".");
+					} else {
+						if (*call == ',') throwBadSyntax("Wrong number of function arguments.");
+						if (*call != ')') throwBadSyntax("Missing \")\".");
 					}
-					if (funcIndex < MATH_FUNCTION_COUNT) {
+					++call;
+					if (isMathFunction) {
 						const MathFunction& math = MATH_FUNCTIONS[funcIndex];
-						if (argCount != math.arity) throwBadSyntax("Wrong number of function arguments.");
 						if (!dry) {
-							assert(math.arity == 1 || math.arity == 2);
-							const double args[2] = { static_cast<double>(parsedArgs[0]), static_cast<double>(parsedArgs[1]) };
 							errno = 0;
-							double result = 0.0;
-							result = (math.arity == 1 ? math.dispatch.unary(args[0]) : math.dispatch.binary(args[0], args[1]));
+							double result;
+							if (math.arity == 1) {
+								result = math.dispatch.unary(static_cast<double>(firstArg));
+							} else {
+								result = math.dispatch.binary(static_cast<double>(firstArg), static_cast<double>(secondArg));
+							}
 							if (errno != 0) throwRunTimeError("Math error.");
 							if (!isFinite(result)) throwRunTimeError("Number overflow.");
 							v = result;
 						}
 					} else if (funcIndex == LEN_FUNCTION) {
-						if (argCount != 1) throwBadSyntax("Wrong number of function arguments.");
-						if (!dry) v = static_cast<double>(static_cast<String>(parsedArgs[0]).size());
+						if (!dry) v = static_cast<double>(static_cast<String>(firstArg).size());
 					} else if (funcIndex == DEF_FUNCTION) {
-						if (argCount != 1) throwBadSyntax("Wrong number of function arguments.");
 						if (!dry) {
 							String dummyValue;
-							const String name = parsedArgs[0];
+							const String name = firstArg;
 							const Interpreter* f = this;
 							for (; f != 0 && !f->vars.lookup(name, dummyValue); f = f->callingFrame) { }
 							v = (f != 0);
