@@ -55,7 +55,7 @@ const int DEFAULT_RECURSION_LIMIT = 50;																					// To prevent stack 
 const int NUMBER_PRECISION_DIGITS = 13;
 const double NUMBER_PRECISION_MAGNITUDE = 1e-13;
 
-const int MATH_FUNCTION_COUNT = 17;
+const int MATH_FUNCTION_COUNT = 19;
 const int BUILT_IN_INSTRUCTION_COUNT = 11;
 const int ESCAPE_CODE_COUNT = 7;
 
@@ -232,9 +232,9 @@ class Interpreter {
 	protected:	static StringIt eatStatement(StringIt p, const StringIt& e);
 	protected:	static StringIt unescapeChar(StringIt p, const StringIt& e, UniChar& c);
 	protected:	enum Precedence {
-					BRACKETS, CONDITIONAL, CONCAT, BOOLEAN, COMPARE, ADD_SUB, MUL_DIV_MOD
-					, PREFIX, POSTFIX, POW, EXPAND, SPLICE, FUNCTION
-				};
+			BRACKETS, CONDITIONAL, CONCAT, BOOLEAN, COMPARE, ADD_SUB, MUL_DIV_MOD
+			, PREFIX, POSTFIX, POW, EXPAND, SPLICE, FUNCTION
+			};
 	protected:	String performExpansion(const StringRange& r) const;
 	protected:	void runInstruction(const String& instruction, const StringRange& argumentsRange);
 	protected:	void runStatement(const StringRange& r);
@@ -262,7 +262,43 @@ class Interpreter {
 					, STOP_INSTRUCTION, TRACE_INSTRUCTION
 				};
 	protected:	static const char* BUILT_IN_INSTRUCTION_STRINGS[BUILT_IN_INSTRUCTION_COUNT];
-	protected:	static double (*MATH_FUNCTION_POINTERS[MATH_FUNCTION_COUNT])(double);
+	protected:	enum FunctionIndex {
+				ABS_FUNCTION,
+				ACOS_FUNCTION,
+				ASIN_FUNCTION,
+				ATAN_FUNCTION,
+				ATAN2_FUNCTION,
+				CEIL_FUNCTION,
+				COS_FUNCTION,
+				COSH_FUNCTION,
+				EXP_FUNCTION,
+				FLOOR_FUNCTION,
+				LOG_FUNCTION,
+				LOG10_FUNCTION,
+				SIN_FUNCTION,
+				SINH_FUNCTION,
+				SQRT_FUNCTION,
+				TAN_FUNCTION,
+				TANH_FUNCTION,
+				ROUND_FUNCTION,
+				HYPOT_FUNCTION,
+				PI_FUNCTION,
+				LEN_FUNCTION,
+				DEF_FUNCTION,
+				FUNCTION_LOOKUP_COUNT
+			};
+	protected:	union MathDispatch {
+				MathDispatch() : unary(0) { }
+				MathDispatch(double (*fn)(double)) : unary(fn) { }
+				MathDispatch(double (*fn)(double, double)) : binary(fn) { }
+				double (*unary)(double);
+				double (*binary)(double, double);
+			};
+	protected:	struct MathFunction {
+				int arity;
+				MathDispatch dispatch;
+			};
+	protected:	static const MathFunction MATH_FUNCTIONS[MATH_FUNCTION_COUNT];
 	protected:	static int findBuiltInInstruction(int n, const char* s);
 	protected:	static int findFunction(int n, const char* s);
 	protected:	static const Char ESCAPE_CHARS[ESCAPE_CODE_COUNT];
