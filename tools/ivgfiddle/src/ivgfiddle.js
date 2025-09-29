@@ -485,6 +485,22 @@ const ZOOM_PRESETS = (function generateZoomPresets() {
         return Object.freeze(presets);
 })();
 
+const ZOOM_SELECT_PRESETS = Object.freeze([
+        0.25,
+        0.5,
+        0.75,
+        1,
+        1.5,
+        2,
+        3,
+        4,
+        6,
+        8,
+        10
+]);
+
+const CUSTOM_ZOOM_OPTION_VALUE = 'custom';
+
 const ZOOM_CONSTANTS = Object.freeze({
         MIN: ZOOM_PRESETS[0],
         MAX: ZOOM_PRESETS[ZOOM_PRESETS.length - 1],
@@ -553,34 +569,75 @@ closestPreset = preset;
 return closestPreset;
 }
 
+function ensureCustomZoomOption() {
+        if (zoomLevelSelect === null) {
+                return null;
+        }
+        let customOption = zoomLevelSelect.querySelector('option[data-custom-zoom="true"]');
+        if (customOption === null) {
+                customOption = document.createElement('option');
+                customOption.value = CUSTOM_ZOOM_OPTION_VALUE;
+                customOption.setAttribute('data-custom-zoom', 'true');
+                customOption.hidden = true;
+                customOption.disabled = true;
+                zoomLevelSelect.appendChild(customOption);
+        }
+        return customOption;
+}
+
+function syncZoomSelectValue() {
+        if (zoomLevelSelect === null) {
+                return;
+        }
+        const percentString = String(zoomToPercent(currentZoom));
+        const matchingOption = zoomLevelSelect.querySelector('option[value="' + percentString + '"]');
+        const customOption = ensureCustomZoomOption();
+        if (matchingOption !== null) {
+                zoomLevelSelect.value = percentString;
+                if (customOption !== null) {
+                        customOption.hidden = true;
+                        customOption.disabled = true;
+                        customOption.textContent = '';
+                }
+                return;
+        }
+        if (customOption !== null) {
+                customOption.hidden = false;
+                customOption.disabled = false;
+                customOption.textContent = percentString + '% (custom)';
+                zoomLevelSelect.value = CUSTOM_ZOOM_OPTION_VALUE;
+        }
+}
+
 function populateZoomOptions() {
-if (zoomLevelSelect === null) {
-return;
-}
-const previousValue = zoomLevelSelect.value;
-zoomLevelSelect.innerHTML = '';
-for (let index = 0; index < ZOOM_PRESETS.length; ++index) {
-const preset = ZOOM_PRESETS[index];
-const option = document.createElement('option');
-const percent = zoomToPercent(preset);
-option.value = String(percent);
-option.textContent = percent + '%';
-if (Math.abs(preset - ZOOM_CONSTANTS.DEFAULT) < ZOOM_EPSILON) {
-option.defaultSelected = true;
-}
-zoomLevelSelect.appendChild(option);
-}
-if (previousValue !== '') {
-zoomLevelSelect.value = previousValue;
-}
+        if (zoomLevelSelect === null) {
+                return;
+        }
+        zoomLevelSelect.innerHTML = '';
+        for (let index = 0; index < ZOOM_SELECT_PRESETS.length; ++index) {
+                const preset = ZOOM_SELECT_PRESETS[index];
+                const option = document.createElement('option');
+                const percent = zoomToPercent(preset);
+                option.value = String(percent);
+                option.textContent = percent + '%';
+                if (Math.abs(preset - ZOOM_CONSTANTS.DEFAULT) < ZOOM_EPSILON) {
+                        option.defaultSelected = true;
+                }
+                zoomLevelSelect.appendChild(option);
+        }
+        ensureCustomZoomOption();
+        syncZoomSelectValue();
 }
 
 function percentToZoom(percentString) {
-const percent = Number.parseInt(percentString, 10);
-if (!Number.isFinite(percent)) {
-return currentZoom;
-}
-return clampZoom(percent / 100);
+        if (percentString === CUSTOM_ZOOM_OPTION_VALUE) {
+                return currentZoom;
+        }
+        const percent = Number.parseInt(percentString, 10);
+        if (!Number.isFinite(percent)) {
+                return currentZoom;
+        }
+        return clampZoom(percent / 100);
 }
 
 function reflectVectorScalingState() {
@@ -596,12 +653,10 @@ vectorScalingToggle.setAttribute('aria-label', 'Switch to ' + nextMode + ' zoom'
 }
 
 function reflectUIState() {
-if (zoomLevelSelect !== null) {
-zoomLevelSelect.value = String(zoomToPercent(currentZoom));
-}
-if (zoomOutButton !== null) {
-zoomOutButton.disabled = currentZoom <= ZOOM_CONSTANTS.MIN + ZOOM_EPSILON;
-}
+        syncZoomSelectValue();
+        if (zoomOutButton !== null) {
+                zoomOutButton.disabled = currentZoom <= ZOOM_CONSTANTS.MIN + ZOOM_EPSILON;
+        }
 if (zoomInButton !== null) {
 zoomInButton.disabled = currentZoom >= ZOOM_CONSTANTS.MAX - ZOOM_EPSILON;
 }
