@@ -264,28 +264,30 @@ static double computeHypot(double x, double y) {
 	return hypot(x, y);
 }
 
-const Interpreter::MathFunction Interpreter::MATH_FUNCTIONS[MATH_FUNCTION_COUNT] = {
-	{ 1, Interpreter::MathDispatch((double (*)(double))(fabs)) },
-	{ 1, Interpreter::MathDispatch((double (*)(double))(acos)) },
-	{ 1, Interpreter::MathDispatch((double (*)(double))(asin)) },
-	{ 1, Interpreter::MathDispatch((double (*)(double))(atan)) },
-	{ 2, Interpreter::MathDispatch(computeAtan2) },
-	{ 1, Interpreter::MathDispatch((double (*)(double))(ceil)) },
-	{ 1, Interpreter::MathDispatch((double (*)(double))(cos)) },
-	{ 1, Interpreter::MathDispatch((double (*)(double))(cosh)) },
-	{ 1, Interpreter::MathDispatch((double (*)(double))(exp)) },
-	{ 1, Interpreter::MathDispatch((double (*)(double))(floor)) },
-	{ 1, Interpreter::MathDispatch(checkedLog) },
-	{ 1, Interpreter::MathDispatch(checkedLog10) },
-	{ 1, Interpreter::MathDispatch((double (*)(double))(sin)) },
-	{ 1, Interpreter::MathDispatch((double (*)(double))(sinh)) },
-	{ 1, Interpreter::MathDispatch(checkedSqrt) },
-	{ 1, Interpreter::MathDispatch((double (*)(double))(tan)) },
-	{ 1, Interpreter::MathDispatch((double (*)(double))(tanh)) },
-	{ 1, Interpreter::MathDispatch((double (*)(double))(round)) },
-	{ 2, Interpreter::MathDispatch(computeHypot) }
+double (*const Interpreter::UNARY_MATH_FUNCTIONS[UNARY_MATH_FUNCTION_COUNT])(double) = {
+	(double (*)(double))(fabs),
+	(double (*)(double))(acos),
+	(double (*)(double))(asin),
+	(double (*)(double))(atan),
+	(double (*)(double))(ceil),
+	(double (*)(double))(cos),
+	(double (*)(double))(cosh),
+	(double (*)(double))(exp),
+	(double (*)(double))(floor),
+	checkedLog,
+	checkedLog10,
+	(double (*)(double))(sin),
+	(double (*)(double))(sinh),
+	checkedSqrt,
+	(double (*)(double))(tan),
+	(double (*)(double))(tanh),
+	(double (*)(double))(round)
 };
 
+double (*const Interpreter::BINARY_MATH_FUNCTIONS[BINARY_MATH_FUNCTION_COUNT])(double, double) = {
+	computeAtan2,
+	computeHypot
+};
 const Char Interpreter::ESCAPE_CHARS[ESCAPE_CODE_COUNT] = {	 'a',  'b',	 'f',  'n',	 'r',  't',	 'v' };
 const Char Interpreter::ESCAPE_CODES[ESCAPE_CODE_COUNT] = { '\a', '\b', '\f', '\n', '\r', '\t', '\v' };
 
@@ -1108,43 +1110,35 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 					if (call == e || *call != '(') throwBadSyntax("Missing \"(\".");
 					++call;
 					const bool isMathFunction = (funcIndex < MATH_FUNCTION_COUNT);
-					const int expectedArgs = (isMathFunction ? MATH_FUNCTIONS[funcIndex].arity : 1);
+					const FunctionIndex function = static_cast<FunctionIndex>(funcIndex);
+					const bool isBinaryMath = (isMathFunction && (function == ATAN2_FUNCTION || function == HYPOT_FUNCTION));
 					EvaluationValue firstArg;
 					EvaluationValue secondArg;
 					call = eatWhite(call, e);
-					if (call == e) throwBadSyntax("Missing \")\".");
-					if (*call == ')') throwBadSyntax("Missing function argument.");
 					StringIt next = evaluateInner(call, e, firstArg, COMMA, dry);
 					if (next == call) throwBadSyntax("Syntax error.");
 					call = eatWhite(next, e);
-					if (call == e) throwBadSyntax("Missing \")\".");
-					if (expectedArgs == 2) {
-						if (*call == ')') throwBadSyntax("Wrong number of function arguments.");
-						if (*call != ',') throwBadSyntax("Expected ','.");
+					if (isBinaryMath) {
+						if (call == e || *call != ',') throwBadSyntax("Missing \",\".");
 						++call;
 						call = eatWhite(call, e);
-						if (call == e) throwBadSyntax("Missing \")\".");
-						if (*call == ')') throwBadSyntax("Missing function argument.");
 						next = evaluateInner(call, e, secondArg, COMMA, dry);
 						if (next == call) throwBadSyntax("Syntax error.");
 						call = eatWhite(next, e);
-						if (call == e) throwBadSyntax("Missing \")\".");
-						if (*call == ',') throwBadSyntax("Too many arguments.");
-						if (*call != ')') throwBadSyntax("Missing \")\".");
-					} else {
-						if (*call == ',') throwBadSyntax("Wrong number of function arguments.");
-						if (*call != ')') throwBadSyntax("Missing \")\".");
 					}
+					if (call == e || *call != ')') throwBadSyntax("Missing \")\".");
 					++call;
 					if (isMathFunction) {
-						const MathFunction& math = MATH_FUNCTIONS[funcIndex];
 						if (!dry) {
 							errno = 0;
 							double result;
-							if (math.arity == 1) {
-								result = math.dispatch.unary(static_cast<double>(firstArg));
+							if (isBinaryMath) {
+								const int binaryIndex = (function == ATAN2_FUNCTION) ? 0 : 1;
+								result = BINARY_MATH_FUNCTIONS[binaryIndex](static_cast<double>(firstArg), static_cast<double>(secondArg));
 							} else {
-								result = math.dispatch.binary(static_cast<double>(firstArg), static_cast<double>(secondArg));
+								int unaryIndex = funcIndex;
+								if (function > ATAN2_FUNCTION) --unaryIndex;
+								result = UNARY_MATH_FUNCTIONS[unaryIndex](static_cast<double>(firstArg));
 							}
 							if (errno != 0) throwRunTimeError("Math error.");
 							if (!isFinite(result)) throwRunTimeError("Number overflow.");

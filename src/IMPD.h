@@ -56,6 +56,8 @@ const int NUMBER_PRECISION_DIGITS = 13;
 const double NUMBER_PRECISION_MAGNITUDE = 1e-13;
 
 const int MATH_FUNCTION_COUNT = 19;
+const int BINARY_MATH_FUNCTION_COUNT = 2;
+const int UNARY_MATH_FUNCTION_COUNT = MATH_FUNCTION_COUNT - BINARY_MATH_FUNCTION_COUNT;
 const int BUILT_IN_INSTRUCTION_COUNT = 11;
 const int ESCAPE_CODE_COUNT = 7;
 
@@ -287,18 +289,8 @@ class Interpreter {
 				DEF_FUNCTION,
 				FUNCTION_LOOKUP_COUNT
 			};
-	protected:	union MathDispatch {
-				MathDispatch() : unary(0) { }
-				MathDispatch(double (*fn)(double)) : unary(fn) { }
-				MathDispatch(double (*fn)(double, double)) : binary(fn) { }
-				double (*unary)(double);
-				double (*binary)(double, double);
-			};
-	protected:	struct MathFunction {
-				int arity;
-				MathDispatch dispatch;
-			};
-	protected:	static const MathFunction MATH_FUNCTIONS[MATH_FUNCTION_COUNT];
+	protected:	static double (*const UNARY_MATH_FUNCTIONS[UNARY_MATH_FUNCTION_COUNT])(double);
+	protected:	static double (*const BINARY_MATH_FUNCTIONS[BINARY_MATH_FUNCTION_COUNT])(double, double);
 	protected:	static int findBuiltInInstruction(int n, const char* s);
 	protected:	static int findFunction(int n, const char* s);
 	protected:	static const Char ESCAPE_CHARS[ESCAPE_CODE_COUNT];
