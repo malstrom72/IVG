@@ -100,9 +100,14 @@ const BackgroundController = (function createBackgroundController() {
                         swatchButton.setAttribute('role', 'option');
                         swatchButton.setAttribute('aria-selected', 'false');
                         swatchButton.setAttribute('data-background', color.value);
-                        swatchButton.style.setProperty('--swatch-color', color.preview);
+                        if (color.value !== 'none') {
+                                swatchButton.style.setProperty('--swatch-color', color.preview);
+                        }
                         const preview = document.createElement('span');
                         preview.className = 'background-swatch__preview';
+                        if (color.value === 'none') {
+                                preview.classList.add('background-swatch__preview--transparent');
+                        }
                         const label = document.createElement('span');
                         label.className = 'background-swatch__label';
                         label.textContent = color.label;
@@ -148,7 +153,7 @@ const BackgroundController = (function createBackgroundController() {
                 const shouldClearColor = currentColor === 'none';
                 if (rightPanelElement !== null) {
                         if (shouldClearColor) {
-                                rightPanelElement.classList.remove('transparent');
+                                rightPanelElement.classList.add('transparent');
                                 rightPanelElement.style.backgroundColor = '';
                         } else {
                                 rightPanelElement.classList.remove('transparent');
@@ -427,7 +432,13 @@ return clampZoom(percent / 100);
 
 function reflectVectorScalingState() {
 if (vectorScalingToggle !== null) {
-vectorScalingToggle.setAttribute('aria-pressed', vectorScalingEnabled ? 'true' : 'false');
+const pressed = vectorScalingEnabled ? 'true' : 'false';
+vectorScalingToggle.setAttribute('aria-pressed', pressed);
+const label = vectorScalingEnabled ? 'Vector zoom' : 'Bitmap zoom';
+const nextMode = vectorScalingEnabled ? 'bitmap' : 'vector';
+vectorScalingToggle.textContent = label;
+vectorScalingToggle.setAttribute('title', 'Switch to ' + nextMode + ' zoom');
+vectorScalingToggle.setAttribute('aria-label', 'Switch to ' + nextMode + ' zoom');
 }
 }
 

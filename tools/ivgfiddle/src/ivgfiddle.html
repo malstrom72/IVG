@@ -213,6 +213,16 @@
                        border: 1px solid rgba(255, 255, 255, 0.35);
                        background: var(--swatch-color);
                }
+               .background-swatch__preview--transparent {
+                       background-color: #555;
+                       background-image:
+                               linear-gradient(45deg, #777 25%, transparent 25%),
+                               linear-gradient(-45deg, #777 25%, transparent 25%),
+                               linear-gradient(45deg, transparent 75%, #777 75%),
+                               linear-gradient(-45deg, transparent 75%, #777 75%);
+                       background-size: 12px 12px;
+                       background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
+               }
                .background-swatch__label {
                        font-size: 11px;
                        letter-spacing: 0.03em;
@@ -259,7 +269,7 @@
                                                 <option value="400">400%</option>
                                         </select>
                                         <button id="zoomInButton" class="toolbar-button" type="button" aria-label="Zoom in">+</button>
-                                        <button id="vectorScalingToggle" class="toolbar-button" type="button" aria-pressed="false">Vector rescale</button>
+                                       <button id="vectorScalingToggle" class="toolbar-button" type="button" aria-pressed="false">Bitmap zoom</button>
                                         <button id="zoomResetButton" class="toolbar-button" type="button">Reset</button>
                                         <button id="backgroundButton" class="toolbar-button" type="button" aria-haspopup="dialog" aria-controls="backgroundDialog">Background</button>
                                         <span id="zoomKeyboardHints" aria-hidden="true">Ctrl/Cmd + / &minus; / 0</span>
