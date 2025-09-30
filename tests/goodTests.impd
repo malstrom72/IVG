@@ -324,6 +324,7 @@ $randomArray 20 a
 s={\[}; $foreach a [ s = $s $0 ]; s=$s{\]}
 FOR x in:$s [ TRACE $x ]
 
+format acme-1 uses:[acme-corp-ext-1] requires:[impd-1]
 META ACME-CORP-EXT-1 meta is always ok and ignored by client if the first argument is unrecognized
 
 INCLUDE includeTest.impd [first argument] [second argument] labeled:[labeled argument]
@@ -432,8 +433,17 @@ trace {$a b}
 trace {($a) b}
 trace {$a$b}
 
-// Case-insensitivity for boolean literals "yes" and "no"
 IF [Yes] [ TRACE OK-YES-1 ] else:[ TRACE BAD ]
 IF [yEs] [ TRACE OK-YES-2 ] else:[ TRACE BAD ]
 IF [NO] [ TRACE BAD ] else:[ TRACE OK-NO-1 ]
 IF [nO] [ TRACE BAD ] else:[ TRACE OK-NO-2 ]
+
+format multi-1 uses:[snapshot-1 snapshot-2] requires:[impd-1]
+meta snapshot
+meta snapshot-1
+
+format multi-3 uses:test-1,test-2,unknown
+meta test-1 this-is-test-1
+meta test-2 this-is-test-2
+meta test this-should-be-test-2
+meta unknown swallow-this

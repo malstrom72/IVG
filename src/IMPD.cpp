@@ -25,6 +25,7 @@
 #include <cerrno>
 #include <cstring>
 #include <algorithm>
+#include <cstdlib>
 #include "IMPD.h"
 
 #if defined(_MSVC_LANG)
@@ -285,17 +286,18 @@ int Interpreter::findFunction(int n /* string length */, const char* s /* string
 
 /* Built with QuickHashGen */
 int Interpreter::findBuiltInInstruction(int n, const char* s) {
-	static const char* STRINGS[11] = {
-		"_debug", "call", "for", "format", "if", "include", "local", "repeat",
+	static const char* STRINGS[12] = {
+		"_debug", "call", "for", "format", "if", "include", "local", "meta", "repeat",
 		"return", "stop", "trace"
 	};
 	static const int HASH_TABLE[32] = {
-		-1, -1, 4, -1, -1, -1, 10, -1, 6, -1, 5, 0, -1, -1, -1, -1,
-		1, -1, -1, 9, -1, 2, 7, -1, 3, -1, 8, -1, -1, -1, -1, -1
+		8, -1, 3, -1, 9, -1, -1, -1, -1, 11, 2, 6, 1, -1, -1, 10,
+		4, -1, -1, -1, 7, 0, -1, -1, -1, -1, -1, 5, -1, -1, -1, -1
 	};
+	const unsigned char* p = (const unsigned char*) s;
 	assert(s[n] == '\0');
 	if (n < 2 || n > 7) return -1;
-	int stringIndex = HASH_TABLE[(n + s[2]) & 31];
+	int stringIndex = HASH_TABLE[((static_cast<unsigned int>(n) << 3) ^ p[2]) & 31u];
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
@@ -338,16 +340,16 @@ Interpreter::EvaluationValue::operator String() const {
 	}
 }
 
-Interpreter::Interpreter(Executor& executor, Variables& vars, int statementsLimit, int recursionLimit)
-		: executor(executor), vars(vars), callingFrame(0), rootFrame(*this)
+Interpreter::Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, int statementsLimit, int recursionLimit)
+		: executor(executor), vars(vars), formatInfo(formatInfo), callingFrame(0), rootFrame(*this)
 		, statementsLimit(statementsLimit), recursionLimit(recursionLimit) { }
 
-Interpreter::Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame)
-		: executor(executor), vars(vars), callingFrame(&callingFrame), rootFrame(callingFrame.rootFrame)
+Interpreter::Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, Interpreter& callingFrame)
+		: executor(executor), vars(vars), formatInfo(formatInfo), callingFrame(&callingFrame), rootFrame(callingFrame.rootFrame)
 		, statementsLimit(callingFrame.statementsLimit), recursionLimit(callingFrame.recursionLimit) { }
 
-Interpreter::Interpreter(Executor& executor, Interpreter& enclosingInterpreter)
-		: executor(executor), vars(enclosingInterpreter.vars), callingFrame(enclosingInterpreter.callingFrame)
+Interpreter::Interpreter(Executor& executor, FormatInfo& formatInfo, Interpreter& enclosingInterpreter)
+		: executor(executor), vars(enclosingInterpreter.vars), formatInfo(formatInfo), callingFrame(enclosingInterpreter.callingFrame)
 		, rootFrame(enclosingInterpreter.rootFrame), statementsLimit(enclosingInterpreter.statementsLimit)
 		, recursionLimit(enclosingInterpreter.recursionLimit) { }
 
@@ -1248,44 +1250,101 @@ int Interpreter::mapArguments(const ArgumentVector& allArguments, StringStringMa
 void Interpreter::runInstruction(const String& instructionString, const StringRange& argumentsRange) {
 	int foundIndex = findBuiltInInstruction(lossless_cast<int>(instructionString.size()), instructionString.c_str());
 	if (foundIndex < 0) {
-		if (executor.execute(*this, instructionString, argumentsRange) || instructionString == "meta") return;
+		if (executor.execute(*this, instructionString, argumentsRange)) return;
 		else throwBadSyntax(String("Unrecognized instruction: ") + instructionString);
-	}
-	
-	ArgumentVector allArguments;
-	StringStringMap labeledArguments;
-	StringVector indexedArguments;
+}
 
 	BuiltInInstruction instruction = static_cast<BuiltInInstruction>(foundIndex);
 	switch (instruction) {
 		case STOP_INSTRUCTION: throw AbortedException("Encountered STOP instruction");
-		case TRACE_INSTRUCTION: { executor.trace(*this, unescapeToWide(argumentsRange)); break; }
-
-		case FORMAT_INSTRUCTION: {
-			ArgumentsContainer args(ArgumentsContainer::parse(*this, argumentsRange));
-			const String& formatId = args.fetchRequired(0);
-			StringVector usesList;
-			const String* s = args.fetchOptional("uses");
-			if (s != 0) parseList(*s, usesList, true, true);
-			StringVector requiresList;
-			s = args.fetchOptional("requires");
-			if (s != 0) parseList(*s, requiresList, true, true);
-			args.throwIfAnyUnfetched();
-
-			transform(usesList.begin(), usesList.end(), usesList.begin(), toLower);
-			transform(requiresList.begin(), requiresList.end(), requiresList.begin(), toLower);
-			requiresList.erase(remove(requiresList.begin(), requiresList.end(), CURRENT_IMPD_REQUIRES_ID)
-					, requiresList.end());
-			if (!executor.format(*this, toLower(formatId), usesList, requiresList))
-				throw FormatException("Unsupported data format");
+		case TRACE_INSTRUCTION: {
+			executor.trace(*this, unescapeToWide(argumentsRange));
 			break;
 		}
 
+		case FORMAT_INSTRUCTION: {
+			if (!formatInfo.formatId.empty()) {
+				throwBadSyntax("Duplicate format instruction");
+			}
+			ArgumentsContainer args(ArgumentsContainer::parse(*this, argumentsRange));
+			const String& formatId = args.fetchRequired(0);
+			if (formatId.empty()) {
+				throwBadSyntax("Empty format identifier");
+			}
+			StringVector usesList;
+			const String* s = args.fetchOptional("uses");
+			if (s != 0) {
+				parseList(*s, usesList, true, true);
+				transform(usesList.begin(), usesList.end(), usesList.begin(), toLower);
+				for (StringVector::const_iterator it = usesList.begin(); it != usesList.end(); ++it) {
+					formatInfo.uses.insert(*it);
+				}
+			}
+			StringVector requiresList;
+			s = args.fetchOptional("requires");
+			if (s != 0) {
+				parseList(*s, requiresList, true, true);
+				transform(requiresList.begin(), requiresList.end(), requiresList.begin(), toLower);
+				requiresList.erase(remove(requiresList.begin(), requiresList.end(), CURRENT_IMPD_REQUIRES_ID)
+						, requiresList.end());
+				for (StringVector::const_iterator it = requiresList.begin(); it != requiresList.end(); ++it) {
+					formatInfo.requires.insert(*it);
+				}
+			}
+			args.throwIfAnyUnfetched();
+			formatInfo.formatId = toLower(formatId);
+			if (!executor.format(*this, formatInfo)) {
+				throw FormatException("Unsupported data format");
+			}
+			break;
+		}
+
+		case META_INSTRUCTION: {
+			if (formatInfo.formatId.empty()) {
+				throwBadSyntax("Meta instruction requires a preceding format declaration");
+			}
+			const StringIt b = eatWhite(argumentsRange.b, argumentsRange.e);
+			const StringIt q = eatSymbol(b, argumentsRange.e);
+			if (q == b) {
+				throwBadSyntax("Missing / invalid meta identifier");
+			}
+			const String metaToken(b, q);
+			const String metaLower = toLower(metaToken);
+			const FormatInfo& info = formatInfo;
+			String resolvedMeta;
+			if (info.uses.find(metaLower) != info.uses.end()) {
+				resolvedMeta = metaLower;
+			} else {
+				const String prefix(metaLower + "-");
+				uint32_t bestVersion = 0;
+				for (std::set<String>::const_iterator it = info.uses.lower_bound(prefix)
+						; it != info.uses.end() && it->compare(0, prefix.size(), prefix) == 0; ++it) {
+					uint32_t parsedVersion;
+					const StringIt b = it->begin() + prefix.size();
+					const StringIt e = parseUnsignedInt(b, it->end(), parsedVersion);
+					if (e != b && e == it->end() && parsedVersion >= bestVersion) {
+						bestVersion = parsedVersion;
+						resolvedMeta = *it;
+					}
+				}
+				if (resolvedMeta.empty()) {
+					throwBadSyntax(String("Undeclared meta tag: ") + metaToken);
+				}
+			}
+			const bool success = executor.meta(*this, resolvedMeta, String(eatWhite(q, argumentsRange.e), argumentsRange.e));
+			(void)success;
+			return;
+		}
+		
 		case LOCAL_INSTRUCTION:
 		case RETURN_INSTRUCTION: {
-			if (argumentsRange.b == argumentsRange.e) throwBadSyntax("Missing variable name");
+			if (argumentsRange.b == argumentsRange.e) {
+				throwBadSyntax("Missing variable name");
+			}
 			StringIt p = eatSymbolForAssignment(argumentsRange.b, argumentsRange.e);
-			if (p == argumentsRange.b) throwBadSyntax("Invalid variable name");
+			if (p == argumentsRange.b) {
+				throwBadSyntax("Invalid variable name");
+			}
 			String varName(argumentsRange.b, p);
 			StringIt q = eatWhite(p, argumentsRange.e);
 			bool emptyAssignment = (q == argumentsRange.e);
@@ -1300,7 +1359,7 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			} else if (!vars.declare(varName, varValue)) throwRunTimeError(String("Variable ") + varName + " already declared");
 			break;
 		}
-
+		
 		case IF_INSTRUCTION: {
 			ArgumentsContainer args(ArgumentsContainer::parse(*this, argumentsRange));
 			const String& condition = args.fetchRequired(0);
@@ -1368,8 +1427,11 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 		
 		case CALL_INSTRUCTION:
 		case INCLUDE_INSTRUCTION: {
+			ArgumentVector allArguments;
 			parseArguments(argumentsRange, allArguments);		
-			if (allArguments.size() < 1) throwBadSyntax("Missing argument(s)");
+			if (allArguments.size() < 1) {
+				throwBadSyntax("Missing argument(s)");
+			}
 			STLMapVariables newVars;
 			String runThis;
 			int counter = 0;
@@ -1385,14 +1447,17 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 				}
 			}
 			newVars.declare("n", toString(counter));
-			Interpreter newFrame(executor, newVars, *this);
+			Interpreter newFrame(executor, newVars, formatInfo, *this);
 			newFrame.run(runThis);
 			break;
 		}
 
 		case DEBUG_INSTRUCTION: {
+			ArgumentVector allArguments;
 			parseArguments(argumentsRange, allArguments);		
 			WideString line = L"|";
+			StringStringMap labeledArguments;
+			StringVector indexedArguments;
 			mapArguments(allArguments, labeledArguments, indexedArguments);
 			bool doExpand = false;
 			StringStringMap::const_iterator it = labeledArguments.find("expand");
