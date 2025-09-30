@@ -33,6 +33,7 @@
 #include <iterator>
 #include <sstream>
 #include <cstdint>
+#include <cmath>
 #include "../src/IVG.h"
 
 using namespace std;
@@ -78,6 +79,79 @@ const int MAX_RASTER_DIMENSION = 16384;
 const long long MAX_RASTER_PIXELS = 67108864LL;
 const size_t VECTOR_HEAP_RESERVE_BYTES = 2 * 1024 * 1024;
 
+size_t computeFreeHeapBytes();
+
+IntRect computeScaledBounds(const IntRect& bounds, double rescale)
+{
+        if (rescale == 1.0) {
+                return bounds;
+        }
+        const double scaledLeft = static_cast<double>(bounds.left) * rescale;
+        const double scaledTop = static_cast<double>(bounds.top) * rescale;
+        const double scaledRight = static_cast<double>(bounds.left + bounds.width) * rescale;
+        const double scaledBottom = static_cast<double>(bounds.top + bounds.height) * rescale;
+        IntRect result;
+        result.left = static_cast<int>(std::floor(scaledLeft));
+        result.top = static_cast<int>(std::floor(scaledTop));
+        result.width = static_cast<int>(std::ceil(scaledRight) - result.left);
+        result.height = static_cast<int>(std::ceil(scaledBottom) - result.top);
+        return result;
+}
+
+class GuardedSelfContainedARGB32Canvas : public SelfContainedARGB32Canvas {
+        public: GuardedSelfContainedARGB32Canvas(double rescaleBounds, long long pixelBudget,
+                                size_t heapReserveBytes)
+                                        : SelfContainedARGB32Canvas(rescaleBounds)
+                                        , maxRasterPixels(pixelBudget)
+                                        , heapReserve(heapReserveBytes) {
+                        }
+
+        public: virtual void defineBounds(const IntRect& newBounds) {
+                        const IntRect scaledBounds = computeScaledBounds(newBounds, rescaleBounds);
+                        preflightBounds(scaledBounds);
+                        SelfContainedARGB32Canvas::defineBounds(newBounds);
+                }
+
+        private: void preflightBounds(const IntRect& scaledBounds) const {
+                        if (scaledBounds.width <= 0 || scaledBounds.height <= 0) {
+                                return;
+                        }
+                        const long long pixelCount = static_cast<long long>(scaledBounds.width)
+                                * static_cast<long long>(scaledBounds.height);
+                        if (scaledBounds.width > MAX_RASTER_DIMENSION || scaledBounds.height > MAX_RASTER_DIMENSION) {
+                                std::ostringstream message;
+                                message << "Rasterization aborted: scaled bounds " << scaledBounds.width << "x"
+                                        << scaledBounds.height << " exceed the " << MAX_RASTER_DIMENSION
+                                        << "px dimension cap.";
+                                throw runtime_error(message.str());
+                        }
+                        if (maxRasterPixels > 0 && pixelCount > maxRasterPixels) {
+                                std::ostringstream message;
+                                message << "Rasterization aborted: " << scaledBounds.width << "x" << scaledBounds.height
+                                        << " = " << pixelCount << " pixels exceeds the " << maxRasterPixels
+                                        << " pixel budget.";
+                                throw runtime_error(message.str());
+                        }
+                        const size_t requiredPixelBytes = static_cast<size_t>(scaledBounds.width)
+                                * static_cast<size_t>(scaledBounds.height) * 4u;
+                        const size_t requiredBytes = 4u * 4u + requiredPixelBytes;
+#ifdef __EMSCRIPTEN__
+                        const size_t freeHeapBytes = computeFreeHeapBytes();
+                        if (freeHeapBytes > 0 && requiredBytes + heapReserve > freeHeapBytes) {
+                                std::ostringstream message;
+                                message << "Rasterization aborted: " << requiredBytes << " bytes required but only "
+                                        << freeHeapBytes << " bytes free in the WebAssembly heap.";
+                                throw runtime_error(message.str());
+                        }
+#else
+                        (void)requiredBytes;
+#endif
+                }
+
+        private: const long long maxRasterPixels;
+        private: const size_t heapReserve;
+};
+
 size_t computeFreeHeapBytes()
 {
 #ifdef __EMSCRIPTEN__
@@ -103,7 +177,7 @@ EMSCRIPTEN_KEEPALIVE
 uint8_t* rasterizeIVG(const char* ivgSource, double scaling) {
 	uint8_t* pixelsArray = 0;
 	try {
-		SelfContainedARGB32Canvas canvas(scaling);
+                GuardedSelfContainedARGB32Canvas canvas(scaling, MAX_RASTER_PIXELS, VECTOR_HEAP_RESERVE_BYTES);
 		{
 			STLMapVariables topVars;
 			IVGExecutorWithExternalFonts ivgExecutor(canvas, AffineTransformation().scale(scaling));
