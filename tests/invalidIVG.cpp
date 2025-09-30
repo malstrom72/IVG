@@ -41,7 +41,8 @@ int main(int argc, char** argv) {
 		SelfContainedARGB32Canvas canvas;
 		STLMapVariables vars;
 		IVGExecutor exec(canvas);
-		Interpreter imp(exec, vars);
+		FormatInfo formatInfo;
+		Interpreter imp(exec, vars, formatInfo);
 		imp.run(source);
 	}
 	catch (const SyntaxException& x) { message = x.what(); threw = true; }

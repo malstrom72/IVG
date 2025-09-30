@@ -252,7 +252,7 @@ int main(int argc, const char* argv[]) {
 		SelfContainedARGB32Canvas canvas;
 		{
 			STLMapVariables topVars;
-			IVGExecutorWithExternalFiles ivgExecutor(canvas, fontPath);
+			IVGExecutorWithExternalFiles ivgExecutor(canvas, fontPath, imagePath);
 			FormatInfo formatInfo;
 			Interpreter impd(ivgExecutor, topVars, formatInfo);
 			impd.run(ivgContents);

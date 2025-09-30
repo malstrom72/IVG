@@ -164,7 +164,6 @@ IF maybe []
 
 INCLUDE missing.impd
 
-REPEAT 1073741823 [] // statements count limit
 format duplicate-1 uses:[snapshot-1] requires:[impd-1]
 format duplicate-2 uses:[snapshot-1] requires:[impd-1]
 

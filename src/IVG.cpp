@@ -665,9 +665,8 @@ class PathInstructionExecutor : public Executor {
 						: ivgExecutor(ivgExecutor), path(path), curveQuality(curveQuality)
 						, anchorOrigin(0.0, 0.0) {
 				};
-	public:		virtual bool format(Interpreter& impd, const String& identifier, const vector<String>& uses
-						, const vector<String>& requires) {
-					(void)impd; (void)identifier; (void)uses; (void)requires;
+	public:		virtual bool format(Interpreter& impd, const FormatInfo& formatInfo) {
+					(void)impd; (void)formatInfo;
 					return false;
 				}
 	public:		virtual bool execute(Interpreter& impd, const String& instruction, const String& arguments) {
@@ -876,6 +875,10 @@ class PathInstructionExecutor : public Executor {
 	public:		virtual void trace(Interpreter& impd, const WideString& s) { ivgExecutor.trace(impd, s); }
 	public:		virtual bool progress(Interpreter& impd, int maxStatementsLeft) { return ivgExecutor.progress(impd, maxStatementsLeft); }
 	public:		virtual bool load(Interpreter& impd, const WideString& filename, String& contents) { return ivgExecutor.load(impd, filename, contents); }
+	public:		virtual bool meta(Interpreter& impd, const String& key, const String& arguments) {
+					(void)impd; (void)key; (void)arguments;
+					return false;
+				}
 	protected:	void appendChecked(Path& p) {
 					if (anchorOrigin.x != 0.0 || anchorOrigin.y != 0.0) {
 						p.transform(AffineTransformation().translate(anchorOrigin.x, anchorOrigin.y));
@@ -1419,7 +1422,7 @@ void IVGExecutor::buildPath(Interpreter& impd, ArgumentsContainer& args, const S
             path = it->second;
         } else {
             PathInstructionExecutor pathExecutor(*this, path, curveQuality);
-            Interpreter pathInterpreter(pathExecutor, impd);
+            Interpreter pathInterpreter(pathExecutor, impd.getFormatInfo(), impd);
             pathInterpreter.run(arg0);
         }
     }

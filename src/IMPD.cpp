@@ -1329,7 +1329,7 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			StringVector usesList;
 			const String* s = args.fetchOptional("uses");
 			if (s != 0) {
-				parseList(*s, usesList, true, true);
+				parseList(*s, usesList, true, true, 0, 100);
 				transform(usesList.begin(), usesList.end(), usesList.begin(), toLower);
 				for (StringVector::const_iterator it = usesList.begin(); it != usesList.end(); ++it) {
 					formatInfo.uses.insert(*it);
@@ -1338,7 +1338,7 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			StringVector requiresList;
 			s = args.fetchOptional("requires");
 			if (s != 0) {
-				parseList(*s, requiresList, true, true);
+				parseList(*s, requiresList, true, true, 0, 100);
 				transform(requiresList.begin(), requiresList.end(), requiresList.begin(), toLower);
 				requiresList.erase(remove(requiresList.begin(), requiresList.end(), CURRENT_IMPD_REQUIRES_ID)
 						, requiresList.end());

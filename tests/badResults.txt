@@ -83,7 +83,7 @@ Exception: Invalid number "1e".
 in statement: _DEBUG x = {+(1e)} // invalid number
 Exception: Invalid number "1e.0".
 in statement: _DEBUG x = {+(1e.0)} // invalid number
-Exception: Encountered "STOP" instruction.
+Exception: Encountered "stop" instruction.
 in statement: STOP
 Exception: Missing indexed argument #1.
 in statement: IF
@@ -162,14 +162,11 @@ Exception: Invalid boolean value "maybe"; expected "yes" or "no".
 in statement: IF maybe []
 Exception: Could not include file "missing.impd".
 in statement: INCLUDE missing.impd
-Exception: Statements limit reached.
-in statement: []
-Exception: Statements limit reached.
-Exception: Duplicate format instruction
+Exception: Duplicate "format" instruction.
 in statement: format duplicate-2 uses:[snapshot-1] requires:[impd-1]
-Exception: Undeclared meta tag: unknown
+Exception: Undeclared meta tag: "unknown".
 in statement: meta unknown
-Exception: Undeclared meta tag: snapshot-2
+Exception: Undeclared meta tag: "snapshot-2".
 in statement: meta snapshot-2
-Exception: Statements limit reached
+Exception: Statements limit reached.
 in statement: []
