@@ -21,7 +21,7 @@
 - [x] Declare a tiny helper type in `IMPD.h`:
   - [x] Add `std::string formatId;` as the lower-cased identifier of the accepted format, keeping it empty until `format` succeeds.
   - [x] Add `std::set<std::string> uses;` so each entry stores the lower-cased `<id>-<version>` token supplied by `uses:`.
-- [x] Store a `FormatInfo&` inside `Interpreter`, extending the constructors so callers must pass a reference when creating a new interpreter (root callers create the object; nested interpreters decide whether to reuse or reset it).
+- [x] Store a `FormatInfo&` inside `Interpreter`, extending the constructors so callers must pass a reference when creating a new interpreter (root callers create the object; nested interpreters decide whether to reuse it or allocate a fresh scope).
 - [x] Keep relying on the interpreter's direct reference whenever it needs to read or update the scope so no additional accessors are required inside `Interpreter`.
 
 ### 2. Ensure every document scope owns the right instance
@@ -38,7 +38,7 @@
   - [x] Lower-case the format identifier and every entry in the `uses:` and `requires:` lists (reusing the existing `transform` calls).
   - [x] Preserve the `uses:` tokens exactly as supplied (`snapshot-1`, `snapshot-2`, ...), avoiding additional parsing.
   - [x] Strip `impd-1` from the `requires:` vector just like today so executors only see dependencies they must validate.
-- [x] Populate the shared state around the `format` dispatch by lower-casing the identifier, clearing any previous `FormatInfo`, and inserting each normalized `uses:` token so executors and later `meta` checks see the recorded declarations without changing the existing `Executor::format` signature.
+- [x] Populate the shared state around the `format` dispatch by lower-casing the identifier, clearing the recorded `uses:` / `requires:` sets, and inserting each normalized `uses:` token before calling `Executor::format` with a pointer to the prepared structure so executors can inspect the normalized data.
 - [x] Leave executors with the validation responsibilities they already own for identifiers, dependencies, and requirements while consulting the passed `FormatInfo` read-only.
 
 ### 4. Validate `meta` using the recorded declarations
@@ -47,7 +47,7 @@
   - [x] Parse the meta identifier and optional argument list the same way the interpreter already parses other instructions.
   - [x] Lower-case the identifier, splitting an explicit `<id>-<version>` token at the last dash to extract the version and otherwise treating the entire token as the id.
   - [x] Look up matching entries in `getFormatInfo().uses` by scanning for tokens that start with `<id>-`, calling `throwBadSyntax` when none exist so the format must declare the meta via `uses:`.
-  - [x] If the meta specified a version, ensure the exact `<id>-<version>` token exists; otherwise iterate over matching tokens, convert the substring after the dash to an integer with `strtol`, track the highest numeric value, and substitute the corresponding `<id>-<version>` pair.
+  - [x] If the meta specified a version, ensure the exact `<id>-<version>` token exists; otherwise iterate over matching tokens, convert the substring after the dash to an integer with the interpreter's unsigned helper, track the highest numeric value, and substitute the corresponding `<id>-<version>` pair.
 - [x] Forward the resolved `<id>-<version>` token plus the argument range to `executor.execute`, treating a `false` return as a silent ignore and otherwise continuing as usual.
 
 ### 5. Keep nested document behaviour intuitive

@@ -29,12 +29,13 @@
 using namespace IMPD;
 
 class MyExecutor : public Executor {
-	public:		virtual bool format(Interpreter& interpreter, const String& identifier, const std::vector<String>& uses
-						, const std::vector<String>& requires) {
-					for (std::vector<String>::const_iterator it = requires.begin(); it != requires.end(); ++it) {
+	public:		virtual bool format(Interpreter& interpreter, const FormatInfo* formatInfo) {
+					(void)interpreter;
+					if (formatInfo == 0) return false;
+				for (std::set<String>::const_iterator it = formatInfo->requires.begin(); it != formatInfo->requires.end(); ++it) {
 						std::cout << *it << std::endl;
 					}
-					return requires.empty();
+					return formatInfo->requires.empty();
 				}
 	public:		virtual bool execute(Interpreter& interpreter, const String& instruction, const String& arguments) {
 					if (instruction == "test") {
@@ -106,7 +107,9 @@ int main(int argc, const char* argv[]) {
 		getline(std::cin, s);
 		if (s.empty()) {
 			try {
-				formatInfo.reset();
+				formatInfo.formatId.clear();
+				formatInfo.uses.clear();
+				formatInfo.requires.clear();
 				imp.run(code);
 			}
 			catch (const Exception& x) {
