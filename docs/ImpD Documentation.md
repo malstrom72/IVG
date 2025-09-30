@@ -208,27 +208,29 @@ string as it would be processed outside curly brackets. E.g.:
 
 Inside curly brackets, the following functions are available:
 
-| Function    | Description                                                      |
-| :---------- | :--------------------------------------------------------------- |
-| `abs(x)`    | returns the absolute value of a number                           |
-| `acos(x)`   | returns the inverse cosine of a number in radians                |
-| `asin(x)`   | returns the inverse sine of a number in radians                  |
-| `atan(x)`   | returns the inverse tangent of a number in radians               |
-| `ceil(x)`   | returns the smallest integer greater than or equal to a number   |
-| `cos(x)`    | returns the cosine of a number in radians                        |
-| `cosh(x)`   | returns the hyperbolic cosine of a number                        |
-| `exp(x)`    | returns the value of `e` raised to a power                       |
-| `floor(x)`  | returns the largest integer less than or equal to a number       |
-| `log(x)`    | returns the natural logarithm of a number                        |
-| `log10(x)`  | returns the base-10 logarithm of a number                        |
-| `round(x)`  | returns the nearest integer to a number (.5 rounds upwards)      |
-| `sin(x)`    | returns the sine of a number in radians                          |
-| `sinh(x)`   | returns the hyperbolic sine of a number                          |
-| `sqrt(x)`   | returns the square root of a number                              |
-| `tan(x)`    | returns the tangent of a number in radians                       |
-| `tanh(x)`   | returns the hyperbolic tangent of a number                       |
-| `len(s)`    | returns the length of a string                                   |
-| `def(var)`  | checks if a variable is defined (do not begin variable with `$`) |
+| Function      | Description                                                            |
+| :------------ | :--------------------------------------------------------------------- |
+| `abs(x)`      | returns the absolute value of a number                                 |
+| `acos(x)`     | returns the inverse cosine of a number in radians                      |
+| `asin(x)`     | returns the inverse sine of a number in radians                        |
+| `atan(x)`     | returns the inverse tangent of a number in radians                     |
+| `atan2(y, x)` | returns the inverse tangent of `y / x` in radians, preserving quadrant |
+| `ceil(x)`     | returns the smallest integer greater than or equal to a number         |
+| `cos(x)`      | returns the cosine of a number in radians                              |
+| `cosh(x)`     | returns the hyperbolic cosine of a number                              |
+| `exp(x)`      | returns the value of `e` raised to a power                             |
+| `floor(x)`    | returns the largest integer less than or equal to a number             |
+| `log(x)`      | returns the natural logarithm of a number                              |
+| `log10(x)`    | returns the base-10 logarithm of a number                              |
+| `round(x)`    | returns the nearest integer to a number (.5 rounds upwards)            |
+| `sin(x)`      | returns the sine of a number in radians                                |
+| `sinh(x)`     | returns the hyperbolic sine of a number                                |
+| `sqrt(x)`     | returns the square root of a number                                    |
+| `tan(x)`      | returns the tangent of a number in radians                             |
+| `tanh(x)`     | returns the hyperbolic tangent of a number                             |
+| `hypot(x, y)` | returns the Euclidean norm of `(x, y)`                                 |
+| `len(s)`      | returns the length of a string                                         |
+| `def(var)`    | checks if a variable is defined (do not begin variable with `$`)       |
 
 There is also a single constant: `pi`.
 
@@ -327,12 +329,9 @@ The `format` instruction specifies the file format and its requirements:
 
 	format <id> [uses:<id>[,<id>,...]] [requires:<id>[,<id>,...]]
 
-The `id` is typically in the form of `<name>-<version>`. The `uses` parameter specifies meta tags `id`s. The `requires`
-parameter specifies the baseline _ImpD_ (e.g. `ImpD-1`) and any custom extensions. If the parser does not recognize a
-required `id`, it cannot load the file.
+The `id` is typically in the form of `<name>-<version>`. The `uses` parameter lists meta tokens `<id>-<version>` that the document may issue later, while `requires` specifies the baseline _ImpD_ (for example `impd-1`) and any custom extensions. If the parser does not recognize a required `id`, it cannot load the file.
 
-Including a `format` instruction in your _ImpD_ document is good practice, although not strictly necessary. It should be
-the first instruction in your document, and no more than one `format` instruction should be present.
+The interpreter enforces that only one `format` instruction appears per document. Each embedded sub-document (for example an inline font) receives its own fresh format scope. Because `uses:` entries are recorded verbatim, any later `meta` instruction must match one of the declared `<id>-<version>` tokens or it will fail with a syntax error.
 
 #### if
 
@@ -364,8 +363,7 @@ The `meta` instruction is akin to a comment for the client software or a vendor-
 
 	meta <id> ...
 
-The `id` must be a unique identifier. The [`format`](#format) instruction should have listed it in the `uses` argument.
-Unknown `id`s are ignored.
+The `<id>` must have been declared by the [`format`](#format) instruction’s `uses:` list. You may reference an explicit `<id>-<version>` token (for example `meta snapshot-1`) or omit the version to have the interpreter resolve the highest declared version for that identifier. If a meta token was not declared—or requests a version that was never listed—the interpreter throws a syntax error. Executors are still allowed to ignore recognized metas silently.
 
 #### repeat
 

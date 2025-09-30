@@ -1,1 +1,1 @@
-Invalid boolean (should be 'yes' or 'no'): maybe
+Invalid boolean value "maybe"; expected "yes" or "no".

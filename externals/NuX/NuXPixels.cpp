@@ -1194,7 +1194,7 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 
 	// Reserve space for all edges plus a sentinel segment.
 	segments.reserve(path.size() + 1);
-	const double vertexLimit = static_cast<double>(0x7FFFFFFF >> POLYGON_FRACTION_BITS);
+	const double VERTEX_LIMIT = static_cast<double>(0x7FFFFFFF >> POLYGON_FRACTION_BITS);
 	int minY = 0x3FFFFFFF;
 	int minX = 0x3FFFFFFF;
 	int maxY = -0x3FFFFFFF;
@@ -1211,7 +1211,7 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 			// Begin a new contour.
 			const double x = it->second.x;
 			const double y = it->second.y;
-			if (!isfinite(x) || !isfinite(y) || fabs(x) > vertexLimit || fabs(y) > vertexLimit) {
+			if (!isfinite(x) || !isfinite(y) || fabs(x) > VERTEX_LIMIT || fabs(y) > VERTEX_LIMIT) {
 				valid = false;
 				segments.clear();
 				bounds = IntRect();
@@ -1226,7 +1226,7 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 			int y0 = ly;
 			const double x = it->second.x;
 			const double y = it->second.y;
-			if (!isfinite(x) || !isfinite(y) || fabs(x) > vertexLimit || fabs(y) > vertexLimit) {
+			if (!isfinite(x) || !isfinite(y) || fabs(x) > VERTEX_LIMIT || fabs(y) > VERTEX_LIMIT) {
 				valid = false;
 				segments.clear();
 				bounds = IntRect();
@@ -1256,6 +1256,12 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 				int coverageByX = 1 << (COVERAGE_BITS + FRACT_BITS);
 				const int dx = x1 - x0;
 				if (dx != 0) {
+					if ((y0 < 0 && y1 > INT_MAX + y0) || (y0 > 0 && y1 < INT_MIN + y0)) {
+						valid = false;
+						segments.clear();
+						bounds = IntRect();
+						return;
+					}
 					const int dy = y1 - y0;
 					seg.dx = divide(dx, dy);
 					assert(dy >= 0);

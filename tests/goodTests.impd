@@ -249,8 +249,14 @@ TRACE {1<1000} == yes
 TRACE {1000<a} == yes
 TRACE {1<0aaa} == yes // numbers are always < strings
 
-TRACE {abs(-0.5) " " acos(0.5) " " asin(0.5) " " atan(0.5) " " ceil(0.1) " " ceil(-0.1) " " cos(0.5) " " cosh(0.5) " " exp(0.5)
- " " floor(0.9) " " floor(-0.1) " " log(0.5) " " log10(0.5) " " sin(0.5) " " sinh(0.5) " " sqrt(0.5) " " tan(0.5) " " tanh(0.5) }
+TRACE {  abs  (  -0.5  )   " " acos  (  0.5  )   " " asin  (  0.5  )   " " atan  (  0.5  )   " " ceil  (  0.1  )   " " ceil  (  -0.1  )   " " cos  (  0.5  )   " " cosh  (  0.5  )   " " exp  (  0.5  )  
+ " " floor  (  0.9  )   " " floor  (  -0.1  )   " " log  (  0.5  )   " " log10  (  0.5  )   " " sin  (  0.5  )   " " sinh  (  0.5  )   " " sqrt  (  0.5  )   " " tan  (  0.5  )   " " tanh  (  0.5  )   }
+TRACE {  abs    -0.5     " " acos    0.5     " " asin    0.5     " " atan    0.5     " " ceil    0.1     " " ceil    -0.1     " " cos    0.5     " " cosh    0.5     " " exp    0.5    
+ " " floor    0.9     " " floor    -0.1     " " log    0.5     " " log10    0.5     " " sin    0.5     " " sinh    0.5     " " sqrt    0.5     " " tan    0.5     " " tanh    0.5     }
+TRACE {  atan2  (  1, 1  )  +  0}
+TRACE {  atan2  (  -1, 0  )  +  0}
+TRACE {  hypot  (  3, 4  )  +  0}
+TRACE {  hypot  (  -5, 12  )  +  0}
 
 x0=m;x1=a;x2=n;x3=x
 TRACE {$(x 0)} == m
@@ -324,6 +330,7 @@ $randomArray 20 a
 s={\[}; $foreach a [ s = $s $0 ]; s=$s{\]}
 FOR x in:$s [ TRACE $x ]
 
+format acme-1 uses:[acme-corp-ext-1] requires:[impd-1]
 META ACME-CORP-EXT-1 meta is always ok and ignored by client if the first argument is unrecognized
 
 INCLUDE includeTest.impd [first argument] [second argument] labeled:[labeled argument]
@@ -398,6 +405,12 @@ trace {len([abcdef      ghi])}
 
 trace {len("abcdef      ghi")}
 
+trace {len()}
+
+trace { len   "qwer"  }
+
+trace { len }
+
 this = complete
 trace {[expand $this /* but not this */]}
 
@@ -431,3 +444,18 @@ trace {($a) $b}
 trace {$a b}
 trace {($a) b}
 trace {$a$b}
+
+IF [Yes] [ TRACE OK-YES-1 ] else:[ TRACE BAD ]
+IF [yEs] [ TRACE OK-YES-2 ] else:[ TRACE BAD ]
+IF [NO] [ TRACE BAD ] else:[ TRACE OK-NO-1 ]
+IF [nO] [ TRACE BAD ] else:[ TRACE OK-NO-2 ]
+
+format multi-1 uses:[snapshot-1 snapshot-2] requires:[impd-1]
+meta snapshot
+meta snapshot-1
+
+format multi-3 uses:test-1,test-2,unknown
+meta test-1 this-is-test-1
+meta test-2 this-is-test-2
+meta test this-should-be-test-2
+meta unknown swallow-this
