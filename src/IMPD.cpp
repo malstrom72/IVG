@@ -344,11 +344,16 @@ Interpreter::Interpreter(Executor& executor, Variables& vars, FormatInfo& format
 		: executor(executor), vars(vars), formatInfo(formatInfo), callingFrame(0), rootFrame(*this)
 		, statementsLimit(statementsLimit), recursionLimit(recursionLimit) { }
 
-Interpreter::Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, Interpreter& callingFrame)
-		: executor(executor), vars(vars), formatInfo(formatInfo), callingFrame(&callingFrame), rootFrame(callingFrame.rootFrame)
+Interpreter::Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame)
+		: executor(executor), vars(vars), formatInfo(callingFrame.formatInfo), callingFrame(&callingFrame), rootFrame(callingFrame.rootFrame)
 		, statementsLimit(callingFrame.statementsLimit), recursionLimit(callingFrame.recursionLimit) { }
 
-Interpreter::Interpreter(Executor& executor, FormatInfo& formatInfo, Interpreter& enclosingInterpreter)
+Interpreter::Interpreter(Executor& executor, Interpreter& enclosingInterpreter)
+		: executor(executor), vars(enclosingInterpreter.vars), formatInfo(enclosingInterpreter.formatInfo)
+		, callingFrame(enclosingInterpreter.callingFrame), rootFrame(enclosingInterpreter.rootFrame)
+		, statementsLimit(enclosingInterpreter.statementsLimit), recursionLimit(enclosingInterpreter.recursionLimit) { }
+
+Interpreter::Interpreter(Executor& executor, Interpreter& enclosingInterpreter, FormatInfo& formatInfo)
 		: executor(executor), vars(enclosingInterpreter.vars), formatInfo(formatInfo), callingFrame(enclosingInterpreter.callingFrame)
 		, rootFrame(enclosingInterpreter.rootFrame), statementsLimit(enclosingInterpreter.statementsLimit)
 		, recursionLimit(enclosingInterpreter.recursionLimit) { }
@@ -1447,7 +1452,7 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 				}
 			}
 			newVars.declare("n", toString(counter));
-			Interpreter newFrame(executor, newVars, formatInfo, *this);
+			Interpreter newFrame(executor, newVars, *this);
 			newFrame.run(runThis);
 			break;
 		}

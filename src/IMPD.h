@@ -210,8 +210,9 @@ class Interpreter {
 	public:		Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo
 						, int statementsLimit = DEFAULT_STATEMENTS_LIMIT
 						, int recursionLimit = DEFAULT_RECURSION_LIMIT);												///< Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`.
-	public:		Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, Interpreter& callingFrame);
-	public:		Interpreter(Executor& executor, FormatInfo& formatInfo, Interpreter& enclosingInterpreter);
+	public:		Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame);
+	public:		Interpreter(Executor& executor, Interpreter& enclosingInterpreter);
+	public:		Interpreter(Executor& executor, Interpreter& enclosingInterpreter, FormatInfo& formatInfo);
 	public:		Executor& getExecutor() const { return executor; }
 	public:		Variables& getVariables() const { return vars; }
 	public:		FormatInfo& getFormatInfo() { return formatInfo; }
