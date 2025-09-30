@@ -208,27 +208,29 @@ string as it would be processed outside curly brackets. E.g.:
 
 Inside curly brackets, the following functions are available:
 
-| Function    | Description                                                      |
-| :---------- | :--------------------------------------------------------------- |
-| `abs(x)`    | returns the absolute value of a number                           |
-| `acos(x)`   | returns the inverse cosine of a number in radians                |
-| `asin(x)`   | returns the inverse sine of a number in radians                  |
-| `atan(x)`   | returns the inverse tangent of a number in radians               |
-| `ceil(x)`   | returns the smallest integer greater than or equal to a number   |
-| `cos(x)`    | returns the cosine of a number in radians                        |
-| `cosh(x)`   | returns the hyperbolic cosine of a number                        |
-| `exp(x)`    | returns the value of `e` raised to a power                       |
-| `floor(x)`  | returns the largest integer less than or equal to a number       |
-| `log(x)`    | returns the natural logarithm of a number                        |
-| `log10(x)`  | returns the base-10 logarithm of a number                        |
-| `round(x)`  | returns the nearest integer to a number (.5 rounds upwards)      |
-| `sin(x)`    | returns the sine of a number in radians                          |
-| `sinh(x)`   | returns the hyperbolic sine of a number                          |
-| `sqrt(x)`   | returns the square root of a number                              |
-| `tan(x)`    | returns the tangent of a number in radians                       |
-| `tanh(x)`   | returns the hyperbolic tangent of a number                       |
-| `len(s)`    | returns the length of a string                                   |
-| `def(var)`  | checks if a variable is defined (do not begin variable with `$`) |
+| Function      | Description                                                            |
+| :------------ | :--------------------------------------------------------------------- |
+| `abs(x)`      | returns the absolute value of a number                                 |
+| `acos(x)`     | returns the inverse cosine of a number in radians                      |
+| `asin(x)`     | returns the inverse sine of a number in radians                        |
+| `atan(x)`     | returns the inverse tangent of a number in radians                     |
+| `atan2(y, x)` | returns the inverse tangent of `y / x` in radians, preserving quadrant |
+| `ceil(x)`     | returns the smallest integer greater than or equal to a number         |
+| `cos(x)`      | returns the cosine of a number in radians                              |
+| `cosh(x)`     | returns the hyperbolic cosine of a number                              |
+| `exp(x)`      | returns the value of `e` raised to a power                             |
+| `floor(x)`    | returns the largest integer less than or equal to a number             |
+| `log(x)`      | returns the natural logarithm of a number                              |
+| `log10(x)`    | returns the base-10 logarithm of a number                              |
+| `round(x)`    | returns the nearest integer to a number (.5 rounds upwards)            |
+| `sin(x)`      | returns the sine of a number in radians                                |
+| `sinh(x)`     | returns the hyperbolic sine of a number                                |
+| `sqrt(x)`     | returns the square root of a number                                    |
+| `tan(x)`      | returns the tangent of a number in radians                             |
+| `tanh(x)`     | returns the hyperbolic tangent of a number                             |
+| `hypot(x, y)` | returns the Euclidean norm of `(x, y)`                                 |
+| `len(s)`      | returns the length of a string                                         |
+| `def(var)`    | checks if a variable is defined (do not begin variable with `$`)       |
 
 There is also a single constant: `pi`.
 

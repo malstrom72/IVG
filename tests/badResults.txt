@@ -131,6 +131,18 @@ Exception: Math error: "log" requires a value greater than 0.
 in statement: TRACE {log(-1)} // Math error
 Exception: Math error: "sqrt" requires a non-negative value.
 in statement: TRACE {sqrt(-1)} // Math error
+Exception: Invalid number "".
+in statement: TRACE {sqrt()} // missing argument
+Exception: Missing ",".
+in statement: TRACE {atan2(1)} // missing argument
+Exception: Missing ")".
+in statement: TRACE {hypot(1, 2, 3)} // too many arguments
+Exception: Missing "(".
+in statement: TRACE {hypot 1, 2, 3)} // no (
+Exception: Missing ")".
+in statement: TRACE {hypot (1, 2, 3} // no )
+Exception: Missing ",".
+in statement: TRACE {hypot ((1) (2)} // no ,
 Exception: Missing argument(s).
 in statement: INCLUDE
 Exception: Unrecognized labels or too many arguments.

@@ -134,6 +134,18 @@ TRACE {log(-1)} // Math error
 
 TRACE {sqrt(-1)} // Math error
 
+TRACE {sqrt()} // missing argument
+
+TRACE {atan2(1)} // missing argument
+
+TRACE {hypot(1, 2, 3)} // too many arguments
+
+TRACE {hypot 1, 2, 3)} // no (
+
+TRACE {hypot (1, 2, 3} // no )
+
+TRACE {hypot ((1) (2)} // no ,
+
 INCLUDE // missing arg
 
 FORMAT foo extra:bar

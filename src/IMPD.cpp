@@ -256,32 +256,37 @@ static double checkedSqrt(double x) {
 	return sqrt(x);
 }
 
-double (*Interpreter::MATH_FUNCTION_POINTERS[MATH_FUNCTION_COUNT])(double) = {
-	(double (*)(double))(fabs), (double (*)(double))(acos), (double (*)(double))(asin), (double (*)(double))(atan)
-	, (double (*)(double))(ceil), (double (*)(double))(cos), (double (*)(double))(cosh), (double (*)(double))(exp)
-	, (double (*)(double))(floor), (double (*)(double))(checkedLog), (double (*)(double))(checkedLog10)
-	, (double (*)(double))(sin), (double (*)(double))(sinh), (double (*)(double))(checkedSqrt)
-	, (double (*)(double))(tan), (double (*)(double))(tanh), (double (*)(double))(round)
+double (*const Interpreter::UNARY_MATH_FUNCTIONS[UNARY_MATH_FUNCTION_COUNT])(double) = {
+	(double (*)(double))(fabs), (double (*)(double))(acos), (double (*)(double))(asin), (double (*)(double))(atan),
+	(double (*)(double))(ceil), (double (*)(double))(cos), (double (*)(double))(cosh), (double (*)(double))(exp),
+	(double (*)(double))(floor), checkedLog, checkedLog10, (double (*)(double))(sin), (double (*)(double))(sinh),
+	checkedSqrt, (double (*)(double))(tan), (double (*)(double))(tanh), (double (*)(double))(round)
 };
 
+double (*const Interpreter::BINARY_MATH_FUNCTIONS[BINARY_MATH_FUNCTION_COUNT])(double, double) = {
+	(double (*)(double, double))(atan2), (double (*)(double, double))(hypot)
+};
 const Char Interpreter::ESCAPE_CHARS[ESCAPE_CODE_COUNT] = {	 'a',  'b',	 'f',  'n',	 'r',  't',	 'v' };
 const Char Interpreter::ESCAPE_CODES[ESCAPE_CODE_COUNT] = { '\a', '\b', '\f', '\n', '\r', '\t', '\v' };
 
 /* Built with QuickHashGen */
 int Interpreter::findFunction(int n /* string length */, const char* s /* string (zero terminated) */) {
-	static const char* STRINGS[20] = {
-		"abs", "acos", "asin", "atan", "ceil", "cos", "cosh", "exp", "floor", "log",
-		"log10", "sin", "sinh", "sqrt", "tan", "tanh", "round", "pi", "len", "def"
+	static const char* STRINGS[22] = {
+		"abs", "acos", "asin", "atan", "ceil", "cos", "cosh", "exp", "floor", "log", 
+		"log10", "sin", "sinh", "sqrt", "tan", "tanh", "round", "atan2", "hypot", "pi", 
+		"len", "def"
 	};
 	static const int HASH_TABLE[64] = {
-		-1, -1, -1, -1, 11, 15, -1, -1, -1, 12, 16, 17, -1, -1, -1, -1,
-		-1, -1, 10, -1, -1, -1, 18, -1, -1, -1, 14, -1, -1, 4, -1, -1,
-		-1, 0, -1, -1, -1, 8, 19, 1, -1, -1, 5, 6, 9, -1, 3, -1,
-		-1, 13, -1, 7, -1, -1, -1, 2, -1, -1, -1, -1, -1, -1, -1, -1
+		-1, 18, 6, 13, -1, -1, -1, -1, -1, -1, -1, 20, 16, 0, 9, 11, 
+		-1, -1, -1, 21, -1, -1, -1, 14, -1, -1, -1, -1, -1, -1, -1, -1, 
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 4, 15, 
+		7, -1, 1, 8, -1, 3, -1, 12, -1, 19, 5, -1, 2, 17, 10, -1
 	};
+	const unsigned char* p = (const unsigned char*) s;
+	assert(s[n] == '\0');
 	if (n < 2 || n > 5) return -1;
-	int stringIndex = HASH_TABLE[((n ^ s[1]) - s[0] ^ s[0]) & 63];
-	return (stringIndex >= 0 && strncmp(s, STRINGS[stringIndex], n) == 0 && STRINGS[stringIndex][n] == 0) ? stringIndex : -1;
+	int stringIndex = HASH_TABLE[(p[1] + p[2] ^ (0u + n) << 3) & 63u];
+	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
 /* Built with QuickHashGen */
@@ -607,7 +612,7 @@ void Interpreter::run(const StringRange& r) {
 			StringIt q = eatStatement(p, r.e);
 			activeRange.e = p = q;
 			if (rootFrame.statementsLimit == 0) throwRunTimeError("Statements limit reached.");
-                        if (!executor.progress(*this, rootFrame.statementsLimit)) throw AbortedException("Execution aborted.");
+			if (!executor.progress(*this, rootFrame.statementsLimit)) throw AbortedException("Execution aborted.");
 			--rootFrame.statementsLimit;
 			expanded = performExpansion(activeRange);
 			activeRange = expanded;
@@ -1073,30 +1078,74 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 			StringIt q = p;
 			while (q != e && (isSymbolLetter(*q) || *q == '.' || (*q >= '0' && *q <= '9'))) ++q;
 			String sym(p, q);
-			int funcIndex = findFunction(lossless_cast<int>(sym.size()), sym.c_str());
-			if (funcIndex >= 0 && funcIndex < MATH_FUNCTION_COUNT) {
-				errno = 0;
-				q = evaluateInner(q, e, v, FUNCTION, dry);
-				if (!dry) {
-					v = MATH_FUNCTION_POINTERS[funcIndex](v);
-					if (errno != 0) throwRunTimeError("Math error.");
-					if (!isFinite(v)) throwRunTimeError("Number overflow.");
-				}
-			} else if (funcIndex == MATH_FUNCTION_COUNT) {			// pi
-				v = 3.1415926535897932384626433;
-			} else if (funcIndex == MATH_FUNCTION_COUNT + 1) {		// len
-				q = evaluateInner(q, e, v, FUNCTION, dry);
-				if (!dry) {
-					v = static_cast<double>(static_cast<String>(v).size());
-				}
-			} else if (funcIndex == MATH_FUNCTION_COUNT + 2) {		// def
-				q = evaluateInner(q, e, v, FUNCTION, dry);
-				if (!dry) {
-					String dummyValue;
-					const String name = v;
-					const Interpreter* f = this;
-					for (; f != 0 && !f->vars.lookup(name, dummyValue); f = f->callingFrame) { }
-					v = (f != 0);
+			const int funcIndex = findFunction(lossless_cast<int>(sym.size()), sym.c_str());
+			if (funcIndex >= 0) {
+				EvaluationValue arg;
+				switch (funcIndex) {
+					case PI_FUNCTION: {
+						if (!dry) {
+							v = 3.1415926535897932384626433;
+						}
+						break;
+					}
+					case LEN_FUNCTION: {
+						q = evaluateInner(q, e, arg, FUNCTION, dry);
+						if (!dry) {
+							v = static_cast<double>(static_cast<String>(arg).size());
+						}
+						break;
+					}
+					case DEF_FUNCTION: {
+						q = evaluateInner(q, e, arg, FUNCTION, dry);
+						if (!dry) {
+							String dummyValue;
+							const String name = arg;
+							const Interpreter* f = this;
+							for (; f != 0 && !f->vars.lookup(name, dummyValue); f = f->callingFrame) { }
+							v = (f != 0);
+						}
+						break;
+					}
+					default: {
+						double result;
+						if (funcIndex < UNARY_MATH_FUNCTION_COUNT) {
+							q = evaluateInner(q, e, arg, FUNCTION, dry);
+							if (!dry) {
+								errno = 0;
+								result = UNARY_MATH_FUNCTIONS[funcIndex](arg);
+							}
+						} else {
+							assert(funcIndex < FUNCTION_LOOKUP_COUNT);
+							q = eatWhite(q, e);
+							if (q == e || *q != '(') {
+								throwBadSyntax("Missing \"(\".");
+							}
+							q = eatWhite(evaluateInner(q + 1, e, arg, COMMA, dry), e);
+							if (q == e || *q != ',') {
+								throwBadSyntax("Missing \",\".");
+							}
+							EvaluationValue arg2;
+							q = eatWhite(evaluateInner(q + 1, e, arg2, COMMA, dry), e);
+							if (q == e || *q != ')') {
+								throwBadSyntax("Missing \")\".");
+							}
+							++q;
+							if (!dry) {
+								errno = 0;
+								result = BINARY_MATH_FUNCTIONS[funcIndex - UNARY_MATH_FUNCTION_COUNT](arg, arg2);
+							}
+						}
+						if (!dry) {
+							if (errno != 0) {
+								throwRunTimeError("Math error.");
+							}
+							if (!isFinite(v)) {
+								throwRunTimeError("Number overflow.");
+							}
+							v = result;
+						}							
+						break;
+					}
 				}
 			} else if (!dry) {
 				v = sym;
@@ -1264,7 +1313,7 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 
 	BuiltInInstruction instruction = static_cast<BuiltInInstruction>(foundIndex);
 	switch (instruction) {
-               case STOP_INSTRUCTION: throw AbortedException("Encountered \"STOP\" instruction.");
+		case STOP_INSTRUCTION: throw AbortedException("Encountered \"STOP\" instruction.");
 		case TRACE_INSTRUCTION: { executor.trace(*this, unescapeToWide(argumentsRange)); break; }
 
 		case FORMAT_INSTRUCTION: {
