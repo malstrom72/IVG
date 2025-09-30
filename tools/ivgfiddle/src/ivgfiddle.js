@@ -7,42 +7,67 @@ const MAX_VECTOR_RASTER_PIXELS = MAX_VECTOR_RASTER_DIMENSION * MAX_VECTOR_RASTER
 const VECTOR_MEMORY_RESERVE_BYTES = 12 * 1024 * 1024;
 
 function readHeapByteLength() {
-        if (typeof Module !== 'object' || Module === null) {
-                return 0;
-        }
-        const heaps = [];
-        if (Module.HEAPU8 && Module.HEAPU8.buffer) {
-                heaps.push(Module.HEAPU8.buffer.byteLength);
-        }
-        if (Module.HEAP8 && Module.HEAP8.buffer) {
-                heaps.push(Module.HEAP8.buffer.byteLength);
-        }
-        if (Module.wasmMemory && Module.wasmMemory.buffer) {
-                heaps.push(Module.wasmMemory.buffer.byteLength);
-        }
-        if (heaps.length === 0) {
-                return 0;
-        }
-        let maxBytes = 0;
-        for (let index = 0; index < heaps.length; ++index) {
-                const bytes = heaps[index];
-                if (Number.isFinite(bytes) && bytes > maxBytes) {
-                        maxBytes = bytes;
-                }
-        }
-        return maxBytes;
+	if (typeof Module !== 'object' || Module === null) {
+		return 0;
+	}
+	const heaps = [];
+	if (Module.HEAPU8 && Module.HEAPU8.buffer) {
+		heaps.push(Module.HEAPU8.buffer.byteLength);
+	}
+	if (Module.HEAP8 && Module.HEAP8.buffer) {
+		heaps.push(Module.HEAP8.buffer.byteLength);
+	}
+	if (Module.wasmMemory && Module.wasmMemory.buffer) {
+		heaps.push(Module.wasmMemory.buffer.byteLength);
+	}
+	if (heaps.length === 0) {
+		return 0;
+	}
+	let maxBytes = 0;
+	for (let index = 0; index < heaps.length; ++index) {
+		const bytes = heaps[index];
+		if (Number.isFinite(bytes) && bytes > maxBytes) {
+			maxBytes = bytes;
+		}
+	}
+	return maxBytes;
+}
+
+function readFreeHeapByteLength() {
+	if (typeof Module !== 'object' || Module === null) {
+		return 0;
+	}
+	if (typeof Module._getFreeHeapBytes === 'function') {
+		try {
+			const freeBytes = Module._getFreeHeapBytes();
+			if (Number.isFinite(freeBytes) && freeBytes > 0) {
+				return freeBytes;
+			}
+		} catch (error) {
+			// Ignore errors – fall back to coarse heap size estimates below.
+		}
+	}
+	return 0;
 }
 
 function estimateVectorPixelBudget() {
-        const heapBytes = readHeapByteLength();
-        if (!Number.isFinite(heapBytes) || heapBytes <= VECTOR_MEMORY_RESERVE_BYTES) {
-                return 0;
-        }
-        const availableBytes = heapBytes - VECTOR_MEMORY_RESERVE_BYTES;
-        if (availableBytes <= 0) {
-                return 0;
-        }
-        return Math.floor(availableBytes / 4);
+	const freeHeapBytes = readFreeHeapByteLength();
+	if (Number.isFinite(freeHeapBytes) && freeHeapBytes > VECTOR_MEMORY_RESERVE_BYTES) {
+		const availableFreeBytes = freeHeapBytes - VECTOR_MEMORY_RESERVE_BYTES;
+		if (availableFreeBytes > 0) {
+			return Math.floor(availableFreeBytes / 4);
+		}
+		return 0;
+	}
+	const heapBytes = readHeapByteLength();
+	if (!Number.isFinite(heapBytes) || heapBytes <= VECTOR_MEMORY_RESERVE_BYTES) {
+		return 0;
+	}
+	const availableBytes = heapBytes - VECTOR_MEMORY_RESERVE_BYTES;
+	if (availableBytes <= 0) {
+		return 0;
+	}
+	return Math.floor(availableBytes / 4);
 }
 
 function formatByteSize(bytes) {
@@ -758,10 +783,10 @@ scheduleVectorRerender(reason);
 }
 
 function queueBitmapFallback(reason) {
-        if (bitmapFallbackQueued) {
-                return;
-        }
-        bitmapFallbackQueued = true;
+if (bitmapFallbackQueued) {
+return;
+}
+bitmapFallbackQueued = true;
         const fallbackReason = typeof reason === 'string' && reason.length > 0 ? reason : 'vector-fallback';
         window.requestAnimationFrame(function dispatchBitmapFallback() {
                 bitmapFallbackQueued = false;
@@ -1072,6 +1097,7 @@ getBaseMetrics: getBaseMetrics,
 handleVectorRasterFailure: handleVectorRasterFailure,
 invalidateBaseMetrics: invalidateBaseMetrics,
 isVectorBaselineReady: isVectorBaselineReady,
+queueBitmapFallback: queueBitmapFallback,
 requestVectorRerender: requestVectorRerender
 };
 })();
@@ -1415,7 +1441,7 @@ vectorRenderLimit: vectorRenderLimit
 		if (vectorDisabled) {
 			trace("Vector rescale was disabled after a failed rasterization - falling back to bitmap zoom.");
 		}
-		queueBitmapFallback('vector-fallback');
+		ZoomController.queueBitmapFallback('vector-fallback');
 	}
 } else {
 	ok = false;
@@ -1427,7 +1453,7 @@ vectorRenderLimit: vectorRenderLimit
 		if (vectorDisabled) {
 			trace("Vector rescale was disabled after exceeding the safe rasterization limits. Falling back to bitmap zoom.");
 		}
-		queueBitmapFallback('vector-preflight-limit');
+		ZoomController.queueBitmapFallback('vector-preflight-limit');
 	}
 }
 localStorage.setItem(STORAGE_KEYS.RUN_ON_STARTUP, true);
@@ -1443,7 +1469,7 @@ vectorRenderLimit: vectorRenderLimit
 		if (vectorDisabled) {
 			trace("Vector rescale crashed - falling back to bitmap zoom.");
 		}
-		queueBitmapFallback('vector-fallback');
+		ZoomController.queueBitmapFallback('vector-fallback');
 	}
 }
         if (!ok) {

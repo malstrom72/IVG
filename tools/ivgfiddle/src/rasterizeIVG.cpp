@@ -77,6 +77,24 @@ namespace {
 const int MAX_RASTER_DIMENSION = 16384;
 const long long MAX_RASTER_PIXELS = 67108864LL;
 const size_t VECTOR_HEAP_RESERVE_BYTES = 2 * 1024 * 1024;
+
+size_t computeFreeHeapBytes()
+{
+#ifdef __EMSCRIPTEN__
+	uintptr_t* sbrkPointer = emscripten_get_sbrk_ptr();
+	if (sbrkPointer != 0) {
+		const uintptr_t currentBrk = *sbrkPointer;
+		const size_t heapBytes = emscripten_get_heap_size();
+		if (heapBytes > currentBrk) {
+			return heapBytes - static_cast<size_t>(currentBrk);
+		}
+	}
+	return 0;
+#else
+	return 0;
+#endif
+}
+
 }
 
 extern "C" {
@@ -120,21 +138,13 @@ uint8_t* rasterizeIVG(const char* ivgSource, double scaling) {
                 const size_t requiredPixelBytes = static_cast<size_t>(bounds.width) * static_cast<size_t>(bounds.height) * 4u;
                 const size_t requiredBytes = 4u * 4u + requiredPixelBytes;
 #ifdef __EMSCRIPTEN__
-                size_t freeHeapBytes = 0;
-                uintptr_t* sbrkPointer = emscripten_get_sbrk_ptr();
-                if (sbrkPointer != 0) {
-                        const uintptr_t currentBrk = *sbrkPointer;
-                        const size_t heapBytes = emscripten_get_heap_size();
-                        if (heapBytes > currentBrk) {
-                                freeHeapBytes = heapBytes - static_cast<size_t>(currentBrk);
-                        }
-                }
-                if (freeHeapBytes > 0 && requiredBytes + VECTOR_HEAP_RESERVE_BYTES > freeHeapBytes) {
-                        std::ostringstream message;
-                        message << "Rasterization aborted: " << requiredBytes << " bytes required but only "
-                                << freeHeapBytes << " bytes free in the WebAssembly heap.";
-                        throw runtime_error(message.str());
-                }
+		const size_t freeHeapBytes = computeFreeHeapBytes();
+		if (freeHeapBytes > 0 && requiredBytes + VECTOR_HEAP_RESERVE_BYTES > freeHeapBytes) {
+			std::ostringstream message;
+			message << "Rasterization aborted: " << requiredBytes << " bytes required but only "
+				<< freeHeapBytes << " bytes free in the WebAssembly heap.";
+			throw runtime_error(message.str());
+		}
 #endif
                 pixelsArray = new uint8_t[requiredBytes];
 		*reinterpret_cast<uint32_t*>(pixelsArray + 0) = bounds.left;
@@ -194,6 +204,11 @@ uint8_t* rasterizeIVG(const char* ivgSource, double scaling) {
 EMSCRIPTEN_KEEPALIVE
 void deallocatePixels(uint32_t* pixelsArray) {
 	delete [] pixelsArray;
+}
+
+EMSCRIPTEN_KEEPALIVE
+size_t getFreeHeapBytes() {
+	return computeFreeHeapBytes();
 }
 
 }
