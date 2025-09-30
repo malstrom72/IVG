@@ -896,7 +896,7 @@ class PathInstructionExecutor : public Executor {
 
 static AffineTransformation parseTransformationBlock(Interpreter& impd, const String& source) {
 	TransformationExecutor xfExecutor(impd.getExecutor());
-	Interpreter newInterpreter(xfExecutor, impd.getFormatInfo(), impd);	// Share the parent document's format declarations.
+	Interpreter newInterpreter(xfExecutor, impd);	// Share the parent document's format declarations.
 	newInterpreter.run(source);
 	return xfExecutor.getTransform();
 }
@@ -1322,7 +1322,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		}
 		IVG::FontParser fontParser(this);
 		FormatInfo fontFormatInfo;	// Fresh format scope for embedded font documents.
-		Interpreter newInterpreter(fontParser, fontFormatInfo, impd);
+		Interpreter newInterpreter(fontParser, impd, fontFormatInfo);
 		newInterpreter.run(definition);
 		embeddedFonts[name] = fontParser.finalizeFont();
 		lastFontName = WideString();	// must reset cache cause there is no guarantee that STL preserves pointers after insertion
