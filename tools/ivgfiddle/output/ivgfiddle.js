@@ -63,6 +63,17 @@ function formatByteSize(bytes) {
         return Math.round(bytes) + ' bytes';
 }
 
+function computeSourceSignature(source) {
+if (typeof source !== 'string') {
+return '0:0';
+}
+let hash = 0;
+for (let index = 0; index < source.length; ++index) {
+hash = (hash * 31 + source.charCodeAt(index)) | 0;
+}
+return source.length + ':' + (hash >>> 0);
+}
+
 const leftPanelElement = document.getElementById("leftPanel");
 const leftRightSplitElement = document.getElementById('leftRightSplit');
 const traceElement = document.getElementById('trace');
@@ -87,6 +98,7 @@ const MIN_LEFT_PANEL_WIDTH = 250;
 let rasterizeInProgress = false;
 let rerunQueuedWhileBusy = false;
 let rerunQueuedReason = '';
+let lastRasterizedSourceSignature = null;
 
 const STORAGE_KEYS = Object.freeze({
         SOURCE: 'ivgSource',
@@ -536,34 +548,28 @@ const defaultBodyBackground = bodyElement ? window.getComputedStyle(bodyElement)
         };
 })();
 
-const ZOOM_PRESETS = (function generateZoomPresets() {
-        const presets = [];
-        for (let percent = 25; percent <= 1000; percent += 25) {
-                presets.push(percent / 100);
-        }
-        return Object.freeze(presets);
-})();
-
 const ZOOM_SELECT_PRESETS = Object.freeze([
-        0.25,
-        0.5,
-        0.75,
-        1,
-        1.5,
-        2,
-        3,
-        4,
-        6,
-        8,
-        10
+0.25,
+0.5,
+0.75,
+1,
+1.5,
+2,
+3,
+4,
+6,
+8,
+10
 ]);
+
+const ZOOM_PRESETS = ZOOM_SELECT_PRESETS;
 
 const CUSTOM_ZOOM_OPTION_VALUE = 'custom';
 
 const ZOOM_CONSTANTS = Object.freeze({
         MIN: ZOOM_PRESETS[0],
         MAX: ZOOM_PRESETS[ZOOM_PRESETS.length - 1],
-        STEP: 0.25,
+STEP: 1,
         DEFAULT: 1.0
 });
 
@@ -578,6 +584,7 @@ let lastVectorRenderLimit = Infinity;
 let rerenderRequestPending = false;
 let pendingVectorRerenderReason = 'vector rescale update';
 let bitmapFallbackQueued = false;
+let vectorBaselineReady = false;
 const ZOOM_EPSILON = 0.0001;
 
 function zoomToPercent(value) {
@@ -744,6 +751,10 @@ window.requestAnimationFrame(function dispatchVectorRerender() {
 rerenderRequestPending = false;
 runIVG(pendingVectorRerenderReason);
 });
+}
+
+function requestVectorRerender(reason) {
+scheduleVectorRerender(reason);
 }
 
 function queueBitmapFallback(reason) {
@@ -916,6 +927,7 @@ lastVectorRenderLimit = details.vectorRenderLimit;
 if (details && Number.isFinite(details.renderZoom)) {
 lastRenderZoom = details.renderZoom;
 }
+invalidateBaseMetrics();
 if (!vectorScalingEnabled) {
 return false;
 }
@@ -1007,6 +1019,7 @@ function setCanvasMetrics(metrics) {
 if (metrics === null) {
 baseMetrics = null;
 lastVectorRenderLimit = Infinity;
+vectorBaselineReady = false;
 applyZoom();
 return;
 }
@@ -1019,6 +1032,7 @@ height: metrics.height / appliedZoom,
 translateX: metrics.translateX / appliedZoom,
 translateY: metrics.translateY / appliedZoom
 };
+vectorBaselineReady = true;
 applyZoom();
 }
 
@@ -1034,6 +1048,16 @@ function getBaseMetrics() {
 return baseMetrics;
 }
 
+function invalidateBaseMetrics() {
+baseMetrics = null;
+lastVectorRenderLimit = Infinity;
+vectorBaselineReady = false;
+}
+
+function isVectorBaselineReady() {
+return vectorBaselineReady;
+}
+
 return {
 init: init,
 setZoom: setZoom,
@@ -1045,7 +1069,10 @@ setVectorScalingEnabled: setVectorScalingEnabled,
 getZoom: getZoom,
 isVectorScalingEnabled: isVectorScalingEnabled,
 getBaseMetrics: getBaseMetrics,
-handleVectorRasterFailure: handleVectorRasterFailure
+handleVectorRasterFailure: handleVectorRasterFailure,
+invalidateBaseMetrics: invalidateBaseMetrics,
+isVectorBaselineReady: isVectorBaselineReady,
+requestVectorRerender: requestVectorRerender
 };
 })();
 
@@ -1158,13 +1185,18 @@ function runIVG(reason) {
                 trace("Render reason: " + invocationReason);
         }
         const linesCountWas = traceLinesCount;
-        const start = Date.now();
-        const sourceCode = aceEditor.getValue();
-        localStorage.setItem(STORAGE_KEYS.SOURCE, sourceCode);
-        localStorage.setItem(STORAGE_KEYS.RUN_ON_STARTUP, false);
-        let ok = false;
+const start = Date.now();
+const sourceCode = aceEditor.getValue();
+const sourceSignature = computeSourceSignature(sourceCode);
+const sourceChanged = sourceSignature !== lastRasterizedSourceSignature;
+localStorage.setItem(STORAGE_KEYS.SOURCE, sourceCode);
+localStorage.setItem(STORAGE_KEYS.RUN_ON_STARTUP, false);
+let ok = false;
 const zoomLevel = ZoomController.getZoom();
 const vectorRescaleEnabled = ZoomController.isVectorScalingEnabled();
+if (sourceChanged) {
+ZoomController.invalidateBaseMetrics();
+}
 const pixelRatio = window.devicePixelRatio;
 const dynamicPixelBudget = estimateVectorPixelBudget();
 let vectorPixelBudget = MAX_VECTOR_RASTER_PIXELS;
@@ -1181,11 +1213,13 @@ let renderZoom = targetRenderZoom;
 let vectorRenderLimit = Infinity;
 let clampReasons = [];
 const baseMetrics = ZoomController.getBaseMetrics();
+const baselineReady = ZoomController.isVectorBaselineReady();
 let skipVectorRaster = false;
 let preflightReasons = [];
 let basePixelWidth = 0;
 let basePixelHeight = 0;
 let basePixelArea = 0;
+let baselineRender = false;
 try {
 if (vectorRescaleEnabled) {
 if (baseMetrics !== null && baseMetrics.width > 0 && baseMetrics.height > 0) {
@@ -1231,6 +1265,13 @@ renderZoom = Math.max(1, bestLimit);
 vectorRenderLimit = renderZoom;
 clampReasons = appliedReasons;
 }
+}
+} else if (!baselineReady && targetRenderZoom > 1.0001) {
+baselineRender = true;
+renderZoom = 1;
+vectorRenderLimit = Math.min(vectorRenderLimit, 1);
+if (clampReasons.indexOf('baseline sync') === -1) {
+clampReasons.push('baseline sync');
 }
 }
 }
@@ -1348,18 +1389,22 @@ const width = dimensions[2];
                         const cssHeight = height / pixelRatio;
                         const translateX = left / pixelRatio;
                         const translateY = top / pixelRatio;
-                        ZoomController.setCanvasMetrics({
-                                width: cssWidth,
-                                height: cssHeight,
-                                translateX: translateX,
-                                translateY: translateY,
-                                zoomApplied: renderZoom,
-                                vectorRenderLimit: vectorRenderLimit
-                        });
-                        ivgContext.putImageData(imageData, 0, 0);
-                        trace("Completed IVG");
-                        trace("Time spent: " + (end - start) + "ms");
-                        ok = true;
+ZoomController.setCanvasMetrics({
+width: cssWidth,
+height: cssHeight,
+translateX: translateX,
+translateY: translateY,
+zoomApplied: renderZoom,
+vectorRenderLimit: vectorRenderLimit
+});
+ivgContext.putImageData(imageData, 0, 0);
+trace("Completed IVG");
+trace("Time spent: " + (end - start) + "ms");
+ok = true;
+lastRasterizedSourceSignature = sourceSignature;
+if (vectorRescaleEnabled && baselineRender && targetRenderZoom > renderZoom + 0.0001) {
+ZoomController.requestVectorRerender('vector-baseline');
+}
 } else if (!skipVectorRaster) {
 	trace("Aborted IVG");
 	if (vectorRescaleEnabled) {
