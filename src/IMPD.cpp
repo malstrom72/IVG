@@ -256,37 +256,15 @@ static double checkedSqrt(double x) {
 	return sqrt(x);
 }
 
-static double computeAtan2(double y, double x) {
-	return atan2(y, x);
-}
-
-static double computeHypot(double x, double y) {
-	return hypot(x, y);
-}
-
 double (*const Interpreter::UNARY_MATH_FUNCTIONS[UNARY_MATH_FUNCTION_COUNT])(double) = {
-	(double (*)(double))(fabs),
-	(double (*)(double))(acos),
-	(double (*)(double))(asin),
-	(double (*)(double))(atan),
-	(double (*)(double))(ceil),
-	(double (*)(double))(cos),
-	(double (*)(double))(cosh),
-	(double (*)(double))(exp),
-	(double (*)(double))(floor),
-	checkedLog,
-	checkedLog10,
-	(double (*)(double))(sin),
-	(double (*)(double))(sinh),
-	checkedSqrt,
-	(double (*)(double))(tan),
-	(double (*)(double))(tanh),
-	(double (*)(double))(round)
+	(double (*)(double))(fabs), (double (*)(double))(acos), (double (*)(double))(asin), (double (*)(double))(atan),
+	(double (*)(double))(ceil), (double (*)(double))(cos), (double (*)(double))(cosh), (double (*)(double))(exp),
+	(double (*)(double))(floor), checkedLog, checkedLog10, (double (*)(double))(sin), (double (*)(double))(sinh),
+	checkedSqrt, (double (*)(double))(tan), (double (*)(double))(tanh), (double (*)(double))(round)
 };
 
 double (*const Interpreter::BINARY_MATH_FUNCTIONS[BINARY_MATH_FUNCTION_COUNT])(double, double) = {
-	computeAtan2,
-	computeHypot
+	(double (*)(double, double))(atan2), (double (*)(double, double))(hypot)
 };
 const Char Interpreter::ESCAPE_CHARS[ESCAPE_CODE_COUNT] = {	 'a',  'b',	 'f',  'n',	 'r',  't',	 'v' };
 const Char Interpreter::ESCAPE_CODES[ESCAPE_CODE_COUNT] = { '\a', '\b', '\f', '\n', '\r', '\t', '\v' };
