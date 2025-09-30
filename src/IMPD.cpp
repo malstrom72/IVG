@@ -995,7 +995,7 @@ StringIt Interpreter::evaluateInner(StringIt b, const StringIt& e, EvaluationVal
 			switch (*t) {
 				case '+': case '-': q = numericOperation(t, e, v, precedence, *t, ADD_SUB, dry); break;
 				case '*': if (t + 1 != e && t[1] == '*') { q = numericOperation(t, e, v, precedence, '^', POW, dry); break; }
-					/* else continue */
+				/* else continue */
 				case '/': q = numericOperation(t, e, v, precedence, *t, MUL_DIV_MOD, dry); break;
 				case '%': q = moduloPercentOperation(t, e, v, precedence, dry); break;
 				case '<': case '>': case '=': case '!': q = comparisonOperation(t, e, v, precedence, dry); break;
