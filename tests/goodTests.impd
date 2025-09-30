@@ -249,12 +249,14 @@ TRACE {1<1000} == yes
 TRACE {1000<a} == yes
 TRACE {1<0aaa} == yes // numbers are always < strings
 
-TRACE {abs(-0.5) " " acos(0.5) " " asin(0.5) " " atan(0.5) " " ceil(0.1) " " ceil(-0.1) " " cos(0.5) " " cosh(0.5) " " exp(0.5)
- " " floor(0.9) " " floor(-0.1) " " log(0.5) " " log10(0.5) " " sin(0.5) " " sinh(0.5) " " sqrt(0.5) " " tan(0.5) " " tanh(0.5) }
-TRACE {atan2(1, 1)}
-TRACE {atan2(-1, 0)}
-TRACE {hypot(3, 4)}
-TRACE {hypot(-5, 12)}
+TRACE {  abs  (  -0.5  )   " " acos  (  0.5  )   " " asin  (  0.5  )   " " atan  (  0.5  )   " " ceil  (  0.1  )   " " ceil  (  -0.1  )   " " cos  (  0.5  )   " " cosh  (  0.5  )   " " exp  (  0.5  )  
+ " " floor  (  0.9  )   " " floor  (  -0.1  )   " " log  (  0.5  )   " " log10  (  0.5  )   " " sin  (  0.5  )   " " sinh  (  0.5  )   " " sqrt  (  0.5  )   " " tan  (  0.5  )   " " tanh  (  0.5  )   }
+TRACE {  abs    -0.5     " " acos    0.5     " " asin    0.5     " " atan    0.5     " " ceil    0.1     " " ceil    -0.1     " " cos    0.5     " " cosh    0.5     " " exp    0.5    
+ " " floor    0.9     " " floor    -0.1     " " log    0.5     " " log10    0.5     " " sin    0.5     " " sinh    0.5     " " sqrt    0.5     " " tan    0.5     " " tanh    0.5     }
+TRACE {  atan2  (  1, 1  )  +  0}
+TRACE {  atan2  (  -1, 0  )  +  0}
+TRACE {  hypot  (  3, 4  )  +  0}
+TRACE {  hypot  (  -5, 12  )  +  0}
 
 x0=m;x1=a;x2=n;x3=x
 TRACE {$(x 0)} == m
@@ -401,6 +403,12 @@ trace {len([abcdef ghi])}
 trace {len([abcdef      ghi])}
 
 trace {len("abcdef      ghi")}
+
+trace {len()}
+
+trace { len   "qwer"  }
+
+trace { len }
 
 this = complete
 trace {[expand $this /* but not this */]}

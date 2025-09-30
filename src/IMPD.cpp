@@ -298,20 +298,16 @@ int Interpreter::findFunction(int n /* string length */, const char* s /* string
 		"log10", "sin", "sinh", "sqrt", "tan", "tanh", "round", "atan2", "hypot", "pi", 
 		"len", "def"
 	};
-	static const int HASH_TABLE[128] = {
-		19, -1, -1, -1, 5, -1, -1, 8, -1, -1, -1, -1, 11, -1, -1, -1, 
-		-1, 6, -1, 0, -1, -1, -1, -1, -1, -1, 13, -1, 14, -1, -1, -1, 
-		-1, -1, -1, -1, 21, -1, 10, -1, -1, 1, -1, -1, -1, -1, -1, -1, 
-		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
-		18, -1, -1, -1, -1, -1, -1, -1, -1, 4, -1, -1, -1, -1, -1, 2, 
-		7, 17, -1, -1, 20, -1, 12, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
-		-1, -1, -1, -1, -1, -1, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
-		3, -1, 16, -1, 9, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
+	static const int HASH_TABLE[64] = {
+		-1, 18, 6, 13, -1, -1, -1, -1, -1, -1, -1, 20, 16, 0, 9, 11, 
+		-1, -1, -1, 21, -1, -1, -1, 14, -1, -1, -1, -1, -1, -1, -1, -1, 
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 4, 15, 
+		7, -1, 1, 8, -1, 3, -1, 12, -1, 19, 5, -1, 2, 17, 10, -1
 	};
 	const unsigned char* p = (const unsigned char*) s;
 	assert(s[n] == '\0');
 	if (n < 2 || n > 5) return -1;
-	int stringIndex = HASH_TABLE[(p[2] * (p[1] ^ n)) & 127u];
+	int stringIndex = HASH_TABLE[(p[1] + p[2] ^ (0u + n) << 3) & 63u];
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
@@ -1105,50 +1101,32 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 			while (q != e && (isSymbolLetter(*q) || *q == '.' || (*q >= '0' && *q <= '9'))) ++q;
 			String sym(p, q);
 			const int funcIndex = findFunction(lossless_cast<int>(sym.size()), sym.c_str());
-			if (funcIndex >= 0 && funcIndex < FUNCTION_LOOKUP_COUNT) {
-				if (funcIndex == PI_FUNCTION) {
-					v = 3.1415926535897932384626433;
-					p = q;
-				} else {
-					StringIt call = eatWhite(q, e);
-					if (call == e || *call != '(') throwBadSyntax("Missing \"(\".");
-					++call;
-					const bool isMathFunction = (funcIndex < MATH_FUNCTION_COUNT);
-				const FunctionIndex function = static_cast<FunctionIndex>(funcIndex);
-				const bool isUnaryMath = (funcIndex < UNARY_MATH_FUNCTION_COUNT);
-				EvaluationValue firstArg;
-				call = eatWhite(call, e);
-				StringIt next = evaluateInner(call, e, firstArg, COMMA, dry);
-				if (next == call) throwBadSyntax("Syntax error.");
-				call = eatWhite(next, e);
-				EvaluationValue secondArg;
-				if (isMathFunction && !isUnaryMath) {
-					if (call == e || *call != ',') throwBadSyntax("Missing \",\".");
-					++call;
-					call = eatWhite(call, e);
-					next = evaluateInner(call, e, secondArg, COMMA, dry);
-					if (next == call) throwBadSyntax("Syntax error.");
-					call = eatWhite(next, e);
+			if (funcIndex < 0) {
+				if (!dry) {
+					v = sym;
 				}
-					if (call == e || *call != ')') throwBadSyntax("Missing \")\".");
-				++call;
-				if (isMathFunction) {
-					if (!dry) {
-						errno = 0;
-						double result;
-						if (isUnaryMath) {
-							result = UNARY_MATH_FUNCTIONS[funcIndex](static_cast<double>(firstArg));
-						} else {
-							const int binaryIndex = funcIndex - UNARY_MATH_FUNCTION_COUNT;
-							result = BINARY_MATH_FUNCTIONS[binaryIndex](static_cast<double>(firstArg), static_cast<double>(secondArg));
+				p = q;
+			} else {
+				switch (funcIndex) {
+					case PI_FUNCTION: {
+						if (!dry) {
+							v = 3.1415926535897932384626433;
 						}
-						if (errno != 0) throwRunTimeError("Math error.");
-						if (!isFinite(result)) throwRunTimeError("Number overflow.");
-						v = result;
+						p = q;
+						break;
 					}
-				} else if (function == LEN_FUNCTION) {
-						if (!dry) v = static_cast<double>(static_cast<String>(firstArg).size());
-					} else if (function == DEF_FUNCTION) {
+					case LEN_FUNCTION: {
+						EvaluationValue firstArg;
+						q = evaluateInner(q, e, firstArg, FUNCTION, dry);
+						if (!dry) {
+							v = static_cast<double>(static_cast<String>(firstArg).size());
+						}
+						p = q;
+						break;
+					}
+					case DEF_FUNCTION: {
+						EvaluationValue firstArg;
+						q = evaluateInner(q, e, firstArg, FUNCTION, dry);
 						if (!dry) {
 							String dummyValue;
 							const String name = firstArg;
@@ -1156,14 +1134,60 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 							for (; f != 0 && !f->vars.lookup(name, dummyValue); f = f->callingFrame) { }
 							v = (f != 0);
 						}
-					} else {
-						assert(0);
+						p = q;
+						break;
 					}
-					p = call;
+					default: {
+						if (funcIndex < UNARY_MATH_FUNCTION_COUNT) {
+							EvaluationValue firstArg;
+							q = evaluateInner(q, e, firstArg, FUNCTION, dry);
+							if (!dry) {
+								errno = 0;
+								const double result = UNARY_MATH_FUNCTIONS[funcIndex](static_cast<double>(firstArg));
+								if (errno != 0) {
+									throwRunTimeError("Math error.");
+								}
+								if (!isFinite(v)) {
+									throwRunTimeError("Number overflow.");
+								}
+								v = result;
+							}
+							p = q;
+						} else {
+							assert(funcIndex < FUNCTION_LOOKUP_COUNT);
+							EvaluationValue firstArg;
+							q = eatWhite(q, e);
+							if (q == e || *q != '(') {
+								throwBadSyntax("Missing \"(\".");
+							}
+							q = evaluateInner(q + 1, e, firstArg, COMMA, dry);
+							q = eatWhite(q, e);
+							if (q == e || *q != ',') {
+								throwBadSyntax("Missing \",\".");
+							}
+							EvaluationValue secondArg;
+							q = evaluateInner(q + 1, e, secondArg, COMMA, dry);
+							q = eatWhite(q, e);
+							if (q == e || *q != ')') {
+								throwBadSyntax("Missing \")\".");
+							}
+							if (!dry) {
+								errno = 0;
+								const int binaryIndex = funcIndex - UNARY_MATH_FUNCTION_COUNT;
+								const double result = BINARY_MATH_FUNCTIONS[binaryIndex](static_cast<double>(firstArg), static_cast<double>(secondArg));
+								if (errno != 0) {
+									throwRunTimeError("Math error.");
+								}
+								if (!isFinite(v)) {
+									throwRunTimeError("Number overflow.");
+								}
+								v = result;
+							}
+							p = q + 1;
+						}
+						break;
+					}
 				}
-			} else {
-				if (!dry) v = sym;
-				p = q;
 			}
 			break;
 		}
