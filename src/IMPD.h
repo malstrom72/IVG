@@ -108,7 +108,7 @@ struct Argument {
 typedef std::vector<Argument> ArgumentVector;
 
 /**
-        Tracks format declarations for the current document scope.
+	Tracks format declarations for the current document scope.
 **/
 struct FormatInfo {
 	FormatInfo() { }
@@ -118,7 +118,7 @@ struct FormatInfo {
 };
 
 /**
-        Stores and validates instruction arguments during parsing.
+	Stores and validates instruction arguments during parsing.
 **/
 class ArgumentsContainer {
 	public:		static ArgumentsContainer parse(const Interpreter& interpreter, const StringRange& range);
@@ -169,11 +169,12 @@ class STLMapVariables : public Variables {
 	Abstract interface for executing instructions and loading resources.
 **/
 class Executor {
-	public:		virtual bool format(Interpreter& interpreter, const FormatInfo* formatInfo) = 0;											///< Return false to throw FormatException if the format is not supported. `formatInfo` contains the normalized identifier, declared `uses:` tokens, and the filtered `requires:` set.
+	public:		virtual bool format(Interpreter& interpreter, const FormatInfo& formatInfo) = 0;						///< Return false to throw FormatException if the format is not supported. `formatInfo` contains the normalized identifier, declared `uses:` tokens, and the filtered `requires:` set.
 	public:		virtual bool execute(Interpreter& interpreter, const String& instruction, const String& arguments) = 0; ///< Return false to throw SyntaxException if instruction is unrecognized. `instruction` is passed in lower case.
 	public:		virtual bool progress(Interpreter& interpreter, int maxStatementsLeft) = 0;								///< Called before every statement is executed. Return false to stop processing and throw AbortedException.
 	public:		virtual bool load(Interpreter& interpreter, const WideString& filename, String& contents) = 0;			///< Called by the INCLUDE instruction. Load contents of file into `contents`. Return false to throw a RunTimeException.
 	public:		virtual void trace(Interpreter& interpreter, const WideString& s) = 0;									///< Used for debugging. Trace `s` to standard out, any log-files etc...
+	public:		virtual bool meta(Interpreter& interpreter, const String& key, const String& arguments) = 0;			///< Used for passing meta-data from the IMPD script to the executor. `key` is passed in lower case (and will end with `-n` version number if declared in `format uses:`). `arguments` is the raw argument string (may be empty). Return false if the meta tag is unrecognized (not an error, but may trace a warning).
 	public:		virtual ~Executor() { }
 };
 

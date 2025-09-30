@@ -202,13 +202,14 @@ class Font {
 **/
 class FontParser : public IMPD::Executor {
 	public:		FontParser(IMPD::Executor* parentExecutor = 0);
-	public:		virtual bool format(IMPD::Interpreter& interpreter, const IMPD::FormatInfo* formatInfo);
+	public:		virtual bool format(IMPD::Interpreter& interpreter, const IMPD::FormatInfo& formatInfo);
 	public:		virtual bool execute(IMPD::Interpreter& interpreter, const IMPD::String& instruction
 						, const IMPD::String& arguments);
 	public:		virtual bool progress(IMPD::Interpreter& interpreter, int maxStatementsLeft);
 	public:		virtual bool load(IMPD::Interpreter& interpreter, const IMPD::WideString& filename
 						, IMPD::String& contents);
 	public:		virtual void trace(IMPD::Interpreter& interpreter, const IMPD::WideString& s);
+	public:		virtual bool meta(IMPD::Interpreter& interpreter, const IMPD::String& key, const IMPD::String& arguments);
 	public:		Font finalizeFont() const;
 	protected:	IMPD::Executor* const parentExecutor;
 	protected:	Font::Metrics metrics;
@@ -314,13 +315,14 @@ struct Image {
 class IVGExecutor : public IMPD::Executor {
 	public:		IVGExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform
 						= NuXPixels::AffineTransformation());
-	public:		virtual bool format(IMPD::Interpreter& interpreter, const IMPD::FormatInfo* formatInfo);
+	public:		virtual bool format(IMPD::Interpreter& interpreter, const IMPD::FormatInfo& formatInfo);
 	public:		virtual bool execute(IMPD::Interpreter& interpreter, const IMPD::String& instruction
 						, const IMPD::String& arguments);
 	public:		virtual void trace(IMPD::Interpreter& interpreter, const IMPD::WideString& s);
 	public:		virtual bool progress(IMPD::Interpreter& interpreter, int maxStatementsLeft);
 	public:		virtual bool load(IMPD::Interpreter& interpreter, const IMPD::WideString& filename
 						, IMPD::String& contents);
+	public:		virtual bool meta(IMPD::Interpreter& interpreter, const IMPD::String& key, const IMPD::String& arguments);
 	
 				/**
 					Return Image with null pointer in `raster` if image can't be loaded. Otherwise point to a raster

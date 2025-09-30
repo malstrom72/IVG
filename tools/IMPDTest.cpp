@@ -29,13 +29,12 @@
 using namespace IMPD;
 
 class MyExecutor : public Executor {
-	public:		virtual bool format(Interpreter& interpreter, const FormatInfo* formatInfo) {
+	public:		virtual bool format(Interpreter& interpreter, const FormatInfo& formatInfo) {
 					(void)interpreter;
-					if (formatInfo == 0) return false;
-				for (std::set<String>::const_iterator it = formatInfo->requires.begin(); it != formatInfo->requires.end(); ++it) {
+					for (std::set<String>::const_iterator it = formatInfo.requires.begin(); it != formatInfo.requires.end(); ++it) {
 						std::cout << *it << std::endl;
 					}
-					return formatInfo->requires.empty();
+					return formatInfo.requires.empty();
 				}
 	public:		virtual bool execute(Interpreter& interpreter, const String& instruction, const String& arguments) {
 					if (instruction == "test") {
@@ -59,6 +58,12 @@ class MyExecutor : public Executor {
 	public:		virtual void trace(Interpreter& interpreter, const WideString& s) {
 					String byteString(s.begin(), s.end());
 					std::cout << byteString << std::endl;
+				}
+	public:		virtual bool meta(Interpreter& interpreter, const String& key, const String& arguments) {
+					(void)interpreter;
+					(void)key;
+					(void)arguments;
+					return false;
 				}
 	public:		virtual bool load(Interpreter& interpreter, const WideString& filename, String& contents) {
 					std::string filename8Bit(filename.begin(), filename.end());
