@@ -1079,94 +1079,78 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 			while (q != e && (isSymbolLetter(*q) || *q == '.' || (*q >= '0' && *q <= '9'))) ++q;
 			String sym(p, q);
 			const int funcIndex = findFunction(lossless_cast<int>(sym.size()), sym.c_str());
-			if (funcIndex < 0) {
-				if (!dry) {
-					v = sym;
-				}
-				p = q;
-			} else {
+			if (funcIndex >= 0) {
+				EvaluationValue arg;
 				switch (funcIndex) {
 					case PI_FUNCTION: {
 						if (!dry) {
 							v = 3.1415926535897932384626433;
 						}
-						p = q;
 						break;
 					}
 					case LEN_FUNCTION: {
-						EvaluationValue firstArg;
-						q = evaluateInner(q, e, firstArg, FUNCTION, dry);
+						q = evaluateInner(q, e, arg, FUNCTION, dry);
 						if (!dry) {
-							v = static_cast<double>(static_cast<String>(firstArg).size());
+							v = static_cast<double>(static_cast<String>(arg).size());
 						}
-						p = q;
 						break;
 					}
 					case DEF_FUNCTION: {
-						EvaluationValue firstArg;
-						q = evaluateInner(q, e, firstArg, FUNCTION, dry);
+						q = evaluateInner(q, e, arg, FUNCTION, dry);
 						if (!dry) {
 							String dummyValue;
-							const String name = firstArg;
+							const String name = arg;
 							const Interpreter* f = this;
 							for (; f != 0 && !f->vars.lookup(name, dummyValue); f = f->callingFrame) { }
 							v = (f != 0);
 						}
-						p = q;
 						break;
 					}
 					default: {
+						double result;
 						if (funcIndex < UNARY_MATH_FUNCTION_COUNT) {
-							EvaluationValue firstArg;
-							q = evaluateInner(q, e, firstArg, FUNCTION, dry);
+							q = evaluateInner(q, e, arg, FUNCTION, dry);
 							if (!dry) {
 								errno = 0;
-								const double result = UNARY_MATH_FUNCTIONS[funcIndex](static_cast<double>(firstArg));
-								if (errno != 0) {
-									throwRunTimeError("Math error.");
-								}
-								if (!isFinite(v)) {
-									throwRunTimeError("Number overflow.");
-								}
-								v = result;
+								result = UNARY_MATH_FUNCTIONS[funcIndex](arg);
 							}
-							p = q;
 						} else {
 							assert(funcIndex < FUNCTION_LOOKUP_COUNT);
-							EvaluationValue firstArg;
 							q = eatWhite(q, e);
 							if (q == e || *q != '(') {
 								throwBadSyntax("Missing \"(\".");
 							}
-							q = evaluateInner(q + 1, e, firstArg, COMMA, dry);
-							q = eatWhite(q, e);
+							q = eatWhite(evaluateInner(q + 1, e, arg, COMMA, dry), e);
 							if (q == e || *q != ',') {
 								throwBadSyntax("Missing \",\".");
 							}
-							EvaluationValue secondArg;
-							q = evaluateInner(q + 1, e, secondArg, COMMA, dry);
-							q = eatWhite(q, e);
+							EvaluationValue arg2;
+							q = eatWhite(evaluateInner(q + 1, e, arg2, COMMA, dry), e);
 							if (q == e || *q != ')') {
 								throwBadSyntax("Missing \")\".");
 							}
+							++q;
 							if (!dry) {
 								errno = 0;
-								const int binaryIndex = funcIndex - UNARY_MATH_FUNCTION_COUNT;
-								const double result = BINARY_MATH_FUNCTIONS[binaryIndex](static_cast<double>(firstArg), static_cast<double>(secondArg));
-								if (errno != 0) {
-									throwRunTimeError("Math error.");
-								}
-								if (!isFinite(v)) {
-									throwRunTimeError("Number overflow.");
-								}
-								v = result;
+								result = BINARY_MATH_FUNCTIONS[funcIndex - UNARY_MATH_FUNCTION_COUNT](arg, arg2);
 							}
-							p = q + 1;
 						}
+						if (!dry) {
+							if (errno != 0) {
+								throwRunTimeError("Math error.");
+							}
+							if (!isFinite(v)) {
+								throwRunTimeError("Number overflow.");
+							}
+							v = result;
+						}							
 						break;
 					}
 				}
+			} else if (!dry) {
+				v = sym;
 			}
+			p = q;
 			break;
 		}
 	}
@@ -1329,7 +1313,7 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 
 	BuiltInInstruction instruction = static_cast<BuiltInInstruction>(foundIndex);
 	switch (instruction) {
-			case STOP_INSTRUCTION: throw AbortedException("Encountered \"STOP\" instruction.");
+		case STOP_INSTRUCTION: throw AbortedException("Encountered \"STOP\" instruction.");
 		case TRACE_INSTRUCTION: { executor.trace(*this, unescapeToWide(argumentsRange)); break; }
 
 		case FORMAT_INSTRUCTION: {
