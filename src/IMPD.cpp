@@ -1326,7 +1326,6 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 						bestVersion = parsedVersion;
 						resolvedMeta = *it;
 					}
-					++it;
 				}
 				if (resolvedMeta.empty()) {
 					throwBadSyntax(String("Undeclared meta tag: ") + metaToken);

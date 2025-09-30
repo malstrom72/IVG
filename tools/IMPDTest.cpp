@@ -60,9 +60,13 @@ class MyExecutor : public Executor {
 					std::cout << byteString << std::endl;
 				}
 	public:		virtual bool meta(Interpreter& interpreter, const String& key, const String& arguments) {
-					(void)interpreter;
-					(void)key;
-					(void)arguments;
+					if (key == "test-1") {
+						std::cout << "Meta test-1: " << arguments << std::endl;
+						return true;
+					} else if (key == "test-2") {
+						std::cout << "Meta test-2: " << arguments << std::endl;
+						return true;
+					}
 					return false;
 				}
 	public:		virtual bool load(Interpreter& interpreter, const WideString& filename, String& contents) {

@@ -25,9 +25,9 @@
 
 /* Begin PBXFileReference section */
 		F746993016B2AF4C009E735B /* IMPDTest */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = IMPDTest; sourceTree = BUILT_PRODUCTS_DIR; };
-		F7F2F72016B801460089CB2C /* IMPD.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = IMPD.cpp; path = src/IMPD.cpp; sourceTree = "<group>"; };
-		F7F2F72116B801460089CB2C /* IMPD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IMPD.h; path = src/IMPD.h; sourceTree = "<group>"; };
-		F7F2F72216B801460089CB2C /* IMPDTest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IMPDTest.cpp; sourceTree = "<group>"; };
+		F7F2F72016B801460089CB2C /* IMPD.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = IMPD.cpp; path = ../src/IMPD.cpp; sourceTree = "<group>"; };
+		F7F2F72116B801460089CB2C /* IMPD.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = IMPD.h; path = ../src/IMPD.h; sourceTree = "<group>"; };
+		F7F2F72216B801460089CB2C /* IMPDTest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = IMPDTest.cpp; path = ../tools/IMPDTest.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -182,6 +182,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				USER_HEADER_SEARCH_PATHS = ../;
 			};
 			name = Debug;
 		};
@@ -216,6 +217,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				SDKROOT = macosx;
+				USER_HEADER_SEARCH_PATHS = ../;
 			};
 			name = Release;
 		};
