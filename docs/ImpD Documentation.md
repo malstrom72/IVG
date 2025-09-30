@@ -329,12 +329,9 @@ The `format` instruction specifies the file format and its requirements:
 
 	format <id> [uses:<id>[,<id>,...]] [requires:<id>[,<id>,...]]
 
-The `id` is typically in the form of `<name>-<version>`. The `uses` parameter specifies meta tags `id`s. The `requires`
-parameter specifies the baseline _ImpD_ (e.g. `ImpD-1`) and any custom extensions. If the parser does not recognize a
-required `id`, it cannot load the file.
+The `id` is typically in the form of `<name>-<version>`. The `uses` parameter lists meta tokens `<id>-<version>` that the document may issue later, while `requires` specifies the baseline _ImpD_ (for example `impd-1`) and any custom extensions. If the parser does not recognize a required `id`, it cannot load the file.
 
-Including a `format` instruction in your _ImpD_ document is good practice, although not strictly necessary. It should be
-the first instruction in your document, and no more than one `format` instruction should be present.
+The interpreter enforces that only one `format` instruction appears per document. Each embedded sub-document (for example an inline font) receives its own fresh format scope. Because `uses:` entries are recorded verbatim, any later `meta` instruction must match one of the declared `<id>-<version>` tokens or it will fail with a syntax error.
 
 #### if
 
@@ -366,8 +363,7 @@ The `meta` instruction is akin to a comment for the client software or a vendor-
 
 	meta <id> ...
 
-The `id` must be a unique identifier. The [`format`](#format) instruction should have listed it in the `uses` argument.
-Unknown `id`s are ignored.
+The `<id>` must have been declared by the [`format`](#format) instruction’s `uses:` list. You may reference an explicit `<id>-<version>` token (for example `meta snapshot-1`) or omit the version to have the interpreter resolve the highest declared version for that identifier. If a meta token was not declared—or requests a version that was never listed—the interpreter throws a syntax error. Executors are still allowed to ignore recognized metas silently.
 
 #### repeat
 

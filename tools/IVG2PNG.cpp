@@ -79,7 +79,8 @@ class IVGExecutorWithExternalFiles : public IVGExecutor {
 				std::wcerr << "parsing external font " << fontName << std::endl;
 				FontParser fontParser;
 				STLMapVariables vars;
-				Interpreter impd(fontParser, vars);
+			    FormatInfo formatInfo;
+				Interpreter impd(fontParser, vars, formatInfo);
 				impd.run(fontCode);
 				insertResult.first->second = fontParser.finalizeFont();
 			}
@@ -185,7 +186,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 		{
 			STLMapVariables topVars;
 			FuzzerExecutor ivgExecutor(canvas);
-			Interpreter impd(ivgExecutor, topVars);
+			FormatInfo formatInfo;
+			Interpreter impd(ivgExecutor, topVars, formatInfo);
 			impd.run(ivgSource);
 		}
 	}
@@ -250,8 +252,9 @@ int main(int argc, const char* argv[]) {
 		SelfContainedARGB32Canvas canvas;
 		{
 			STLMapVariables topVars;
-			IVGExecutorWithExternalFiles ivgExecutor(canvas, fontPath, imagePath);
-			Interpreter impd(ivgExecutor, topVars);
+			IVGExecutorWithExternalFiles ivgExecutor(canvas, fontPath);
+			FormatInfo formatInfo;
+			Interpreter impd(ivgExecutor, topVars, formatInfo);
 			impd.run(ivgContents);
 		}
 		std::cerr << "Rasterized image..." << std::endl;

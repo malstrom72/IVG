@@ -508,15 +508,17 @@ template<> ARGB32::Pixel parseColor<ARGB32>(Interpreter& impd, const StringRange
 
 ARGB32::Pixel parseColor(const String& color) {
 	class DummyExecutor : public Executor {
-		public:		virtual bool format(Interpreter&, const String&, const StringVector&, const StringVector&) { return true; }
+		public:		virtual bool format(Interpreter&, const FormatInfo&) { return false; }
 		public:		virtual bool execute(Interpreter&, const String&, const String&) { return true; }
 		public:		virtual bool progress(Interpreter&, int) { return true; }
 		public:		virtual bool load(Interpreter&, const WideString&, String&) { return false; }
 		public:		virtual void trace(Interpreter&, const WideString&) { }
+		public:		virtual bool meta(Interpreter&, const String&, const String&) { return false; }
 	};
 	DummyExecutor executor;
 	STLMapVariables vars;
-	Interpreter impd(executor, vars);
+	FormatInfo formatInfo;	// Standalone helper runs in its own format scope.
+	Interpreter impd(executor, vars, formatInfo);
 	return parseColor<ARGB32>(impd, color);
 }
 
@@ -617,9 +619,9 @@ static AffineTransformation parseSingleTransformation(Interpreter& impd, Transfo
 
 class TransformationExecutor : public Executor {
 	public:		TransformationExecutor(Executor& parentExecutor) : parentExecutor(parentExecutor) { };
-	public:		virtual bool format(Interpreter& impd, const String& identifier, const vector<String>& uses
-						, const vector<String>& requires) {
-					(void)impd; (void)identifier; (void)uses; (void)requires;
+	public:		virtual bool format(Interpreter& impd, const FormatInfo& formatInfo) {
+					(void)impd;
+					(void)formatInfo;
 					return false;
 				}
 	public:		virtual bool execute(Interpreter& impd, const String& instruction, const String& arguments) {
@@ -636,6 +638,12 @@ class TransformationExecutor : public Executor {
 	public:		virtual void trace(Interpreter& impd, const WideString& s) { parentExecutor.trace(impd, s); }
 	public:		virtual bool progress(Interpreter& impd, int maxStatementsLeft) { return parentExecutor.progress(impd, maxStatementsLeft); }
 	public:		virtual bool load(Interpreter& impd, const WideString& filename, String& contents) { return parentExecutor.load(impd, filename, contents); }
+	public:		virtual bool meta(Interpreter& interpreter, const String& key, const String& arguments) {
+					(void)interpreter;
+					(void)key;
+					(void)arguments;
+					return false;
+				}
 	public:		const AffineTransformation& getTransform() const { return xf; }
 	protected:	Executor& parentExecutor;
 	protected:	AffineTransformation xf;
@@ -885,7 +893,7 @@ class PathInstructionExecutor : public Executor {
 
 static AffineTransformation parseTransformationBlock(Interpreter& impd, const String& source) {
 	TransformationExecutor xfExecutor(impd.getExecutor());
-	Interpreter newInterpreter(xfExecutor, impd);
+	Interpreter newInterpreter(xfExecutor, impd.getFormatInfo(), impd);	// Share the parent document's format declarations.
 	newInterpreter.run(source);
 	return xfExecutor.getTransform();
 }
@@ -1231,13 +1239,19 @@ void IVGExecutor::runInNewContext(Interpreter& interpreter, Context& context, co
 	}
 }
 
-bool IVGExecutor::format(Interpreter& impd, const String& identifier, const vector<String>& uses
-		, const vector<String>& requires) {
-	(void)impd; (void)uses;
-	if (!requires.empty()) return false;
-	if (identifier == "ivg-1") { formatVersion = IVG_1; return true; }
-	if (identifier == "ivg-2") { formatVersion = IVG_2; return true; }
-	if (identifier == "ivg-3") { formatVersion = IVG_3; return true; }
+bool IVGExecutor::format(Interpreter& impd, const FormatInfo& formatInfo) {
+	(void)impd;
+	if (!formatInfo.requires.empty()) return false;
+	if (formatInfo.formatId == "ivg-1") { formatVersion = IVG_1; return true; }
+	if (formatInfo.formatId == "ivg-2") { formatVersion = IVG_2; return true; }
+	if (formatInfo.formatId == "ivg-3") { formatVersion = IVG_3; return true; }
+	return false;
+}
+
+bool IVGExecutor::meta(Interpreter& impd, const String& key, const String& arguments) {
+	(void)impd;
+	(void)key;
+	(void)arguments;
 	return false;
 }
 
@@ -1304,7 +1318,8 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 			Interpreter::throwRunTimeError(String("Duplicate font definition \"") + String(name.begin(), name.end()) + "\".");
 		}
 		IVG::FontParser fontParser(this);
-		Interpreter newInterpreter(fontParser, impd);
+		FormatInfo fontFormatInfo;	// Fresh format scope for embedded font documents.
+		Interpreter newInterpreter(fontParser, fontFormatInfo, impd);
 		newInterpreter.run(definition);
 		embeddedFonts[name] = fontParser.finalizeFont();
 		lastFontName = WideString();	// must reset cache cause there is no guarantee that STL preserves pointers after insertion
@@ -2243,10 +2258,16 @@ bool buildPathForString(const UniString& string, const std::vector<const Font*>&
 
 FontParser::FontParser(Executor* parentExecutor) : parentExecutor(parentExecutor) { }
 
-bool FontParser::format(Interpreter& impd, const String& identifier, const StringVector& uses
-		, const StringVector& requires) {
-	(void)impd; (void)uses;
-	return (identifier == "ivgfont-1" && requires.empty());
+bool FontParser::format(Interpreter& impd, const FormatInfo& formatInfo) {
+	(void)impd;
+	return (formatInfo.formatId == "ivgfont-1" && formatInfo.requires.empty());
+}
+
+bool FontParser::meta(Interpreter& impd, const String& key, const String& arguments) {
+	(void)impd;
+	(void)key;
+	(void)arguments;
+	return false;
 }
 
 /* Built with QuickHashGen */

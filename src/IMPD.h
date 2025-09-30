@@ -31,6 +31,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <stdint.h>
 
 namespace IMPD {
@@ -58,7 +59,7 @@ const double NUMBER_PRECISION_MAGNITUDE = 1e-13;
 const int MATH_FUNCTION_COUNT = 19;
 const int BINARY_MATH_FUNCTION_COUNT = 2;
 const int UNARY_MATH_FUNCTION_COUNT = MATH_FUNCTION_COUNT - BINARY_MATH_FUNCTION_COUNT;
-const int BUILT_IN_INSTRUCTION_COUNT = 11;
+const int BUILT_IN_INSTRUCTION_COUNT = 12;
 const int ESCAPE_CODE_COUNT = 7;
 
 WideString convertUniToWideString(const UniString& s);
@@ -107,6 +108,16 @@ struct Argument {
 	String value;
 };
 typedef std::vector<Argument> ArgumentVector;
+
+/**
+	Tracks format declarations for the current document scope.
+**/
+struct FormatInfo {
+	FormatInfo() { }
+	String formatId;
+	std::set<String> uses;
+	std::set<String> requires;
+};
 
 /**
 	Stores and validates instruction arguments during parsing.
@@ -160,12 +171,12 @@ class STLMapVariables : public Variables {
 	Abstract interface for executing instructions and loading resources.
 **/
 class Executor {
-	public:		virtual bool format(Interpreter& interpreter, const String& identifier, const StringVector& uses	
-						, const StringVector& requires) = 0;															///< Return false to throw FormatException if "identifier" is not correct or any element in "requires" is unknown / not supported. Empty requirements and requirements of 'IMPD-1' etc are removed from the list before this call. All strings are passed in lower case.
+	public:		virtual bool format(Interpreter& interpreter, const FormatInfo& formatInfo) = 0;						///< Return false to throw FormatException if the format is not supported. `formatInfo` contains the normalized identifier, declared `uses:` tokens, and the filtered `requires:` set.
 	public:		virtual bool execute(Interpreter& interpreter, const String& instruction, const String& arguments) = 0; ///< Return false to throw SyntaxException if instruction is unrecognized. `instruction` is passed in lower case.
 	public:		virtual bool progress(Interpreter& interpreter, int maxStatementsLeft) = 0;								///< Called before every statement is executed. Return false to stop processing and throw AbortedException.
 	public:		virtual bool load(Interpreter& interpreter, const WideString& filename, String& contents) = 0;			///< Called by the INCLUDE instruction. Load contents of file into `contents`. Return false to throw a RunTimeException.
 	public:		virtual void trace(Interpreter& interpreter, const WideString& s) = 0;									///< Used for debugging. Trace `s` to standard out, any log-files etc...
+	public:		virtual bool meta(Interpreter& interpreter, const String& key, const String& arguments) = 0;			///< Used for passing meta-data from the IMPD script to the executor. `key` is passed in lower case (and will end with `-n` version number if declared in `format uses:`). `arguments` is the raw argument string (may be empty). Return false if the meta tag is unrecognized (not an error, but may trace a warning).
 	public:		virtual ~Executor() { }
 };
 
@@ -202,13 +213,15 @@ class Interpreter {
 	public:		static bool isQuotedString(const String& s);
 	public:		static bool isCurlyExpression(const String& s);
 
-	public:		Interpreter(Executor& executor, Variables& vars
+	public:		Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo
 						, int statementsLimit = DEFAULT_STATEMENTS_LIMIT
-						, int recursionLimit = DEFAULT_RECURSION_LIMIT);									///< Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`.
-	public:		Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame);
-	public:		Interpreter(Executor& executor, Interpreter& enclosingInterpreter);
+						, int recursionLimit = DEFAULT_RECURSION_LIMIT);												///< Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`.
+	public:		Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, Interpreter& callingFrame);
+	public:		Interpreter(Executor& executor, FormatInfo& formatInfo, Interpreter& enclosingInterpreter);
 	public:		Executor& getExecutor() const { return executor; }
 	public:		Variables& getVariables() const { return vars; }
+	public:		FormatInfo& getFormatInfo() { return formatInfo; }
+	public:		const FormatInfo& getFormatInfo() const { return formatInfo; }
 	public:		int mapArguments(const ArgumentVector& allArguments, StringStringMap& labeledArguments
 						, StringVector& indexedArguments);													///< `labeledArguments` will map the labels converted to all lower case
 	public:		void parseArguments(const StringRange& r, ArgumentVector& arguments) const;
@@ -253,6 +266,7 @@ class Interpreter {
 	protected:	StringIt evaluateOuter(StringIt b, const StringIt& e, EvaluationValue& v, bool dry) const;
 	protected:	Executor& executor;
 	protected:	Variables& vars;
+	protected:	FormatInfo& formatInfo;
 	protected:	Interpreter* callingFrame;
 	protected:	Interpreter& rootFrame;
 	protected:	int statementsLimit;
@@ -260,7 +274,7 @@ class Interpreter {
 
 	protected:	enum BuiltInInstruction {
 					DEBUG_INSTRUCTION, CALL_INSTRUCTION, FOR_INSTRUCTION, FORMAT_INSTRUCTION, IF_INSTRUCTION
-					, INCLUDE_INSTRUCTION, LOCAL_INSTRUCTION, REPEAT_INSTRUCTION, RETURN_INSTRUCTION
+					, INCLUDE_INSTRUCTION, LOCAL_INSTRUCTION, META_INSTRUCTION, REPEAT_INSTRUCTION, RETURN_INSTRUCTION
 					, STOP_INSTRUCTION, TRACE_INSTRUCTION
 				};
 	protected:	static const char* BUILT_IN_INSTRUCTION_STRINGS[BUILT_IN_INSTRUCTION_COUNT];

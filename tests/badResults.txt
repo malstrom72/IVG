@@ -165,3 +165,11 @@ in statement: INCLUDE missing.impd
 Exception: Statements limit reached.
 in statement: []
 Exception: Statements limit reached.
+Exception: Duplicate format instruction
+in statement: format duplicate-2 uses:[snapshot-1] requires:[impd-1]
+Exception: Undeclared meta tag: unknown
+in statement: meta unknown
+Exception: Undeclared meta tag: snapshot-2
+in statement: meta snapshot-2
+Exception: Statements limit reached
+in statement: []

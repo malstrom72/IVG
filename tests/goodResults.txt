@@ -322,3 +322,6 @@ OK-YES-1
 OK-YES-2
 OK-NO-1
 OK-NO-2
+Meta test-1: this-is-test-1
+Meta test-2: this-is-test-2
+Meta test-2: this-should-be-test-2
