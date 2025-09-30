@@ -26,6 +26,7 @@
 #include <cstring>
 #include <algorithm>
 #include <limits>
+#include <cstdlib>
 #include "IMPD.h"
 
 #if defined(_MSVC_LANG)
@@ -256,47 +257,53 @@ static double checkedSqrt(double x) {
 	return sqrt(x);
 }
 
-double (*Interpreter::MATH_FUNCTION_POINTERS[MATH_FUNCTION_COUNT])(double) = {
-	(double (*)(double))(fabs), (double (*)(double))(acos), (double (*)(double))(asin), (double (*)(double))(atan)
-	, (double (*)(double))(ceil), (double (*)(double))(cos), (double (*)(double))(cosh), (double (*)(double))(exp)
-	, (double (*)(double))(floor), (double (*)(double))(checkedLog), (double (*)(double))(checkedLog10)
-	, (double (*)(double))(sin), (double (*)(double))(sinh), (double (*)(double))(checkedSqrt)
-	, (double (*)(double))(tan), (double (*)(double))(tanh), (double (*)(double))(round)
+double (*const Interpreter::UNARY_MATH_FUNCTIONS[UNARY_MATH_FUNCTION_COUNT])(double) = {
+	(double (*)(double))(fabs), (double (*)(double))(acos), (double (*)(double))(asin), (double (*)(double))(atan),
+	(double (*)(double))(ceil), (double (*)(double))(cos), (double (*)(double))(cosh), (double (*)(double))(exp),
+	(double (*)(double))(floor), checkedLog, checkedLog10, (double (*)(double))(sin), (double (*)(double))(sinh),
+	checkedSqrt, (double (*)(double))(tan), (double (*)(double))(tanh), (double (*)(double))(round)
 };
 
+double (*const Interpreter::BINARY_MATH_FUNCTIONS[BINARY_MATH_FUNCTION_COUNT])(double, double) = {
+	(double (*)(double, double))(atan2), (double (*)(double, double))(hypot)
+};
 const Char Interpreter::ESCAPE_CHARS[ESCAPE_CODE_COUNT] = {	 'a',  'b',	 'f',  'n',	 'r',  't',	 'v' };
 const Char Interpreter::ESCAPE_CODES[ESCAPE_CODE_COUNT] = { '\a', '\b', '\f', '\n', '\r', '\t', '\v' };
 
 /* Built with QuickHashGen */
 int Interpreter::findFunction(int n /* string length */, const char* s /* string (zero terminated) */) {
-	static const char* STRINGS[20] = {
-		"abs", "acos", "asin", "atan", "ceil", "cos", "cosh", "exp", "floor", "log",
-		"log10", "sin", "sinh", "sqrt", "tan", "tanh", "round", "pi", "len", "def"
+	static const char* STRINGS[22] = {
+		"abs", "acos", "asin", "atan", "ceil", "cos", "cosh", "exp", "floor", "log", 
+		"log10", "sin", "sinh", "sqrt", "tan", "tanh", "round", "atan2", "hypot", "pi", 
+		"len", "def"
 	};
 	static const int HASH_TABLE[64] = {
-		-1, -1, -1, -1, 11, 15, -1, -1, -1, 12, 16, 17, -1, -1, -1, -1,
-		-1, -1, 10, -1, -1, -1, 18, -1, -1, -1, 14, -1, -1, 4, -1, -1,
-		-1, 0, -1, -1, -1, 8, 19, 1, -1, -1, 5, 6, 9, -1, 3, -1,
-		-1, 13, -1, 7, -1, -1, -1, 2, -1, -1, -1, -1, -1, -1, -1, -1
+		-1, 18, 6, 13, -1, -1, -1, -1, -1, -1, -1, 20, 16, 0, 9, 11, 
+		-1, -1, -1, 21, -1, -1, -1, 14, -1, -1, -1, -1, -1, -1, -1, -1, 
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 4, 15, 
+		7, -1, 1, 8, -1, 3, -1, 12, -1, 19, 5, -1, 2, 17, 10, -1
 	};
+	const unsigned char* p = (const unsigned char*) s;
+	assert(s[n] == '\0');
 	if (n < 2 || n > 5) return -1;
-	int stringIndex = HASH_TABLE[((n ^ s[1]) - s[0] ^ s[0]) & 63];
-	return (stringIndex >= 0 && strncmp(s, STRINGS[stringIndex], n) == 0 && STRINGS[stringIndex][n] == 0) ? stringIndex : -1;
+	int stringIndex = HASH_TABLE[(p[1] + p[2] ^ (0u + n) << 3) & 63u];
+	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
 /* Built with QuickHashGen */
 int Interpreter::findBuiltInInstruction(int n, const char* s) {
-	static const char* STRINGS[11] = {
-		"_debug", "call", "for", "format", "if", "include", "local", "repeat",
+	static const char* STRINGS[12] = {
+		"_debug", "call", "for", "format", "if", "include", "local", "meta", "repeat",
 		"return", "stop", "trace"
 	};
 	static const int HASH_TABLE[32] = {
-		-1, -1, 4, -1, -1, -1, 10, -1, 6, -1, 5, 0, -1, -1, -1, -1,
-		1, -1, -1, 9, -1, 2, 7, -1, 3, -1, 8, -1, -1, -1, -1, -1
+		8, -1, 3, -1, 9, -1, -1, -1, -1, 11, 2, 6, 1, -1, -1, 10,
+		4, -1, -1, -1, 7, 0, -1, -1, -1, -1, -1, 5, -1, -1, -1, -1
 	};
+	const unsigned char* p = (const unsigned char*) s;
 	assert(s[n] == '\0');
 	if (n < 2 || n > 7) return -1;
-	int stringIndex = HASH_TABLE[(n + s[2]) & 31];
+	int stringIndex = HASH_TABLE[((static_cast<unsigned int>(n) << 3) ^ p[2]) & 31u];
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
@@ -339,16 +346,21 @@ Interpreter::EvaluationValue::operator String() const {
 	}
 }
 
-Interpreter::Interpreter(Executor& executor, Variables& vars, int statementsLimit, int recursionLimit)
-		: executor(executor), vars(vars), callingFrame(0), rootFrame(*this)
+Interpreter::Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, int statementsLimit, int recursionLimit)
+		: executor(executor), vars(vars), formatInfo(formatInfo), callingFrame(0), rootFrame(*this)
 		, statementsLimit(statementsLimit), recursionLimit(recursionLimit) { }
 
 Interpreter::Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame)
-		: executor(executor), vars(vars), callingFrame(&callingFrame), rootFrame(callingFrame.rootFrame)
+		: executor(executor), vars(vars), formatInfo(callingFrame.formatInfo), callingFrame(&callingFrame), rootFrame(callingFrame.rootFrame)
 		, statementsLimit(callingFrame.statementsLimit), recursionLimit(callingFrame.recursionLimit) { }
 
 Interpreter::Interpreter(Executor& executor, Interpreter& enclosingInterpreter)
-		: executor(executor), vars(enclosingInterpreter.vars), callingFrame(enclosingInterpreter.callingFrame)
+		: executor(executor), vars(enclosingInterpreter.vars), formatInfo(enclosingInterpreter.formatInfo)
+		, callingFrame(enclosingInterpreter.callingFrame), rootFrame(enclosingInterpreter.rootFrame)
+		, statementsLimit(enclosingInterpreter.statementsLimit), recursionLimit(enclosingInterpreter.recursionLimit) { }
+
+Interpreter::Interpreter(Executor& executor, Interpreter& enclosingInterpreter, FormatInfo& formatInfo)
+		: executor(executor), vars(enclosingInterpreter.vars), formatInfo(formatInfo), callingFrame(enclosingInterpreter.callingFrame)
 		, rootFrame(enclosingInterpreter.rootFrame), statementsLimit(enclosingInterpreter.statementsLimit)
 		, recursionLimit(enclosingInterpreter.recursionLimit) { }
 
@@ -607,7 +619,7 @@ void Interpreter::run(const StringRange& r) {
 			StringIt q = eatStatement(p, r.e);
 			activeRange.e = p = q;
 			if (rootFrame.statementsLimit == 0) throwRunTimeError("Statements limit reached.");
-                        if (!executor.progress(*this, rootFrame.statementsLimit)) throw AbortedException("Execution aborted.");
+			if (!executor.progress(*this, rootFrame.statementsLimit)) throw AbortedException("Execution aborted.");
 			--rootFrame.statementsLimit;
 			expanded = performExpansion(activeRange);
 			activeRange = expanded;
@@ -754,12 +766,6 @@ double Interpreter::toDouble(const StringRange& r) {
 	return v;
 }
 
-bool Interpreter::toBool(const String& s) {
-	if (s == YES_STRING) return true;
-	else if (s != NO_STRING) throwRunTimeError(String("Invalid boolean value \"") + s + "\"; expected \"yes\" or \"no\".");
-	return false;
-}
-
 String Interpreter::toLower(const StringRange& r) {
 	String d(r.e - r.b, 0);
 	String::iterator q = d.begin();
@@ -773,6 +779,16 @@ String Interpreter::toLower(const StringRange& r) {
 bool Interpreter::isBracketBlock(const String& s) { return (s.size() >= 2 && s[0] == '[' && s.back() == ']'); }
 bool Interpreter::isQuotedString(const String& s) { return (s.size() >= 2 && s[0] == '"' && s.back() == '"'); }
 bool Interpreter::isCurlyExpression(const String& s) { return (s.size() >= 2 && s[0] == '{' && s.back() == '}'); }
+
+bool Interpreter::toBool(const String& s) {
+	const String lower = toLower(s);
+	if (lower == YES_STRING) {
+		return true;
+	} else if (lower != NO_STRING) {
+		throwRunTimeError(String("Invalid boolean value \"") + s + "\"; expected \"yes\" or \"no\".");
+	}
+	return false;
+}
 
 StringIt Interpreter::numericOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence
 		, Char op, Precedence opPrecedence, bool dry) const {
@@ -1069,30 +1085,74 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 			StringIt q = p;
 			while (q != e && (isSymbolLetter(*q) || *q == '.' || (*q >= '0' && *q <= '9'))) ++q;
 			String sym(p, q);
-			int funcIndex = findFunction(lossless_cast<int>(sym.size()), sym.c_str());
-			if (funcIndex >= 0 && funcIndex < MATH_FUNCTION_COUNT) {
-				errno = 0;
-				q = evaluateInner(q, e, v, FUNCTION, dry);
-				if (!dry) {
-					v = MATH_FUNCTION_POINTERS[funcIndex](v);
-					if (errno != 0) throwRunTimeError("Math error.");
-					if (!isFinite(v)) throwRunTimeError("Number overflow.");
-				}
-			} else if (funcIndex == MATH_FUNCTION_COUNT) {			// pi
-				v = 3.1415926535897932384626433;
-			} else if (funcIndex == MATH_FUNCTION_COUNT + 1) {		// len
-				q = evaluateInner(q, e, v, FUNCTION, dry);
-				if (!dry) {
-					v = static_cast<double>(static_cast<String>(v).size());
-				}
-			} else if (funcIndex == MATH_FUNCTION_COUNT + 2) {		// def
-				q = evaluateInner(q, e, v, FUNCTION, dry);
-				if (!dry) {
-					String dummyValue;
-					const String name = v;
-					const Interpreter* f = this;
-					for (; f != 0 && !f->vars.lookup(name, dummyValue); f = f->callingFrame) { }
-					v = (f != 0);
+			const int funcIndex = findFunction(lossless_cast<int>(sym.size()), sym.c_str());
+			if (funcIndex >= 0) {
+				EvaluationValue arg;
+				switch (funcIndex) {
+					case PI_FUNCTION: {
+						if (!dry) {
+							v = 3.1415926535897932384626433;
+						}
+						break;
+					}
+					case LEN_FUNCTION: {
+						q = evaluateInner(q, e, arg, FUNCTION, dry);
+						if (!dry) {
+							v = static_cast<double>(static_cast<String>(arg).size());
+						}
+						break;
+					}
+					case DEF_FUNCTION: {
+						q = evaluateInner(q, e, arg, FUNCTION, dry);
+						if (!dry) {
+							String dummyValue;
+							const String name = arg;
+							const Interpreter* f = this;
+							for (; f != 0 && !f->vars.lookup(name, dummyValue); f = f->callingFrame) { }
+							v = (f != 0);
+						}
+						break;
+					}
+					default: {
+						double result;
+						if (funcIndex < UNARY_MATH_FUNCTION_COUNT) {
+							q = evaluateInner(q, e, arg, FUNCTION, dry);
+							if (!dry) {
+								errno = 0;
+								result = UNARY_MATH_FUNCTIONS[funcIndex](arg);
+							}
+						} else {
+							assert(funcIndex < FUNCTION_LOOKUP_COUNT);
+							q = eatWhite(q, e);
+							if (q == e || *q != '(') {
+								throwBadSyntax("Missing \"(\".");
+							}
+							q = eatWhite(evaluateInner(q + 1, e, arg, COMMA, dry), e);
+							if (q == e || *q != ',') {
+								throwBadSyntax("Missing \",\".");
+							}
+							EvaluationValue arg2;
+							q = eatWhite(evaluateInner(q + 1, e, arg2, COMMA, dry), e);
+							if (q == e || *q != ')') {
+								throwBadSyntax("Missing \")\".");
+							}
+							++q;
+							if (!dry) {
+								errno = 0;
+								result = BINARY_MATH_FUNCTIONS[funcIndex - UNARY_MATH_FUNCTION_COUNT](arg, arg2);
+							}
+						}
+						if (!dry) {
+							if (errno != 0) {
+								throwRunTimeError("Math error.");
+							}
+							if (!isFinite(v)) {
+								throwRunTimeError("Number overflow.");
+							}
+							v = result;
+						}							
+						break;
+					}
 				}
 			} else if (!dry) {
 				v = sym;
@@ -1250,44 +1310,101 @@ int Interpreter::mapArguments(const ArgumentVector& allArguments, StringStringMa
 void Interpreter::runInstruction(const String& instructionString, const StringRange& argumentsRange) {
 	int foundIndex = findBuiltInInstruction(lossless_cast<int>(instructionString.size()), instructionString.c_str());
 	if (foundIndex < 0) {
-		if (executor.execute(*this, instructionString, argumentsRange) || instructionString == "meta") return;
+		if (executor.execute(*this, instructionString, argumentsRange)) return;
 		else throwBadSyntax(String("Unrecognized instruction \"") + instructionString + "\".");
 	}
-	
-	ArgumentVector allArguments;
-	StringStringMap labeledArguments;
-	StringVector indexedArguments;
 
 	BuiltInInstruction instruction = static_cast<BuiltInInstruction>(foundIndex);
 	switch (instruction) {
-               case STOP_INSTRUCTION: throw AbortedException("Encountered \"STOP\" instruction.");
-		case TRACE_INSTRUCTION: { executor.trace(*this, unescapeToWide(argumentsRange)); break; }
-
-		case FORMAT_INSTRUCTION: {
-			ArgumentsContainer args(ArgumentsContainer::parse(*this, argumentsRange));
-			const String& formatId = args.fetchRequired(0);
-			StringVector usesList;
-			const String* s = args.fetchOptional("uses");
-			if (s != 0) parseList(*s, usesList, true, true, 0, 100);
-			StringVector requiresList;
-			s = args.fetchOptional("requires");
-			if (s != 0) parseList(*s, requiresList, true, true, 0, 100);
-			args.throwIfAnyUnfetched();
-
-			transform(usesList.begin(), usesList.end(), usesList.begin(), toLower);
-			transform(requiresList.begin(), requiresList.end(), requiresList.begin(), toLower);
-			requiresList.erase(remove(requiresList.begin(), requiresList.end(), CURRENT_IMPD_REQUIRES_ID)
-					, requiresList.end());
-			if (!executor.format(*this, toLower(formatId), usesList, requiresList))
-				throw FormatException("Unsupported data format.");
+		case STOP_INSTRUCTION: throw AbortedException("Encountered \"stop\" instruction.");
+		case TRACE_INSTRUCTION: {
+			executor.trace(*this, unescapeToWide(argumentsRange));
 			break;
 		}
 
+		case FORMAT_INSTRUCTION: {
+			if (!formatInfo.formatId.empty()) {
+				throwBadSyntax("Duplicate \"format\" instruction.");
+			}
+			ArgumentsContainer args(ArgumentsContainer::parse(*this, argumentsRange));
+			const String& formatId = args.fetchRequired(0);
+			if (formatId.empty()) {
+				throwBadSyntax("Empty \"format\" identifier.");
+			}
+			StringVector usesList;
+			const String* s = args.fetchOptional("uses");
+			if (s != 0) {
+				parseList(*s, usesList, true, true, 0, 100);
+				transform(usesList.begin(), usesList.end(), usesList.begin(), toLower);
+				for (StringVector::const_iterator it = usesList.begin(); it != usesList.end(); ++it) {
+					formatInfo.uses.insert(*it);
+				}
+			}
+			StringVector requiresList;
+			s = args.fetchOptional("requires");
+			if (s != 0) {
+				parseList(*s, requiresList, true, true, 0, 100);
+				transform(requiresList.begin(), requiresList.end(), requiresList.begin(), toLower);
+				requiresList.erase(remove(requiresList.begin(), requiresList.end(), CURRENT_IMPD_REQUIRES_ID)
+						, requiresList.end());
+				for (StringVector::const_iterator it = requiresList.begin(); it != requiresList.end(); ++it) {
+					formatInfo.requires.insert(*it);
+				}
+			}
+			args.throwIfAnyUnfetched();
+			formatInfo.formatId = toLower(formatId);
+			if (!executor.format(*this, formatInfo)) {
+				throw FormatException("Unsupported data format.");
+			}
+			break;
+		}
+
+		case META_INSTRUCTION: {
+			if (formatInfo.formatId.empty()) {
+				throwBadSyntax("The \"meta\" instruction requires a preceding \"format\" declaration.");
+			}
+			const StringIt b = eatWhite(argumentsRange.b, argumentsRange.e);
+			const StringIt q = eatSymbol(b, argumentsRange.e);
+			if (q == b) {
+				throwBadSyntax("Missing / invalid \"meta\" identifier.");
+			}
+			const String metaToken(b, q);
+			const String metaLower = toLower(metaToken);
+			const FormatInfo& info = formatInfo;
+			String resolvedMeta;
+			if (info.uses.find(metaLower) != info.uses.end()) {
+				resolvedMeta = metaLower;
+			} else {
+				const String prefix(metaLower + "-");
+				uint32_t bestVersion = 0;
+				for (std::set<String>::const_iterator it = info.uses.lower_bound(prefix)
+						; it != info.uses.end() && it->compare(0, prefix.size(), prefix) == 0; ++it) {
+					uint32_t parsedVersion;
+					const StringIt b = it->begin() + prefix.size();
+					const StringIt e = parseUnsignedInt(b, it->end(), parsedVersion);
+					if (e != b && e == it->end() && parsedVersion >= bestVersion) {
+						bestVersion = parsedVersion;
+						resolvedMeta = *it;
+					}
+				}
+				if (resolvedMeta.empty()) {
+					throwBadSyntax(String("Undeclared meta tag: \"") + metaToken + "\".");
+				}
+			}
+			const bool success = executor.meta(*this, resolvedMeta, String(eatWhite(q, argumentsRange.e), argumentsRange.e));
+			(void)success;
+			return;
+		}
+		
 		case LOCAL_INSTRUCTION:
 		case RETURN_INSTRUCTION: {
-			if (argumentsRange.b == argumentsRange.e) throwBadSyntax("Missing variable name.");
+			if (argumentsRange.b == argumentsRange.e) {
+				throwBadSyntax("Missing variable name.");
+			}
 			StringIt p = eatSymbolForAssignment(argumentsRange.b, argumentsRange.e);
-			if (p == argumentsRange.b) throwBadSyntax("Invalid variable name.");
+			if (p == argumentsRange.b) {
+				throwBadSyntax("Invalid variable name.");
+			}
 			String varName(argumentsRange.b, p);
 			StringIt q = eatWhite(p, argumentsRange.e);
 			bool emptyAssignment = (q == argumentsRange.e);
@@ -1302,7 +1419,7 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			} else if (!vars.declare(varName, varValue)) throwRunTimeError(String("Variable \"") + varName + "\" is already declared.");
 			break;
 		}
-
+		
 		case IF_INSTRUCTION: {
 			ArgumentsContainer args(ArgumentsContainer::parse(*this, argumentsRange));
 			const String& condition = args.fetchRequired(0);
@@ -1370,8 +1487,11 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 		
 		case CALL_INSTRUCTION:
 		case INCLUDE_INSTRUCTION: {
+			ArgumentVector allArguments;
 			parseArguments(argumentsRange, allArguments);		
-			if (allArguments.size() < 1) throwBadSyntax("Missing argument(s).");
+			if (allArguments.size() < 1) {
+				throwBadSyntax("Missing argument(s).");
+			}
 			STLMapVariables newVars;
 			String runThis;
 			int counter = 0;
@@ -1393,8 +1513,11 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 		}
 
 		case DEBUG_INSTRUCTION: {
+			ArgumentVector allArguments;
 			parseArguments(argumentsRange, allArguments);		
 			WideString line = L"|";
+			StringStringMap labeledArguments;
+			StringVector indexedArguments;
 			mapArguments(allArguments, labeledArguments, indexedArguments);
 			bool doExpand = false;
 			StringStringMap::const_iterator it = labeledArguments.find("expand");
