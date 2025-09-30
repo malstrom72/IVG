@@ -1422,7 +1422,7 @@ void IVGExecutor::buildPath(Interpreter& impd, ArgumentsContainer& args, const S
             path = it->second;
         } else {
             PathInstructionExecutor pathExecutor(*this, path, curveQuality);
-            Interpreter pathInterpreter(pathExecutor, impd.getFormatInfo(), impd);
+            Interpreter pathInterpreter(pathExecutor, impd);
             pathInterpreter.run(arg0);
         }
     }
