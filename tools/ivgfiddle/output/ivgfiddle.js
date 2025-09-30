@@ -1349,8 +1349,8 @@ if (includeMemoryBudget) {
 if (memoryBudgetPixels > 0) {
 const approxBytes = formatByteSize(memoryBudgetBytes);
 const memoryPixels = memoryBudgetPixels.toLocaleString('en-US');
-const bytesNote = approxBytes !== '' ? ' ≈ ' + approxBytes : '';
-notes.push('memory budget ≈ ' + memoryPixels + ' px' + bytesNote);
+const bytesNote = approxBytes !== '' ? ' (~ ' + approxBytes + ')' : '';
+notes.push('memory budget ~ ' + memoryPixels + ' px' + bytesNote);
 } else {
 notes.push('memory budget');
 }
@@ -1373,8 +1373,8 @@ if (includeMemoryBudget) {
 if (memoryBudgetPixels > 0) {
 const approxBytes = formatByteSize(memoryBudgetBytes);
 const memoryPixels = memoryBudgetPixels.toLocaleString('en-US');
-const bytesNote = approxBytes !== '' ? ' ≈ ' + approxBytes : '';
-notes.push('memory budget ≈ ' + memoryPixels + ' px' + bytesNote);
+const bytesNote = approxBytes !== '' ? ' (~ ' + approxBytes + ')' : '';
+notes.push('memory budget ~ ' + memoryPixels + ' px' + bytesNote);
 } else {
 notes.push('memory budget');
 }
