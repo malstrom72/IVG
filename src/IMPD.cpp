@@ -294,20 +294,24 @@ const Char Interpreter::ESCAPE_CODES[ESCAPE_CODE_COUNT] = { '\a', '\b', '\f', '\
 /* Built with QuickHashGen */
 int Interpreter::findFunction(int n /* string length */, const char* s /* string (zero terminated) */) {
 	static const char* STRINGS[22] = {
-		"abs", "acos", "asin", "atan", "atan2", "ceil", "cos", "cosh", "exp", "floor", 
-		"log", "log10", "sin", "sinh", "sqrt", "tan", "tanh", "round", "hypot", "pi", 
+		"abs", "acos", "asin", "atan", "ceil", "cos", "cosh", "exp", "floor", "log", 
+		"log10", "sin", "sinh", "sqrt", "tan", "tanh", "round", "atan2", "hypot", "pi", 
 		"len", "def"
 	};
-	static const int HASH_TABLE[64] = {
-		-1, -1, -1, -1, 17, -1, 13, 12, -1, -1, -1, 7, 6, 8, -1, 18, 
-		-1, -1, -1, -1, -1, -1, 11, -1, 10, -1, 9, -1, -1, -1, -1, 1, 
-		-1, 2, 19, -1, -1, -1, 16, 15, -1, -1, -1, -1, 4, 3, -1, 21, 
-		-1, -1, 14, -1, -1, -1, -1, 20, 0, 5, -1, -1, -1, -1, -1, -1
+	static const int HASH_TABLE[128] = {
+		19, -1, -1, -1, 5, -1, -1, 8, -1, -1, -1, -1, 11, -1, -1, -1, 
+		-1, 6, -1, 0, -1, -1, -1, -1, -1, -1, 13, -1, 14, -1, -1, -1, 
+		-1, -1, -1, -1, 21, -1, 10, -1, -1, 1, -1, -1, -1, -1, -1, -1, 
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
+		18, -1, -1, -1, -1, -1, -1, -1, -1, 4, -1, -1, -1, -1, -1, 2, 
+		7, 17, -1, -1, 20, -1, 12, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
+		-1, -1, -1, -1, -1, -1, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1, 
+		3, -1, 16, -1, 9, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 	};
 	const unsigned char* p = (const unsigned char*) s;
 	assert(s[n] == '\0');
 	if (n < 2 || n > 5) return -1;
-	int stringIndex = HASH_TABLE[(((0u + p[1]) << 2 ^ p[2]) - n) & 63u];
+	int stringIndex = HASH_TABLE[(p[2] * (p[1] ^ n)) & 127u];
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
@@ -1110,43 +1114,41 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 					if (call == e || *call != '(') throwBadSyntax("Missing \"(\".");
 					++call;
 					const bool isMathFunction = (funcIndex < MATH_FUNCTION_COUNT);
-					const FunctionIndex function = static_cast<FunctionIndex>(funcIndex);
-					const bool isBinaryMath = (isMathFunction && (function == ATAN2_FUNCTION || function == HYPOT_FUNCTION));
-					EvaluationValue firstArg;
-					EvaluationValue secondArg;
+				const FunctionIndex function = static_cast<FunctionIndex>(funcIndex);
+				const bool isUnaryMath = (funcIndex < UNARY_MATH_FUNCTION_COUNT);
+				EvaluationValue firstArg;
+				call = eatWhite(call, e);
+				StringIt next = evaluateInner(call, e, firstArg, COMMA, dry);
+				if (next == call) throwBadSyntax("Syntax error.");
+				call = eatWhite(next, e);
+				EvaluationValue secondArg;
+				if (isMathFunction && !isUnaryMath) {
+					if (call == e || *call != ',') throwBadSyntax("Missing \",\".");
+					++call;
 					call = eatWhite(call, e);
-					StringIt next = evaluateInner(call, e, firstArg, COMMA, dry);
+					next = evaluateInner(call, e, secondArg, COMMA, dry);
 					if (next == call) throwBadSyntax("Syntax error.");
 					call = eatWhite(next, e);
-					if (isBinaryMath) {
-						if (call == e || *call != ',') throwBadSyntax("Missing \",\".");
-						++call;
-						call = eatWhite(call, e);
-						next = evaluateInner(call, e, secondArg, COMMA, dry);
-						if (next == call) throwBadSyntax("Syntax error.");
-						call = eatWhite(next, e);
-					}
+				}
 					if (call == e || *call != ')') throwBadSyntax("Missing \")\".");
-					++call;
-					if (isMathFunction) {
-						if (!dry) {
-							errno = 0;
-							double result;
-							if (isBinaryMath) {
-								const int binaryIndex = (function == ATAN2_FUNCTION) ? 0 : 1;
-								result = BINARY_MATH_FUNCTIONS[binaryIndex](static_cast<double>(firstArg), static_cast<double>(secondArg));
-							} else {
-								int unaryIndex = funcIndex;
-								if (function > ATAN2_FUNCTION) --unaryIndex;
-								result = UNARY_MATH_FUNCTIONS[unaryIndex](static_cast<double>(firstArg));
-							}
-							if (errno != 0) throwRunTimeError("Math error.");
-							if (!isFinite(result)) throwRunTimeError("Number overflow.");
-							v = result;
+				++call;
+				if (isMathFunction) {
+					if (!dry) {
+						errno = 0;
+						double result;
+						if (isUnaryMath) {
+							result = UNARY_MATH_FUNCTIONS[funcIndex](static_cast<double>(firstArg));
+						} else {
+							const int binaryIndex = funcIndex - UNARY_MATH_FUNCTION_COUNT;
+							result = BINARY_MATH_FUNCTIONS[binaryIndex](static_cast<double>(firstArg), static_cast<double>(secondArg));
 						}
-					} else if (funcIndex == LEN_FUNCTION) {
+						if (errno != 0) throwRunTimeError("Math error.");
+						if (!isFinite(result)) throwRunTimeError("Number overflow.");
+						v = result;
+					}
+				} else if (function == LEN_FUNCTION) {
 						if (!dry) v = static_cast<double>(static_cast<String>(firstArg).size());
-					} else if (funcIndex == DEF_FUNCTION) {
+					} else if (function == DEF_FUNCTION) {
 						if (!dry) {
 							String dummyValue;
 							const String name = firstArg;
