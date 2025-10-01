@@ -118,17 +118,18 @@ struct FormatInfo {
 };
 
 /**
-	Stores and validates instruction arguments during parsing.
+	Stores parsed arguments and tracks which entries have been consumed.
+	Fetching an argument marks it as used so missing or surplus parameters can be detected afterwards.
 **/
 class ArgumentsContainer {
-	public:		static ArgumentsContainer parse(const Interpreter& interpreter, const StringRange& range);
-	public:		ArgumentsContainer(const Interpreter& interpreter, const ArgumentVector& arguments);
-	public:		const String* fetchOptional(int index, bool expand = true);
-	public:		const String& fetchRequired(int index, bool expand = true);
-	public:		const String* fetchOptional(const String& label, bool expand = true);
-	public:		const String& fetchRequired(const String& label, bool expand = true);
-	public:		void throwIfNoneFetched();
-	public:		void throwIfAnyUnfetched();
+	public:		static ArgumentsContainer parse(const Interpreter& interpreter, const StringRange& range);		///< Parse a raw argument string and normalize it for indexed and labeled lookups.
+	public:		ArgumentsContainer(const Interpreter& interpreter, const ArgumentVector& arguments);			///< Construct a container from an already tokenized argument list.
+	public:		const String* fetchOptional(int index, bool expand = true);										///< Fetch the N:th positional argument if present, returning 0 otherwise.
+	public:		const String& fetchRequired(int index, bool expand = true);										///< Fetch the N:th positional argument or throw when it is missing.
+	public:		const String* fetchOptional(const String& label, bool expand = true);							///< Fetch an optional labeled argument, returning 0 when the label is absent.
+	public:		const String& fetchRequired(const String& label, bool expand = true);							///< Fetch a labeled argument or throw when the label was not provided.
+	public:		void throwIfAnyUnfetched();																		///< Throw if unused arguments remain. Always call after consuming all expected inputs.
+	public:		void throwIfNoneFetched();																		///< Throw if nothing was consumed. Unnecessary to call if you used fetchRequired() at least once.
 	protected:	struct ArgumentExtra {
 					ArgumentExtra() : hasFetched(false), hasExpanded(false) { }
 					bool hasFetched;
