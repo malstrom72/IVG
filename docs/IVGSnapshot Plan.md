@@ -17,12 +17,9 @@
 - Raw source text (for line tracking).
 - Include search paths (re-used by `load`).
 - A monotonic scan cursor used by `locateMetaLine` to find the next `meta snapshot` token.
-- **Plan model** – `SnapshotPlan` owns:
-- `SnapshotScenario` records (scenario name, validate flag, vector of entry indices).
-- `SnapshotEntry` records (scenario index, block ordinal, entry ordinal, source line, validate flag, raw statements).
-- A `std::map<IMPD::String, uint32_t>` so repeated scenarios collapse into a single plan entry.
-- **Renderer** – A later milestone will reuse `IVG::Document` (see `src/IVG.cpp` lines 291-411) and `IVG::IVGExecutor` to replay the IVG with injected statements before rasterising.
-- **Scheduler** – `SnapshotScheduler` wraps `NuXThreads::Queue<SnapshotJob>` and a vector of `NuXThreads::Thread`. Each worker repeatedly pops jobs, runs them, and stops at a sentinel job.
+- **Plan model** – `SnapshotPlan` groups entries by scenario. Each entry keeps an ordered list of `SnapshotInvocation` records (block ordinal, source line, statement ordinal, and captured statement string) so repeated `meta snapshot` directives append invocations to the same entry.
+- **Renderer** – `SnapshotPlaybackExecutor` wraps `IVG::IVGExecutor` and replays stored statements ahead of each invocation before delegating to the regular IVG interpreter.
+- **Scheduler** – Rendering currently runs serially through `renderPlan`; a later milestone will layer the NuXThreads-backed scheduler on top.
 - **Golden manager** – `SnapshotGolden` will encapsulate PNG discovery, `.disabled` drafting, `.bak` backups, and diff generation.
 
 ## Collector Sketch (tabs preserved)
@@ -76,82 +73,97 @@ uint32_t locateMetaLine();
 
 ### Plan data model
 ```cpp
-// tools/IVGSnapshot/IVGSnapshot.cpp (lines ~20-120)
+// tools/IVGSnapshot/IVGSnapshot.cpp (lines ~40-220)
+struct SnapshotInvocation {
+	uint32_t blockIndex;
+	uint32_t sourceLine;
+	uint32_t statementOrdinal;
+	IMPD::String statements;
+};
+
 struct SnapshotEntry {
-uint32_t scenarioIndex;
-uint32_t blockIndex;
-uint32_t entryIndex;
-uint32_t sourceLine;
-bool validate;
-IMPD::String scenarioName;
-IMPD::String statements;
+	uint32_t scenarioIndex;
+	uint32_t entryOrdinal;
+	bool validate;
+	IMPD::String scenarioName;
+	std::vector<SnapshotInvocation> invocations;
+};
+
+struct SnapshotScenario {
+	IMPD::String name;
+	bool validate;
+	bool explicitScenario;
+	std::vector<uint32_t> entryIndices;
+	std::map<uint32_t, uint32_t> entryLookup;
 };
 
 class SnapshotPlan {
 public:
-explicit SnapshotPlan(const std::string& path);
-void addBlock(IMPD::Interpreter& interpreter, const SnapshotBlock& block)
-{
-if (block.statements.empty()) {
-IMPD::Interpreter::throwBadSyntax("snapshot meta requires at least one statement block.");
-}
+	explicit SnapshotPlan(const std::string& ivgPath);
+	void addBlock(IMPD::Interpreter& interpreter, const SnapshotBlock& block)
+	{
+		if (block.statements.empty()) {
+			IMPD::Interpreter::throwBadSyntax("snapshot meta requires at least one statement block.");
+		}
 
-const bool explicitScenario = !block.scenario.empty();
-for (uint32_t i = 0; i < block.statements.size(); ++i) {
-const uint32_t entryOrdinal = i + 1;
-const IMPD::String scenarioName = (explicitScenario
-? block.scenario
-: synthesizeScenarioName(block.statements.size(), entryOrdinal));
+		const uint32_t blockOrdinal = nextBlockOrdinal;
+		const bool hasExplicitScenario = !block.scenario.empty();
+		if (hasExplicitScenario) {
+			appendExplicitScenario(interpreter, blockOrdinal, block);
+		} else {
+			appendImplicitScenario(interpreter, blockOrdinal, block);
+		}
 
-const uint32_t scenarioIndex = resolveScenario(interpreter, scenarioName, block.validate);
-appendEntry(scenarioIndex, entryOrdinal, block, i);
-}
+		++nextBlockOrdinal;
+	}
 
-++nextBlockOrdinal;
-}
+	const std::vector<SnapshotScenario>& getScenarios() const { return scenarios; }
+	const std::vector<SnapshotEntry>& getEntries() const { return entries; }
 
 private:
-uint32_t resolveScenario(IMPD::Interpreter& interpreter, const IMPD::String& name, bool validate);
-void appendEntry(uint32_t scenarioIndex, uint32_t entryOrdinal, const SnapshotBlock& block, size_t statementIndex);
-IMPD::String synthesizeScenarioName(uint32_t blockCount, uint32_t entryOrdinal) const;
+	void appendExplicitScenario(IMPD::Interpreter& interpreter, uint32_t blockOrdinal, const SnapshotBlock& block);
+	void appendImplicitScenario(IMPD::Interpreter& interpreter, uint32_t blockOrdinal, const SnapshotBlock& block);
+	uint32_t resolveScenario(IMPD::Interpreter& interpreter, const IMPD::String& name, bool validate, bool explicitScenario);
+	SnapshotEntry& ensureEntry(uint32_t scenarioIndex, SnapshotScenario& scenario, uint32_t entryOrdinal, bool validate, const IMPD::String& scenarioName);
+	IMPD::String synthesizeScenarioName(uint32_t blockOrdinal, uint32_t blockCount, uint32_t entryOrdinal) const;
+
+	IMPD::String baseName;
+	uint32_t nextBlockOrdinal;
+	std::vector<SnapshotScenario> scenarios;
+	std::vector<SnapshotEntry> entries;
+	std::map<IMPD::String, uint32_t> scenarioLookup;
 };
 ```
 
-- `resolveScenario` ensures repeated `scenario:` labels keep the same validation mode (failing fast through `Interpreter::throwBadSyntax`).
-- Implicit names combine the IVG basename with block and entry ordinals using `Interpreter::toString` (`src/IMPD.h:201-210`).
+- `resolveScenario` rejects validation toggles across repeated `scenario:` blocks while remembering whether the scenario was explicitly named.
+- `appendExplicitScenario` enforces a consistent number of entries when a named scenario appears multiple times, merging each invocation into its indexed entry.
+- `appendImplicitScenario` synthesizes scenario names by combining the IVG basename with the block ordinal (and entry ordinal for arrays).
+- Every entry maintains `invocations` so playback can re-run the same statement block at every collection point.
 
 ## Rendering & Scheduling Sketch
 ```cpp
-// tools/IVGSnapshot/IVGSnapshot.cpp (later milestone)
-class SnapshotJob {
+// tools/IVGSnapshot/IVGSnapshot.cpp (lines ~340-520)
+class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 public:
-explicit SnapshotJob(SnapshotRenderer* renderer, const SnapshotEntry* entry);
-void operator()() const;
-static SnapshotJob MakeSentinel();
-bool IsSentinel() const;
-};
-
-class SnapshotScheduler : private NuXThreads::Runnable {
-public:
-explicit SnapshotScheduler(uint32_t requestedThreads);
-~SnapshotScheduler();
-
-void Enqueue(const SnapshotJob& job);
-void SignalShutdown();
-void Join();
+	SnapshotPlaybackExecutor(const SnapshotPlan& plan, const SnapshotEntry& entry, uint32_t invocationIndex);
+	bool meta(IMPD::Interpreter& interpreter, const IMPD::String& key, const IMPD::String& arguments) override;
+	void onBeforeExecute(IMPD::Interpreter& interpreter, uint32_t blockIndex) override;
 
 private:
-void run() override;            // Matches NuXThreads::Runnable signature.
-
-NuXThreads::Queue<SnapshotJob> queue;
-std::vector<std::unique_ptr<NuXThreads::Thread>> threads;
-std::atomic<bool> shuttingDown;
+	const SnapshotPlan& plan;
+	const SnapshotEntry& entry;
+	uint32_t invocationIndex;
+	bool injected;
 };
+
+bool renderEntry(const SnapshotPlan& plan, const SnapshotScenario& scenario, const SnapshotEntry& entry, const SnapshotInvocation& invocation);
+void renderPlan(const SnapshotPlan& plan);
 ```
 
-- Queue size: `nextPowerOfTwo(max<uint32_t>(requestedThreads, 1) * 4)` to satisfy `NuXThreads::Queue` alignment rules.
-- `SignalShutdown` pushes one sentinel job per worker. Workers break out when `job.IsSentinel()` returns true.
-- Command-line option `--threads` defaults to `NuXThreads::Thread::hardwareConcurrency()` (wrapper around `std::thread::hardware_concurrency()` inside the NuX wrapper).
+- `SnapshotPlaybackExecutor` injects the stored statement list immediately before the matching block runs, falling back to the base executor for the remainder of the script.
+- `renderEntry` loads the IVG, applies include/font/image paths, and sequentially instantiates `SnapshotPlaybackExecutor` for each invocation, verifying that statement ordinals remain monotonic.
+- `renderPlan` iterates scenarios and entries; verbose mode prints include, font, and image directories before invoking `renderEntry`.
+- Parallelisation is postponed: once NuXThreads scheduling lands, `renderPlan` will enqueue `renderEntry` calls on the worker pool instead of running them inline.
 
 ## Golden Lifecycle
 - Goldens default to `<basename>/<scenario>.png` beside the IVG when `--output-dir` is absent.

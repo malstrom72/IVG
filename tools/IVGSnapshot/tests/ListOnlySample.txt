@@ -1,9 +1,12 @@
 tools/IVGSnapshot/tests/ListOnlySample.ivg
 	Scenario smurf (validate: yes)
-		Block 1, entry 1, line 2
-			[  set fill red  ]
-		Block 1, entry 2, line 2
-			[  set stroke blue  ]
+		Entry 1
+			Block 1 (statement 1), line 2
+				[  set fill red  ]
+		Entry 2
+			Block 1 (statement 2), line 2
+				[  set stroke blue  ]
 	Scenario ListOnlySample-2 (validate: yes)
-		Block 2, entry 1, line 3
-			[  set dash 4  ]
+		Entry 1
+			Block 2 (statement 1), line 3
+				[  set dash 4  ]
