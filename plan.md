@@ -47,18 +47,22 @@
 - [ ] Conduct a final manual regression pass covering zoom + background interactions with complex IVG inputs to ensure no redraw issues. (Pending hands-on verification in a browser build; regression checklist documented in the toolbar guide.)
 - [x] Run the concluding `timeout 600 ./build.sh` build and test cycle to confirm readiness for merge. (Executed after documentation updates to verify regression coverage.)
 
-## Milestone 5 – Source Simplification and Test Foundations
+## Milestone 5 – Initial Unit Test Candidates
+- [ ] Introduce a Node-based harness (Jest or Node + jsdom) that instantiates the toolbar markup in isolation and exercises `ZoomController` public methods. Target cases: clamping at min/max zoom, persistence round-trips with invalid data, and verifying that queued rerenders are debounced. Document any DOM APIs that need polyfills before implementation.
+- [ ] Prototype tests for the background popup controller that simulate keyboard navigation (Arrow keys, Escape) and mouse clicks to ensure focus handling and persistence stay intact. Capture the specific DOM mutations (class toggles, inline styles) assertions should cover so functionality remains untouched during refactors.
+- [ ] Add coverage ideas for vector scaling limits by stubbing the raster module interface and verifying that unsafe zoom requests bail out early with the correct log messages. List the logging strings and state transitions to assert so unit tests guard against future regressions.
+- [ ] Identify minimal smoke tests that can run quickly (e.g., invoking `runIVG` with a mocked module) to check that toggling between bitmap/vector modes flips `imageRendering` values as expected. Note dependencies that must be mocked to keep runtime under a few seconds.
+- [ ] Execute `timeout 600 ./build.sh` (or the focused Node test runner once scripted) to confirm the new harness integrates with the existing CI pipeline before expanding coverage.
+- [ ] Perform manual verification by running the harness locally, ensuring failures produce actionable diffs/logs and documenting any setup steps required for future contributors.
+
+## Milestone 6 – Source Simplification and Test Foundations
 - [ ] Map high-churn sections of `tools/ivgfiddle/src/ivgfiddle.js` (zoom/background/vector controllers, render queue coordination) to identify clusters of related helpers that can be collapsed into smaller modules without changing behavior. Document proposed module boundaries and the DOM/state dependencies each would share so refactors stay mechanical.
 - [ ] Evaluate consolidating repeated DOM queries (`document.getElementById`, `querySelector`) by caching stable references and exposing factory helpers (e.g., `findToolbarElement(id)`) that reduce boilerplate while keeping lazy lookups for dynamic nodes. Note any lifecycle nuances (e.g., overlay teardown) that require the existing pattern.
 - [ ] Review the event listener setup for the toolbar, overlay, and editor panes to enumerate patterns that can be flattened into reusable attachment helpers (like `bindButton`/`bindToggle`). Record the exact signatures and options needed (passive listeners, key filtering) so replacements remain signature-compatible.
 - [ ] Catalog state persistence touchpoints (zoom level, background color, vector scaling) and confirm whether a shared storage adapter could centralize error handling/logging. Prepare pseudocode for a drop-in `createPersistentSetting` helper that keeps current behavior intact while trimming repetition.
 - [ ] Outline guard clauses and logging blocks that could be moved into dedicated functions (e.g., `logVectorClamp`, `abortIfUnsafeCanvas`) to shorten hot paths. Verify that call-site logging order and message wording stay byte-for-byte identical to avoid regressions.
-
-### Initial Unit Test Candidates
-- [ ] Introduce a Node-based harness (Jest or Node + jsdom) that instantiates the toolbar markup in isolation and exercises `ZoomController` public methods. Target cases: clamping at min/max zoom, persistence round-trips with invalid data, and verifying that queued rerenders are debounced. Document any DOM APIs that need polyfills before implementation.
-- [ ] Prototype tests for the background popup controller that simulate keyboard navigation (Arrow keys, Escape) and mouse clicks to ensure focus handling and persistence stay intact. Capture the specific DOM mutations (class toggles, inline styles) assertions should cover so functionality remains untouched during refactors.
-- [ ] Add coverage ideas for vector scaling limits by stubbing the raster module interface and verifying that unsafe zoom requests bail out early with the correct log messages. List the logging strings and state transitions to assert so unit tests guard against future regressions.
-- [ ] Identify minimal smoke tests that can run quickly (e.g., invoking `runIVG` with a mocked module) to check that toggling between bitmap/vector modes flips `imageRendering` values as expected. Note dependencies that must be mocked to keep runtime under a few seconds.
+- [ ] Run `timeout 600 ./build.sh` after each refactor batch to ensure the mechanical changes stay byte-identical in behavior and do not introduce regressions picked up by the test suite.
+- [ ] Conduct targeted manual verification (zoom/background/vector toggles) to confirm the refactored modules remain behaviorally identical, documenting any discrepancies surfaced by the new unit tests for rapid follow-up.
 
 ## Risk Mitigation Notes
 - [ ] Watch for performance issues when scaling large canvases; profile layout/paint timing in dev tools and consider requestAnimationFrame batching if necessary.
