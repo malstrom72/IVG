@@ -382,6 +382,11 @@ refreshSelectedSwatch: refreshSelectedSwatch
 const ZOOM_SELECT_PRESETS = Object.freeze([0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 10]);
 const ZOOM_PRESETS = ZOOM_SELECT_PRESETS;
 const CUSTOM_ZOOM_OPTION_VALUE = "custom";
+const FALLBACK_CANVAS_SIZE = Object.freeze({
+width: 320,
+height: 320
+});
+
 const ZOOM_CONSTANTS = Object.freeze({
 MIN: ZOOM_PRESETS[0],
 MAX: ZOOM_PRESETS[ZOOM_PRESETS.length - 1],
@@ -553,7 +558,14 @@ if (ivgCanvas === null) {
 return;
 }
 ivgCanvas.setAttribute("data-scaling-mode", vectorScalingEnabled ? "vector" : "bitmap");
+const targetZoom = vectorScalingEnabled ? currentZoom : 1;
 if (baseMetrics === null) {
+const fallbackWidth = FALLBACK_CANVAS_SIZE.width;
+const fallbackHeight = FALLBACK_CANVAS_SIZE.height;
+ivgCanvas.width = fallbackWidth;
+ivgCanvas.height = fallbackHeight;
+ivgCanvas.style.width = fallbackWidth * targetZoom + "px";
+ivgCanvas.style.height = fallbackHeight * targetZoom + "px";
 ivgCanvas.style.transformOrigin = "top left";
 if (vectorScalingEnabled) {
 ivgCanvas.style.transform = "translate(0px, 0px)";
@@ -563,7 +575,6 @@ ivgCanvas.style.transform = "scale(" + currentZoom + ")";
 return;
 }
 const metrics = baseMetrics;
-const targetZoom = vectorScalingEnabled ? currentZoom : 1;
 ivgCanvas.style.width = metrics.width * targetZoom + "px";
 ivgCanvas.style.height = metrics.height * targetZoom + "px";
 ivgCanvas.style.transformOrigin = "top left";
@@ -692,6 +703,7 @@ applyZoom();
 
 function clearMetrics() {
 baseMetrics = null;
+applyZoom();
 }
 
 function getRasterScale(pixelRatio) {
