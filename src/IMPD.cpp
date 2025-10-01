@@ -26,6 +26,7 @@
 #include <cstring>
 #include <algorithm>
 #include <limits>
+#include <cstdlib>
 #include "IMPD.h"
 
 #if defined(_MSVC_LANG)
@@ -159,7 +160,7 @@ ArgumentsContainer::ArgumentsContainer(const Interpreter& interpreter, const Arg
 		if (it->label.empty()) indexed.push_back(lossless_cast<int>(it - arguments.begin()));
 		else {
 			pair<String, int> kv(interpreter.toLower(it->label), lossless_cast<int>(it - arguments.begin()));
-			if (!labeled.insert(kv).second) interpreter.throwBadSyntax(String("Duplicate label: ") + kv.first);
+			if (!labeled.insert(kv).second) interpreter.throwBadSyntax(String("Duplicate label \"") + kv.first + "\".");
 		}
 	}
 }
@@ -197,7 +198,7 @@ const String* ArgumentsContainer::fetchOptional(int index, bool expand) {
 const String& ArgumentsContainer::fetchRequired(int index, bool expand) {
 	assert(0 <= index);
 	if (static_cast<size_t>(index) >= indexed.size()) {
-		interpreter.throwBadSyntax(String("Missing indexed argument ") + Interpreter::toString(index + 1));
+		interpreter.throwBadSyntax(String("Missing indexed argument #") + Interpreter::toString(index + 1) + ".");
 	}
 	return fetch(indexed[index], expand);
 }
@@ -210,16 +211,16 @@ const String* ArgumentsContainer::fetchOptional(const String& label, bool expand
 
 const String& ArgumentsContainer::fetchRequired(const String& label, bool expand) {
 	map<String, int>::const_iterator it = labeled.find(label);
-	if (it == labeled.end()) interpreter.throwBadSyntax(String("Missing argument: ") + label);
+	if (it == labeled.end()) interpreter.throwBadSyntax(String("Missing argument \"") + label + "\".");
 	return fetch(it->second, expand);
 }
 
 void ArgumentsContainer::throwIfNoneFetched() {
-	if (unfetchedCount == lossless_cast<int>(arguments.size())) interpreter.throwBadSyntax("Missing argument(s)");
+	if (unfetchedCount == lossless_cast<int>(arguments.size())) interpreter.throwBadSyntax("Missing argument(s).");
 }
 
 void ArgumentsContainer::throwIfAnyUnfetched() {
-	if (unfetchedCount != 0) interpreter.throwBadSyntax("Unrecognized labels or too many arguments");
+	if (unfetchedCount != 0) interpreter.throwBadSyntax("Unrecognized labels or too many arguments.");
 }
 
 /* --- Interpreter --- */
@@ -237,66 +238,72 @@ static bool isFinite(double d) { return !isNaN(d) && fabs(d) != std::numeric_lim
 
 static double checkedLog(double x) {
 	if (x <= 0) {
-		Interpreter::throwRunTimeError("Math error (log of 0 or less)");
+		Interpreter::throwRunTimeError("Math error: \"log\" requires a value greater than 0.");
 	}
 	return log(x);
 }
 
 static double checkedLog10(double x) {
 	if (x <= 0) {
-		Interpreter::throwRunTimeError("Math error (log10 of 0 or less)");
+		Interpreter::throwRunTimeError("Math error: \"log10\" requires a value greater than 0.");
 	}
 	return log10(x);
 }
 
 static double checkedSqrt(double x) {
 	if (x < 0) {
-		Interpreter::throwRunTimeError("Math error (sqrt of negative)");
+		Interpreter::throwRunTimeError("Math error: \"sqrt\" requires a non-negative value.");
 	}
 	return sqrt(x);
 }
 
-double (*Interpreter::MATH_FUNCTION_POINTERS[MATH_FUNCTION_COUNT])(double) = {
-	(double (*)(double))(fabs), (double (*)(double))(acos), (double (*)(double))(asin), (double (*)(double))(atan)
-	, (double (*)(double))(ceil), (double (*)(double))(cos), (double (*)(double))(cosh), (double (*)(double))(exp)
-	, (double (*)(double))(floor), (double (*)(double))(checkedLog), (double (*)(double))(checkedLog10)
-	, (double (*)(double))(sin), (double (*)(double))(sinh), (double (*)(double))(checkedSqrt)
-	, (double (*)(double))(tan), (double (*)(double))(tanh), (double (*)(double))(round)
+double (*const Interpreter::UNARY_MATH_FUNCTIONS[UNARY_MATH_FUNCTION_COUNT])(double) = {
+	(double (*)(double))(fabs), (double (*)(double))(acos), (double (*)(double))(asin), (double (*)(double))(atan),
+	(double (*)(double))(ceil), (double (*)(double))(cos), (double (*)(double))(cosh), (double (*)(double))(exp),
+	(double (*)(double))(floor), checkedLog, checkedLog10, (double (*)(double))(sin), (double (*)(double))(sinh),
+	checkedSqrt, (double (*)(double))(tan), (double (*)(double))(tanh), (double (*)(double))(round)
 };
 
+double (*const Interpreter::BINARY_MATH_FUNCTIONS[BINARY_MATH_FUNCTION_COUNT])(double, double) = {
+	(double (*)(double, double))(atan2), (double (*)(double, double))(hypot)
+};
 const Char Interpreter::ESCAPE_CHARS[ESCAPE_CODE_COUNT] = {	 'a',  'b',	 'f',  'n',	 'r',  't',	 'v' };
 const Char Interpreter::ESCAPE_CODES[ESCAPE_CODE_COUNT] = { '\a', '\b', '\f', '\n', '\r', '\t', '\v' };
 
 /* Built with QuickHashGen */
 int Interpreter::findFunction(int n /* string length */, const char* s /* string (zero terminated) */) {
-	static const char* STRINGS[20] = {
-		"abs", "acos", "asin", "atan", "ceil", "cos", "cosh", "exp", "floor", "log",
-		"log10", "sin", "sinh", "sqrt", "tan", "tanh", "round", "pi", "len", "def"
+	static const char* STRINGS[22] = {
+		"abs", "acos", "asin", "atan", "ceil", "cos", "cosh", "exp", "floor", "log", 
+		"log10", "sin", "sinh", "sqrt", "tan", "tanh", "round", "atan2", "hypot", "pi", 
+		"len", "def"
 	};
 	static const int HASH_TABLE[64] = {
-		-1, -1, -1, -1, 11, 15, -1, -1, -1, 12, 16, 17, -1, -1, -1, -1,
-		-1, -1, 10, -1, -1, -1, 18, -1, -1, -1, 14, -1, -1, 4, -1, -1,
-		-1, 0, -1, -1, -1, 8, 19, 1, -1, -1, 5, 6, 9, -1, 3, -1,
-		-1, 13, -1, 7, -1, -1, -1, 2, -1, -1, -1, -1, -1, -1, -1, -1
+		-1, 18, 6, 13, -1, -1, -1, -1, -1, -1, -1, 20, 16, 0, 9, 11, 
+		-1, -1, -1, 21, -1, -1, -1, 14, -1, -1, -1, -1, -1, -1, -1, -1, 
+		-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 4, 15, 
+		7, -1, 1, 8, -1, 3, -1, 12, -1, 19, 5, -1, 2, 17, 10, -1
 	};
+	const unsigned char* p = (const unsigned char*) s;
+	assert(s[n] == '\0');
 	if (n < 2 || n > 5) return -1;
-	int stringIndex = HASH_TABLE[((n ^ s[1]) - s[0] ^ s[0]) & 63];
-	return (stringIndex >= 0 && strncmp(s, STRINGS[stringIndex], n) == 0 && STRINGS[stringIndex][n] == 0) ? stringIndex : -1;
+	int stringIndex = HASH_TABLE[(p[1] + p[2] ^ (0u + n) << 3) & 63u];
+	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
 /* Built with QuickHashGen */
 int Interpreter::findBuiltInInstruction(int n, const char* s) {
-	static const char* STRINGS[11] = {
-		"_debug", "call", "for", "format", "if", "include", "local", "repeat",
+	static const char* STRINGS[12] = {
+		"_debug", "call", "for", "format", "if", "include", "local", "meta", "repeat",
 		"return", "stop", "trace"
 	};
 	static const int HASH_TABLE[32] = {
-		-1, -1, 4, -1, -1, -1, 10, -1, 6, -1, 5, 0, -1, -1, -1, -1,
-		1, -1, -1, 9, -1, 2, 7, -1, 3, -1, 8, -1, -1, -1, -1, -1
+		8, -1, 3, -1, 9, -1, -1, -1, -1, 11, 2, 6, 1, -1, -1, 10,
+		4, -1, -1, -1, 7, 0, -1, -1, -1, -1, -1, 5, -1, -1, -1, -1
 	};
+	const unsigned char* p = (const unsigned char*) s;
 	assert(s[n] == '\0');
 	if (n < 2 || n > 7) return -1;
-	int stringIndex = HASH_TABLE[(n + s[2]) & 31];
+	int stringIndex = HASH_TABLE[((static_cast<unsigned int>(n) << 3) ^ p[2]) & 31u];
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
@@ -339,16 +346,21 @@ Interpreter::EvaluationValue::operator String() const {
 	}
 }
 
-Interpreter::Interpreter(Executor& executor, Variables& vars, int statementsLimit, int recursionLimit)
-		: executor(executor), vars(vars), callingFrame(0), rootFrame(*this)
+Interpreter::Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, int statementsLimit, int recursionLimit)
+		: executor(executor), vars(vars), formatInfo(formatInfo), callingFrame(0), rootFrame(*this)
 		, statementsLimit(statementsLimit), recursionLimit(recursionLimit) { }
 
 Interpreter::Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame)
-		: executor(executor), vars(vars), callingFrame(&callingFrame), rootFrame(callingFrame.rootFrame)
+		: executor(executor), vars(vars), formatInfo(callingFrame.formatInfo), callingFrame(&callingFrame), rootFrame(callingFrame.rootFrame)
 		, statementsLimit(callingFrame.statementsLimit), recursionLimit(callingFrame.recursionLimit) { }
 
 Interpreter::Interpreter(Executor& executor, Interpreter& enclosingInterpreter)
-		: executor(executor), vars(enclosingInterpreter.vars), callingFrame(enclosingInterpreter.callingFrame)
+		: executor(executor), vars(enclosingInterpreter.vars), formatInfo(enclosingInterpreter.formatInfo)
+		, callingFrame(enclosingInterpreter.callingFrame), rootFrame(enclosingInterpreter.rootFrame)
+		, statementsLimit(enclosingInterpreter.statementsLimit), recursionLimit(enclosingInterpreter.recursionLimit) { }
+
+Interpreter::Interpreter(Executor& executor, Interpreter& enclosingInterpreter, FormatInfo& formatInfo)
+		: executor(executor), vars(enclosingInterpreter.vars), formatInfo(formatInfo), callingFrame(enclosingInterpreter.callingFrame)
 		, rootFrame(enclosingInterpreter.rootFrame), statementsLimit(enclosingInterpreter.statementsLimit)
 		, recursionLimit(enclosingInterpreter.recursionLimit) { }
 
@@ -369,7 +381,7 @@ StringIt Interpreter::eatComment(StringIt p, const StringIt& e) {
 	} else {
 		static const Char END_CHARS[] = { '*', '/' };
 		p = search(p += 2, e, END_CHARS, END_CHARS + 2);
-		if (p == e) throwBadSyntax("Missing */");
+		if (p == e) throwBadSyntax("Missing \"*/\" terminator.");
 		return p + 2;
 	}
 }
@@ -431,8 +443,7 @@ StringIt Interpreter::eatBlock(StringIt p, const StringIt& e) {															//
 			default: ++p; break;
 		}
 	}
-	if (p == e) throwBadSyntax(c == '[' ? "Missing ]" : "Missing }");
-				
+	if (p == e) throwBadSyntax(c == '[' ? "Missing closing \"]\"." : "Missing closing \"}\".");
 	return p;
 }
 
@@ -446,7 +457,7 @@ StringIt Interpreter::eatQuotedString(StringIt p, const StringIt& e) {
 			++p;
 		}
 	}
-	if (p == e) throwBadSyntax("Missing \""); 
+	if (p == e) throwBadSyntax("Missing double quote (\") character."); 
 	return ++p;
 }
 
@@ -479,7 +490,7 @@ void Interpreter::parseArguments(const StringRange& r, ArgumentVector& arguments
 			
 			if (lastRange.b != lastRange.e) arguments.push_back(Argument(lastRange, String()));
 			lastRange = (haveQuotes ? StringRange(range.b + 1, range.e - 1) : range);
-			if (lastRange.b == lastRange.e) throwBadSyntax("Label cannot be empty");
+			if (lastRange.b == lastRange.e) throwBadSyntax("Label cannot be empty.");
 			StringIt q = eatWhite(++p, r.e);
 			if (p == q) { range.b = range.e = p; break; }															   // If no space after ':' we go to value directly.
 
@@ -490,7 +501,7 @@ void Interpreter::parseArguments(const StringRange& r, ArgumentVector& arguments
 		range.e = p;
 		arguments.push_back(Argument(lastRange, range));
 		StringIt q = eatWhite(p, r.e);
-		if (p == q && p != r.e) throwBadSyntax("Syntax error");
+		if (p == q && p != r.e) throwBadSyntax("Syntax error.");
 		p = q;
 	}
 }
@@ -500,7 +511,7 @@ void Interpreter::set(const String& name, const String& value) {
 	for (; !frame->vars.assign(name, value); frame = frame->callingFrame) {
 		if (frame->callingFrame == 0) {
 			if (!frame->vars.declare(name, value)) {
-				throwRunTimeError(String("Could not set variable ") + name);
+				throwRunTimeError(String("Could not set variable \"") + name + "\".");
 			}
 			return;
 		}
@@ -511,7 +522,7 @@ String Interpreter::get(const String& name) const {
 	String value;
 	const Interpreter* f = this;
 	for (; f != 0 && !f->vars.lookup(name, value); f = f->callingFrame) { }
-	if (f == 0) throwRunTimeError(String("Variable ") + name + " does not exist");
+	if (f == 0) throwRunTimeError(String("Variable \"") + name + "\" does not exist.");
 	return value;
 }
 
@@ -547,12 +558,14 @@ int Interpreter::parseList(const StringRange& r, StringVector& elements, bool ex
 		first = false;
 	}
 	if (lossless_cast<int>(elements.size()) > maxElements) {
-		throwBadSyntax(String("Too many list elements (got " + toString(lossless_cast<int>(elements.size()))
-				+ ", expected at most ") + toString(maxElements) + ")");
+		throwBadSyntax(String("Too many list elements (got ")
+				+ toString(lossless_cast<int>(elements.size()))
+				+ ", expected at most " + toString(maxElements) + ").");
 	}
 	if (lossless_cast<int>(elements.size()) < minElements) {
-		throwBadSyntax(String("Too few list elements (got " + toString(lossless_cast<int>(elements.size()))
-				+ ", expected at least ") + toString(minElements) + ")");
+		throwBadSyntax(String("Too few list elements (got ")
+				+ toString(lossless_cast<int>(elements.size()))
+				+ ", expected at least " + toString(minElements) + ").");
 	}
 	return lossless_cast<int>(elements.size());
 }
@@ -585,7 +598,7 @@ void Interpreter::runStatement(const StringRange& r) {
 	if (r.e - r.b >= 2 && *r.b == '[' && r.e[-1] == ']') run(StringRange(r.b + 1, r.e - 1));
 	else if (r.b != r.e) {
 		StringIt p = eatSymbolForAssignment(r.b, r.e);
-		if (p == r.b) throwBadSyntax("Invalid instruction");
+		if (p == r.b) throwBadSyntax("Invalid instruction keyword.");
 		StringRange leftRange(r.b, p);
 		StringIt q = eatWhite(p, r.e);
 		if (q != r.e && *q == '=') set(leftRange, StringRange(eatWhite(q + 1, r.e), r.e));
@@ -594,7 +607,7 @@ void Interpreter::runStatement(const StringRange& r) {
 }
 
 void Interpreter::run(const StringRange& r) {
-	if (recursionLimit == 0) throwRunTimeError("Recursion limit reached");
+	if (recursionLimit == 0) throwRunTimeError("Recursion limit reached.");
 	--recursionLimit;
 	StringRange activeRange = r;
 	String expanded;
@@ -605,8 +618,8 @@ void Interpreter::run(const StringRange& r) {
 			activeRange = StringRange(p, r.e);
 			StringIt q = eatStatement(p, r.e);
 			activeRange.e = p = q;
-			if (rootFrame.statementsLimit == 0) throwRunTimeError("Statements limit reached");
-			if (!executor.progress(*this, rootFrame.statementsLimit)) throw AbortedException("Aborted");
+			if (rootFrame.statementsLimit == 0) throwRunTimeError("Statements limit reached.");
+			if (!executor.progress(*this, rootFrame.statementsLimit)) throw AbortedException("Execution aborted.");
 			--rootFrame.statementsLimit;
 			expanded = performExpansion(activeRange);
 			activeRange = expanded;
@@ -737,7 +750,7 @@ StringIt Interpreter::parseDouble(StringIt p, const StringIt& e, double& v) {
 int Interpreter::toInt(const StringRange& r) {
 	int32_t i;
 	StringIt p = parseInt(r.b, r.e, i);
-	if (p == r.b || p != r.e) throwRunTimeError(String("Invalid integer: ") + String(r.b, r.e));
+	if (p == r.b || p != r.e) throwRunTimeError(String("Invalid integer \"") + String(r.b, r.e) + "\".");
 	return i;
 }
 
@@ -745,18 +758,12 @@ double Interpreter::toDouble(const StringRange& r) {
 	double v;
 	StringIt q = parseDouble(r.b, r.e, v);
 	if (q == r.b || q != r.e) {
-		throwRunTimeError(String("Invalid number: ") + String(r.b, r.e));
+		throwRunTimeError(String("Invalid number \"") + String(r.b, r.e) + "\".");
 	}
 	if (!isFinite(v)) {
-		throwRunTimeError(String("Number overflow: ") + String(r.b, r.e));
+		throwRunTimeError(String("Number overflow \"") + String(r.b, r.e) + "\".");
 	}
 	return v;
-}
-
-bool Interpreter::toBool(const String& s) {
-	if (s == YES_STRING) return true;
-	else if (s != NO_STRING) throwRunTimeError(String("Invalid boolean (should be 'yes' or 'no'): ") + s);
-	return false;
 }
 
 String Interpreter::toLower(const StringRange& r) {
@@ -773,12 +780,22 @@ bool Interpreter::isBracketBlock(const String& s) { return (s.size() >= 2 && s[0
 bool Interpreter::isQuotedString(const String& s) { return (s.size() >= 2 && s[0] == '"' && s.back() == '"'); }
 bool Interpreter::isCurlyExpression(const String& s) { return (s.size() >= 2 && s[0] == '{' && s.back() == '}'); }
 
+bool Interpreter::toBool(const String& s) {
+	const String lower = toLower(s);
+	if (lower == YES_STRING) {
+		return true;
+	} else if (lower != NO_STRING) {
+		throwRunTimeError(String("Invalid boolean value \"") + s + "\"; expected \"yes\" or \"no\".");
+	}
+	return false;
+}
+
 StringIt Interpreter::numericOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence
 		, Char op, Precedence opPrecedence, bool dry) const {
 	if (precedence < opPrecedence) {
 		double l = v;
 		StringIt q = evaluateInner(p += (op == '^' ? 2 : 1), e, v, opPrecedence, dry);
-		if (q == p) throwBadSyntax("Syntax error");
+		if (q == p) throwBadSyntax("Syntax error.");
 		p = q;
 		if (!dry) {
 			double r = v;
@@ -786,11 +803,11 @@ StringIt Interpreter::numericOperation(StringIt p, const StringIt& e, Evaluation
 				case '+': l += r; break;
 				case '-': l -= r; break;
 				case '*': l *= r; break;
-				case '/': if (r == 0.0) throwRunTimeError("Division by zero"); else l /= r; break;
-				case '^': { errno = 0; l = pow(l, r); if (errno != 0) throwRunTimeError("Math error"); break; }
+				case '/': if (r == 0.0) throwRunTimeError("Division by zero."); else l /= r; break;
+				case '^': { errno = 0; l = pow(l, r); if (errno != 0) throwRunTimeError("Math error."); break; }
 				default: assert(0); break;
 			}
-			if (!isFinite(l)) throwRunTimeError("Number overflow");
+			if (!isFinite(l)) throwRunTimeError("Number overflow.");
 			v = l;
 		}
 	}
@@ -810,7 +827,7 @@ StringIt Interpreter::moduloPercentOperation(StringIt p, const StringIt& e, Eval
 			p = q;
 			if (!dry) {
 				double r = static_cast<double>(rv);
-				if (r == 0.0) throwRunTimeError("Modulo by zero");
+				if (r == 0.0) throwRunTimeError("Modulo by zero.");
 				else v = fmod(static_cast<double>(v), r);
 			}
 		}
@@ -840,7 +857,7 @@ StringIt Interpreter::booleanOperation(StringIt p, const StringIt& e, Evaluation
 		Char op = *p;
 		if (p + 1 != e && p[1] == op)  {
 			StringIt q = evaluateInner(p += 2, e, v, BOOLEAN, dry);
-			if (q == p) throwBadSyntax("Syntax error");
+			if (q == p) throwBadSyntax("Syntax error.");
 			p = q;
 			if (!dry) {
 				bool r = v;
@@ -860,12 +877,12 @@ bool Interpreter::evaluationValueToNumber(const EvaluationValue& v, double& d, S
 	bool isNumeric = (v.getType() == EvaluationValue::NUMERIC);
 	if (isNumeric) {
 		d = v;
-		if (!isFinite(d)) throwRunTimeError("Number overflow");
+		if (!isFinite(d)) throwRunTimeError("Number overflow.");
 	} else {
 		s = static_cast<String>(v);
 		StringIt q = parseDouble(s.begin(), s.end(), d);
 		if (q != s.begin() && q == s.end()) {
-			if (!isFinite(d)) throwRunTimeError("Number overflow");
+			if (!isFinite(d)) throwRunTimeError("Number overflow.");
 			isNumeric = true;
 		}
 	}
@@ -876,9 +893,9 @@ StringIt Interpreter::comparisonOperation(StringIt p, const StringIt& e, Evaluat
 		EvaluationValue r;
 		Char op0 = *p++;
 		Char op1 = (p != e && *p == '=' ? *p++ : 0);
-		if ((op0 == '!' || op0 == '=') && op1 == 0) throwBadSyntax("Syntax error");
+		if ((op0 == '!' || op0 == '=') && op1 == 0) throwBadSyntax("Syntax error.");
 		StringIt q = evaluateInner(p, e, r, COMPARE, dry);
-		if (q == p) throwBadSyntax("Syntax error");
+		if (q == p) throwBadSyntax("Syntax error.");
 		p = q;
 		
 		if (!dry) {
@@ -918,7 +935,7 @@ StringIt Interpreter::conditionalOperation(StringIt p, const StringIt& e, Evalua
 		const bool isTrue = (!dry && static_cast<bool>(v));
 		EvaluationValue l;
 		StringIt q = eatWhite(evaluateInner(++p, e, l, CONDITIONAL, dry || !isTrue), e);
-		if (q == e || *q != ':') throwBadSyntax("Expected :");
+		if (q == e || *q != ':') throwBadSyntax("Expected \":\" delimiter.");
 		EvaluationValue r;
 		q = eatWhite(evaluateInner(++q, e, r, CONDITIONAL, dry || isTrue), e);
 		p = q;
@@ -942,13 +959,13 @@ StringIt Interpreter::substringOperation(StringIt p, const StringIt& e, Evaluati
 			q = eatWhite(evaluateInner(t, e, length, CONDITIONAL, dry), e);
 			gotLength = (t != q);
 			if (!gotLength && !gotOffset) {
-				throwBadSyntax("Syntax error");
+				throwBadSyntax("Syntax error.");
 			}
 		} else if (!gotOffset) {
-			throwBadSyntax("Syntax error");
+			throwBadSyntax("Syntax error.");
 		}
 		q = eatWhite(q, e);
-		if (q == e || *q != '}') throwBadSyntax("Missing }");
+		if (q == e || *q != '}') throwBadSyntax("Missing \"}\".");
 		++q;
 		p = q;
 
@@ -1004,7 +1021,7 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 	StringIt p = b;
 	StringIt t = eatWhite(p, e);
 	p = t;
-	if (p == e) throwBadSyntax("Unexpected end");
+	if (p == e) throwBadSyntax("Unexpected end of input.");
 	switch (*p) {
 			case '[': {
 				StringIt q = eatBlock(p, e);
@@ -1031,7 +1048,7 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 
 		case '(': {
 			p = eatWhite(evaluateInner(p + 1, e, v, BRACKETS, dry), e);
-			if (p == e || *p != ')') throwBadSyntax("Missing )");
+			if (p == e || *p != ')') throwBadSyntax("Missing \")\".");
 			++p;
 			break;
 		}
@@ -1041,7 +1058,7 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 				UniChar c;
 				p = unescapeChar(++p, e, c);
 				if (static_cast<Char>(c) != c) {
-					throwBadSyntax("Invalid character escape code inside { } expression");
+					throwBadSyntax("Invalid character escape in \"{}\" expression.");
 				}
 				if (!dry) {
 					v = String(1, static_cast<Char>(c));
@@ -1054,7 +1071,7 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 			double d;
 			StringIt q = parseDouble(p, e, d);
 			if (q != p) {
-				if (!isFinite(d)) throwRunTimeError("Number overflow");
+				if (!isFinite(d)) throwRunTimeError("Number overflow.");
 				p = q;
 				if (!dry) {
 					v = d;
@@ -1068,30 +1085,74 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 			StringIt q = p;
 			while (q != e && (isSymbolLetter(*q) || *q == '.' || (*q >= '0' && *q <= '9'))) ++q;
 			String sym(p, q);
-			int funcIndex = findFunction(lossless_cast<int>(sym.size()), sym.c_str());
-			if (funcIndex >= 0 && funcIndex < MATH_FUNCTION_COUNT) {
-				errno = 0;
-				q = evaluateInner(q, e, v, FUNCTION, dry);
-				if (!dry) {
-					v = MATH_FUNCTION_POINTERS[funcIndex](v);
-					if (errno != 0) throwRunTimeError("Math error");
-					if (!isFinite(v)) throwRunTimeError("Number overflow");
-				}
-			} else if (funcIndex == MATH_FUNCTION_COUNT) {			// pi
-				v = 3.1415926535897932384626433;
-			} else if (funcIndex == MATH_FUNCTION_COUNT + 1) {		// len
-				q = evaluateInner(q, e, v, FUNCTION, dry);
-				if (!dry) {
-					v = static_cast<double>(static_cast<String>(v).size());
-				}
-			} else if (funcIndex == MATH_FUNCTION_COUNT + 2) {		// def
-				q = evaluateInner(q, e, v, FUNCTION, dry);
-				if (!dry) {
-					String dummyValue;
-					const String name = v;
-					const Interpreter* f = this;
-					for (; f != 0 && !f->vars.lookup(name, dummyValue); f = f->callingFrame) { }
-					v = (f != 0);
+			const int funcIndex = findFunction(lossless_cast<int>(sym.size()), sym.c_str());
+			if (funcIndex >= 0) {
+				EvaluationValue arg;
+				switch (funcIndex) {
+					case PI_FUNCTION: {
+						if (!dry) {
+							v = 3.1415926535897932384626433;
+						}
+						break;
+					}
+					case LEN_FUNCTION: {
+						q = evaluateInner(q, e, arg, FUNCTION, dry);
+						if (!dry) {
+							v = static_cast<double>(static_cast<String>(arg).size());
+						}
+						break;
+					}
+					case DEF_FUNCTION: {
+						q = evaluateInner(q, e, arg, FUNCTION, dry);
+						if (!dry) {
+							String dummyValue;
+							const String name = arg;
+							const Interpreter* f = this;
+							for (; f != 0 && !f->vars.lookup(name, dummyValue); f = f->callingFrame) { }
+							v = (f != 0);
+						}
+						break;
+					}
+					default: {
+						double result;
+						if (funcIndex < UNARY_MATH_FUNCTION_COUNT) {
+							q = evaluateInner(q, e, arg, FUNCTION, dry);
+							if (!dry) {
+								errno = 0;
+								result = UNARY_MATH_FUNCTIONS[funcIndex](arg);
+							}
+						} else {
+							assert(funcIndex < FUNCTION_LOOKUP_COUNT);
+							q = eatWhite(q, e);
+							if (q == e || *q != '(') {
+								throwBadSyntax("Missing \"(\".");
+							}
+							q = eatWhite(evaluateInner(q + 1, e, arg, COMMA, dry), e);
+							if (q == e || *q != ',') {
+								throwBadSyntax("Missing \",\".");
+							}
+							EvaluationValue arg2;
+							q = eatWhite(evaluateInner(q + 1, e, arg2, COMMA, dry), e);
+							if (q == e || *q != ')') {
+								throwBadSyntax("Missing \")\".");
+							}
+							++q;
+							if (!dry) {
+								errno = 0;
+								result = BINARY_MATH_FUNCTIONS[funcIndex - UNARY_MATH_FUNCTION_COUNT](arg, arg2);
+							}
+						}
+						if (!dry) {
+							if (errno != 0) {
+								throwRunTimeError("Math error.");
+							}
+							if (!isFinite(v)) {
+								throwRunTimeError("Number overflow.");
+							}
+							v = result;
+						}							
+						break;
+					}
 				}
 			} else if (!dry) {
 				v = sym;
@@ -1193,13 +1254,13 @@ String Interpreter::performExpansion(const StringRange& r) const {
 				
 				if (*p++ == '$') {
 					StringIt q = eatSymbol(p, e);
-					if (q == p) throwBadSyntax("Syntax error");
+					if (q == p) throwBadSyntax("Syntax error.");
 					processed.append(get(String(p, q)));
 					p = q;
 				} else {
 					EvaluationValue v;
 					p = eatWhite(evaluateInner(p, e, v, BRACKETS, false), e);
-					if (p == e || *p != '}') throwBadSyntax("Syntax error");
+					if (p == e || *p != '}') throwBadSyntax("Syntax error.");
 					++p;
 					processed.append(v);
 				}
@@ -1249,59 +1310,116 @@ int Interpreter::mapArguments(const ArgumentVector& allArguments, StringStringMa
 void Interpreter::runInstruction(const String& instructionString, const StringRange& argumentsRange) {
 	int foundIndex = findBuiltInInstruction(lossless_cast<int>(instructionString.size()), instructionString.c_str());
 	if (foundIndex < 0) {
-		if (executor.execute(*this, instructionString, argumentsRange) || instructionString == "meta") return;
-		else throwBadSyntax(String("Unrecognized instruction: ") + instructionString);
+		if (executor.execute(*this, instructionString, argumentsRange)) return;
+		else throwBadSyntax(String("Unrecognized instruction \"") + instructionString + "\".");
 	}
-	
-	ArgumentVector allArguments;
-	StringStringMap labeledArguments;
-	StringVector indexedArguments;
 
 	BuiltInInstruction instruction = static_cast<BuiltInInstruction>(foundIndex);
 	switch (instruction) {
-		case STOP_INSTRUCTION: throw AbortedException("Encountered STOP instruction");
-		case TRACE_INSTRUCTION: { executor.trace(*this, unescapeToWide(argumentsRange)); break; }
-
-		case FORMAT_INSTRUCTION: {
-			ArgumentsContainer args(ArgumentsContainer::parse(*this, argumentsRange));
-			const String& formatId = args.fetchRequired(0);
-			StringVector usesList;
-			const String* s = args.fetchOptional("uses");
-			if (s != 0) parseList(*s, usesList, true, true, 0, 100);
-			StringVector requiresList;
-			s = args.fetchOptional("requires");
-			if (s != 0) parseList(*s, requiresList, true, true, 0, 100);
-			args.throwIfAnyUnfetched();
-
-			transform(usesList.begin(), usesList.end(), usesList.begin(), toLower);
-			transform(requiresList.begin(), requiresList.end(), requiresList.begin(), toLower);
-			requiresList.erase(remove(requiresList.begin(), requiresList.end(), CURRENT_IMPD_REQUIRES_ID)
-					, requiresList.end());
-			if (!executor.format(*this, toLower(formatId), usesList, requiresList))
-				throw FormatException("Unsupported data format");
+		case STOP_INSTRUCTION: throw AbortedException("Encountered \"stop\" instruction.");
+		case TRACE_INSTRUCTION: {
+			executor.trace(*this, unescapeToWide(argumentsRange));
 			break;
 		}
 
+		case FORMAT_INSTRUCTION: {
+			if (!formatInfo.formatId.empty()) {
+				throwBadSyntax("Duplicate \"format\" instruction.");
+			}
+			ArgumentsContainer args(ArgumentsContainer::parse(*this, argumentsRange));
+			const String& formatId = args.fetchRequired(0);
+			if (formatId.empty()) {
+				throwBadSyntax("Empty \"format\" identifier.");
+			}
+			StringVector usesList;
+			const String* s = args.fetchOptional("uses");
+			if (s != 0) {
+				parseList(*s, usesList, true, true, 0, 100);
+				transform(usesList.begin(), usesList.end(), usesList.begin(), toLower);
+				for (StringVector::const_iterator it = usesList.begin(); it != usesList.end(); ++it) {
+					formatInfo.uses.insert(*it);
+				}
+			}
+			StringVector requiresList;
+			s = args.fetchOptional("requires");
+			if (s != 0) {
+				parseList(*s, requiresList, true, true, 0, 100);
+				transform(requiresList.begin(), requiresList.end(), requiresList.begin(), toLower);
+				requiresList.erase(remove(requiresList.begin(), requiresList.end(), CURRENT_IMPD_REQUIRES_ID)
+						, requiresList.end());
+				for (StringVector::const_iterator it = requiresList.begin(); it != requiresList.end(); ++it) {
+					formatInfo.requires.insert(*it);
+				}
+			}
+			args.throwIfAnyUnfetched();
+			formatInfo.formatId = toLower(formatId);
+			if (!executor.format(*this, formatInfo)) {
+				throw FormatException("Unsupported data format.");
+			}
+			break;
+		}
+
+		case META_INSTRUCTION: {
+			if (formatInfo.formatId.empty()) {
+				throwBadSyntax("The \"meta\" instruction requires a preceding \"format\" declaration.");
+			}
+			const StringIt b = eatWhite(argumentsRange.b, argumentsRange.e);
+			const StringIt q = eatSymbol(b, argumentsRange.e);
+			if (q == b) {
+				throwBadSyntax("Missing / invalid \"meta\" identifier.");
+			}
+			const String metaToken(b, q);
+			const String metaLower = toLower(metaToken);
+			const FormatInfo& info = formatInfo;
+			String resolvedMeta;
+			if (info.uses.find(metaLower) != info.uses.end()) {
+				resolvedMeta = metaLower;
+			} else {
+				const String prefix(metaLower + "-");
+				uint32_t bestVersion = 0;
+				for (std::set<String>::const_iterator it = info.uses.lower_bound(prefix)
+						; it != info.uses.end() && it->compare(0, prefix.size(), prefix) == 0; ++it) {
+					uint32_t parsedVersion;
+					const StringIt b = it->begin() + prefix.size();
+					const StringIt e = parseUnsignedInt(b, it->end(), parsedVersion);
+					if (e != b && e == it->end() && parsedVersion >= bestVersion) {
+						bestVersion = parsedVersion;
+						resolvedMeta = *it;
+					}
+				}
+				if (resolvedMeta.empty()) {
+					throwBadSyntax(String("Undeclared meta tag: \"") + metaToken + "\".");
+				}
+			}
+			const bool success = executor.meta(*this, resolvedMeta, String(eatWhite(q, argumentsRange.e), argumentsRange.e));
+			(void)success;
+			return;
+		}
+		
 		case LOCAL_INSTRUCTION:
 		case RETURN_INSTRUCTION: {
-			if (argumentsRange.b == argumentsRange.e) throwBadSyntax("Missing variable name");
+			if (argumentsRange.b == argumentsRange.e) {
+				throwBadSyntax("Missing variable name.");
+			}
 			StringIt p = eatSymbolForAssignment(argumentsRange.b, argumentsRange.e);
-			if (p == argumentsRange.b) throwBadSyntax("Invalid variable name");
+			if (p == argumentsRange.b) {
+				throwBadSyntax("Invalid variable name.");
+			}
 			String varName(argumentsRange.b, p);
 			StringIt q = eatWhite(p, argumentsRange.e);
 			bool emptyAssignment = (q == argumentsRange.e);
 			if (!emptyAssignment) {
-				if (*q != '=') throwBadSyntax("Expected =");
+				if (*q != '=') throwBadSyntax("Expected \"=\" after the name.");
 				q = eatWhite(q + 1, argumentsRange.e);
 			}
 			String varValue(q, argumentsRange.e);
 			if (instruction == RETURN_INSTRUCTION) {
-				if (callingFrame == 0) throwRunTimeError("Cannot return in global frame");
+				if (callingFrame == 0) throwRunTimeError("Cannot return from the global frame.");
 				callingFrame->set(varName, (emptyAssignment ? get(varName) : varValue));
-			} else if (!vars.declare(varName, varValue)) throwRunTimeError(String("Variable ") + varName + " already declared");
+			} else if (!vars.declare(varName, varValue)) throwRunTimeError(String("Variable \"") + varName + "\" is already declared.");
 			break;
 		}
-
+		
 		case IF_INSTRUCTION: {
 			ArgumentsContainer args(ArgumentsContainer::parse(*this, argumentsRange));
 			const String& condition = args.fetchRequired(0);
@@ -1324,7 +1442,7 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			if (condition == 0) {
 				for (int i = 0; i < count; ++i) run(repeatBlock);
 			} else {
-				if ((*condition)[0] != '[') throwBadSyntax("'while:' condition has to be enclosed in [ ]");
+				if ((*condition)[0] != '[') throwBadSyntax("The \"while:\" condition must be enclosed in \"[]\".");
 				for (int i = 0; i < count; ++i) {
 					if (!toBool(expand(*condition))) break;
 					run(repeatBlock);
@@ -1369,8 +1487,11 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 		
 		case CALL_INSTRUCTION:
 		case INCLUDE_INSTRUCTION: {
+			ArgumentVector allArguments;
 			parseArguments(argumentsRange, allArguments);		
-			if (allArguments.size() < 1) throwBadSyntax("Missing argument(s)");
+			if (allArguments.size() < 1) {
+				throwBadSyntax("Missing argument(s).");
+			}
 			STLMapVariables newVars;
 			String runThis;
 			int counter = 0;
@@ -1382,7 +1503,7 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			if (instruction == INCLUDE_INSTRUCTION) {
 				const WideString file = unescapeToWide(expand(runThis));
 				if (!executor.load(*this, file, runThis)) {
-					throwRunTimeError(String("Could not include file: ") + String(file.begin(), file.end()));
+					throwRunTimeError(String("Could not include file \"") + String(file.begin(), file.end()) + "\".");
 				}
 			}
 			newVars.declare("n", toString(counter));
@@ -1392,8 +1513,11 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 		}
 
 		case DEBUG_INSTRUCTION: {
+			ArgumentVector allArguments;
 			parseArguments(argumentsRange, allArguments);		
 			WideString line = L"|";
+			StringStringMap labeledArguments;
+			StringVector indexedArguments;
 			mapArguments(allArguments, labeledArguments, indexedArguments);
 			bool doExpand = false;
 			StringStringMap::const_iterator it = labeledArguments.find("expand");

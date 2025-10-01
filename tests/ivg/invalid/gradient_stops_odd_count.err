@@ -1,1 +1,1 @@
-Invalid stops for gradient (odd number of elements): 0,#000,#fff
+Invalid gradient stop list "0,#000,#fff" (odd number of elements).
