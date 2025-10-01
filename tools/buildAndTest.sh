@@ -61,12 +61,12 @@ C_SRCS=(./externals/libpng/png.c ./externals/libpng/pngerror.c ./externals/libpn
                 ./tests/tinyEllipse.cpp ./externals/NuX/NuXPixels.cpp
 
 ./tools/BuildCpp.sh $1 $2 ./output/IVGSnapshot \
-                -I ./ \
-                ./tools/IVGSnapshot/IVGSnapshot.cpp ./src/IMPD.cpp
+                -I ./ -I ./externals \
+                ./tools/IVGSnapshot/IVGSnapshot.cpp ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp
 
 ./tools/BuildCpp.sh $1 $2 ./output/TestSnapshotPlan \
-                -DIVG_SNAPSHOT_TESTING=1 -I ./ \
-                ./tools/IVGSnapshot/tests/TestSnapshotPlan.cpp ./src/IMPD.cpp
+                -DIVG_SNAPSHOT_TESTING=1 -I ./ -I ./externals \
+                ./tools/IVGSnapshot/tests/TestSnapshotPlan.cpp ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp
 
 echo Testing...
 cd tests
