@@ -676,11 +676,16 @@ if (!metrics) {
 baseMetrics = null;
 return;
 }
+const rasterScale = typeof metrics.rasterScale === "number" && metrics.rasterScale > 0 ? metrics.rasterScale : 1;
+const renderZoom = typeof metrics.renderZoom === "number" && metrics.renderZoom > 0 ? metrics.renderZoom : 1;
+const scaleDivisor = rasterScale;
 baseMetrics = {
-width: metrics.width,
-height: metrics.height,
-translateX: metrics.left,
-translateY: metrics.top
+width: metrics.width / scaleDivisor,
+height: metrics.height / scaleDivisor,
+translateX: metrics.left / scaleDivisor,
+translateY: metrics.top / scaleDivisor,
+renderZoom: renderZoom,
+rasterScale: rasterScale
 };
 applyZoom();
 }
@@ -828,11 +833,13 @@ trace("Rasterizing IVG");
 const start = window.performance.now();
 let ok = false;
 try {
-const scaling = {
-scaleX: ZoomController.usesVectorScaling() ? ZoomController.getZoom() : ZoomController.getRasterScale(window.devicePixelRatio || 1),
-scaleY: ZoomController.usesVectorScaling() ? ZoomController.getZoom() : ZoomController.getRasterScale(window.devicePixelRatio || 1)
-};
-const result = rasterizeIVG(currentSource, scaling);
+const devicePixelRatio = window.devicePixelRatio || 1;
+const usesVectorScaling = ZoomController.usesVectorScaling();
+const currentZoom = ZoomController.getZoom();
+const rasterScale = usesVectorScaling
+? currentZoom * devicePixelRatio
+: ZoomController.getRasterScale(devicePixelRatio);
+const result = rasterizeIVG(currentSource, rasterScale);
 if (result === 0) {
 trace("Rasterization returned 0");
 } else {
@@ -857,8 +864,8 @@ width: width,
 height: height,
 left: left,
 top: top,
-pixelRatio: window.devicePixelRatio || 1,
-renderZoom: ZoomController.usesVectorScaling() ? ZoomController.getZoom() : 1
+rasterScale: rasterScale,
+renderZoom: usesVectorScaling ? currentZoom : 1
 });
 trace("Completed IVG");
 const end = window.performance.now();
