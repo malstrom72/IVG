@@ -65,7 +65,8 @@ class IVGExecutorWithExternalFonts : public IVGExecutor {
 					}
 					FontParser fontParser;
 					STLMapVariables vars;
-					Interpreter impd(fontParser, vars);
+					FormatInfo formatInfo;
+					Interpreter impd(fontParser, vars, formatInfo);
 					impd.run(fontCode);
 					insertResult.first->second = fontParser.finalizeFont();
 				}
@@ -181,7 +182,8 @@ uint8_t* rasterizeIVG(const char* ivgSource, double scaling) {
 		{
 			STLMapVariables topVars;
 			IVGExecutorWithExternalFonts ivgExecutor(canvas, AffineTransformation().scale(scaling));
-			Interpreter impd(ivgExecutor, topVars);
+			FormatInfo formatInfo;
+			Interpreter impd(ivgExecutor, topVars, formatInfo);
 			const string source(ivgSource);
 			impd.run(source);
 		}

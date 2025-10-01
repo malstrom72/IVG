@@ -1256,6 +1256,12 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 				int coverageByX = 1 << (COVERAGE_BITS + FRACT_BITS);
 				const int dx = x1 - x0;
 				if (dx != 0) {
+					if ((y0 < 0 && y1 > INT_MAX + y0) || (y0 > 0 && y1 < INT_MIN + y0)) {
+						valid = false;
+						segments.clear();
+						bounds = IntRect();
+						return;
+					}
 					const int dy = y1 - y0;
 					seg.dx = divide(dx, dy);
 					assert(dy >= 0);

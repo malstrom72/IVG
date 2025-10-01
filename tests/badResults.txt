@@ -83,7 +83,7 @@ Exception: Invalid number "1e".
 in statement: _DEBUG x = {+(1e)} // invalid number
 Exception: Invalid number "1e.0".
 in statement: _DEBUG x = {+(1e.0)} // invalid number
-Exception: Encountered "STOP" instruction.
+Exception: Encountered "stop" instruction.
 in statement: STOP
 Exception: Missing indexed argument #1.
 in statement: IF
@@ -131,6 +131,18 @@ Exception: Math error: "log" requires a value greater than 0.
 in statement: TRACE {log(-1)} // Math error
 Exception: Math error: "sqrt" requires a non-negative value.
 in statement: TRACE {sqrt(-1)} // Math error
+Exception: Invalid number "".
+in statement: TRACE {sqrt()} // missing argument
+Exception: Missing ",".
+in statement: TRACE {atan2(1)} // missing argument
+Exception: Missing ")".
+in statement: TRACE {hypot(1, 2, 3)} // too many arguments
+Exception: Missing "(".
+in statement: TRACE {hypot 1, 2, 3)} // no (
+Exception: Missing ")".
+in statement: TRACE {hypot (1, 2, 3} // no )
+Exception: Missing ",".
+in statement: TRACE {hypot ((1) (2)} // no ,
 Exception: Missing argument(s).
 in statement: INCLUDE
 Exception: Unrecognized labels or too many arguments.
@@ -150,6 +162,11 @@ Exception: Invalid boolean value "maybe"; expected "yes" or "no".
 in statement: IF maybe []
 Exception: Could not include file "missing.impd".
 in statement: INCLUDE missing.impd
+Exception: Duplicate "format" instruction.
+in statement: format duplicate-2 uses:[snapshot-1] requires:[impd-1]
+Exception: Undeclared meta tag: "unknown".
+in statement: meta unknown
+Exception: Undeclared meta tag: "snapshot-2".
+in statement: meta snapshot-2
 Exception: Statements limit reached.
 in statement: []
-Exception: Statements limit reached.
