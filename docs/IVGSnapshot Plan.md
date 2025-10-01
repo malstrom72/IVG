@@ -164,9 +164,9 @@ std::atomic<bool> shuttingDown;
 
 ### Milestone 1 – Metadata capture (in progress)
 - [x] Implement `SnapshotCollector`, `SnapshotPlan`, and supporting helpers inside `IVGSnapshot.cpp` using `IMPD::String` throughout.
-- [ ] Add focused tests in `tools/IVGSnapshot/tests/TestSnapshotPlan.cpp` that feed synthetic `meta snapshot` directives and assert plan contents, including repeated-scenario collapsing and array handling.
-- [ ] Expose `--list-only` (already hooked up) and validate its textual output against known fixtures.
-- [ ] Run `timeout 600 ./build.sh`.
+- [x] Add focused tests in `tools/IVGSnapshot/tests/TestSnapshotPlan.cpp` that feed synthetic `meta snapshot` directives and assert plan contents (arrays, implicit names, repeated scenarios, validation conflicts).
+- [x] Expose `--list-only` (already hooked up) and validate its textual output against known fixtures via `tools/IVGSnapshot/tests/ListOnlySample.{ivg,txt}`.
+- [x] Run `timeout 600 ./build.sh`.
 
 ### Milestone 2 – Rendering execution
 - [ ] Load IVGs via `IVG::Document` (`src/IVG.cpp:291-411`) and reuse the runtime renderer.

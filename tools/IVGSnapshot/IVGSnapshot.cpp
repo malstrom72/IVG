@@ -34,7 +34,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using namespace IMPD;
 
-namespace {
+namespace IVGSnapshotInternal {
 
 	struct SnapshotBlock {
 		bool validate;
@@ -117,10 +117,10 @@ namespace {
 		{
 			String name = baseName;
 			name += '-';
-			name += Interpreter::toString(nextBlockOrdinal);
+			name += Interpreter::toString(static_cast<int32_t>(nextBlockOrdinal));
 			if (blockCount > 1) {
 				name += '-';
-				name += Interpreter::toString(entryOrdinal);
+				name += Interpreter::toString(static_cast<int32_t>(entryOrdinal));
 			}
 			return name;
 		}
@@ -543,24 +543,30 @@ namespace {
 		return 0;
 	}
 
-} // namespace
+} // namespace IVGSnapshotInternal
+
+using namespace IVGSnapshotInternal;
+
+#if !defined(IVG_SNAPSHOT_TESTING)
 
 int main(int argc, char** argv)
 {
-	CommandLineOptions options;
-	if (!parseCommandLine(argc, argv, options)) {
-		return 1;
-	}
+        CommandLineOptions options;
+        if (!parseCommandLine(argc, argv, options)) {
+                return 1;
+        }
 
-	int exitCode = 0;
-	for (size_t i = 0; i < options.ivgPaths.size(); ++i) {
-		const int result = processFile(options, options.ivgPaths[i]);
-		if (result != 0) {
-			exitCode = result;
-			if (options.exitOnFirstFailure) {
-				break;
-			}
-		}
-	}
-	return exitCode;
+        int exitCode = 0;
+        for (size_t i = 0; i < options.ivgPaths.size(); ++i) {
+                const int result = processFile(options, options.ivgPaths[i]);
+                if (result != 0) {
+                        exitCode = result;
+                        if (options.exitOnFirstFailure) {
+                                break;
+                        }
+                }
+        }
+        return exitCode;
 }
+
+#endif // !defined(IVG_SNAPSHOT_TESTING)

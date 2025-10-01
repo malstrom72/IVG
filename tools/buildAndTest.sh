@@ -57,8 +57,16 @@ C_SRCS=(./externals/libpng/png.c ./externals/libpng/pngerror.c ./externals/libpn
 		./tools/PolygonMaskTest.cpp ./externals/NuX/NuXPixels.cpp
 
 ./tools/BuildCpp.sh $1 $2 ./output/TinyEllipseTest \
-		-DNUXPIXELS_SIMD=$simd -I ./ -I ./externals \
-		./tests/tinyEllipse.cpp ./externals/NuX/NuXPixels.cpp
+                -DNUXPIXELS_SIMD=$simd -I ./ -I ./externals \
+                ./tests/tinyEllipse.cpp ./externals/NuX/NuXPixels.cpp
+
+./tools/BuildCpp.sh $1 $2 ./output/IVGSnapshot \
+                -I ./ \
+                ./tools/IVGSnapshot/IVGSnapshot.cpp ./src/IMPD.cpp
+
+./tools/BuildCpp.sh $1 $2 ./output/TestSnapshotPlan \
+                -DIVG_SNAPSHOT_TESTING=1 -I ./ \
+                ./tools/IVGSnapshot/tests/TestSnapshotPlan.cpp ./src/IMPD.cpp
 
 echo Testing...
 cd tests
@@ -87,4 +95,9 @@ fi
 cd ..
 ./output/PolygonMaskTest
 ./output/TinyEllipseTest
+./output/TestSnapshotPlan
+tmp=$(mktemp)
+./output/IVGSnapshot --list-only tools/IVGSnapshot/tests/ListOnlySample.ivg > "$tmp"
+diff --strip-trailing-cr tools/IVGSnapshot/tests/ListOnlySample.txt "$tmp"
+rm "$tmp"
 exit 0
