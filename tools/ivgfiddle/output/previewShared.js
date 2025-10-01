@@ -816,6 +816,28 @@ ivgContext.lineWidth = 6;
 ivgContext.stroke();
 }
 
+function getHeapView(module, key) {
+if (module && module[key]) {
+return module[key];
+}
+return null;
+}
+
+function readInt32(module, pointer) {
+const heap32 = getHeapView(module, "HEAP32");
+if (heap32) {
+return heap32[pointer >> 2];
+}
+const heapU32 = getHeapView(module, "HEAPU32");
+if (heapU32) {
+return heapU32[pointer >> 2] | 0;
+}
+if (module && typeof module.getValue === "function") {
+return module.getValue(pointer, "i32");
+}
+throw new Error("WebAssembly heap view missing");
+}
+
 const rasterizeIVG = function rasterizeIVG(source, scaling) {
 const size = global.Module.lengthBytesUTF8(source) + 1;
 const stringPointer = global.Module._malloc(size);
@@ -843,14 +865,19 @@ const result = rasterizeIVG(currentSource, rasterScale);
 if (result === 0) {
 trace("Rasterization returned 0");
 } else {
-const width = global.Module.getValue(result + 0, "i32");
-const height = global.Module.getValue(result + 4, "i32");
-const left = global.Module.getValue(result + 8, "i32");
-const top = global.Module.getValue(result + 12, "i32");
-const pixelDataPointer = global.Module.getValue(result + 16, "i32");
+const module = global.Module;
+const left = readInt32(module, result + 0);
+const top = readInt32(module, result + 4);
+const width = readInt32(module, result + 8);
+const height = readInt32(module, result + 12);
 const byteLength = width * height * 4;
-const pixelData = global.Module.HEAPU8.slice(pixelDataPointer, pixelDataPointer + byteLength);
-global.Module._deallocatePixels(result);
+const heapU8 = getHeapView(module, "HEAPU8");
+if (!heapU8) {
+throw new Error("WebAssembly heap unavailable");
+}
+const pixelOffset = result + 16;
+const pixelData = heapU8.slice(pixelOffset, pixelOffset + byteLength);
+module._deallocatePixels(result);
 if (width > 0 && height > 0 && pixelData.length === byteLength) {
 if (ivgCanvas.width !== width || ivgCanvas.height !== height) {
 ivgCanvas.width = width;
