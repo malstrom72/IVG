@@ -1,135 +1,238 @@
 # IVGSnapshot System Plan
 
-## Objectives
-- Deliver a standalone C++ regression harness (`IVGSnapshot`) that validates `.ivg` snippets by rendering them to PNG and comparing them with stored goldens.
-- Support inline opt-in metadata inside IVG sources via `meta snapshot [...]` blocks so designers can control parameters, validation gates, and other execution details without affecting runtime renderers.
-- Provide a fast inner loop for artists: they can temporarily disable validation, iterate in ivgfiddle or their host product, then re-enable validation to lock the expected output.
+## Goals
+- Build a standalone C++ snapshot runner (`IVGSnapshot`) that renders `.ivg` sources, compares the output against golden PNGs, and reports per-scenario verdicts.
+- Let authors opt into validation directly inside IVG documents through the `meta snapshot` directive without touching the runtime renderer.
+- Keep every line of implementation isolated under `tools/IVGSnapshot/` so the core runtime in `src/` stays unchanged and no shared `tools/include` tree is introduced.
 
-## High-Level Workflow
-1. Discover the IVG inputs provided on the command line, normalize their paths, and locate companion golden files in a deterministic folder structure (default: same directory with `.png`).
-2. Parse each IVG file collecting every `meta snapshot` block in document order. Fall back to default settings when metadata is missing.
-3. Resolve ImpD variables declared in the meta block to build a concrete render configuration (canvas size, parameter set, golden policy, etc.).
-4. Invoke the IVG renderer (shared engine from `ivg2png`) with the configured parameters plus include/font/image search paths from CLI flags.
-5. Write the rendered PNG to a temp location, compare it bytewise to the golden (or manage `png.disabled` sentinel), and summarize the verdicts.
-6. Respect force-update flags by refreshing goldens with the new renders while still reporting differences.
+## Source Layout & Dependencies
+- Command-line entry point, metadata collector, render driver, golden manager, and supporting headers all live beside each other under `tools/IVGSnapshot/` (for example `SnapshotCollector.cpp` with `SnapshotCollector.h`).
+- Reuse existing libraries by including headers from `src/` or `externals/` directly; do not add helper include directories outside the tool’s folder.
+- The build target publishes an executable only; shared libraries stay in their existing locations.
 
 ## Command-Line Interface
-- `IVGSnapshot [options] <ivg> [<ivg> ...]`
-- Options:
-  - `--include-dir <path>` (repeatable): augment search paths for `include "..."` directives.
-  - `--font-dir <path>` (repeatable): supply font lookup directories, matching ivg2png semantics.
-  - `--image-dir <path>` (repeatable): supply bitmap lookup directories.
-  - `--output-dir <path>`: optional override for generated PNGs (default: alongside IVG).
-  - `--force-update`: replace goldens with newly rendered output regardless of diff status.
-  - `--threads <n>`: cap parallel render concurrency.
-  - `--list-only`: dry-run reporting of discovered files and meta configs.
-  - `--verbose`: echo detailed diagnostics, including resolved parameter sets and comparison hashes.
-  - `--exit-on-first-failure`: support CI scenarios that want early termination.
+`IVGSnapshot [options] <ivg> [<ivg> ...]`
 
-## File Layout & Golden Handling
-- Golden naming: `<basename>.png` stored next to the IVG or inside a mirror directory under `output/snapshot/` (configurable).
-- Disabled sentinel: `<basename>.png.disabled` lives next to the IVG. When present, it signals intentional suppression and the
-  harness skips comparison.
-- On `validate:no` meta:
-  - If a golden PNG exists, rename it to `.png.disabled` (replacing any prior sentinel) so the latest render is preserved.
-  - Retain the `.png.disabled` sentinel across runs and report that the scenario is in draft mode.
-  - Absence of both PNG and sentinel is acceptable; the harness notes the skipped comparison.
-- On `validate:yes` meta:
-  - If a golden PNG exists, the render must match byte-for-byte; differences fail the test.
-  - If the PNG is missing but a `.png.disabled` sentinel exists, render a fresh golden, delete the sentinel, then compare.
-  - If both PNG and sentinel are missing, treat as an error unless `--force-update` is passed, in which case the golden is
-    created before comparison.
-  - Always ensure no `.png.disabled` sentinel remains once validation is re-enabled.
-- Default behavior (no meta): treat as `validate:yes` with implicit bounds derived from the render output.
+Options:
+- `--include-dir <path>` (repeatable) — forwarded to the IVG interpreter for `include` resolution.
+- `--font-dir <path>` (repeatable) — additional font lookup paths.
+- `--image-dir <path>` (repeatable) — bitmap lookup paths.
+- `--output-dir <path>` — overrides the golden and diff root; defaults to the IVG directory.
+- `--force-update` — replaces goldens with new renders (unless the block is `validate:no`).
+- `--threads <n>` — limits concurrent work items; defaults to hardware concurrency.
+- `--list-only` — parses metadata and prints the run list without rendering.
+- `--verbose` — expands logging with resolved arguments, resolved golden locations, and NuXThreads scheduling diagnostics.
+- `--exit-on-first-failure` — stops scheduling new renders once a failure is detected.
 
-## Meta Block Semantics
-- Grammar: `meta snapshot <key:value pairs> [ <ImpD statements> ]` (repeatable in a single IVG).
-- Recognized keys:
-  - `validate:(yes|no)`: toggle golden expectations.
-  - Arbitrary parameter assignments (e.g., `size=5; color=green; text="foo"`) evaluated as ImpD expressions and injected into the interpreter environment before playback.
-- Execution flow:
-  1. Parse doc up to meta block using existing lexer (reuse from IVG parser if possible).
-  2. Evaluate the ImpD chunk using embedded interpreter from IVG runtime to seed global variables.
-  3. Track multiple `meta snapshot` blocks, preserving document order so each block can own an independent validation decision or scenario partition. When a `name:"scenario"` key is present, attach it to the block for friendly reporting and golden naming.
-- Extensibility: allow arrays/maps to support future parameter sweeps.
+## Metadata Grammar & Collector Flow
+- Grammar (first revision only):
+  `meta snapshot [validate:(yes|no)=yes] [scenario:<scenario>] [ <statements> ] | [ [ <statements> ], [<statements>], ... ]`
+  - Either supply a single block `[ <statements> ]` or an array of statement lists.
+  - The directive may appear multiple times within one IVG. Execution order follows document order.
+- `snapshot-1` is the only supported key. ImpD already appends `-1` when the author omits it, so the collector simply compares the normalized key and ignores everything else.
+- The collector runs a dedicated `IMPD::Interpreter` instance with a thin executor that only cares about metadata. The executor never leaks outside `tools/IVGSnapshot/`.
+- `IMPD::ArgumentsContainer::parse` is used to normalize arguments. The collector must call `throwIfAnyUnfetched()` so stray labels are rejected early.
+- Line tracking: load the IVG text into memory, run the interpreter, and maintain a moving pointer through the source. Each time `meta` fires, advance through the buffer to the next `meta snapshot` token and count newlines to derive a 1-based line number for diagnostics.
 
-## Multi-Block & Multi-Snapshot Scenarios
-- Extend `meta snapshot` so a single IVG can declare multiple blocks, each with its own validation policy and optional setup payload. Within a block, an ordered list of inline code entries still produces individual render passes.
-- Name golden outputs automatically using block and entry ordinals: `<basename>-<blockIndex>.png` for a single-entry block, `<basename>-<blockIndex>-<entryIndex>.png` when iterating inside a block. Indices are 1-based to match artist expectations.
-- Allow an optional `name:"friendly"` key at the block level to replace `<blockIndex>` in the generated filename (`<basename>-friendly.png` or `<basename>-friendly-<entryIndex>.png`). Per-entry overrides can follow the same pattern when the list is present.
-- Treat each block as a cluster of related scenarios that share ImpD variables but may tweak small pieces of the scene (e.g., alternate palettes, animation frames, or toggled feature flags). Separate blocks let authors freeze legacy renders under `validate:yes` while iterating in later `validate:no` sections.
-- Default snapshot remains the first block’s first entry when no list is provided to preserve backward compatibility.
-- Validation settings are scoped per block: the `validate:(yes|no)` toggle on each `meta snapshot` applies only to the snapshots declared inside that block, preventing draft experiments from suppressing comparisons on earlier sealed blocks.
-- Store per-snapshot metadata (ImpD overrides or naming hints) alongside each entry so the harness can report granular pass/fail status and regenerate only the requested golden while still respecting the owning block’s validation flag.
-- Surface block and entry identifiers in ivgfiddle: the fiddle loads the manifest, presents either numeric choices or friendly names, and reruns playback against the chosen combination. Defaults mirror the first block/entry pairing so the experience stays familiar.
+### Collector Sketch
+```cpp
+// tools/IVGSnapshot/SnapshotCollector.cpp
+class SnapshotCollector : public IMPD::Executor {
+public:
+	SnapshotCollector(SnapshotPlan& plan, IVG::Document& document)
+	: plan(plan)
+	, document(document)
+	, scanOffset(0)
+	{
+	}
 
-## Rendering Engine Integration
-- Reuse the core rendering stack already used by `ivg2png` (ImpD evaluator + IVG rasterizer).
-- Create a library facade (`libIVGSnapshot`) with hooks:
-  - `LoadIVG(const char* path, SnapshotMetadata&)` -> parse document, extract metadata.
-  - `RenderIVG(const RenderConfig&, Surface&)` -> run the interpreter, produce raster.
-  - `WritePNG(const Surface&, const char* path)` -> share with ivg2png to avoid duplication.
-- Support optional headless glyph caching per run to avoid repeated font shaping costs.
-- Manage include/image/font resolution through a shared resource manager honoring CLI search paths.
+	bool meta(IMPD::Interpreter& interpreter, const IMPD::String& key, const IMPD::String& arguments) override
+	{
+		if (key != "snapshot-1") {
+			return false;        // Unrecognized meta, fall through to other handlers.
+		}
 
-## Comparison Strategy
-- Load goldens and render output into RGBA surfaces (premultiplied expected).
-- Verify dimensions match; mismatch is an immediate failure (report expected vs. actual sizes).
-- Perform pixel-by-pixel comparison; collect:
-  - First differing coordinate.
-  - Count of mismatched pixels.
-  - Max absolute channel delta.
-- Provide tolerance options for floating errors if needed (default zero tolerance).
-- For failures, write diff artifacts (`.diff.png`, `.actual.png`) to assist debugging.
+		IMPD::ArgumentsContainer args(IMPD::ArgumentsContainer::parse(interpreter, IMPD::StringRange(arguments)));
+		SnapshotBlock block;
+		block.validate = parseValidate(args.fetchOptional("validate"));
+		const IMPD::String* scenarioLabel = args.fetchOptional("scenario");
+		if (scenarioLabel != 0) block.scenario.assign(scenarioLabel->begin(), scenarioLabel->end());
 
-## Force Update Mechanics
-- When `--force-update` is set:
-  - Always write the rendered output to the golden path (unless `validate:no`).
-  - Keep previous golden as `.bak` for rollback (optional flag `--keep-backup`).
-  - Still report whether the prior golden differed to inform developers.
-- When not set:
-  - Only update goldens when transitioning from `validate:no` to `validate:yes` or if the golden is absent and not disabled (then fail instead of auto-create).
+		block.statements = extractStatementLists(arguments);
+		block.sourceLine = locateMetaLine(document.getSource(), scanOffset, arguments);
 
-## Parallel Execution & Reporting
-- Use a task queue sized by `--threads` (default: hardware concurrency).
-- Each task outputs structured log lines (JSON or plain text) summarizing:
-  - File path.
-  - Scenario name (if multi-scenario support introduced later).
-  - Validation state.
-  - Comparison result (pass/fail/disabled/updated).
-- Aggregate exit code rules:
-  - Non-zero if any file fails comparison or a golden is missing without suppression.
-  - Zero if all enabled tests match (even when goldens updated via `--force-update`).
-- Optional summary table at end showing totals.
+		args.throwIfAnyUnfetched();
+		plan.addBlock(block);
+		return true;
+	}
 
-## VS Code & ivgfiddle Workflow Hooks
-- Extension can shell out to `IVGSnapshot --list-only` to populate scenario pickers.
-- Provide task definitions for regenerating a specific IVG’s golden (`IVGSnapshot --force-update file.ivg`).
-- Document how `validate:no` prevents CI noise while allowing designers to preview via ivgfiddle (which ignores `meta snapshot`).
+private:
+	static ValidateMode parseValidate(const IMPD::String* value);
+	static StatementList extractStatementLists(const IMPD::String& arguments);
+	static uint32_t locateMetaLine(const std::string& source, size_t& scanOffset, const IMPD::String& arguments);
+
+	SnapshotPlan& plan;
+	IVG::Document& document;
+	size_t scanOffset;
+};
+```
+- `extractStatementLists` handles both the single-block form and nested arrays by re-using `IMPD::Interpreter::parseList` so the syntax matches the runtime exactly.
+- `locateMetaLine` advances a local scan offset through the IVG source, matching the next `meta snapshot` occurrence and counting newline characters to produce deterministic line numbers.
+
+## Snapshot Data Model & Scenario Rules
+```cpp
+// tools/IVGSnapshot/SnapshotPlan.h
+struct SnapshotEntry {
+	uint32_t blockIndex;
+	uint32_t entryIndex;
+	uint32_t sourceLine;
+	std::string scenario;          // Empty -> synthesized name
+	std::string statements;        // Raw ImpD snippet to replay
+	ValidateMode validate;
+};
+
+struct SnapshotScenario {
+	std::string name;              // Explicit scenario or synthesized ordinal
+	std::vector<SnapshotEntry> entries;
+	bool validate;
+};
+
+class SnapshotPlan {
+public:
+	void addBlock(const SnapshotBlock& block)
+	{
+		SnapshotScenario& scenario = resolveScenario(block);
+		for (size_t i = 0; i < block.statements.size(); ++i) {
+			SnapshotEntry entry;
+			entry.blockIndex = blockOrdinal++;
+			entry.entryIndex = static_cast<uint32_t>(i + 1);
+			entry.sourceLine = block.sourceLine;
+			entry.scenario = scenario.name;
+			entry.statements = block.statements[i];
+			entry.validate = block.validate;
+			scenario.entries.push_back(entry);
+		}
+	}
+
+	const std::vector<SnapshotScenario>& getScenarios() const { return scenarios; }
+
+private:
+	SnapshotScenario& resolveScenario(const SnapshotBlock& block);
+
+	std::vector<SnapshotScenario> scenarios;
+	uint32_t blockOrdinal = 1;
+};
+```
+- Repeated `scenario:` labels reuse the same `SnapshotScenario` so all checkpoints contribute to a single golden even when separated by unrelated code.
+- When no scenario is supplied, the planner synthesizes names using `<basename>-<blockOrdinal>` for single-entry blocks and `<basename>-<blockOrdinal>-<entryIndex>` for array entries.
+- The first block’s first entry is the default selection for ivgfiddle or `--list-only`, not because of legacy compatibility but because we need a deterministic anchor when the user does not specify anything else.
+
+## Execution Semantics
+- Each snapshot entry replays the entire IVG with the collected statements inserted before rendering, matching how runtime playback works today.
+- Array forms (`[ [ do-stuff ], [ do-other-stuff ] ]`) create multiple entries for the same block. They iterate sequentially in the order provided. When combined with `scenario:<name>`, all entries populate a single golden.
+- Multiple `meta snapshot` blocks with the same `scenario` append additional statement groups; the renderer runs them all but only writes one golden per scenario.
+- There is no future-looking parameter sweep system in this revision—only the grammar above is supported.
+
+## Rendering & Resource Resolution
+- Reuse `IVG::IVGExecutor` to evaluate the document with each snapshot entry’s statements, relying on the existing renderer in `src/IVG.cpp`.
+- Share asset resolution (includes, fonts, images) with `ivg2png`, respecting the CLI search path arguments.
+- Cache glyph and bitmap resources within a run so repeated entries for the same IVG avoid reloading files.
+
+## Golden Lifecycle
+- Golden names default to the IVG basename plus scenario or ordinal suffix; store them beside the IVG unless `--output-dir` redirects to a mirrored folder.
+- Draft mode (`validate:no`) records a `.png.disabled` sentinel containing the freshly rendered output and skips comparisons.
+- Validation mode requires an existing golden unless `--force-update` is active, in which case the new render replaces the file after optionally backing up the previous golden as `<name>.png.bak`.
+- Every compare failure emits `.actual.png` and `.diff.png` artifacts next to the golden for debugging.
+
+## Parallel Execution with NuXThreads
+- Workers are implemented by subclassing `NuXThreads::Thread` so we stay inside the provided abstraction. Jobs are queued through `NuXThreads::Queue`.
+- The scheduler owns a bounded queue sized to a power of two (per NuXThreads requirements) and a pool of worker threads sized by `--threads` (or hardware concurrency when omitted).
+- Each job carries a stable identifier (filename + scenario + entry) so logs can correlate to the correct entry regardless of execution order.
+
+### Scheduler Sketch
+```cpp
+// tools/IVGSnapshot/SnapshotScheduler.cpp
+class SnapshotScheduler : private NuXThreads::Runnable {
+public:
+	explicit SnapshotScheduler(uint32_t requestedThreads)
+	: threadCount(requestedThreads ? requestedThreads : defaultHardwareConcurrency())
+	, queue(nextPowerOfTwo(threadCount * 4))
+	{
+		workers.reserve(threadCount);
+		for (uint32_t i = 0; i < threadCount; ++i) {
+			workers.emplace_back(new NuXThreads::Thread(*this));
+			workers.back()->start();
+		}
+	}
+
+	void enqueue(SnapshotJob job)
+	{
+		while (!queue.push(job)) {
+			NuXThreads::Thread::yield();
+		}
+	}
+
+	void join()
+	{
+		queue.push(SnapshotJob::makeSentinel());
+		for (size_t i = 0; i < workers.size(); ++i) {
+			workers[i]->join();
+		}
+	}
+
+	void run() override
+	{
+		SnapshotJob job;
+		while (queue.pop(job)) {
+			if (job.isSentinel()) break;
+			job();
+		}
+	}
+
+private:
+	uint32_t threadCount;
+	NuXThreads::Queue<SnapshotJob> queue;
+	std::vector<std::unique_ptr<NuXThreads::Thread>> workers;
+};
+```
+- The queue sentinel shuts down each worker cleanly when `join()` is called.
+- `SnapshotJob` is a move-only functor that captures the renderer, plan entry, and reporting sink.
+
+## Reporting
+- Each completed job records: IVG path, scenario name, entry ordinal, validation mode, comparison outcome, golden path, and timing data.
+- `--verbose` prints per-entry traces immediately; default output summarizes passes, failures, disabled entries, and updates at the end.
+- Exit code is non-zero if any validating entry fails or a required golden is missing.
 
 ## Implementation Roadmap
 
-### Milestone 1: Metadata & Configuration Foundation
-- [ ] Audit the existing ImpD parser and runtime to understand how it surfaces `meta` directives, then wire `meta snapshot` discovery into that infrastructure for early CLI experiments.
-- [ ] Build the inline ImpD evaluator bridge to execute `meta snapshot` payloads, seed render contexts, and capture unit tests around parameter injection.
-- [ ] Document parser and evaluator behaviors so contributors understand how multiple blocks and snapshot lists are enumerated.
-- [ ] Run `timeout 600 ./build.sh` and confirm `=== ALL BUILDS AND TESTS COMPLETED SUCCESSFULLY ===`.
+### Milestone 1 — Metadata Capture
+- [ ] Wire a new `SnapshotCollector` that subclasses `IMPD::Executor`, implements `meta`, and ignores all other callbacks.
+- [ ] Implement `locateMetaLine` by scanning the raw IVG source and counting newlines up to each `meta snapshot` hit.
+- [ ] Model `SnapshotBlock`, `SnapshotScenario`, and `SnapshotPlan`; include deterministic scenario merging for repeated labels.
+- [ ] Add unit coverage in `tools/IVGSnapshot/tests/TestSnapshotPlan.cpp` that feeds synthetic argument strings through the collector and verifies the resulting plan.
+- [ ] Expose a CLI flag (`--list-only`) that prints the collected plan so the behavior can be inspected without rendering.
+- [ ] Run `timeout 600 ./build.sh` and ensure it completes successfully.
 
-### Milestone 2: Golden Lifecycle & Rendering Loop
-- [ ] Implement the golden lifecycle manager covering `.png`, `.png.disabled`, and `--force-update` transitions with atomic file operations and verbose logging.
-- [ ] Factor the shared rasterization core from `ivg2png` into `libIVGSnapshot`, validating identical output on representative fixtures.
-- [ ] Establish automated regression coverage that exercises both validated and draft (`validate:no`) flows.
-- [ ] Run `timeout 600 ./build.sh` and confirm `=== ALL BUILDS AND TESTS COMPLETED SUCCESSFULLY ===`.
+### Milestone 2 — Rendering Loop & Statement Injection
+- [ ] Reuse `IVG::Document` loading logic so the same parser feeds both collector and renderer.
+- [ ] Implement an evaluator that replays the document while injecting each entry’s statements before rendering.
+- [ ] Share include/font/image search path handling with `ivg2png` to avoid duplicating resource code.
+- [ ] Cache interpreter contexts between entries from the same IVG when possible to avoid redundant setup.
+- [ ] Extend the plan listing to show synthesized scenario names and resolved statement counts for diagnostics.
+- [ ] Run `timeout 600 ./build.sh` and confirm success.
 
-### Milestone 3: Comparison, Parallelism, and Reporting
-- [ ] Deliver the pixel comparison engine, diff artifact writers, and tolerance configuration plumbing.
-- [ ] Add a parallel executor with progress reporting, early-exit controls, and summarized exit codes for CI dashboards.
-- [ ] Extend reporting to include per-block and per-entry identifiers so multi-snapshot scenarios surface clearly in logs.
-- [ ] Run `timeout 600 ./build.sh` and confirm `=== ALL BUILDS AND TESTS COMPLETED SUCCESSFULLY ===`.
+### Milestone 3 — Golden Lifecycle & Comparison
+- [ ] Implement `SnapshotGolden` to manage `.png`, `.png.disabled`, and `.png.bak` transitions according to the validation mode and `--force-update` flag.
+- [ ] Implement pixel comparison with diff artifact writers (actual, diff, summary stats).
+- [ ] Provide clear error messages when a validating entry lacks a golden and `--force-update` is not present.
+- [ ] Add integration tests that cover draft mode, golden creation, forced updates, and diff emission.
+- [ ] Produce structured log output (JSON or plain text) that downstream tooling can parse.
+- [ ] Run `timeout 600 ./build.sh` and confirm success.
 
-### Milestone 4: Tooling Integration & Future ivgfiddle Hooks
-- [ ] Publish developer tooling surfaces (VS Code tasks, CLI recipes) that demonstrate the end-to-end workflow from draft to sealed goldens.
-- [ ] Outline the forward-looking ivgfiddle picker integration, coordinating with the dedicated UI branch before enabling it by default.
-- [ ] Refresh documentation and onboarding materials to reflect multi-block snapshot lists and upcoming UI support.
-- [ ] Run `timeout 600 ./build.sh` and confirm `=== ALL BUILDS AND TESTS COMPLETED SUCCESSFULLY ===`.
-
+### Milestone 4 — Parallel Execution & Reporting Polish
+- [ ] Implement `SnapshotScheduler` on top of `NuXThreads::Thread` and `NuXThreads::Queue`, including graceful shutdown and early-exit support.
+- [ ] Add the `--threads` flag with hardware-concurrency default detection.
+- [ ] Ensure log output remains deterministic when jobs finish out of order by tagging entries with stable identifiers.
+- [ ] Integrate `--exit-on-first-failure` so the scheduler stops queueing new jobs after a failing comparison.
+- [ ] Document ivgfiddle integration, including manifest export listing scenarios and entries with their indices.
+- [ ] Run `timeout 600 ./build.sh` and confirm success.
