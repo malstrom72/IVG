@@ -614,7 +614,7 @@ function buildDomStructure(document) {
 	return elements;
 }
 function createTestWindow() {
-	const windowObject = Object.create(globalThis);
+	const windowObject = Object.create(null);
 	windowObject.window = windowObject;
 	windowObject.self = windowObject;
 	windowObject.globalThis = windowObject;
