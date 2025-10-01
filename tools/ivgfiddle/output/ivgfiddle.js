@@ -99,6 +99,51 @@ function computeSourceSignature(source) {
 	return source.length + ":" + (hash >>> 0);
 }
 
+function withElement(element, callback) {
+	if (element !== null) {
+		callback(element);
+	}
+}
+
+function toggleClass(element, className, shouldHave) {
+	if (element === null) {
+		return;
+	}
+	if (shouldHave) {
+		element.classList.add(className);
+	} else {
+		element.classList.remove(className);
+	}
+}
+
+const Settings = (function createSettingsAdapter() {
+	function read(key, fallback) {
+		try {
+			const value = localStorage.getItem(key);
+			return value === null ? fallback : value;
+		} catch (error) {
+			return fallback;
+		}
+	}
+
+	function write(key, value) {
+		try {
+			if (value === null) {
+				localStorage.removeItem(key);
+			} else {
+				localStorage.setItem(key, value);
+			}
+		} catch (error) {
+			// Ignore storage failures; they are non-fatal for the fiddle UI.
+		}
+	}
+
+	return {
+		read: read,
+		write: write,
+	};
+})();
+
 const leftPanelElement = document.getElementById("leftPanel");
 const leftRightSplitElement = document.getElementById("leftRightSplit");
 const traceElement = document.getElementById("trace");
@@ -153,6 +198,15 @@ const BACKGROUND_COLORS = Object.freeze([
 	{ value: "none", label: "None", preview: "#121212" },
 ]);
 
+const BACKGROUND_COLOR_MAP = (function buildBackgroundMap() {
+	const lookup = Object.create(null);
+	for (let index = 0; index < BACKGROUND_COLORS.length; ++index) {
+		const entry = BACKGROUND_COLORS[index];
+		lookup[entry.value] = entry;
+	}
+	return lookup;
+})();
+
 const BACKGROUND_DEFAULT = "none";
 
 const BackgroundController = (function createBackgroundController() {
@@ -163,13 +217,7 @@ const BackgroundController = (function createBackgroundController() {
 	const defaultBodyBackground = bodyElement ? window.getComputedStyle(bodyElement).backgroundColor : "";
 
 	function getColorDefinition(value) {
-		for (let index = 0; index < BACKGROUND_COLORS.length; ++index) {
-			const entry = BACKGROUND_COLORS[index];
-			if (entry.value === value) {
-				return entry;
-			}
-		}
-		return null;
+		return Object.prototype.hasOwnProperty.call(BACKGROUND_COLOR_MAP, value) ? BACKGROUND_COLOR_MAP[value] : null;
 	}
 
 	function normalizeColor(value) {
@@ -253,6 +301,14 @@ const BackgroundController = (function createBackgroundController() {
 		return adjustOuterShade(definition);
 	}
 
+	function getSwatchButtons() {
+		if (backgroundSwatchContainer === null) {
+			return [];
+		}
+		const nodeList = backgroundSwatchContainer.querySelectorAll(".background-swatch");
+		return Array.prototype.slice.call(nodeList);
+	}
+
 	function createSwatches() {
 		if (backgroundSwatchContainer === null) {
 			return;
@@ -286,10 +342,7 @@ const BackgroundController = (function createBackgroundController() {
 	}
 
 	function updateSelectionUI() {
-		if (backgroundSwatchContainer === null) {
-			return;
-		}
-		const buttons = backgroundSwatchContainer.querySelectorAll(".background-swatch");
+		const buttons = getSwatchButtons();
 		for (let index = 0; index < buttons.length; ++index) {
 			const button = buttons[index];
 			const value = button.getAttribute("data-background");
@@ -304,57 +357,38 @@ const BackgroundController = (function createBackgroundController() {
 	}
 
 	function updateTriggerLabel() {
-		if (backgroundButton === null) {
-			return;
-		}
-		const definition = getColorDefinition(currentColor);
-		const labelText = definition ? definition.label : currentColor;
-		backgroundButton.setAttribute("aria-label", "Change canvas background (current: " + labelText + ")");
-	}
-
-	function persistColor() {
-		localStorage.setItem(STORAGE_KEYS.BACKGROUND_COLOR, currentColor);
+		withElement(backgroundButton, function updateButtonLabel(button) {
+			const definition = getColorDefinition(currentColor);
+			const labelText = definition ? definition.label : currentColor;
+			button.setAttribute("aria-label", "Change canvas background (current: " + labelText + ")");
+		});
 	}
 
 	function applyColorToDOM() {
 		const shouldClearColor = currentColor === "none";
 		const definition = getColorDefinition(currentColor);
 		const paletteColor = definition && definition.preview ? definition.preview : currentColor;
-		const outerColor = computeOuterBackground(definition);
-		if (rightPanelElement !== null) {
+		const outerColor = computeOuterBackground(definition) || paletteColor;
+		withElement(rightPanelElement, function updateRightPanel(element) {
+			toggleClass(element, "transparent", shouldClearColor);
+			element.style.backgroundColor = shouldClearColor ? "" : outerColor;
+		});
+		withElement(screenElement, function updateScreen(element) {
+			toggleClass(element, "transparent", shouldClearColor);
+			element.style.backgroundColor = shouldClearColor ? "" : outerColor;
+		});
+		withElement(ivgCanvas, function updateCanvas(canvas) {
 			if (shouldClearColor) {
-				rightPanelElement.classList.add("transparent");
-				rightPanelElement.style.backgroundColor = "";
+				canvas.style.removeProperty("background-color");
+				canvas.style.removeProperty("background-image");
 			} else {
-				rightPanelElement.classList.remove("transparent");
-				rightPanelElement.style.backgroundColor = outerColor || paletteColor;
+				canvas.style.backgroundColor = paletteColor;
+				canvas.style.backgroundImage = "none";
 			}
-		}
-		if (screenElement !== null) {
-			if (shouldClearColor) {
-				screenElement.classList.add("transparent");
-				screenElement.style.backgroundColor = "";
-			} else {
-				screenElement.classList.remove("transparent");
-				screenElement.style.backgroundColor = outerColor || paletteColor;
-			}
-		}
-		if (ivgCanvas !== null) {
-			if (shouldClearColor) {
-				ivgCanvas.style.removeProperty("background-color");
-				ivgCanvas.style.removeProperty("background-image");
-			} else {
-				ivgCanvas.style.backgroundColor = paletteColor;
-				ivgCanvas.style.backgroundImage = "none";
-			}
-		}
-		if (bodyElement !== null) {
-			if (shouldClearColor) {
-				bodyElement.style.backgroundColor = defaultBodyBackground;
-			} else {
-				bodyElement.style.backgroundColor = outerColor || paletteColor;
-			}
-		}
+		});
+		withElement(bodyElement, function updateBody(element) {
+			element.style.backgroundColor = shouldClearColor ? defaultBodyBackground : outerColor;
+		});
 	}
 
 	function applyColor(value, options) {
@@ -370,52 +404,43 @@ const BackgroundController = (function createBackgroundController() {
 		updateSelectionUI();
 		updateTriggerLabel();
 		if (!settings.skipPersist) {
-			persistColor();
+			Settings.write(STORAGE_KEYS.BACKGROUND_COLOR, currentColor);
 		}
 	}
 
 	function focusCurrentSwatch() {
-		if (backgroundSwatchContainer === null) {
-			return;
-		}
-		const active = backgroundSwatchContainer.querySelector('.background-swatch[data-background="' + currentColor + '"]');
-		if (active) {
-			active.focus();
+		const buttons = getSwatchButtons();
+		for (let index = 0; index < buttons.length; ++index) {
+			const button = buttons[index];
+			if (button.getAttribute("data-background") === currentColor) {
+				button.focus();
+				return;
+			}
 		}
 	}
 
 	function focusRelativeSwatch(startButton, delta) {
-		if (backgroundSwatchContainer === null) {
-			return;
-		}
-		const buttons = backgroundSwatchContainer.querySelectorAll(".background-swatch");
+		const buttons = getSwatchButtons();
 		if (buttons.length === 0) {
 			return;
 		}
-		const buttonList = Array.prototype.slice.call(buttons);
-		let index = buttonList.indexOf(startButton);
+		let index = buttons.indexOf(startButton);
 		if (index === -1) {
 			index = 0;
 		}
-		index = (index + delta + buttonList.length) % buttonList.length;
-		buttonList[index].focus();
+		index = (index + delta + buttons.length) % buttons.length;
+		buttons[index].focus();
 	}
 
 	function focusFirstSwatch() {
-		if (backgroundSwatchContainer === null) {
-			return;
-		}
-		const first = backgroundSwatchContainer.querySelector(".background-swatch");
-		if (first) {
-			first.focus();
+		const buttons = getSwatchButtons();
+		if (buttons.length > 0) {
+			buttons[0].focus();
 		}
 	}
 
 	function focusLastSwatch() {
-		if (backgroundSwatchContainer === null) {
-			return;
-		}
-		const buttons = backgroundSwatchContainer.querySelectorAll(".background-swatch");
+		const buttons = getSwatchButtons();
 		if (buttons.length > 0) {
 			buttons[buttons.length - 1].focus();
 		}
@@ -444,27 +469,28 @@ const BackgroundController = (function createBackgroundController() {
 		if (target === null || !target.classList || !target.classList.contains("background-swatch")) {
 			return;
 		}
-		if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+		const key = event.key;
+		if (key === "ArrowRight" || key === "ArrowDown") {
 			event.preventDefault();
 			focusRelativeSwatch(target, 1);
 			return;
 		}
-		if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+		if (key === "ArrowLeft" || key === "ArrowUp") {
 			event.preventDefault();
 			focusRelativeSwatch(target, -1);
 			return;
 		}
-		if (event.key === "Home") {
+		if (key === "Home") {
 			event.preventDefault();
 			focusFirstSwatch();
 			return;
 		}
-		if (event.key === "End") {
+		if (key === "End") {
 			event.preventDefault();
 			focusLastSwatch();
 			return;
 		}
-		if (event.key === "Enter" || event.key === " ") {
+		if (key === "Enter" || key === " ") {
 			event.preventDefault();
 			const value = target.getAttribute("data-background");
 			if (value) {
@@ -504,11 +530,11 @@ const BackgroundController = (function createBackgroundController() {
 		}
 		isOpen = true;
 		lastTrigger = trigger || backgroundButton;
-		backgroundOverlay.classList.remove("is-hidden");
+		toggleClass(backgroundOverlay, "is-hidden", false);
 		backgroundOverlay.setAttribute("aria-hidden", "false");
-		if (backgroundButton !== null) {
-			backgroundButton.setAttribute("aria-expanded", "true");
-		}
+		withElement(backgroundButton, function markExpanded(button) {
+			button.setAttribute("aria-expanded", "true");
+		});
 		document.addEventListener("keydown", handleOverlayKeydown, true);
 		window.setTimeout(focusCurrentSwatch, 0);
 	}
@@ -518,11 +544,11 @@ const BackgroundController = (function createBackgroundController() {
 			return;
 		}
 		isOpen = false;
-		backgroundOverlay.classList.add("is-hidden");
+		toggleClass(backgroundOverlay, "is-hidden", true);
 		backgroundOverlay.setAttribute("aria-hidden", "true");
-		if (backgroundButton !== null) {
-			backgroundButton.setAttribute("aria-expanded", "false");
-		}
+		withElement(backgroundButton, function markCollapsed(button) {
+			button.setAttribute("aria-expanded", "false");
+		});
 		document.removeEventListener("keydown", handleOverlayKeydown, true);
 		if (lastTrigger && typeof lastTrigger.focus === "function") {
 			lastTrigger.focus();
@@ -531,7 +557,7 @@ const BackgroundController = (function createBackgroundController() {
 	}
 
 	function readInitialColor() {
-		const stored = localStorage.getItem(STORAGE_KEYS.BACKGROUND_COLOR);
+		const stored = Settings.read(STORAGE_KEYS.BACKGROUND_COLOR, null);
 		if (stored === null) {
 			return BACKGROUND_DEFAULT;
 		}
@@ -721,34 +747,35 @@ const ZoomController = (function createZoomController() {
 	}
 
 	function reflectVectorScalingState() {
-		if (vectorScalingToggle !== null) {
-			const pressed = vectorScalingEnabled ? "true" : "false";
-			vectorScalingToggle.setAttribute("aria-pressed", pressed);
-			const label = vectorScalingEnabled ? "Vector zoom" : "Bitmap zoom";
-			const nextMode = vectorScalingEnabled ? "bitmap" : "vector";
-			vectorScalingToggle.textContent = label;
-			vectorScalingToggle.setAttribute("title", "Switch to " + nextMode + " zoom");
-			vectorScalingToggle.setAttribute("aria-label", "Switch to " + nextMode + " zoom");
-		}
+		withElement(vectorScalingToggle, function updateVectorToggle(button) {
+			const pressed = vectorScalingEnabled;
+			button.setAttribute("aria-pressed", pressed ? "true" : "false");
+			const label = pressed ? "Vector zoom" : "Bitmap zoom";
+			const nextMode = pressed ? "bitmap" : "vector";
+			const actionLabel = "Switch to " + nextMode + " zoom";
+			button.textContent = label;
+			button.setAttribute("title", actionLabel);
+			button.setAttribute("aria-label", actionLabel);
+		});
 	}
 
 	function reflectUIState() {
 		syncZoomSelectValue();
-		if (zoomOutButton !== null) {
-			zoomOutButton.disabled = currentZoom <= ZOOM_CONSTANTS.MIN + ZOOM_EPSILON;
-		}
-		if (zoomInButton !== null) {
-			zoomInButton.disabled = currentZoom >= ZOOM_CONSTANTS.MAX - ZOOM_EPSILON;
-		}
+		withElement(zoomOutButton, function disableZoomOut(button) {
+			button.disabled = currentZoom <= ZOOM_CONSTANTS.MIN + ZOOM_EPSILON;
+		});
+		withElement(zoomInButton, function disableZoomIn(button) {
+			button.disabled = currentZoom >= ZOOM_CONSTANTS.MAX - ZOOM_EPSILON;
+		});
 		reflectVectorScalingState();
 	}
 
 	function persistZoom() {
-		localStorage.setItem(STORAGE_KEYS.ZOOM_LEVEL, currentZoom.toFixed(2));
+		Settings.write(STORAGE_KEYS.ZOOM_LEVEL, currentZoom.toFixed(2));
 	}
 
 	function persistVectorScaling() {
-		localStorage.setItem(STORAGE_KEYS.VECTOR_SCALING, vectorScalingEnabled ? "1" : "0");
+		Settings.write(STORAGE_KEYS.VECTOR_SCALING, vectorScalingEnabled ? "1" : "0");
 	}
 
 	function scheduleVectorRerender(reason) {
@@ -764,10 +791,6 @@ const ZoomController = (function createZoomController() {
 			rerenderRequestPending = false;
 			runIVG(pendingVectorRerenderReason);
 		});
-	}
-
-	function requestVectorRerender(reason) {
-		scheduleVectorRerender(reason);
 	}
 
 	function queueBitmapFallback(reason) {
@@ -997,7 +1020,7 @@ const ZoomController = (function createZoomController() {
 	}
 
 	function readInitialZoom() {
-		const stored = localStorage.getItem(STORAGE_KEYS.ZOOM_LEVEL);
+		const stored = Settings.read(STORAGE_KEYS.ZOOM_LEVEL, null);
 		if (stored === null) {
 			return;
 		}
@@ -1009,7 +1032,7 @@ const ZoomController = (function createZoomController() {
 	}
 
 	function readInitialVectorScaling() {
-		const stored = localStorage.getItem(STORAGE_KEYS.VECTOR_SCALING);
+		const stored = Settings.read(STORAGE_KEYS.VECTOR_SCALING, null);
 		if (stored === null) {
 			return;
 		}
@@ -1087,7 +1110,7 @@ const ZoomController = (function createZoomController() {
 		invalidateBaseMetrics: invalidateBaseMetrics,
 		isVectorBaselineReady: isVectorBaselineReady,
 		queueBitmapFallback: queueBitmapFallback,
-		requestVectorRerender: requestVectorRerender,
+		requestVectorRerender: scheduleVectorRerender,
 	};
 })();
 
@@ -1201,8 +1224,8 @@ function runIVG(reason) {
 	const sourceCode = aceEditor.getValue();
 	const sourceSignature = computeSourceSignature(sourceCode);
 	const sourceChanged = sourceSignature !== lastRasterizedSourceSignature;
-	localStorage.setItem(STORAGE_KEYS.SOURCE, sourceCode);
-	localStorage.setItem(STORAGE_KEYS.RUN_ON_STARTUP, false);
+	Settings.write(STORAGE_KEYS.SOURCE, sourceCode);
+	Settings.write(STORAGE_KEYS.RUN_ON_STARTUP, "false");
 	let ok = false;
 	const zoomLevel = ZoomController.getZoom();
 	const vectorRescaleEnabled = ZoomController.isVectorScalingEnabled();
@@ -1460,7 +1483,7 @@ function runIVG(reason) {
 				ZoomController.queueBitmapFallback("vector-preflight-limit");
 			}
 		}
-		localStorage.setItem(STORAGE_KEYS.RUN_ON_STARTUP, true);
+		Settings.write(STORAGE_KEYS.RUN_ON_STARTUP, "true");
 	} catch (e) {
 		trace("Rasterization crashed");
 		trace(e);
