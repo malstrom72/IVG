@@ -780,6 +780,7 @@ traceDiv.scrollTop = 0;
 }
 
 function trace(message) {
+const line = typeof message === "string" ? message : String(message);
 while (allLogLines.length > MAX_LOG_SIZE || traceLinesCount >= MAX_LOG_LINES) {
 const offset = allLogLines.indexOf("\n");
 if (offset < 0) {
@@ -788,7 +789,7 @@ break;
 allLogLines = allLogLines.substr(offset + 1);
 --traceLinesCount;
 }
-if (lastLogLine === message) {
+if (lastLogLine === line) {
 if (repeatingLogLineCount > 1) {
 const offset = allLogLines.lastIndexOf(" *");
 if (offset >= 0) {
@@ -800,9 +801,9 @@ allLogLines = allLogLines.substr(0, allLogLines.length - 1);
 ++repeatingLogLineCount;
 allLogLines += " *" + repeatingLogLineCount + "\n";
 } else {
-allLogLines += message + "\n";
+allLogLines += line + "\n";
 ++traceLinesCount;
-lastLogLine = message;
+lastLogLine = line;
 repeatingLogLineCount = 1;
 }
 if (traceElement) {
@@ -812,6 +813,26 @@ if (traceDiv) {
 traceDiv.scrollTop = traceDiv.scrollHeight;
 }
 }
+
+function bindGlobalTrace() {
+if (!global || (typeof global !== "object" && typeof global !== "function")) {
+return;
+}
+const bufferedLines = Array.isArray(global.__ivgPreviewTraceBuffer)
+? global.__ivgPreviewTraceBuffer.slice()
+: [];
+global.__ivgPreviewTraceBuffer = [];
+global.trace = function previewTraceBridge(message) {
+trace(typeof message === "string" ? message : String(message));
+};
+if (bufferedLines.length > 0) {
+for (let index = 0; index < bufferedLines.length; ++index) {
+trace(bufferedLines[index]);
+}
+}
+}
+
+bindGlobalTrace();
 
 function drawFailureCross() {
 if (!ivgContext || !ivgCanvas) {
@@ -863,6 +884,7 @@ function renderCurrentSource() {
 if (!global.Module || !ivgCanvas || !ivgContext) {
 return;
 }
+clearTrace();
 trace("Rasterizing IVG");
 const start = window.performance.now();
 let ok = false;
