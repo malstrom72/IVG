@@ -1,238 +1,190 @@
-# IVGSnapshot System Plan
+# IVGSnapshot Implementation Plan (Revision 4)
 
-## Goals
-- Build a standalone C++ snapshot runner (`IVGSnapshot`) that renders `.ivg` sources, compares the output against golden PNGs, and reports per-scenario verdicts.
-- Let authors opt into validation directly inside IVG documents through the `meta snapshot` directive without touching the runtime renderer.
-- Keep every line of implementation isolated under `tools/IVGSnapshot/` so the core runtime in `src/` stays unchanged and no shared `tools/include` tree is introduced.
+## Review Response & Checklist
+1. **Tool placement** – Every source file (implementation plus future helpers) lives directly under `tools/IVGSnapshot/`. No headers are exported to `tools/include/` or `src/`.
+2. **Custom executor** – `IVGSnapshot` runs its own `IMPD::Interpreter` with a thin `IMPD::Executor` subclass whose only meaningful override is `meta(...)`.
+3. **Argument parsing** – `IMPD::ArgumentsContainer::parse` (see `src/IMPD.h` lines 129-183) processes the raw `meta` arguments. We always call `throwIfAnyUnfetched()` before leaving `meta`.
+4. **Version dispatch** – We match the normalized key `snapshot-1`. `IMPD::Interpreter` already appends the `-1` suffix when users type `meta snapshot` (see `src/IMPD.cpp` lines 478-501), so there is no manual fallback handling in the tool.
+5. **Grammar** – The collector enforces `meta snapshot [validate:(yes|no)=yes] [scenario:<scenario>] [ <statements> ] | [ [ <statements> ], [<statements>], ... ]` exactly. Each `<statements>` block must be enclosed in square brackets, using `Interpreter::isBracketBlock` from `src/IMPD.cpp:779`.
+6. **Extensibility** – No speculative array/map extensions are planned. Only the bracketed or bracket-array forms above are supported.
+7. **Repeated scenarios & arrays** – Array entries (`[ [ do-stuff ], [ do-more ] ]`) generate numbered entries for a scenario. Repeating the same `scenario:` later merges into the existing scenario while appending new entries, as required by the example in the review comment.
+8. **Default behavior** – There is no legacy fallback. When no `scenario:` label is supplied the collector synthesizes deterministic names (`<ivg-basename>-<block>` or `<ivg-basename>-<block>-<entry>`). The UI selects whichever entry the user asks for.
+9. **Task queue** – Rendering uses NuXThreads (`externals/NuX/NuXThreads.*`). The scheduler allocates a bounded queue sized to a power of two, and a worker pool sized by `--threads` (defaulting to hardware concurrency).
 
-## Source Layout & Dependencies
-- Implement the entire tool inside `tools/IVGSnapshot/IVGSnapshot.cpp` so helper types stay local to the binary without introducing scattered headers or auxiliary translation units.
-- Reuse existing libraries by including headers from `src/` or `externals/` directly; do not add helper include directories outside the tool’s folder.
-- The build target publishes an executable only; shared libraries stay in their existing locations.
+## High-Level Architecture
+- **Entry point** – `tools/IVGSnapshot/IVGSnapshot.cpp` owns `main`, command-line parsing, the metadata collector, render scheduler, and golden manager. No auxiliary headers are introduced.
+- **Collector** – `SnapshotCollector` derives from `IMPD::Executor`. Aside from `meta`, every override simply returns success. The collector stores:
+- Raw source text (for line tracking).
+- Include search paths (re-used by `load`).
+- A monotonic scan cursor used by `locateMetaLine` to find the next `meta snapshot` token.
+- **Plan model** – `SnapshotPlan` owns:
+- `SnapshotScenario` records (scenario name, validate flag, vector of entry indices).
+- `SnapshotEntry` records (scenario index, block ordinal, entry ordinal, source line, validate flag, raw statements).
+- A `std::map<IMPD::String, uint32_t>` so repeated scenarios collapse into a single plan entry.
+- **Renderer** – A later milestone will reuse `IVG::Document` (see `src/IVG.cpp` lines 291-411) and `IVG::IVGExecutor` to replay the IVG with injected statements before rasterising.
+- **Scheduler** – `SnapshotScheduler` wraps `NuXThreads::Queue<SnapshotJob>` and a vector of `NuXThreads::Thread`. Each worker repeatedly pops jobs, runs them, and stops at a sentinel job.
+- **Golden manager** – `SnapshotGolden` will encapsulate PNG discovery, `.disabled` drafting, `.bak` backups, and diff generation.
 
-## Command-Line Interface
-`IVGSnapshot [options] <ivg> [<ivg> ...]`
-
-Options:
-- `--include-dir <path>` (repeatable) — forwarded to the IVG interpreter for `include` resolution.
-- `--font-dir <path>` (repeatable) — additional font lookup paths.
-- `--image-dir <path>` (repeatable) — bitmap lookup paths.
-- `--output-dir <path>` — overrides the golden and diff root; defaults to the IVG directory.
-- `--force-update` — replaces goldens with new renders (unless the block is `validate:no`).
-- `--threads <n>` — limits concurrent work items; defaults to hardware concurrency.
-- `--list-only` — parses metadata and prints the run list without rendering.
-- `--verbose` — expands logging with resolved arguments, resolved golden locations, and NuXThreads scheduling diagnostics.
-- `--exit-on-first-failure` — stops scheduling new renders once a failure is detected.
-
-## Metadata Grammar & Collector Flow
-- Grammar (first revision only):
-  `meta snapshot [validate:(yes|no)=yes] [scenario:<scenario>] [ <statements> ] | [ [ <statements> ], [<statements>], ... ]`
-  - Either supply a single block `[ <statements> ]` or an array of statement lists.
-  - The directive may appear multiple times within one IVG. Execution order follows document order.
-- `snapshot-1` is the only supported key. ImpD already appends `-1` when the author omits it, so the collector simply compares the normalized key and ignores everything else.
-- The collector runs a dedicated `IMPD::Interpreter` instance with a thin executor that only cares about metadata. The executor never leaks outside `tools/IVGSnapshot/`.
-- `IMPD::ArgumentsContainer::parse` is used to normalize arguments. The collector must call `throwIfAnyUnfetched()` so stray labels are rejected early.
-- Line tracking: load the IVG text into memory, run the interpreter, and maintain a moving pointer through the source. Each time `meta` fires, advance through the buffer to the next `meta snapshot` token and count newlines to derive a 1-based line number for diagnostics.
-
-### Collector Sketch
+## Collector Sketch (tabs preserved)
 ```cpp
-// tools/IVGSnapshot/SnapshotCollector.cpp
+// tools/IVGSnapshot/IVGSnapshot.cpp (lines ~40-210)
 class SnapshotCollector : public IMPD::Executor {
 public:
-	SnapshotCollector(SnapshotPlan& plan, IVG::Document& document)
-	: plan(plan)
-	, document(document)
-	, scanOffset(0)
-	{
-	}
+SnapshotCollector(SnapshotPlan& plan, const std::string& path, const IMPD::String& source,
+const std::vector<std::string>& includeDirs);
 
-	bool meta(IMPD::Interpreter& interpreter, const IMPD::String& key, const IMPD::String& arguments) override
-	{
-		if (key != "snapshot-1") {
-			return false;        // Unrecognized meta, fall through to other handlers.
-		}
+bool meta(IMPD::Interpreter& interpreter, const IMPD::String& key,
+const IMPD::String& arguments) override
+{
+if (key != "snapshot-1") {
+return false;
+}
 
-		IMPD::ArgumentsContainer args(IMPD::ArgumentsContainer::parse(interpreter, IMPD::StringRange(arguments)));
-		SnapshotBlock block;
-		block.validate = parseValidate(args.fetchOptional("validate"));
-		const IMPD::String* scenarioLabel = args.fetchOptional("scenario");
-		if (scenarioLabel != 0) block.scenario.assign(scenarioLabel->begin(), scenarioLabel->end());
+IMPD::ArgumentsContainer args(IMPD::ArgumentsContainer::parse(interpreter, IMPD::StringRange(arguments)));
 
-		block.statements = extractStatementLists(arguments);
-		block.sourceLine = locateMetaLine(document.getSource(), scanOffset, arguments);
+SnapshotBlock block;
+block.validate = parseValidate(interpreter, args.fetchOptional("validate"));
+const IMPD::String* scenarioLabel = args.fetchOptional("scenario");
+if (scenarioLabel != 0) {
+block.scenario = *scenarioLabel;
+}
 
-		args.throwIfAnyUnfetched();
-		plan.addBlock(block);
-		return true;
-	}
+const IMPD::String* raw = args.fetchOptional(0, false);
+if (raw == 0) {
+IMPD::Interpreter::throwBadSyntax("snapshot meta requires a statement list.");
+}
+
+block.statements = parseStatements(interpreter, *raw);
+block.sourceLine = locateMetaLine();
+args.throwIfAnyUnfetched();
+
+plan.addBlock(interpreter, block);
+return true;
+}
 
 private:
-	static ValidateMode parseValidate(const IMPD::String* value);
-	static StatementList extractStatementLists(const IMPD::String& arguments);
-	static uint32_t locateMetaLine(const std::string& source, size_t& scanOffset, const IMPD::String& arguments);
-
-	SnapshotPlan& plan;
-	IVG::Document& document;
-	size_t scanOffset;
+IMPD::StringVector parseStatements(IMPD::Interpreter& interpreter, const IMPD::String& raw);
+uint32_t locateMetaLine();
 };
 ```
-- `extractStatementLists` handles both the single-block form and nested arrays by re-using `IMPD::Interpreter::parseList` so the syntax matches the runtime exactly.
-- `locateMetaLine` advances a local scan offset through the IVG source, matching the next `meta snapshot` occurrence and counting newline characters to produce deterministic line numbers.
 
-## Snapshot Data Model & Scenario Rules
+### Statement parsing details
+- The collector trims whitespace by walking the `IMPD::StringRange` (matching how `src/IVG.cpp` handles similar constructs around lines 1021 and 1416).
+- Each entry uses `Interpreter::isBracketBlock` (`src/IMPD.cpp:779`) to assert the outer brackets.
+- Array handling delegates to `Interpreter::parseList` so the syntax matches the runtime expression evaluator exactly.
+- After stripping brackets we keep the raw statement body (no further formatting) to replay inside the renderer.
+
+### Plan data model
 ```cpp
-// tools/IVGSnapshot/SnapshotPlan.h
+// tools/IVGSnapshot/IVGSnapshot.cpp (lines ~20-120)
 struct SnapshotEntry {
-	uint32_t blockIndex;
-	uint32_t entryIndex;
-	uint32_t sourceLine;
-	std::string scenario;          // Empty -> synthesized name
-	std::string statements;        // Raw ImpD snippet to replay
-	ValidateMode validate;
-};
-
-struct SnapshotScenario {
-	std::string name;              // Explicit scenario or synthesized ordinal
-	std::vector<SnapshotEntry> entries;
-	bool validate;
+uint32_t scenarioIndex;
+uint32_t blockIndex;
+uint32_t entryIndex;
+uint32_t sourceLine;
+bool validate;
+IMPD::String scenarioName;
+IMPD::String statements;
 };
 
 class SnapshotPlan {
 public:
-	void addBlock(const SnapshotBlock& block)
-	{
-		SnapshotScenario& scenario = resolveScenario(block);
-		for (size_t i = 0; i < block.statements.size(); ++i) {
-			SnapshotEntry entry;
-			entry.blockIndex = blockOrdinal++;
-			entry.entryIndex = static_cast<uint32_t>(i + 1);
-			entry.sourceLine = block.sourceLine;
-			entry.scenario = scenario.name;
-			entry.statements = block.statements[i];
-			entry.validate = block.validate;
-			scenario.entries.push_back(entry);
-		}
-	}
+explicit SnapshotPlan(const std::string& path);
+void addBlock(IMPD::Interpreter& interpreter, const SnapshotBlock& block)
+{
+if (block.statements.empty()) {
+IMPD::Interpreter::throwBadSyntax("snapshot meta requires at least one statement block.");
+}
 
-	const std::vector<SnapshotScenario>& getScenarios() const { return scenarios; }
+const bool explicitScenario = !block.scenario.empty();
+for (uint32_t i = 0; i < block.statements.size(); ++i) {
+const uint32_t entryOrdinal = i + 1;
+const IMPD::String scenarioName = (explicitScenario
+? block.scenario
+: synthesizeScenarioName(block.statements.size(), entryOrdinal));
+
+const uint32_t scenarioIndex = resolveScenario(interpreter, scenarioName, block.validate);
+appendEntry(scenarioIndex, entryOrdinal, block, i);
+}
+
+++nextBlockOrdinal;
+}
 
 private:
-	SnapshotScenario& resolveScenario(const SnapshotBlock& block);
-
-	std::vector<SnapshotScenario> scenarios;
-	uint32_t blockOrdinal = 1;
+uint32_t resolveScenario(IMPD::Interpreter& interpreter, const IMPD::String& name, bool validate);
+void appendEntry(uint32_t scenarioIndex, uint32_t entryOrdinal, const SnapshotBlock& block, size_t statementIndex);
+IMPD::String synthesizeScenarioName(uint32_t blockCount, uint32_t entryOrdinal) const;
 };
 ```
-- Repeated `scenario:` labels reuse the same `SnapshotScenario` so all checkpoints contribute to a single golden even when separated by unrelated code.
-- When no scenario is supplied, the planner synthesizes names using `<basename>-<blockOrdinal>` for single-entry blocks and `<basename>-<blockOrdinal>-<entryIndex>` for array entries.
-- The first block’s first entry is the default selection for ivgfiddle or `--list-only`, not because of legacy compatibility but because we need a deterministic anchor when the user does not specify anything else.
 
-## Execution Semantics
-- Each snapshot entry replays the entire IVG with the collected statements inserted before rendering, matching how runtime playback works today.
-- Array forms (`[ [ do-stuff ], [ do-other-stuff ] ]`) create multiple entries for the same block. They iterate sequentially in the order provided. When combined with `scenario:<name>`, all entries populate a single golden.
-- Multiple `meta snapshot` blocks with the same `scenario` append additional statement groups; the renderer runs them all but only writes one golden per scenario.
-- There is no future-looking parameter sweep system in this revision—only the grammar above is supported.
+- `resolveScenario` ensures repeated `scenario:` labels keep the same validation mode (failing fast through `Interpreter::throwBadSyntax`).
+- Implicit names combine the IVG basename with block and entry ordinals using `Interpreter::toString` (`src/IMPD.h:201-210`).
 
-## Rendering & Resource Resolution
-- Reuse `IVG::IVGExecutor` to evaluate the document with each snapshot entry’s statements, relying on the existing renderer in `src/IVG.cpp`.
-- Share asset resolution (includes, fonts, images) with `ivg2png`, respecting the CLI search path arguments.
-- Cache glyph and bitmap resources within a run so repeated entries for the same IVG avoid reloading files.
-
-## Golden Lifecycle
-- Golden names default to the IVG basename plus scenario or ordinal suffix; store them beside the IVG unless `--output-dir` redirects to a mirrored folder.
-- Draft mode (`validate:no`) records a `.png.disabled` sentinel containing the freshly rendered output and skips comparisons.
-- Validation mode requires an existing golden unless `--force-update` is active, in which case the new render replaces the file after optionally backing up the previous golden as `<name>.png.bak`.
-- Every compare failure emits `.actual.png` and `.diff.png` artifacts next to the golden for debugging.
-
-## Parallel Execution with NuXThreads
-- Workers are implemented by subclassing `NuXThreads::Thread` so we stay inside the provided abstraction. Jobs are queued through `NuXThreads::Queue`.
-- The scheduler owns a bounded queue sized to a power of two (per NuXThreads requirements) and a pool of worker threads sized by `--threads` (or hardware concurrency when omitted).
-- Each job carries a stable identifier (filename + scenario + entry) so logs can correlate to the correct entry regardless of execution order.
-
-### Scheduler Sketch
+## Rendering & Scheduling Sketch
 ```cpp
-// tools/IVGSnapshot/SnapshotScheduler.cpp
+// tools/IVGSnapshot/IVGSnapshot.cpp (later milestone)
+class SnapshotJob {
+public:
+explicit SnapshotJob(SnapshotRenderer* renderer, const SnapshotEntry* entry);
+void operator()() const;
+static SnapshotJob MakeSentinel();
+bool IsSentinel() const;
+};
+
 class SnapshotScheduler : private NuXThreads::Runnable {
 public:
-	explicit SnapshotScheduler(uint32_t requestedThreads)
-	: threadCount(requestedThreads ? requestedThreads : defaultHardwareConcurrency())
-	, queue(nextPowerOfTwo(threadCount * 4))
-	{
-		workers.reserve(threadCount);
-		for (uint32_t i = 0; i < threadCount; ++i) {
-			workers.emplace_back(new NuXThreads::Thread(*this));
-			workers.back()->start();
-		}
-	}
+explicit SnapshotScheduler(uint32_t requestedThreads);
+~SnapshotScheduler();
 
-	void enqueue(SnapshotJob job)
-	{
-		while (!queue.push(job)) {
-			NuXThreads::Thread::yield();
-		}
-	}
-
-	void join()
-	{
-		queue.push(SnapshotJob::makeSentinel());
-		for (size_t i = 0; i < workers.size(); ++i) {
-			workers[i]->join();
-		}
-	}
-
-	void run() override
-	{
-		SnapshotJob job;
-		while (queue.pop(job)) {
-			if (job.isSentinel()) break;
-			job();
-		}
-	}
+void Enqueue(const SnapshotJob& job);
+void SignalShutdown();
+void Join();
 
 private:
-	uint32_t threadCount;
-	NuXThreads::Queue<SnapshotJob> queue;
-	std::vector<std::unique_ptr<NuXThreads::Thread>> workers;
+void run() override;            // Matches NuXThreads::Runnable signature.
+
+NuXThreads::Queue<SnapshotJob> queue;
+std::vector<std::unique_ptr<NuXThreads::Thread>> threads;
+std::atomic<bool> shuttingDown;
 };
 ```
-- The queue sentinel shuts down each worker cleanly when `join()` is called.
-- `SnapshotJob` is a move-only functor that captures the renderer, plan entry, and reporting sink.
 
-## Reporting
-- Each completed job records: IVG path, scenario name, entry ordinal, validation mode, comparison outcome, golden path, and timing data.
-- `--verbose` prints per-entry traces immediately; default output summarizes passes, failures, disabled entries, and updates at the end.
-- Exit code is non-zero if any validating entry fails or a required golden is missing.
+- Queue size: `nextPowerOfTwo(max<uint32_t>(requestedThreads, 1) * 4)` to satisfy `NuXThreads::Queue` alignment rules.
+- `SignalShutdown` pushes one sentinel job per worker. Workers break out when `job.IsSentinel()` returns true.
+- Command-line option `--threads` defaults to `NuXThreads::Thread::hardwareConcurrency()` (wrapper around `std::thread::hardware_concurrency()` inside the NuX wrapper).
+
+## Golden Lifecycle
+- Goldens default to `<basename>/<scenario>.png` beside the IVG when `--output-dir` is absent.
+- Draft mode (`validate:no`) writes `<scenario>.png.disabled` and records success without comparison.
+- Validation mode requires an existing golden unless `--force-update` is supplied. When updating, the previous golden becomes `<scenario>.png.bak`.
+- Compare failures drop `<scenario>.actual.png` and `<scenario>.diff.png` alongside the golden to help debugging.
+- Reporting aggregates per-scenario timings, validation states, and failure reasons.
 
 ## Implementation Roadmap
 
-### Milestone 1 — Metadata Capture
-- [ ] Wire a new `SnapshotCollector` that subclasses `IMPD::Executor`, implements `meta`, and ignores all other callbacks.
-- [ ] Implement `locateMetaLine` by scanning the raw IVG source and counting newlines up to each `meta snapshot` hit.
-- [ ] Model `SnapshotBlock`, `SnapshotScenario`, and `SnapshotPlan`; include deterministic scenario merging for repeated labels.
-- [ ] Add unit coverage in `tools/IVGSnapshot/tests/TestSnapshotPlan.cpp` that feeds synthetic argument strings through the collector and verifies the resulting plan.
-- [ ] Expose a CLI flag (`--list-only`) that prints the collected plan so the behavior can be inspected without rendering.
-- [ ] Run `timeout 600 ./build.sh` and ensure it completes successfully.
+### Milestone 1 – Metadata capture (in progress)
+- [x] Implement `SnapshotCollector`, `SnapshotPlan`, and supporting helpers inside `IVGSnapshot.cpp` using `IMPD::String` throughout.
+- [ ] Add focused tests in `tools/IVGSnapshot/tests/TestSnapshotPlan.cpp` that feed synthetic `meta snapshot` directives and assert plan contents, including repeated-scenario collapsing and array handling.
+- [ ] Expose `--list-only` (already hooked up) and validate its textual output against known fixtures.
+- [ ] Run `timeout 600 ./build.sh`.
 
-### Milestone 2 — Rendering Loop & Statement Injection
-- [ ] Reuse `IVG::Document` loading logic so the same parser feeds both collector and renderer.
-- [ ] Implement an evaluator that replays the document while injecting each entry’s statements before rendering.
-- [ ] Share include/font/image search path handling with `ivg2png` to avoid duplicating resource code.
-- [ ] Cache interpreter contexts between entries from the same IVG when possible to avoid redundant setup.
-- [ ] Extend the plan listing to show synthesized scenario names and resolved statement counts for diagnostics.
-- [ ] Run `timeout 600 ./build.sh` and confirm success.
+### Milestone 2 – Rendering execution
+- [ ] Load IVGs via `IVG::Document` (`src/IVG.cpp:291-411`) and reuse the runtime renderer.
+- [ ] Inject each entry’s statement block before rendering; reuse `Interpreter::parseList` for bracket evaluation to avoid divergence.
+- [ ] Share include/font/image path handling with `ivg2png` (see `tools/ivg2png/IVG2PNG.cpp` lines 94-201).
+- [ ] Cache interpreter state across entries for the same IVG when possible to avoid redundant parsing.
+- [ ] Extend `--verbose` output to show resolved include paths, scenario names, and validation states.
+- [ ] Run `timeout 600 ./build.sh`.
 
-### Milestone 3 — Golden Lifecycle & Comparison
-- [ ] Implement `SnapshotGolden` to manage `.png`, `.png.disabled`, and `.png.bak` transitions according to the validation mode and `--force-update` flag.
-- [ ] Implement pixel comparison with diff artifact writers (actual, diff, summary stats).
-- [ ] Provide clear error messages when a validating entry lacks a golden and `--force-update` is not present.
-- [ ] Add integration tests that cover draft mode, golden creation, forced updates, and diff emission.
-- [ ] Produce structured log output (JSON or plain text) that downstream tooling can parse.
-- [ ] Run `timeout 600 ./build.sh` and confirm success.
+### Milestone 3 – Golden lifecycle & reporting
+- [ ] Implement `SnapshotGolden` with `.disabled`/`.bak` support and PNG comparison (leveraging `NuXPixels` diff helpers around `externals/NuX/NuXPixels.cpp:311-512`).
+- [ ] Emit structured logs summarizing per-entry results and aggregate statistics.
+- [ ] Add integration tests covering draft, validation, forced updates, and diff emission.
+- [ ] Run `timeout 600 ./build.sh`.
 
-### Milestone 4 — Parallel Execution & Reporting Polish
-- [ ] Implement `SnapshotScheduler` on top of `NuXThreads::Thread` and `NuXThreads::Queue`, including graceful shutdown and early-exit support.
-- [ ] Add the `--threads` flag with hardware-concurrency default detection.
-- [ ] Ensure log output remains deterministic when jobs finish out of order by tagging entries with stable identifiers.
-- [ ] Integrate `--exit-on-first-failure` so the scheduler stops queueing new jobs after a failing comparison.
-- [ ] Document ivgfiddle integration, including manifest export listing scenarios and entries with their indices.
-- [ ] Run `timeout 600 ./build.sh` and confirm success.
+### Milestone 4 – Parallel execution
+- [ ] Complete `SnapshotScheduler` on top of NuXThreads, including sentinel shutdown and `--exit-on-first-failure` support.
+- [ ] Ensure log output stays deterministic by tagging entries with `<ivg>#<scenario>#<block>#<entry>` identifiers.
+- [ ] Wire the renderer to enqueue jobs while respecting `--threads` and stop scheduling when a failure occurs and `--exit-on-first-failure` is set.
+- [ ] Export ivgfiddle manifests that list available scenarios and entries for tooling consumption.
+- [ ] Run `timeout 600 ./build.sh`.
