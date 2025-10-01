@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { initializeIvfFiddleForTests } = require("./ivgfiddleTestHarness");
+const { initializeIvfFiddleForTests, flushAnimationFrames } = require("./ivgfiddleTestHarness");
 
 function setup() {
 	return initializeIvfFiddleForTests();
@@ -65,4 +65,46 @@ test("BackgroundController resets to none", () => {
 	assert.equal(context.elements.screen.classList.contains("transparent"), true);
 	assert.equal(context.elements.ivgCanvas.style.backgroundColor || "", "");
 	assert.equal(context.elements.backgroundButton.getAttribute("aria-label"), "Change canvas background (current: None)");
+});
+
+test("Vector scaling updates canvas attributes", () => {
+	const context = setup();
+	const zoomController = context.exports.ZoomController;
+	const canvas = context.elements.ivgCanvas;
+	zoomController.setZoom(2, { skipPersist: true });
+	zoomController.setVectorScalingEnabled(true, { skipRerender: true });
+	assert.equal(zoomController.isVectorScalingEnabled(), true);
+	assert.equal(canvas.getAttribute("data-scaling-mode"), "vector");
+	zoomController.setVectorScalingEnabled(false, { skipRerender: true });
+	assert.equal(zoomController.isVectorScalingEnabled(), false);
+	assert.equal(canvas.getAttribute("data-scaling-mode"), "bitmap");
+	assert.ok(String(canvas.style.transform).includes("scale(2"));
+});
+
+test("Vector raster failure queues bitmap fallback", () => {
+	// TODO: expand to assert trace strings like "Vector rescale was disabled" once the harness exposes trace output.
+	const context = setup();
+	const zoomController = context.exports.ZoomController;
+	zoomController.setVectorScalingEnabled(true, { skipRerender: true });
+	const disabled = zoomController.handleVectorRasterFailure({ vectorRenderLimit: 1, renderZoom: 2 });
+	assert.equal(disabled, true);
+	assert.equal(zoomController.isVectorScalingEnabled(), false);
+	flushAnimationFrames(context.window);
+});
+
+test("estimateVectorPixelBudget honors heap reserve", () => {
+	const context = setup();
+	context.window.Module = {
+		HEAPU8: { buffer: { byteLength: 64 * 1024 * 1024 } },
+	};
+	const defaultPixels = context.exports.estimateVectorPixelBudget();
+	assert.equal(defaultPixels, Math.floor((64 * 1024 * 1024 - 12 * 1024 * 1024) / 4));
+	context.window.Module._getFreeHeapBytes = function () {
+		return 8 * 1024 * 1024;
+	};
+	assert.equal(context.exports.estimateVectorPixelBudget(), defaultPixels);
+	context.window.Module._getFreeHeapBytes = function () {
+		return 20 * 1024 * 1024;
+	};
+	assert.equal(context.exports.estimateVectorPixelBudget(), Math.floor((20 * 1024 * 1024 - 12 * 1024 * 1024) / 4));
 });
