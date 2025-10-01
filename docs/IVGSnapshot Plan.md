@@ -6,7 +6,7 @@
 - Keep every line of implementation isolated under `tools/IVGSnapshot/` so the core runtime in `src/` stays unchanged and no shared `tools/include` tree is introduced.
 
 ## Source Layout & Dependencies
-- Command-line entry point, metadata collector, render driver, golden manager, and supporting headers all live beside each other under `tools/IVGSnapshot/` (for example `SnapshotCollector.cpp` with `SnapshotCollector.h`).
+- Implement the entire tool inside `tools/IVGSnapshot/IVGSnapshot.cpp` so helper types stay local to the binary without introducing scattered headers or auxiliary translation units.
 - Reuse existing libraries by including headers from `src/` or `externals/` directly; do not add helper include directories outside the tool’s folder.
 - The build target publishes an executable only; shared libraries stay in their existing locations.
 
