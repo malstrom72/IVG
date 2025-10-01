@@ -41,11 +41,11 @@
 
 ## Milestone 4 – Polish, Documentation, and Regression Safety
 - [x] Audit the combined toolbar for responsive behavior (narrow widths, high zoom) and adjust flex wrapping or scrolling to keep controls accessible. (Added scroll-snap hints plus a 900px media query that lets the toolbar wrap into two rows while pinning button widths so controls stay reachable on narrow panels.)
-- [ ] Document zoom and background controls in `docs/` and update any relevant README sections with usage instructions and screenshots.
+- [x] Document zoom and background controls in `docs/` and update any relevant README sections with usage instructions and screenshots. (Expanded the README with a toolbar quick reference and published `docs/IVGFiddle Toolbar Guide.md` for deeper coverage.)
 - [ ] (Deferred) Evaluate adding lightweight automated checks (e.g., Jest/Playwright smoke tests) that assert toolbar elements exist and respond to simulated clicks — not required for the current milestone per latest review, but revisit if automation bandwidth opens up.
-- [ ] Prepare release notes highlighting new functionality, including known limitations (e.g., no pan support yet) and accessibility considerations.
-- [ ] Conduct a final manual regression pass covering zoom + background interactions with complex IVG inputs to ensure no redraw issues.
-- [ ] Run the concluding `timeout 600 ./build.sh` build and test cycle to confirm readiness for merge.
+- [x] Prepare release notes highlighting new functionality, including known limitations (e.g., no pan support yet) and accessibility considerations. (Captured summary, highlights, and upgrade notes in `docs/IVGFiddle Release Notes.md`.)
+- [ ] Conduct a final manual regression pass covering zoom + background interactions with complex IVG inputs to ensure no redraw issues. (Pending hands-on verification in a browser build; regression checklist documented in the toolbar guide.)
+- [x] Run the concluding `timeout 600 ./build.sh` build and test cycle to confirm readiness for merge. (Executed after documentation updates to verify regression coverage.)
 
 ## Milestone 5 – Source Simplification and Test Foundations
 - [ ] Map high-churn sections of `tools/ivgfiddle/src/ivgfiddle.js` (zoom/background/vector controllers, render queue coordination) to identify clusters of related helpers that can be collapsed into smaller modules without changing behavior. Document proposed module boundaries and the DOM/state dependencies each would share so refactors stay mechanical.
