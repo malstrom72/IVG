@@ -55,14 +55,14 @@
 - [ ] Execute `timeout 600 ./build.sh` (or the focused Node test runner once scripted) to confirm the new harness integrates with the existing CI pipeline before expanding coverage.
 - [ ] Perform manual verification by running the harness locally, ensuring failures produce actionable diffs/logs and documenting any setup steps required for future contributors.
 
-## Milestone 6 – Source Simplification and Test Foundations
-- [ ] Map high-churn sections of `tools/ivgfiddle/src/ivgfiddle.js` (zoom/background/vector controllers, render queue coordination) to identify clusters of related helpers that can be collapsed into smaller modules without changing behavior. Document proposed module boundaries and the DOM/state dependencies each would share so refactors stay mechanical.
-- [ ] Evaluate consolidating repeated DOM queries (`document.getElementById`, `querySelector`) by caching stable references and exposing factory helpers (e.g., `findToolbarElement(id)`) that reduce boilerplate while keeping lazy lookups for dynamic nodes. Note any lifecycle nuances (e.g., overlay teardown) that require the existing pattern.
-- [ ] Review the event listener setup for the toolbar, overlay, and editor panes to enumerate patterns that can be flattened into reusable attachment helpers (like `bindButton`/`bindToggle`). Record the exact signatures and options needed (passive listeners, key filtering) so replacements remain signature-compatible.
-- [ ] Catalog state persistence touchpoints (zoom level, background color, vector scaling) and confirm whether a shared storage adapter could centralize error handling/logging. Prepare pseudocode for a drop-in `createPersistentSetting` helper that keeps current behavior intact while trimming repetition.
-- [ ] Outline guard clauses and logging blocks that could be moved into dedicated functions (e.g., `logVectorClamp`, `abortIfUnsafeCanvas`) to shorten hot paths. Verify that call-site logging order and message wording stay byte-for-byte identical to avoid regressions.
-- [ ] Run `timeout 600 ./build.sh` after each refactor batch to ensure the mechanical changes stay byte-identical in behavior and do not introduce regressions picked up by the test suite.
-- [ ] Conduct targeted manual verification (zoom/background/vector toggles) to confirm the refactored modules remain behaviorally identical, documenting any discrepancies surfaced by the new unit tests for rapid follow-up.
+## Milestone 6 – Source Simplification and Refactor Cleanup
+- [ ] Audit `tools/ivgfiddle/src/ivgfiddle.js` to flag redundant helpers, dead branches, and overly defensive conditionals. Set explicit simplification goals (e.g., trim 10–15 % SLOC in the toolbar + controller sections) while keeping all side effects and public contracts identical.
+- [ ] Consolidate overlapping state + DOM utilities into leaner primitives. Replace ad-hoc `document.getElementById` / `querySelector` usage with a minimal lookup cache or shared selector helpers where it measurably reduces code size without obscuring intent.
+- [ ] Flatten event wiring by extracting reusable functions for common patterns (button toggles, keyboard handlers, overlay dismissal). Ensure each abstraction keeps the call sites readable and preserves listener options such as passive/capture flags.
+- [ ] Collapse repetitive persistence code into a tiny adapter (e.g., `readSetting`, `writeSetting`) that centralizes error handling and logging. Confirm that stored values remain byte-for-byte compatible with existing `localStorage` data so upgrades are seamless.
+- [ ] Inline verbose guard/trace blocks into focused helpers only when it shortens hot paths and clarifies the flow (e.g., `abortIfUnsafeCanvas`, `logVectorClampResult`). Keep the emitted console text identical to today to avoid breaking log-based tooling.
+- [ ] Treat every simplification as a mechanical refactor: run `timeout 600 ./build.sh` after each batch and inspect the generated bundles for functional parity before moving forward.
+- [ ] Perform manual spot checks across zoom/background/vector toggles after each simplification wave to ensure behavior, keyboard shortcuts, and persisted settings continue working exactly as before.
 
 ## Risk Mitigation Notes
 - [ ] Watch for performance issues when scaling large canvases; profile layout/paint timing in dev tools and consider requestAnimationFrame batching if necessary.
