@@ -107,8 +107,25 @@ in your browser to write IVG code and see the output rendered in real time.
 
 - File location: `tools/ivgfiddle/output/ivgfiddle.html`
 
-You can also try it live without cloning the repo:	
+You can also try it live without cloning the repo:
 [IVGFiddle](https://htmlpreview.github.io/?https://github.com/malstrom72/IVG/blob/main/tools/ivgfiddle/output/ivgfiddle.html)
+
+### Canvas toolbar quick reference
+
+The toolbar above the preview canvas exposes zoom and background options so you can inspect artwork
+under different magnifications and contrast settings without leaving the editor.
+
+- **Zoom controls** – use the `−`, `Reset`, and `+` buttons or pick a preset between 25 % and
+  1000 % from the dropdown. Keyboard shortcuts (`Ctrl`/`Cmd` `+`, `Ctrl`/`Cmd` `−`, and
+  `Ctrl`/`Cmd` `0`) are also supported.
+- **Vector zoom toggle** – switch between stretching the rendered bitmap (nearest-neighbour for
+  crisp pixel art) and re-rendering the IVG scene at the requested zoom level for smooth vectors.
+- **Background palette** – open the swatch popup to preview the canvas on the standard 16 web
+  colors plus black, white, gray, silver, and a transparent checkerboard. Selections persist between
+  sessions.
+
+Refer to [docs/IVGFiddle Toolbar Guide.md](docs/IVGFiddle%20Toolbar%20Guide.md) for additional tips
+and known limitations.
 
 ## Fonts
 
