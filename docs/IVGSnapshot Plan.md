@@ -189,16 +189,16 @@ void renderPlan(const SnapshotPlan& plan);
 - [x] Run `timeout 600 ./build.sh`.
 
 ### Milestone 3 – Golden lifecycle & reporting (in progress)
-- [ ] Implement `SnapshotGolden` with `.disabled`/`.bak` support and PNG comparison (leveraging `NuXPixels` diff helpers around `externals/NuX/NuXPixels.cpp:311-512`).
-- [ ] Define PNG search, draft promotion, and cleanup helpers that mirror the ivg2png workflow while remaining local to the tool.
-- [ ] Wrap NuXPixels diff entry points so failures report per-channel statistics and delta image paths.
-- [ ] Emit structured logs summarizing per-entry results and aggregate statistics.
-- [ ] Capture per-entry status (rendered, diffed, skipped) along with validation metadata for machine parsing.
-- [ ] Summarize counts and validation failures at the end of the run with clear exit codes.
+- [x] Implement `SnapshotGolden` with `.disabled`/`.bak` support and PNG comparison (leveraging `NuXPixels` diff helpers around `externals/NuX/NuXPixels.cpp:311-512`).
+- [x] Define PNG search, draft promotion, and cleanup helpers that mirror the ivg2png workflow while remaining local to the tool.
+- [x] Wrap NuXPixels diff entry points so failures report per-channel statistics and delta image paths.
+- [x] Emit structured logs summarizing per-entry results and aggregate statistics.
+- [x] Capture per-entry status (rendered, diffed, skipped) along with validation metadata for machine parsing.
+- [x] Summarize counts and validation failures at the end of the run with clear exit codes.
 - [ ] Add integration tests covering draft, validation, forced updates, and diff emission.
 - [ ] Extend the snapshot fixtures to cover `.disabled` promotion, `.bak` creation, and diff outputs.
 - [ ] Validate structured log output alongside PNG artifacts in the test harness.
-- [ ] Run `timeout 600 ./build.sh`.
+- [x] Run `timeout 600 ./build.sh`.
 
 ### Milestone 4 – Parallel execution
 - [ ] Complete `SnapshotScheduler` on top of NuXThreads, including sentinel shutdown and `--exit-on-first-failure` support.
