@@ -10,3 +10,5 @@ tools/IVGSnapshot/tests/ListOnlySample.ivg
 		Entry 1
 			Block 2 (statement 1), line 3
 				[  set dash 4  ]
+{"event":"snapshot-file-summary","ivg":"tools/IVGSnapshot/tests/ListOnlySample.ivg","entries":3,"draft":0,"validated":3,"updated":0,"failed":0,"diffFailures":0,"exitCode":0}
+{"event":"snapshot-run-summary","files":1,"failedFiles":0,"entries":3,"draft":0,"validated":3,"updated":0,"failed":0,"diffFailures":0}

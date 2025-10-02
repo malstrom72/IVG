@@ -174,29 +174,35 @@ void renderPlan(const SnapshotPlan& plan);
 
 ## Implementation Roadmap
 
-### Milestone 1 – Metadata capture (in progress)
+### Milestone 1 – Metadata capture (complete)
 - [x] Implement `SnapshotCollector`, `SnapshotPlan`, and supporting helpers inside `IVGSnapshot.cpp` using `IMPD::String` throughout.
 - [x] Add focused tests in `tools/IVGSnapshot/tests/TestSnapshotPlan.cpp` that feed synthetic `meta snapshot` directives and assert plan contents (arrays, implicit names, repeated scenarios, validation conflicts).
 - [x] Expose `--list-only` (already hooked up) and validate its textual output against known fixtures via `tools/IVGSnapshot/tests/ListOnlySample.{ivg,txt}`.
 - [x] Run `timeout 600 ./build.sh`.
 
-### Milestone 2 – Rendering execution
-- [ ] Load IVGs via `IVG::Document` (`src/IVG.cpp:291-411`) and reuse the runtime renderer.
-- [ ] Inject each entry’s statement block before rendering; reuse `Interpreter::parseList` for bracket evaluation to avoid divergence.
-- [ ] Share include/font/image path handling with `ivg2png` (see `tools/ivg2png/IVG2PNG.cpp` lines 94-201).
-- [ ] Cache interpreter state across entries for the same IVG when possible to avoid redundant parsing.
-- [ ] Extend `--verbose` output to show resolved include paths, scenario names, and validation states.
-- [ ] Run `timeout 600 ./build.sh`.
+### Milestone 2 – Rendering execution (complete)
+- [x] Load IVGs through a snapshot-local cached document helper and reuse the runtime renderer.
+- [x] Inject each entry’s statement block before rendering; reuse `Interpreter::parseList` for bracket evaluation to avoid divergence.
+- [x] Share include/font/image path handling with `ivg2png` (see `tools/ivg2png/IVG2PNG.cpp` lines 94-201).
+- [x] Cache interpreter state across entries for the same IVG when possible to avoid redundant parsing.
+- [x] Extend `--verbose` output to show resolved include paths, scenario names, and validation states.
+- [x] Run `timeout 600 ./build.sh`.
 
-### Milestone 3 – Golden lifecycle & reporting
-- [ ] Implement `SnapshotGolden` with `.disabled`/`.bak` support and PNG comparison (leveraging `NuXPixels` diff helpers around `externals/NuX/NuXPixels.cpp:311-512`).
-- [ ] Emit structured logs summarizing per-entry results and aggregate statistics.
+### Milestone 3 – Golden lifecycle & reporting (in progress)
+- [x] Implement `SnapshotGolden` with `.disabled`/`.bak` support and PNG comparison (leveraging `NuXPixels` diff helpers around `externals/NuX/NuXPixels.cpp:311-512`).
+- [x] Define PNG search, draft promotion, and cleanup helpers that mirror the ivg2png workflow while remaining local to the tool.
+- [x] Wrap NuXPixels diff entry points so failures report per-channel statistics and delta image paths.
+- [x] Emit structured logs summarizing per-entry results and aggregate statistics.
+- [x] Capture per-entry status (rendered, diffed, skipped) along with validation metadata for machine parsing.
+- [x] Summarize counts and validation failures at the end of the run with clear exit codes.
 - [ ] Add integration tests covering draft, validation, forced updates, and diff emission.
-- [ ] Run `timeout 600 ./build.sh`.
+- [ ] Extend the snapshot fixtures to cover `.disabled` promotion, `.bak` creation, and diff outputs.
+- [ ] Validate structured log output alongside PNG artifacts in the test harness.
+- [x] Run `timeout 600 ./build.sh`.
 
 ### Milestone 4 – Parallel execution
-- [ ] Complete `SnapshotScheduler` on top of NuXThreads, including sentinel shutdown and `--exit-on-first-failure` support.
-- [ ] Ensure log output stays deterministic by tagging entries with `<ivg>#<scenario>#<block>#<entry>` identifiers.
-- [ ] Wire the renderer to enqueue jobs while respecting `--threads` and stop scheduling when a failure occurs and `--exit-on-first-failure` is set.
-- [ ] Export ivgfiddle manifests that list available scenarios and entries for tooling consumption.
-- [ ] Run `timeout 600 ./build.sh`.
+- [x] Complete `SnapshotScheduler` on top of NuXThreads, including sentinel shutdown and `--exit-on-first-failure` support.
+- [x] Ensure log output stays deterministic by tagging entries with `<ivg>#<scenario>#<block>#<entry>` identifiers.
+- [x] Wire the renderer to enqueue jobs while respecting `--threads` and stop scheduling when a failure occurs and `--exit-on-first-failure` is set.
+- [x] Export ivgfiddle manifests that list available scenarios and entries for tooling consumption.
+- [x] Run `timeout 600 ./build.sh`.

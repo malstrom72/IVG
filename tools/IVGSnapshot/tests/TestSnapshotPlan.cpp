@@ -5,8 +5,6 @@
 #include <iostream>
 #include <sstream>
 
-using namespace IVGSnapshotInternal;
-
 namespace {
 
 	void Fail(const std::string& message)
