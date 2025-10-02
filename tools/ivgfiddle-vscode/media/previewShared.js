@@ -49,6 +49,21 @@ callback(element);
 }
 }
 
+function isEditableElement(element) {
+if (!element) {
+return false;
+}
+if (element.isContentEditable) {
+return true;
+}
+const tagName = element.tagName;
+if (!tagName) {
+return false;
+}
+const normalized = tagName.toUpperCase();
+return normalized === "INPUT" || normalized === "TEXTAREA";
+}
+
 function toggleClass(element, className, shouldHave) {
 if (element === null) {
 return;
@@ -627,18 +642,34 @@ withElement(zoomLevelSelect, function attachZoomSelect(select) {
 select.addEventListener("change", handleZoomSelectChange);
 });
 window.addEventListener("keydown", function handleZoomKeydown(event) {
-if (!event.ctrlKey && !event.metaKey) {
+const key = event.key;
+if (!key || isEditableElement(document.activeElement)) {
 return;
 }
-if (event.key === "=") {
+const zoomInKey = key === "=" || key === "+" || key === "Add" || key === "NumpadAdd";
+const zoomOutKey = key === "-" || key === "_" || key === "Subtract" || key === "NumpadSubtract";
+if (event.ctrlKey || event.metaKey) {
+if (zoomInKey) {
 event.preventDefault();
 incrementZoom(1);
-} else if (event.key === "-") {
+} else if (zoomOutKey) {
 event.preventDefault();
 incrementZoom(-1);
-} else if (event.key === "0") {
+} else if (key === "0") {
 event.preventDefault();
 resetZoom();
+}
+return;
+}
+if (event.altKey) {
+return;
+}
+if (zoomInKey) {
+event.preventDefault();
+incrementZoom(1);
+} else if (zoomOutKey) {
+event.preventDefault();
+incrementZoom(-1);
 }
 });
 reflectUIState();
