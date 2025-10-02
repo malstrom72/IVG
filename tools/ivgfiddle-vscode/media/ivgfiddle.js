@@ -14,7 +14,7 @@
 		const payload = {
 			type: "status",
 			level: typeof level === "string" ? level : "info",
-			message: text
+			message: text,
 		};
 		if (options && typeof options.durationMs === "number" && options.durationMs >= 0) {
 			payload.durationMs = options.durationMs;
@@ -32,7 +32,7 @@
 				if (vscodeApi) {
 					vscodeApi.postMessage({ type: "ready" });
 				}
-			}
+			},
 		});
 		preview.initialize();
 		return preview;
