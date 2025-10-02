@@ -174,13 +174,13 @@ void renderPlan(const SnapshotPlan& plan);
 
 ## Implementation Roadmap
 
-### Milestone 1 – Metadata capture (in progress)
+### Milestone 1 – Metadata capture (complete)
 - [x] Implement `SnapshotCollector`, `SnapshotPlan`, and supporting helpers inside `IVGSnapshot.cpp` using `IMPD::String` throughout.
 - [x] Add focused tests in `tools/IVGSnapshot/tests/TestSnapshotPlan.cpp` that feed synthetic `meta snapshot` directives and assert plan contents (arrays, implicit names, repeated scenarios, validation conflicts).
 - [x] Expose `--list-only` (already hooked up) and validate its textual output against known fixtures via `tools/IVGSnapshot/tests/ListOnlySample.{ivg,txt}`.
 - [x] Run `timeout 600 ./build.sh`.
 
-### Milestone 2 – Rendering execution
+### Milestone 2 – Rendering execution (in progress)
 - [ ] Load IVGs via `IVG::Document` (`src/IVG.cpp:291-411`) and reuse the runtime renderer.
 - [ ] Inject each entry’s statement block before rendering; reuse `Interpreter::parseList` for bracket evaluation to avoid divergence.
 - [ ] Share include/font/image path handling with `ivg2png` (see `tools/ivg2png/IVG2PNG.cpp` lines 94-201).
