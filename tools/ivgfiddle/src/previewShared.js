@@ -531,10 +531,47 @@ rerenderCallback("zoom-change");
 }
 }
 
+function findPresetIndex(value) {
+for (let index = 0; index < ZOOM_PRESETS.length; ++index) {
+if (Math.abs(ZOOM_PRESETS[index] - value) < ZOOM_EPSILON) {
+return index;
+}
+}
+return -1;
+}
+
+function getAdjacentPreset(direction) {
+if (direction === 0) {
+return currentZoom;
+}
+const matchIndex = findPresetIndex(currentZoom);
+if (matchIndex >= 0) {
+const nextIndex = Math.min(ZOOM_PRESETS.length - 1, Math.max(0, matchIndex + direction));
+return ZOOM_PRESETS[nextIndex];
+}
+if (direction > 0) {
+for (let index = 0; index < ZOOM_PRESETS.length; ++index) {
+if (currentZoom < ZOOM_PRESETS[index] - ZOOM_EPSILON) {
+return ZOOM_PRESETS[index];
+}
+}
+return ZOOM_PRESETS[ZOOM_PRESETS.length - 1];
+}
+for (let index = ZOOM_PRESETS.length - 1; index >= 0; --index) {
+if (currentZoom > ZOOM_PRESETS[index] + ZOOM_EPSILON) {
+return ZOOM_PRESETS[index];
+}
+}
+return ZOOM_PRESETS[0];
+}
+
 function incrementZoom(deltaSteps) {
+if (deltaSteps === 0) {
+return;
+}
 const direction = deltaSteps > 0 ? 1 : -1;
-const target = snapToPreset(currentZoom + direction * ZOOM_CONSTANTS.STEP, direction);
-setZoom(target);
+const target = getAdjacentPreset(direction);
+setZoom(target, { snapDirection: 0 });
 }
 
 function resetZoom() {
@@ -665,6 +702,7 @@ let repeatingLogLineCount = 0;
 let moduleReady = false;
 let currentSource = "";
 let pendingSource = null;
+let hasSuccessfulRender = false;
 
 function notifyHost(level, message, options) {
 const text = typeof message === "string" ? message : "";
@@ -861,6 +899,7 @@ level: "info",
 durationMs: end - start
 });
 ok = true;
+hasSuccessfulRender = true;
 } else {
 trace("Rasterization returned no data");
 }
@@ -870,8 +909,10 @@ trace("Rasterization crashed");
 trace(String(error));
 }
 if (!ok) {
+if (!hasSuccessfulRender) {
 ZoomController.clearMetrics();
 drawFailureCross();
+}
 setStatus("Rendering failed. Check trace output for details.", {
 level: "error"
 });
