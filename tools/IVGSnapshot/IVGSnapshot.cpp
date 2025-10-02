@@ -41,8 +41,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using namespace IMPD;
 
-namespace IVGSnapshotInternal {
-
 	/**
 	        Loads an IVG source once and replays it on demand so snapshot
 	        playback can reuse parsed scripts without touching the core library.
@@ -1067,10 +1065,6 @@ namespace IVGSnapshotInternal {
         }
 
 
-
-} // namespace IVGSnapshotInternal
-
-using namespace IVGSnapshotInternal;
 
 #if !defined(IVG_SNAPSHOT_TESTING)
 
