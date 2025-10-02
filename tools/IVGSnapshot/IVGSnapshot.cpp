@@ -39,6 +39,54 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "src/IMPD.h"
 #include "src/IVG.h"
 
+namespace IVG {
+
+	/**
+		Loads an IVG source once and replays it on demand so snapshot
+		playback can reuse parsed scripts without touching the core library.
+	**/
+	class Document {
+	public:
+		Document()
+		{
+		}
+
+		bool loadFromFile(const std::string& path)
+		{
+			std::ifstream stream(path.c_str(), std::ios::binary);
+			if (!stream.good()) {
+				source.clear();
+				return false;
+			}
+
+			const std::string buffer((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+			source.assign(buffer.begin(), buffer.end());
+			return true;
+		}
+
+		void setSource(const IMPD::String& newSource)
+		{
+			source = newSource;
+		}
+
+		const IMPD::String& getSource() const
+		{
+			return source;
+		}
+
+		void render(IVGExecutor& executor) const
+		{
+			IMPD::STLMapVariables variables;
+			IMPD::FormatInfo formatInfo;
+			IMPD::Interpreter interpreter(executor, variables, formatInfo);
+			interpreter.run(IMPD::StringRange(source));
+		}
+
+	private:
+		IMPD::String source;
+	};
+}
+
 using namespace IMPD;
 
 namespace IVGSnapshotInternal {
@@ -105,43 +153,7 @@ namespace IVGSnapshotInternal {
                 }
         };
 
-        class CachedDocument {
-                public:
-                bool loadFromFile(const std::string& path)
-                {
-                        std::ifstream stream(path.c_str(), std::ios::binary);
-                        if (!stream.good()) {
-                                source.clear();
-                                return false;
-                        }
-
-                        const std::string buffer((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
-                        source.assign(buffer.begin(), buffer.end());
-                        return true;
-                }
-
-                void setSource(const String& newSource)
-                {
-                        source = newSource;
-                }
-
-                const String& getSource() const
-                {
-                        return source;
-                }
-
-                void render(IVG::IVGExecutor& executor) const
-                {
-                        STLMapVariables variables;
-                        FormatInfo formatInfo;
-                        Interpreter interpreter(executor, variables, formatInfo);
-                        interpreter.run(StringRange(source));
-                }
-
-                private:
-                String source;
-        };
-
+        
 	static void PNGAPI snapshotPNGError(png_structp png, png_const_charp message)
 	{
 		throw std::runtime_error(std::string("Error reading PNG image: ") + message);
@@ -458,6 +470,7 @@ namespace IVGSnapshotInternal {
 			return true;
 		}
 
+		
 		bool load(Interpreter& interpreter, const WideString& filename, String& contents) override
 		{
 			(void)interpreter;
@@ -582,6 +595,49 @@ namespace IVGSnapshotInternal {
 			return false;
 		}
 
+		std::vector<const IVG::Font*> lookupFonts(Interpreter& interpreter, const WideString& fontName, const UniString& forString) override
+		{
+			(void)interpreter;
+			(void)forString;
+
+			const std::map<WideString, IVG::Font>::iterator cached = sharedResources.fonts.find(fontName);
+			if (cached != sharedResources.fonts.end()) {
+				return std::vector<const IVG::Font*>(1, &cached->second);
+			}
+
+			IVG::Font font;
+			if (!loadExternalFont(fontName, font)) {
+				return std::vector<const IVG::Font*>();
+			}
+
+			const std::map<WideString, IVG::Font>::iterator inserted = sharedResources.fonts.insert(std::make_pair(fontName, font)).first;
+			return std::vector<const IVG::Font*>(1, &inserted->second);
+		}
+
+		IVG::Image loadImage(Interpreter& interpreter, const WideString& imageSource, const NuXPixels::IntRect* sourceRectangle,
+			bool forStretching, double forXSize, bool xSizeIsRelative, double forYSize, bool ySizeIsRelative) override
+		{
+			(void)interpreter;
+			(void)sourceRectangle;
+			(void)forStretching;
+			(void)forXSize;
+			(void)xSizeIsRelative;
+			(void)forYSize;
+			(void)ySizeIsRelative;
+
+			const std::string requested(imageSource.begin(), imageSource.end());
+			const CachedImage* cached = resolveImage(requested);
+			if (cached == 0) {
+				return IVG::Image();
+			}
+
+			IVG::Image image;
+			image.raster = &cached->raster;
+			image.xResolution = cached->xResolution;
+			image.yResolution = cached->yResolution;
+			return image;
+		}
+
 		bool meta(Interpreter& interpreter, const String& key, const String& arguments) override
 		{
 			static const String SNAPSHOT_KEY("snapshot-1");
@@ -637,8 +693,8 @@ namespace IVGSnapshotInternal {
 
 			if (verbose) {
 				std::cout << sourcePath << ": scenario " << entry.scenarioName
-				<< " entry " << entry.entryOrdinal << " block " << invocation->blockIndex
-				<< " (statement " << invocation->statementOrdinal << ")" << std::endl;
+					<< " entry " << entry.entryOrdinal << " block " << invocation->blockIndex
+					<< " (statement " << invocation->statementOrdinal << ")" << std::endl;
 			}
 
 			IVG::Context invocationContext(currentContext->accessCanvas(), *currentContext);
@@ -889,7 +945,7 @@ namespace IVGSnapshotInternal {
 
 
 
-        static bool renderEntry(const CommandLineOptions& options, const std::string& path, const CachedDocument& document, SharedResources& sharedResources, const SnapshotScenario& scenario, const SnapshotEntry& entry)
+        static bool renderEntry(const CommandLineOptions& options, const std::string& path, const IVG::Document& document, SharedResources& sharedResources, const SnapshotScenario& scenario, const SnapshotEntry& entry)
         {
                 IVG::SelfContainedARGB32Canvas canvas;
                 SnapshotPlaybackExecutor executor(canvas, scenario, entry, options, path, sharedResources);
@@ -916,7 +972,7 @@ namespace IVGSnapshotInternal {
 
 
 
-        static int renderPlan(const CommandLineOptions& options, const std::string& path, const CachedDocument& document, const SnapshotPlan& plan)
+        static int renderPlan(const CommandLineOptions& options, const std::string& path, const IVG::Document& document, const SnapshotPlan& plan)
         {
                 const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
                 const std::vector<SnapshotEntry>& entries = plan.getEntries();
@@ -945,7 +1001,7 @@ namespace IVGSnapshotInternal {
 	}
         static int processFile(const CommandLineOptions& options, const std::string& path)
         {
-                CachedDocument document;
+                IVG::Document document;
                 if (!document.loadFromFile(path)) {
                         std::cerr << "failed to read IVG file: " << path << std::endl;
                         return 1;

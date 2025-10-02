@@ -181,12 +181,12 @@ void renderPlan(const SnapshotPlan& plan);
 - [x] Run `timeout 600 ./build.sh`.
 
 ### Milestone 2 – Rendering execution (in progress)
-- [ ] Load IVGs via `IVG::Document` (`src/IVG.cpp:291-411`) and reuse the runtime renderer.
-- [ ] Inject each entry’s statement block before rendering; reuse `Interpreter::parseList` for bracket evaluation to avoid divergence.
-- [ ] Share include/font/image path handling with `ivg2png` (see `tools/ivg2png/IVG2PNG.cpp` lines 94-201).
-- [ ] Cache interpreter state across entries for the same IVG when possible to avoid redundant parsing.
-- [ ] Extend `--verbose` output to show resolved include paths, scenario names, and validation states.
-- [ ] Run `timeout 600 ./build.sh`.
+- [x] Load IVGs via `IVG::Document` (`src/IVG.cpp:291-411`) and reuse the runtime renderer.
+- [x] Inject each entry’s statement block before rendering; reuse `Interpreter::parseList` for bracket evaluation to avoid divergence.
+- [x] Share include/font/image path handling with `ivg2png` (see `tools/ivg2png/IVG2PNG.cpp` lines 94-201).
+- [x] Cache interpreter state across entries for the same IVG when possible to avoid redundant parsing.
+- [x] Extend `--verbose` output to show resolved include paths, scenario names, and validation states.
+- [x] Run `timeout 600 ./build.sh`.
 
 ### Milestone 3 – Golden lifecycle & reporting
 - [ ] Implement `SnapshotGolden` with `.disabled`/`.bak` support and PNG comparison (leveraging `NuXPixels` diff helpers around `externals/NuX/NuXPixels.cpp:311-512`).
