@@ -181,7 +181,7 @@ void renderPlan(const SnapshotPlan& plan);
 - [x] Run `timeout 600 ./build.sh`.
 
 ### Milestone 2 – Rendering execution (in progress)
-- [x] Load IVGs via `IVG::Document` (`src/IVG.cpp:291-411`) and reuse the runtime renderer.
+- [x] Load IVGs through a snapshot-local cached document helper and reuse the runtime renderer.
 - [x] Inject each entry’s statement block before rendering; reuse `Interpreter::parseList` for bracket evaluation to avoid divergence.
 - [x] Share include/font/image path handling with `ivg2png` (see `tools/ivg2png/IVG2PNG.cpp` lines 94-201).
 - [x] Cache interpreter state across entries for the same IVG when possible to avoid redundant parsing.

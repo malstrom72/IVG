@@ -39,15 +39,17 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "src/IMPD.h"
 #include "src/IVG.h"
 
-namespace IVG {
+using namespace IMPD;
+
+namespace IVGSnapshotInternal {
 
 	/**
-		Loads an IVG source once and replays it on demand so snapshot
-		playback can reuse parsed scripts without touching the core library.
+	        Loads an IVG source once and replays it on demand so snapshot
+	        playback can reuse parsed scripts without touching the core library.
 	**/
-	class Document {
+	class CachedDocument {
 	public:
-		Document()
+		CachedDocument()
 		{
 		}
 
@@ -74,7 +76,7 @@ namespace IVG {
 			return source;
 		}
 
-		void render(IVGExecutor& executor) const
+		void render(IVG::IVGExecutor& executor) const
 		{
 			IMPD::STLMapVariables variables;
 			IMPD::FormatInfo formatInfo;
@@ -85,11 +87,6 @@ namespace IVG {
 	private:
 		IMPD::String source;
 	};
-}
-
-using namespace IMPD;
-
-namespace IVGSnapshotInternal {
 
 	struct SnapshotBlock {
 		bool validate;
@@ -945,8 +942,8 @@ namespace IVGSnapshotInternal {
 
 
 
-        static bool renderEntry(const CommandLineOptions& options, const std::string& path, const IVG::Document& document, SharedResources& sharedResources, const SnapshotScenario& scenario, const SnapshotEntry& entry)
-        {
+	static bool renderEntry(const CommandLineOptions& options, const std::string& path, const CachedDocument& document, SharedResources& sharedResources, const SnapshotScenario& scenario, const SnapshotEntry& entry)
+	{
                 IVG::SelfContainedARGB32Canvas canvas;
                 SnapshotPlaybackExecutor executor(canvas, scenario, entry, options, path, sharedResources);
                 try {
@@ -972,8 +969,8 @@ namespace IVGSnapshotInternal {
 
 
 
-        static int renderPlan(const CommandLineOptions& options, const std::string& path, const IVG::Document& document, const SnapshotPlan& plan)
-        {
+	static int renderPlan(const CommandLineOptions& options, const std::string& path, const CachedDocument& document, const SnapshotPlan& plan)
+	{
                 const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
                 const std::vector<SnapshotEntry>& entries = plan.getEntries();
                 SharedResources sharedResources;
@@ -999,9 +996,9 @@ namespace IVGSnapshotInternal {
 		}
 		return exitCode;
 	}
-        static int processFile(const CommandLineOptions& options, const std::string& path)
-        {
-                IVG::Document document;
+	static int processFile(const CommandLineOptions& options, const std::string& path)
+	{
+		CachedDocument document;
                 if (!document.loadFromFile(path)) {
                         std::cerr << "failed to read IVG file: " << path << std::endl;
                         return 1;
