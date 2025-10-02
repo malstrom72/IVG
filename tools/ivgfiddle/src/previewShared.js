@@ -141,87 +141,6 @@ return BACKGROUND_DEFAULT;
 return definition.value;
 }
 
-function parseHexColor(value) {
-if (typeof value !== "string") {
-return null;
-}
-const hex = value.trim().toLowerCase();
-if (!hex.startsWith("#")) {
-return null;
-}
-if (hex.length === 4) {
-const r = parseInt(hex.charAt(1) + hex.charAt(1), 16);
-const g = parseInt(hex.charAt(2) + hex.charAt(2), 16);
-const b = parseInt(hex.charAt(3) + hex.charAt(3), 16);
-if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
-return null;
-}
-return { r: r, g: g, b: b };
-}
-if (hex.length !== 7) {
-return null;
-}
-const r = parseInt(hex.substr(1, 2), 16);
-const g = parseInt(hex.substr(3, 2), 16);
-const b = parseInt(hex.substr(5, 2), 16);
-if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
-return null;
-}
-return { r: r, g: g, b: b };
-}
-
-function rgbToHex(rgb) {
-if (!rgb || typeof rgb !== "object") {
-return null;
-}
-const r = Math.max(0, Math.min(255, Math.round(rgb.r))) | 0;
-const g = Math.max(0, Math.min(255, Math.round(rgb.g))) | 0;
-const b = Math.max(0, Math.min(255, Math.round(rgb.b))) | 0;
-return (
-"#" +
-(r.toString(16).padStart(2, "0")) +
-(g.toString(16).padStart(2, "0")) +
-(b.toString(16).padStart(2, "0"))
-);
-}
-
-function formatCustomColorOption(rgb) {
-const hex = rgbToHex(rgb);
-if (hex === null) {
-return {
-value: "custom",
-label: "Custom",
-preview: "#121212"
-};
-}
-return {
-value: "custom",
-label: hex.toUpperCase(),
-preview: hex
-};
-}
-
-function readComputedBackground(element) {
-if (element === null) {
-return null;
-}
-const styles = window.getComputedStyle(element);
-const backgroundColor = styles ? styles.getPropertyValue("background-color") : "";
-if (!backgroundColor) {
-return null;
-}
-const rgbRegex = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/i;
-const match = backgroundColor.match(rgbRegex);
-if (!match) {
-return null;
-}
-return {
-r: Number.parseInt(match[1], 10) || 0,
-g: Number.parseInt(match[2], 10) || 0,
-b: Number.parseInt(match[3], 10) || 0
-};
-}
-
 function updatePreviewBackground(color) {
 const definition = getColorDefinition(color);
 if (definition === null) {
@@ -243,6 +162,7 @@ previewContainer.style.backgroundColor = transparent ? "" : definition.value;
 function selectBackground(color) {
 updatePreviewBackground(color);
 Settings.write(STORAGE_KEYS.BACKGROUND_COLOR, currentColor);
+refreshSelectedSwatch();
 }
 
 function closeOverlay(options) {
@@ -283,12 +203,21 @@ const swatch = document.createElement("button");
 swatch.type = "button";
 swatch.className = "background-swatch";
 swatch.setAttribute("role", "option");
-swatch.setAttribute("aria-label", definition.label);
-swatch.dataset.value = definition.value;
-swatch.innerHTML =
-'<span class="background-swatch__color" aria-hidden="true" style="background:' +
-definition.preview + '"></span>' +
-'<span class="background-swatch__label">' + definition.label + "</span>";
+swatch.setAttribute("aria-selected", "false");
+swatch.dataset.background = definition.value;
+if (definition.value !== "none") {
+swatch.style.setProperty("--swatch-color", definition.preview);
+}
+const preview = document.createElement("span");
+preview.className = "background-swatch__preview";
+if (definition.value === "none") {
+preview.classList.add("background-swatch__preview--transparent");
+}
+const label = document.createElement("span");
+label.className = "background-swatch__label";
+label.textContent = definition.label;
+swatch.appendChild(preview);
+swatch.appendChild(label);
 swatch.addEventListener("click", function selectSwatch() {
 selectBackground(definition.value);
 closeOverlay();
@@ -303,16 +232,16 @@ return;
 const swatches = backgroundSwatchContainer.querySelectorAll(".background-swatch");
 for (let index = 0; index < swatches.length; ++index) {
 const element = swatches[index];
-const value = element.dataset.value || "";
+const value = element.dataset.background || "";
 const isSelected = value === currentColor;
 if (isSelected) {
-element.classList.add("is-selected");
+element.setAttribute("data-selected", "true");
 element.setAttribute("aria-selected", "true");
 if (document.activeElement === element) {
 element.focus();
 }
 } else {
-element.classList.remove("is-selected");
+element.removeAttribute("data-selected");
 element.setAttribute("aria-selected", "false");
 }
 }
@@ -327,10 +256,6 @@ const fragment = document.createDocumentFragment();
 for (let index = 0; index < BACKGROUND_COLORS.length; ++index) {
 const definition = BACKGROUND_COLORS[index];
 fragment.appendChild(buildSwatch(definition));
-}
-const currentBackground = readComputedBackground(screenElement) || readComputedBackground(previewContainer);
-if (currentBackground !== null) {
-fragment.appendChild(buildSwatch(formatCustomColorOption(currentBackground)));
 }
 backgroundSwatchContainer.appendChild(fragment);
 refreshSelectedSwatch();
