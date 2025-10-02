@@ -358,14 +358,6 @@ body {
 	image-rendering: auto;
 }
 
-#status {
-	background: #1b1b1b;
-	border-top: 1px solid #333;
-	color: #ccc;
-	font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-	padding: 8px 12px;
-}
-
 #traceDiv {
 	background: #000;
 	border-top: 1px solid #333;
