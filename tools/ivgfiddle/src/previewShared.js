@@ -702,7 +702,10 @@ let repeatingLogLineCount = 0;
 let moduleReady = false;
 let currentSource = "";
 let pendingSource = null;
+let pendingUri = null;
 let hasSuccessfulRender = false;
+let currentDocumentUri = null;
+let lastSuccessfulRenderUri = null;
 
 function notifyHost(level, message, options) {
 const text = typeof message === "string" ? message : "";
@@ -797,19 +800,41 @@ trace(bufferedLines[index]);
 
 bindGlobalTrace();
 
-function drawFailureCross() {
-if (!ivgContext || !ivgCanvas) {
-return;
+function normalizeDocumentUri(value) {
+        if (typeof value !== "string") {
+                return null;
+        }
+        return value.length > 0 ? value : null;
 }
-ivgContext.clearRect(0, 0, ivgCanvas.width, ivgCanvas.height);
-ivgContext.beginPath();
-ivgContext.moveTo(0, 0);
-ivgContext.lineTo(ivgCanvas.width, ivgCanvas.height);
-ivgContext.moveTo(0, ivgCanvas.height);
-ivgContext.lineTo(ivgCanvas.width, 0);
-ivgContext.strokeStyle = "red";
-ivgContext.lineWidth = 6;
-ivgContext.stroke();
+
+function isSameDocumentUri(first, second) {
+        if (first === second) {
+                return true;
+        }
+        return first === null && second === null;
+}
+
+function drawFailureCross(options) {
+        if (!ivgContext || !ivgCanvas) {
+                return;
+        }
+        const settings = options || {};
+        const preserveImage = settings.preserveImage === true;
+        if (!preserveImage) {
+                ivgContext.clearRect(0, 0, ivgCanvas.width, ivgCanvas.height);
+        }
+        ivgContext.save();
+        ivgContext.beginPath();
+        ivgContext.moveTo(0, 0);
+        ivgContext.lineTo(ivgCanvas.width, ivgCanvas.height);
+        ivgContext.moveTo(0, ivgCanvas.height);
+        ivgContext.lineTo(ivgCanvas.width, 0);
+        ivgContext.strokeStyle = "red";
+        ivgContext.lineWidth = 6;
+        ivgContext.lineCap = "round";
+        ivgContext.lineJoin = "round";
+        ivgContext.stroke();
+        ivgContext.restore();
 }
 
 function getHeapView(module, key) {
@@ -891,43 +916,51 @@ top: top,
 rasterScale: rasterScale,
 renderZoom: usesVectorScaling ? currentZoom : 1
 });
-trace("Completed IVG");
-const end = window.performance.now();
-trace("Time spent: " + (end - start) + "ms");
-setStatus("Preview updated in " + (end - start) + " ms.", {
-level: "info",
-durationMs: end - start
-});
-ok = true;
-hasSuccessfulRender = true;
-} else {
-trace("Rasterization returned no data");
-}
+                                trace("Completed IVG");
+                                const end = window.performance.now();
+                                trace("Time spent: " + (end - start) + "ms");
+                                setStatus("Preview updated in " + (end - start) + " ms.", {
+                                        level: "info",
+                                        durationMs: end - start
+                                });
+                                ok = true;
+                                hasSuccessfulRender = true;
+                                lastSuccessfulRenderUri = currentDocumentUri;
+                        } else {
+                                trace("Rasterization returned no data");
+                        }
 }
 } catch (error) {
 trace("Rasterization crashed");
 trace(String(error));
 }
-if (!ok) {
-if (!hasSuccessfulRender) {
-ZoomController.clearMetrics();
-drawFailureCross();
-}
-setStatus("Rendering failed. Check trace output for details.", {
-level: "error"
-});
-}
+        if (!ok) {
+                const preserveImage =
+                        hasSuccessfulRender && isSameDocumentUri(currentDocumentUri, lastSuccessfulRenderUri);
+                if (!preserveImage) {
+                        ZoomController.clearMetrics();
+                }
+                drawFailureCross({ preserveImage: preserveImage });
+                setStatus("Rendering failed. Check trace output for details.", {
+                        level: "error"
+                });
+                }
 }
 
 function setSource(newSource, options) {
-const opts = options || {};
-const persist = opts.persist !== false;
-currentSource = typeof newSource === "string" ? newSource : "";
-if (persist) {
-if (currentSource) {
-Settings.write(STORAGE_KEYS.SOURCE, currentSource);
-} else {
-Settings.write(STORAGE_KEYS.SOURCE, null);
+        const opts = options || {};
+        const persist = opts.persist !== false;
+        const nextUri = normalizeDocumentUri(opts.uri);
+        if (!isSameDocumentUri(nextUri, currentDocumentUri)) {
+                currentDocumentUri = nextUri;
+                hasSuccessfulRender = false;
+        }
+        currentSource = typeof newSource === "string" ? newSource : "";
+        if (persist) {
+                if (currentSource) {
+                        Settings.write(STORAGE_KEYS.SOURCE, currentSource);
+                } else {
+                        Settings.write(STORAGE_KEYS.SOURCE, null);
 }
 }
 renderCurrentSource();
@@ -937,17 +970,18 @@ function handleHostCommand(message) {
 if (!message || typeof message !== "object") {
 return;
 }
-switch (message.type) {
-case "setSource":
-if (!moduleReady) {
-pendingSource = typeof message.source === "string" ? message.source : "";
-} else {
-setSource(message.source, { persist: false });
-}
-if (typeof message.status === "string") {
-setStatus(message.status, { notify: false });
-} else if (moduleReady) {
-setStatus("Preview updated.", { notify: false });
+        switch (message.type) {
+                case "setSource":
+                        if (!moduleReady) {
+                                pendingSource = typeof message.source === "string" ? message.source : "";
+                                pendingUri = normalizeDocumentUri(message.uri);
+                        } else {
+                                setSource(message.source, { persist: false, uri: normalizeDocumentUri(message.uri) });
+                        }
+                        if (typeof message.status === "string") {
+                                setStatus(message.status, { notify: false });
+                        } else if (moduleReady) {
+                                setStatus("Preview updated.", { notify: false });
 }
 break;
 case "clearTrace":
@@ -987,22 +1021,24 @@ setStatus("Waiting for renderer…", { level: "info" });
 
 function handleModuleInitialized(initialSource) {
 moduleReady = true;
-const stored = Settings.read(STORAGE_KEYS.SOURCE, "");
-if (typeof stored === "string" && stored.length > 0) {
-currentSource = stored;
-} else if (typeof initialSource === "string" && initialSource.length > 0) {
-currentSource = initialSource;
-Settings.write(STORAGE_KEYS.SOURCE, currentSource);
-}
-const queuedSource = pendingSource;
-pendingSource = null;
-setStatus("Renderer ready.", { level: "info" });
-if (typeof queuedSource === "string") {
-setSource(queuedSource, { persist: false });
-} else {
-renderCurrentSource();
-}
-host.onReady();
+        const stored = Settings.read(STORAGE_KEYS.SOURCE, "");
+        if (typeof stored === "string" && stored.length > 0) {
+                currentSource = stored;
+        } else if (typeof initialSource === "string" && initialSource.length > 0) {
+                currentSource = initialSource;
+                Settings.write(STORAGE_KEYS.SOURCE, currentSource);
+        }
+        const queuedSource = pendingSource;
+        const queuedUri = pendingUri;
+        pendingSource = null;
+        pendingUri = null;
+        setStatus("Renderer ready.", { level: "info" });
+        if (typeof queuedSource === "string") {
+                setSource(queuedSource, { persist: false, uri: queuedUri });
+        } else {
+                renderCurrentSource();
+        }
+        host.onReady();
 }
 
 return {
