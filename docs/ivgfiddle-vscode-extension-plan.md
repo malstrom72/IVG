@@ -40,16 +40,16 @@
 - [x] **Tests:**
         - [x] _Webview rendering check_
                 - [x] Launch the Extension Development Host as described in Milestone 1.
-                - [x] Run `IVGFiddle: Open` and confirm the panel shows the IVGFiddle preview canvas, status banner, and trace log without any missing-resource placeholders.
+                - [x] Run `IVGFiddle: Open` and confirm the panel shows the IVGFiddle toolbar, preview canvas, and trace log without any missing-resource placeholders.
                 - [x] Open the Webview developer tools console and verify there are no red errors, CSP violations, or blocked WebAssembly instantiation warnings during load.
         - [x] _Preview diagnostics walk-through_
-                - [x] Observe that the status banner transitions from `Waiting for renderer…` to `Renderer ready.` once the runtime initializes.
+                - [x] Observe that the toolbar activates (zoom controls become clickable) once the runtime initializes.
                 - [x] Inspect the trace log to ensure IVGFiddle startup messages appear and that the log remains scrollable without layout glitches.
                 - [x] With the developer tools **Network** tab open, confirm every request resolves to the `vscode-resource:` origin (no outbound network traffic).
 ## Milestone 3: Document Synchronization (One-Way)
 - [x] Use the `vscode.workspace.onDidOpenTextDocument` and `onDidChangeTextDocument` events to forward `.ivg` file contents into the Webview via `postMessage`.
         - [x] Filter events to `document.languageId === "ivg"` (define a language contribution mapping `.ivg` to `ivg`).
-        - [x] When the panel becomes visible, send a `setSource` message carrying the active document URI, text, and a friendly status banner (e.g., `Rendering filename.ivg`).
+        - [x] When the panel becomes visible, send a `setSource` message carrying the active document URI, text, and a friendly status notification (e.g., `Rendering filename.ivg`).
         - [x] On `onDidChangeTextDocument`, throttle emissions with `setTimeout` (e.g., 150 ms) to avoid flooding the Webview.
 - [x] Inside the Webview, listen for incoming messages and refresh the preview without embedding an editor component.
         - [x] Ensure queued updates are replayed after the WASM runtime reports readiness so edits made during startup are not lost.
@@ -88,10 +88,11 @@
                 - [x] With the preview panel visible, run **IVGFiddle: Clear Preview Trace** and ensure the canvas stays unchanged while the trace panel becomes empty and the VS Code status message reports “Preview trace cleared.”
         - [x] _Status relay validation_
                 - [x] Introduce an IVG syntax error (for example, delete a closing brace) and save the file.
-                - [x] Confirm the preview draws the failure cross, the status banner reads “Rendering failed…”, and VS Code displays an error notification alongside the recorded render duration in the status bar entry.
+                - [x] Confirm the preview draws the failure cross over the last successful render, the trace records the failure, and VS Code displays an error notification alongside the recorded render duration in the status bar entry.
 ## Milestone 5: Packaging, Configuration, and Documentation
 - [x] Add contribution points to `package.json` (command palette entry, activation events, basic configuration options) without pulling extra schemas.
         - [x] Defined the **IVGFiddle** command palette entries, exposed `ivgfiddle.open` through `contributes.menus.commandPalette`, and bundled a reusable snippet for `.ivg` documents.
+        - [x] Added Explorer and editor tab context menu entries that dispatch `ivgfiddle.open` for `.ivg` resources to speed up preview access.
         - [x] Registered the configuration entries `ivgfiddle.syncOnOpen` and `ivgfiddle.webviewUpdateDelay` beside the existing preview settings to avoid additional schema dependencies.
         - [x] Kept the language contribution wired so `.ivg` files continue to resolve to the custom language ID.
 - [x] Write minimal documentation (`README.md`) detailing installation, commands, and dependency-free design.
