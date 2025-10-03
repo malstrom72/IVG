@@ -2,13 +2,20 @@
 
 The IVGFiddle VS Code extension hosts the IVGFiddle renderer inside a webview so you can preview `.ivg` files directly in the editor without introducing heavy dependencies. The workspace intentionally sticks to built-in Node.js tooling—TypeScript and the VS Code API typings are the only packages installed via `npm`.
 
-## Commands
+## Commands and Context Menus
 
 - **IVGFiddle: Open** – opens or focuses the preview panel.
 - **IVGFiddle: Refresh Preview** – forces an immediate rerender of the active or last previewed IVG document.
 - **IVGFiddle: Clear Preview Trace** – clears the runtime trace log without changing the rendered canvas.
 
 All commands live under the **IVGFiddle** category in the Command Palette.
+
+The same **Open IVGFiddle Preview** action also appears in:
+
+- The Explorer context menu when you right-click a `.ivg` file.
+- The editor tab context menu for active `.ivg` documents.
+
+Both entries simply invoke `IVGFiddle: Open`, providing a quicker path to the preview without searching the palette.
 
 ## Configuration
 
@@ -52,8 +59,8 @@ A reusable snippet named **IVG Canvas Skeleton** is available under the `ivg` la
 
 1. From `tools/ivgfiddle-vscode`, launch VS Code and press **F5** (or use **Run and Debug → Start Debugging**) to open an Extension Development Host.
 2. In the dev host, open or create a `.ivg` document. The language ID automatically resolves to `IVG`.
-3. Trigger **IVGFiddle: Open** from the Command Palette. The preview panel appears with the renderer status banner and trace log.
-4. Confirm the canvas updates as you edit the document (subject to the `autoRefresh` and `debounceMs` settings) and that status notifications surface in the VS Code status bar.
+3. Trigger **IVGFiddle: Open** from the Command Palette or a context menu. The preview panel appears with the toolbar, canvas, and trace log.
+4. Confirm the canvas updates as you edit the document (subject to the `autoRefresh` and `debounceMs` settings) and that notifications surface in the VS Code status bar.
 5. Toggle `IVGFiddle Preview` settings to observe manual-refresh and deferred-sync behaviour, then clear the trace log using its command.
 6. Close the preview to verify the status bar indicator hides automatically, then reopen the panel to ensure synchronization resumes (or remains deferred if `syncOnOpen` is disabled).
 

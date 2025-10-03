@@ -5,8 +5,8 @@ Use these steps to record a screenshot or GIF of the IVGFiddle preview when prep
 1. Launch the Extension Development Host (press **F5** from `tools/ivgfiddle-vscode`).
 2. Open an `.ivg` file with representative content or paste the **IVG Canvas Skeleton** snippet to generate a sample image.
 3. Run **IVGFiddle: Open** to display the preview panel.
-4. Wait for the status banner to report “Renderer ready.” and confirm the canvas reflects the active file.
-5. Resize the panel so the canvas, status banner, and trace log are all visible.
+4. Wait for the toolbar to finish initializing (the zoom buttons become enabled) and confirm the canvas reflects the active file.
+5. Resize the panel so the canvas, toolbar, and trace log are all visible.
 6. Capture the window:
    - **Screenshot:** use the operating system shortcut (e.g., `Shift+Cmd+4` on macOS) to grab the dev host window.
    - **GIF:** record a short clip with a lightweight tool such as macOS QuickTime, Windows Snipping Tool, or `peek` on Linux, focusing on the preview area while you make a small edit so the rerender is visible.

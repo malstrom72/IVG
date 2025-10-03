@@ -43,6 +43,20 @@
 					"command": "ivgfiddle.open",
 					"when": "true"
 				}
+			],
+			"explorer/context": [
+				{
+					"command": "ivgfiddle.open",
+					"when": "resourceExtname == .ivg",
+					"group": "navigation@20"
+				}
+			],
+			"editor/title/context": [
+				{
+					"command": "ivgfiddle.open",
+					"when": "resourceLangId == ivg",
+					"group": "navigation@20"
+				}
 			]
 		},
 		"languages": [
