@@ -1,8 +1,8 @@
-# IVGFiddle VS Code Extension Implementation Plan
+# IVG Preview VS Code Extension Implementation Plan
 
 ## Milestone 1: Prepare Project Structure and Assets
 - [x] Create a minimal VS Code extension scaffold manually (no Yeoman) with `package.json`, `tsconfig.json`, and `src/extension.ts` using only built-in Node modules.
-	- [x] Initialize the folder structure `ivgfiddle-vscode/{src,media,scripts}` and create a `.vscodeignore` that omits nothing but `scripts/`.
+	- [x] Initialize the folder structure `ivg-vscode/{src,media,scripts}` and create a `.vscodeignore` that omits nothing but `scripts/`.
 	- [x] Author `package.json` with explicit `engines.vscode`, `activationEvents: ["onCommand:ivgfiddle.open"]`, `main: "dist/extension.js"`, and scripts `"compile": "tsc -p ."`, `"watch": "tsc -w -p ."`.
 	- [x] Write `tsconfig.json` targeting `es2020`, module `commonjs`, `rootDir: "src"`, `outDir: "dist"`, and enable `strict` mode to match VS Code samples without extra tooling.
 	- [x] Seed `src/extension.ts` with boilerplate that registers the `ivgfiddle.open` command and logs activation for smoke testing.
@@ -17,14 +17,14 @@
 - [x] **Tests:**
         - [x] _Terminal build check_
                 - [x] Open a terminal in the repository root: `code` → **Terminal** → **New Terminal**.
-                - [x] Change into the extension folder: `cd tools/ivgfiddle-vscode`.
+                - [x] Change into the extension folder: `cd tools/ivg-vscode`.
                 - [x] Run the TypeScript compile script: `npm run compile`.
                 - [x] Confirm the command exits with status `0` and that `dist/extension.js` has a fresh timestamp (use `ls -l dist/extension.js`).
         - [x] _Extension Development Host smoke test_
                 - [x] From the same terminal, start the extension in VS Code by pressing `F5` (or **Run and Debug** → **Start Debugging**) which launches an **Extension Development Host** window.
-                - [x] In the dev host window, press `Ctrl+Shift+P` / `Cmd+Shift+P`, type `IVGFiddle: Open`, and run the `ivgfiddle.open` command.
+                - [x] In the dev host window, press `Ctrl+Shift+P` / `Cmd+Shift+P`, type `IVG Preview: Open Preview`, and run the `ivgfiddle.open` command.
                 - [x] Open the Webview developer tools via **Help** → **Toggle Developer Tools** and switch to the **Console** tab.
-                - [x] Verify the console contains the activation message `IVGFiddle extension activated` and that no red error entries about missing files or CSP violations appear when the panel loads.
+                - [x] Verify the console contains the activation message `IVG Preview extension activated` and that no red error entries about missing files or CSP violations appear when the panel loads.
                 - [x] Close the dev tools and ensure the panel content area is blank (expected until Milestone 2 wiring is complete).
 
 ## Milestone 2: Webview Integration with Static IVGFiddle
@@ -40,7 +40,7 @@
 - [x] **Tests:**
         - [x] _Webview rendering check_
                 - [x] Launch the Extension Development Host as described in Milestone 1.
-                - [x] Run `IVGFiddle: Open` and confirm the panel shows the IVGFiddle toolbar, preview canvas, and trace log without any missing-resource placeholders.
+                - [x] Run `IVG Preview: Open Preview` and confirm the panel shows the IVGFiddle toolbar, preview canvas, and trace log without any missing-resource placeholders.
                 - [x] Open the Webview developer tools console and verify there are no red errors, CSP violations, or blocked WebAssembly instantiation warnings during load.
         - [x] _Preview diagnostics walk-through_
                 - [x] Observe that the toolbar activates (zoom controls become clickable) once the runtime initializes.
@@ -55,12 +55,12 @@
         - [x] Ensure queued updates are replayed after the WASM runtime reports readiness so edits made during startup are not lost.
         - [x] Drive the existing `setSource` helper to update the cached source, rerender, and surface status text supplied by the host.
 - [x] Provide a status bar item indicating when a document is synchronized.
-        - [x] Create a `vscode.StatusBarItem` aligned left with text like `$(sync) IVGFiddle Preview: filename.ivg` updated on selection change.
+        - [x] Create a `vscode.StatusBarItem` aligned left with text like `$(sync) IVG Preview: filename.ivg` updated on selection change.
         - [x] Dispose of the item when the panel closes to avoid stale indicators.
 - [x] **Tests:**
         - [x] _One-way synchronization sanity check_
                 - [x] Create or open a `.ivg` file in the Extension Development Host (the language contribution should automatically classify the file as `IVG`).
-                - [x] Run `IVGFiddle: Open` and ensure the Webview preview updates to reflect the file contents without requiring manual refresh.
+                - [x] Run `IVG Preview: Open Preview` and ensure the Webview preview updates to reflect the file contents without requiring manual refresh.
                 - [x] Type changes in VS Code and confirm the preview rerenders within the debounce window without flicker (expect ~150 ms delay).
         - [x] _Status bar telemetry review_
                 - [x] Observe that a status bar entry appears showing the active IVG filename after the panel opens.
@@ -80,18 +80,18 @@
         - [x] Respect these settings when deciding whether to push `setSource` updates automatically or require the manual refresh command.
 - [x] **Tests:**
         - [x] _Manual refresh sanity check_
-                - [x] Open **Settings** (gear icon → **Settings**), search for `IVGFiddle Preview`, and uncheck **Auto Refresh**.
+                - [x] Open **Settings** (gear icon → **Settings**), search for `IVG Preview`, and uncheck **Auto Refresh**.
                 - [x] Change the active `.ivg` file in the Extension Development Host and note that the status bar shows a clock icon plus “refresh required”.
-                - [x] Invoke **IVGFiddle: Refresh Preview** from the Command Palette and confirm the Webview rerenders immediately using the latest document contents.
+                - [x] Invoke **IVG Preview: Refresh Preview** from the Command Palette and confirm the Webview rerenders immediately using the latest document contents.
                 - [x] Re-enable **Auto Refresh** in Settings, make further edits, and verify the preview resumes automatic rerenders governed by **Debounce (ms)**.
         - [x] _Trace management review_
-                - [x] With the preview panel visible, run **IVGFiddle: Clear Preview Trace** and ensure the canvas stays unchanged while the trace panel becomes empty and the VS Code status message reports “Preview trace cleared.”
+                - [x] With the preview panel visible, run **IVG Preview: Clear Trace** and ensure the canvas stays unchanged while the trace panel becomes empty and the VS Code status message reports “Preview trace cleared.”
         - [x] _Status relay validation_
                 - [x] Introduce an IVG syntax error (for example, delete a closing brace) and save the file.
                 - [x] Confirm the preview draws the failure cross over the last successful render, the trace records the failure, and VS Code displays an error notification alongside the recorded render duration in the status bar entry.
 ## Milestone 5: Packaging, Configuration, and Documentation
 - [x] Add contribution points to `package.json` (command palette entry, activation events, basic configuration options) without pulling extra schemas.
-        - [x] Defined the **IVGFiddle** command palette entries, exposed `ivgfiddle.open` through `contributes.menus.commandPalette`, and bundled a reusable snippet for `.ivg` documents.
+        - [x] Defined the **IVG Preview** command palette entries, exposed `ivgfiddle.open` through `contributes.menus.commandPalette`, and bundled a reusable snippet for `.ivg` documents.
         - [x] Added Explorer and editor tab context menu entries that dispatch `ivgfiddle.open` for `.ivg` resources to speed up preview access.
         - [x] Registered the configuration entries `ivgfiddle.syncOnOpen` and `ivgfiddle.webviewUpdateDelay` beside the existing preview settings to avoid additional schema dependencies.
         - [x] Kept the language contribution wired so `.ivg` files continue to resolve to the custom language ID.
@@ -103,7 +103,7 @@
         - [x] Documented manual installation commands for both packaged and development workflows.
 - [ ] **Tests:**
         - [ ] _Lint gate_
-                - [ ] From `tools/ivgfiddle-vscode`, run `npm run lint` (or `npx tsc --noEmit` if lint isn’t configured) and confirm the command exits with status `0`.
+                - [ ] From `tools/ivg-vscode`, run `npm run lint` (or `npx tsc --noEmit` if lint isn’t configured) and confirm the command exits with status `0`.
                 - [ ] Append any warnings or corrective actions to the README troubleshooting section before proceeding.
         - [ ] _Packaging dry run_
                 - [ ] Execute `npx vsce package` and ensure a `.vsix` file appears in the extension folder.

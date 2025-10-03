@@ -1,21 +1,21 @@
-# IVGFiddle VS Code Extension
+# IVG Preview VS Code Extension
 
-The IVGFiddle VS Code extension hosts the IVGFiddle renderer inside a webview so you can preview `.ivg` files directly in the editor without introducing heavy dependencies. The workspace intentionally sticks to built-in Node.js tooling—TypeScript and the VS Code API typings are the only packages installed via `npm`.
+The IVG Preview VS Code extension hosts the IVGFiddle renderer inside a webview so you can preview `.ivg` files directly in the editor without introducing heavy dependencies. The workspace intentionally sticks to built-in Node.js tooling—TypeScript and the VS Code API typings are the only packages installed via `npm`.
 
 ## Commands and Context Menus
 
-- **IVGFiddle: Open** – opens or focuses the preview panel.
-- **IVGFiddle: Refresh Preview** – forces an immediate rerender of the active or last previewed IVG document.
-- **IVGFiddle: Clear Preview Trace** – clears the runtime trace log without changing the rendered canvas.
+- **IVG Preview: Open Preview** – opens or focuses the preview panel.
+- **IVG Preview: Refresh Preview** – forces an immediate rerender of the active or last previewed IVG document.
+- **IVG Preview: Clear Trace** – clears the runtime trace log without changing the rendered canvas.
 
-All commands live under the **IVGFiddle** category in the Command Palette.
+All commands live under the **IVG Preview** category in the Command Palette.
 
-The same **Open IVGFiddle Preview** action also appears in:
+The same **Open IVG Preview Panel** action also appears in:
 
 - The Explorer context menu when you right-click a `.ivg` file.
 - The editor tab context menu for active `.ivg` documents.
 
-Both entries simply invoke `IVGFiddle: Open`, providing a quicker path to the preview without searching the palette.
+Both entries simply invoke `IVG Preview: Open Preview`, providing a quicker path to the preview without searching the palette.
 
 ## Configuration
 
@@ -40,7 +40,7 @@ A reusable snippet named **IVG Canvas Skeleton** is available under the `ivg` la
 
 1. Open a terminal in the repository root and switch to the extension folder:
    ```bash
-   cd tools/ivgfiddle-vscode
+   cd tools/ivg-vscode
    ```
 2. Install the lightweight dev dependencies:
    ```bash
@@ -57,11 +57,11 @@ A reusable snippet named **IVG Canvas Skeleton** is available under the `ivg` la
 
 ## Extension Development Host Walkthrough
 
-1. From `tools/ivgfiddle-vscode`, launch VS Code and press **F5** (or use **Run and Debug → Start Debugging**) to open an Extension Development Host.
+1. From `tools/ivg-vscode`, launch VS Code and press **F5** (or use **Run and Debug → Start Debugging**) to open an Extension Development Host.
 2. In the dev host, open or create a `.ivg` document. The language ID automatically resolves to `IVG`.
-3. Trigger **IVGFiddle: Open** from the Command Palette or a context menu. The preview panel appears with the toolbar, canvas, and trace log.
+3. Trigger **IVG Preview: Open Preview** from the Command Palette or a context menu. The preview panel appears with the toolbar, canvas, and trace log.
 4. Confirm the canvas updates as you edit the document (subject to the `autoRefresh` and `debounceMs` settings) and that notifications surface in the VS Code status bar.
-5. Toggle `IVGFiddle Preview` settings to observe manual-refresh and deferred-sync behaviour, then clear the trace log using its command.
+5. Toggle `IVG Preview` settings to observe manual-refresh and deferred-sync behaviour, then clear the trace log using its command.
 6. Close the preview to verify the status bar indicator hides automatically, then reopen the panel to ensure synchronization resumes (or remains deferred if `syncOnOpen` is disabled).
 
 ## Packaging
@@ -82,19 +82,19 @@ The script checks for `vsce` on your `PATH` and falls back to `npx vsce package`
   ```
 - Install a built package locally:
   ```bash
-  code --install-extension ivgfiddle-vscode-0.0.1.vsix
+  code --install-extension ivg-vscode-0.0.1.vsix
   ```
 - Run from source without packaging:
   ```bash
   code --extensionDevelopmentPath "$(pwd)"
   ```
 
-## Updating IVGFiddle Assets
+## Updating IVG Preview Assets
 
 When assets under `tools/ivgfiddle/` change, rebuild and mirror the output into the extension:
 
 ```bash
-bash tools/ivgfiddle-vscode/scripts/sync-assets.sh --build
+bash tools/ivg-vscode/scripts/sync-assets.sh --build
 ```
 
 On Windows, use the companion script:
@@ -113,7 +113,7 @@ Follow the step-by-step capture notes in [`media/docs/capture-preview.md`](media
 
 - **TypeScript cannot find the `vscode` module** – run `npm install` to restore the bundled type declarations.
 - **Webview fails to update immediately after opening** – increase `ivgfiddle.webviewUpdateDelay` or disable `ivgfiddle.syncOnOpen` and trigger a manual refresh once the renderer is ready.
-- **Preview trace still shows prior logs** – run **IVGFiddle: Clear Preview Trace**; the canvas remains unchanged.
+- **Preview trace still shows prior logs** – run **IVG Preview: Clear Trace**; the canvas remains unchanged.
 - **Lint failures** – run `npm run lint` and address any reported issues before packaging.
 
-For additional verification checklists, consult `docs/ivgfiddle-vscode-extension-plan.md` in the repository root.
+For additional verification checklists, consult `docs/ivg-vscode-extension-plan.md` in the repository root.
