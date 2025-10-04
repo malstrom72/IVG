@@ -3,7 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "${script_dir}/../../.." && pwd)"
-ext_dir="${repo_root}/tools/ivgfiddle-vscode"
+ext_dir="${repo_root}/tools/ivg-vscode"
 output_dir="${repo_root}/tools/ivgfiddle/output"
 
 build=0

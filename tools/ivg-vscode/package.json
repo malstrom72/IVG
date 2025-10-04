@@ -1,0 +1,118 @@
+{
+        "name": "ivg-vscode",
+        "displayName": "IVG Preview",
+        "description": "Embed the IVG Preview webview inside Visual Studio Code.",
+	"version": "0.0.1",
+	"publisher": "ivg",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/zeux/IVG.git"
+	},
+        "homepage": "https://github.com/zeux/IVG/tree/main/tools/ivg-vscode",
+	"engines": {
+		"vscode": "^1.84.0"
+	},
+	"activationEvents": [
+		"onCommand:ivgfiddle.open",
+		"onCommand:ivgfiddle.refreshPreview",
+		"onCommand:ivgfiddle.clearTrace",
+		"onLanguage:ivg"
+	],
+	"main": "./dist/extension.js",
+        "contributes": {
+                "commands": [
+                        {
+                                "command": "ivgfiddle.open",
+                                "title": "Open Preview",
+                                "category": "IVG Preview"
+                        },
+                        {
+                                "command": "ivgfiddle.refreshPreview",
+                                "title": "Refresh Preview",
+                                "category": "IVG Preview"
+                        },
+                        {
+                                "command": "ivgfiddle.clearTrace",
+                                "title": "Clear Trace",
+                                "category": "IVG Preview"
+                        }
+                ],
+		"menus": {
+			"commandPalette": [
+				{
+					"command": "ivgfiddle.open",
+					"when": "true"
+				}
+			],
+			"explorer/context": [
+				{
+					"command": "ivgfiddle.open",
+					"when": "resourceExtname == .ivg",
+					"group": "navigation@20"
+				}
+			],
+			"editor/title/context": [
+				{
+					"command": "ivgfiddle.open",
+					"when": "resourceLangId == ivg",
+					"group": "navigation@20"
+				}
+			]
+		},
+		"languages": [
+			{
+				"id": "ivg",
+				"aliases": [
+					"IVG",
+					"ivg"
+				],
+				"extensions": [
+					".ivg"
+				],
+				"configuration": "./language-configuration.json"
+			}
+		],
+		"snippets": [
+			{
+				"language": "ivg",
+				"path": "./snippets/ivg.code-snippets"
+			}
+		],
+                "configuration": {
+                        "title": "IVG Preview",
+                        "properties": {
+                                "ivgfiddle.syncOnOpen": {
+                                        "type": "boolean",
+                                        "default": true,
+                                        "description": "Automatically push the active IVG document to the IVG Preview webview when it opens."
+                                },
+                                "ivgfiddle.webviewUpdateDelay": {
+                                        "type": "number",
+                                        "default": 0,
+                                        "minimum": 0,
+                                        "description": "Delay in milliseconds before host messages are delivered to the IVG Preview webview."
+                                },
+                                "ivgfiddle.preview.autoRefresh": {
+                                        "type": "boolean",
+                                        "default": true,
+                                        "description": "Automatically update the IVG Preview panel when IVG documents change."
+                                },
+                                "ivgfiddle.preview.debounceMs": {
+                                        "type": "number",
+                                        "default": 150,
+                                        "minimum": 0,
+                                        "description": "Delay in milliseconds before automatic IVG Preview refresh when auto refresh is enabled."
+                                }
+                        }
+                }
+	},
+	"scripts": {
+		"compile": "tsc -p .",
+		"watch": "tsc -w -p .",
+		"lint": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@types/vscode": "^1.84.0",
+		"typescript": "^5.6.3"
+	}
+}

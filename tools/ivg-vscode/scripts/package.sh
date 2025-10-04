@@ -3,6 +3,8 @@ set -e -o pipefail -u
 
 cd "$(dirname "$0")"/..
 
+npm install --no-audit --no-fund
+
 npm run compile
 
 if command -v vsce >/dev/null 2>&1; then

@@ -4,7 +4,7 @@ SETLOCAL ENABLEEXTENSIONS
 SET "SCRIPT_DIR=%~dp0"
 PUSHD "%SCRIPT_DIR%..\..\.."
 SET "REPO_ROOT=%CD%"
-SET "EXT_DIR=%REPO_ROOT%\tools\ivgfiddle-vscode"
+SET "EXT_DIR=%REPO_ROOT%\tools\ivg-vscode"
 SET "OUTPUT_DIR=%REPO_ROOT%\tools\ivgfiddle\output"
 
 SET "BUILD=0"
