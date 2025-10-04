@@ -17,8 +17,8 @@
 		const MAX_LOG_SIZE = 64 * 1024;
 		const MAX_LOG_LINES = 1000;
 
-		const statusElement = document.getElementById("status");
-		const traceElement = document.getElementById("trace");
+                const statusElement = document.getElementById("status");
+                const traceElement = document.getElementById("trace");
 		const traceDiv = document.getElementById("traceDiv");
 		const ivgCanvas = document.getElementById("ivgCanvas");
 		const ivgContext = ivgCanvas ? ivgCanvas.getContext("2d") : null;
@@ -322,10 +322,16 @@
 		const ZOOM_SELECT_PRESETS = Object.freeze([0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 10]);
 		const ZOOM_PRESETS = ZOOM_SELECT_PRESETS;
 		const CUSTOM_ZOOM_OPTION_VALUE = "custom";
-		const FALLBACK_CANVAS_SIZE = Object.freeze({
-			width: 320,
-			height: 320,
-		});
+                const FALLBACK_CANVAS_SIZE = Object.freeze({
+                        width: 320,
+                        height: 320,
+                });
+
+                const RASTERIZATION_LIMITS = Object.freeze({
+                        MAX_PIXELS: 64 * 1024 * 1024,
+                        MAX_DIMENSION: 8192,
+                        MIN_SCALE: 1,
+                });
 
 		const ZOOM_CONSTANTS = Object.freeze({
 			MIN: ZOOM_PRESETS[0],
@@ -339,7 +345,73 @@
 			let baseMetrics = null;
 			let vectorScalingEnabled = false;
 			const ZOOM_EPSILON = 0.0001;
-			let rerenderCallback = null;
+                        let rerenderCallback = null;
+                        let lastClampNotificationKey = null;
+
+                        function formatScale(value) {
+                                return Math.round(value * 100) / 100;
+                        }
+
+                        function limitRasterScale(requestedScale) {
+                                let clampedScale = requestedScale;
+                                let clampReason = null;
+                                let clampTarget = Number.POSITIVE_INFINITY;
+                                let pixelLimit = Number.POSITIVE_INFINITY;
+                                let dimensionLimit = Number.POSITIVE_INFINITY;
+                                if (baseMetrics && baseMetrics.width > 0 && baseMetrics.height > 0) {
+                                        const baseWidth = baseMetrics.width;
+                                        const baseHeight = baseMetrics.height;
+                                        const baseArea = baseWidth * baseHeight;
+                                        if (RASTERIZATION_LIMITS.MAX_PIXELS > 0 && Number.isFinite(baseArea) && baseArea > 0) {
+                                                const pixelsCap = Math.sqrt(RASTERIZATION_LIMITS.MAX_PIXELS / baseArea);
+                                                if (Number.isFinite(pixelsCap) && pixelsCap > 0) {
+                                                        pixelLimit = pixelsCap;
+                                                        clampTarget = Math.min(clampTarget, pixelsCap);
+                                                }
+                                        }
+                                        if (RASTERIZATION_LIMITS.MAX_DIMENSION > 0) {
+                                                const widthCap = RASTERIZATION_LIMITS.MAX_DIMENSION / baseWidth;
+                                                const heightCap = RASTERIZATION_LIMITS.MAX_DIMENSION / baseHeight;
+                                                const dimensionCap = Math.min(widthCap, heightCap);
+                                                if (Number.isFinite(dimensionCap) && dimensionCap > 0) {
+                                                        dimensionLimit = dimensionCap;
+                                                        clampTarget = Math.min(clampTarget, dimensionCap);
+                                                }
+                                        }
+                                }
+                                if (clampTarget < Number.POSITIVE_INFINITY && requestedScale > clampTarget + ZOOM_EPSILON) {
+                                        clampedScale = clampTarget;
+                                        if (Math.abs(clampTarget - pixelLimit) < ZOOM_EPSILON) {
+                                                clampReason = "pixels";
+                                        } else if (Math.abs(clampTarget - dimensionLimit) < ZOOM_EPSILON) {
+                                                clampReason = "dimension";
+                                        } else {
+                                                clampReason = "limit";
+                                        }
+                                }
+                                if (!Number.isFinite(clampedScale) || clampedScale <= 0) {
+                                        clampedScale = RASTERIZATION_LIMITS.MIN_SCALE;
+                                }
+                                if (clampedScale < RASTERIZATION_LIMITS.MIN_SCALE) {
+                                        clampedScale = RASTERIZATION_LIMITS.MIN_SCALE;
+                                }
+                                const wasClamped = clampedScale < requestedScale - ZOOM_EPSILON;
+                                return {
+                                        scale: clampedScale,
+                                        clamped: wasClamped,
+                                        reason: wasClamped ? clampReason : null,
+                                };
+                        }
+
+                        function describeClampReason(reason) {
+                                if (reason === "pixels") {
+                                        return "pixel count";
+                                }
+                                if (reason === "dimension") {
+                                        return "dimensions";
+                                }
+                                return "safety";
+                        }
 
 			function zoomToPercent(value) {
 				return Math.round(value * 100);
@@ -698,32 +770,47 @@
 				applyZoom();
 			}
 
-			function getRasterScale(pixelRatio) {
-				if (vectorScalingEnabled) {
-					return 1;
-				}
-				return Math.max(1, Math.round(pixelRatio));
-			}
+                        function computeRasterParameters(pixelRatio) {
+                                const effectivePixelRatio = Number.isFinite(pixelRatio) && pixelRatio > 0 ? pixelRatio : 1;
+                                const usesVector = vectorScalingEnabled;
+                                const requestedScale = usesVector
+                                        ? currentZoom * effectivePixelRatio
+                                        : Math.max(RASTERIZATION_LIMITS.MIN_SCALE, Math.round(effectivePixelRatio));
+                                const clampResult = limitRasterScale(requestedScale);
+                                return {
+                                        rasterScale: clampResult.scale,
+                                        renderZoom: usesVector ? currentZoom : 1,
+                                        usesVectorScaling: usesVector,
+                                        requestedScale: requestedScale,
+                                        clamped: clampResult.clamped,
+                                        clampReason: clampResult.reason,
+                                };
+                        }
 
-			function usesVectorScaling() {
-				return vectorScalingEnabled;
-			}
+                        function getRasterScale(pixelRatio) {
+                                return computeRasterParameters(pixelRatio).rasterScale;
+                        }
 
-			function getZoom() {
-				return currentZoom;
-			}
+                        function usesVectorScaling() {
+                                return vectorScalingEnabled;
+                        }
 
-			return {
-				init: init,
-				setZoom: setZoom,
-				resetZoom: resetZoom,
-				applyRenderMetrics: setBaseMetrics,
-				clearMetrics: clearMetrics,
-				getRasterScale: getRasterScale,
-				usesVectorScaling: usesVectorScaling,
-				getZoom: getZoom,
-			};
-		})();
+                        function getZoom() {
+                                return currentZoom;
+                        }
+
+                        return {
+                                init: init,
+                                setZoom: setZoom,
+                                resetZoom: resetZoom,
+                                applyRenderMetrics: setBaseMetrics,
+                                clearMetrics: clearMetrics,
+                                getRasterScale: getRasterScale,
+                                usesVectorScaling: usesVectorScaling,
+                                getZoom: getZoom,
+                                computeRasterParameters: computeRasterParameters,
+                        };
+})();
 
 		let allLogLines = "";
 		let traceLinesCount = 0;
@@ -733,9 +820,10 @@
 		let currentSource = "";
 		let pendingSource = null;
 		let pendingUri = null;
-		let hasSuccessfulRender = false;
-		let currentDocumentUri = null;
-		let lastSuccessfulRenderUri = null;
+                let hasSuccessfulRender = false;
+                let currentDocumentUri = null;
+                let lastSuccessfulRenderUri = null;
+                let moduleReloadPromise = null;
 
 		function notifyHost(level, message, options) {
 			const text = typeof message === "string" ? message : "";
@@ -896,100 +984,158 @@
 			return result;
 		};
 
-		function renderCurrentSource() {
-			if (!global.Module || !ivgCanvas || !ivgContext) {
-				return;
-			}
-			clearTrace();
-			trace("Rasterizing IVG");
-			const start = window.performance.now();
-			let ok = false;
-			try {
-				const devicePixelRatio = window.devicePixelRatio || 1;
-				const usesVectorScaling = ZoomController.usesVectorScaling();
-				const currentZoom = ZoomController.getZoom();
-				const rasterScale = usesVectorScaling ? currentZoom * devicePixelRatio : ZoomController.getRasterScale(devicePixelRatio);
-				const result = rasterizeIVG(currentSource, rasterScale);
-				if (result === 0) {
-					trace("Rasterization returned 0");
-				} else {
-					const module = global.Module;
-					const left = readInt32(module, result + 0);
-					const top = readInt32(module, result + 4);
-					const width = readInt32(module, result + 8);
-					const height = readInt32(module, result + 12);
-					const byteLength = width * height * 4;
-					const heapU8 = getHeapView(module, "HEAPU8");
-					if (!heapU8) {
-						throw new Error("WebAssembly heap unavailable");
-					}
-					const pixelOffset = result + 16;
-					const pixelData = heapU8.slice(pixelOffset, pixelOffset + byteLength);
-					module._deallocatePixels(result);
-					if (width > 0 && height > 0 && pixelData.length === byteLength) {
-						if (ivgCanvas.width !== width || ivgCanvas.height !== height) {
-							ivgCanvas.width = width;
-							ivgCanvas.height = height;
-						}
-						const imageData = ivgContext.createImageData(width, height);
-						imageData.data.set(pixelData);
-						ivgContext.putImageData(imageData, 0, 0);
-						ZoomController.applyRenderMetrics({
-							width: width,
-							height: height,
-							left: left,
-							top: top,
-							rasterScale: rasterScale,
-							renderZoom: usesVectorScaling ? currentZoom : 1,
-						});
-						trace("Completed IVG");
-						const end = window.performance.now();
-						trace("Time spent: " + (end - start) + "ms");
-						setStatus("Preview updated in " + (end - start) + " ms.", {
-							level: "info",
-							durationMs: end - start,
-						});
-						ok = true;
-						hasSuccessfulRender = true;
-						lastSuccessfulRenderUri = currentDocumentUri;
-					} else {
-						trace("Rasterization returned no data");
-					}
-				}
-			} catch (error) {
-				trace("Rasterization crashed");
-				trace(String(error));
-			}
-			if (!ok) {
-				const preserveImage = hasSuccessfulRender && isSameDocumentUri(currentDocumentUri, lastSuccessfulRenderUri);
-				if (!preserveImage) {
-					ZoomController.clearMetrics();
-				}
-				drawFailureCross({ preserveImage: preserveImage });
-				setStatus("Rendering failed. Check trace output for details.", {
-					level: "error",
-				});
-			}
-		}
+                function renderCurrentSource() {
+                        if (!global.Module || !ivgCanvas || !ivgContext) {
+                                return;
+                        }
+                        clearTrace();
+                        trace("Rasterizing IVG");
+                        const start = window.performance.now();
+                        let ok = false;
+                        try {
+                                const devicePixelRatio = window.devicePixelRatio || 1;
+                                const rasterParameters = ZoomController.computeRasterParameters(devicePixelRatio);
+                                const result = rasterizeIVG(currentSource, rasterParameters.rasterScale);
+                                if (result === 0) {
+                                        trace("Rasterization returned 0");
+                                } else {
+                                        const module = global.Module;
+                                        const left = readInt32(module, result + 0);
+                                        const top = readInt32(module, result + 4);
+                                        const width = readInt32(module, result + 8);
+                                        const height = readInt32(module, result + 12);
+                                        const byteLength = width * height * 4;
+                                        const heapU8 = getHeapView(module, "HEAPU8");
+                                        if (!heapU8) {
+                                                throw new Error("WebAssembly heap unavailable");
+                                        }
+                                        const pixelOffset = result + 16;
+                                        const pixelData = heapU8.slice(pixelOffset, pixelOffset + byteLength);
+                                        module._deallocatePixels(result);
+                                        if (width > 0 && height > 0 && pixelData.length === byteLength) {
+                                                if (ivgCanvas.width !== width || ivgCanvas.height !== height) {
+                                                        ivgCanvas.width = width;
+                                                        ivgCanvas.height = height;
+                                                }
+                                                const imageData = ivgContext.createImageData(width, height);
+                                                imageData.data.set(pixelData);
+                                                ivgContext.putImageData(imageData, 0, 0);
+                                                ZoomController.applyRenderMetrics({
+                                                        width: width,
+                                                        height: height,
+                                                        left: left,
+                                                        top: top,
+                                                        rasterScale: rasterParameters.rasterScale,
+                                                        renderZoom: rasterParameters.renderZoom,
+                                                });
+                                                if (rasterParameters.clamped) {
+                                                        const clampKey = currentDocumentUri
+                                                                ? currentDocumentUri + "|" + formatScale(rasterParameters.rasterScale)
+                                                                : "|" + formatScale(rasterParameters.rasterScale);
+                                                        if (clampKey !== lastClampNotificationKey) {
+                                                                lastClampNotificationKey = clampKey;
+                                                                notifyHost(
+                                                                        "warning",
+                                                                        "Zoom level limited to avoid exceeding preview memory limits.",
+                                                                        { durationMs: 5000 }
+                                                                );
+                                                        }
+                                                        trace(
+                                                                "Raster scale " +
+                                                                        formatScale(rasterParameters.requestedScale) +
+                                                                        " clamped to " +
+                                                                        formatScale(rasterParameters.rasterScale) +
+                                                                        " due to " +
+                                                                        describeClampReason(rasterParameters.clampReason) +
+                                                                        " limits."
+                                                        );
+                                                }
+                                                trace("Completed IVG");
+                                                const end = window.performance.now();
+                                                trace("Time spent: " + (end - start) + "ms");
+                                                setStatus("Preview updated in " + (end - start) + " ms.", {
+                                                        level: "info",
+                                                        durationMs: end - start,
+                                                });
+                                                ok = true;
+                                                hasSuccessfulRender = true;
+                                                lastSuccessfulRenderUri = currentDocumentUri;
+                                        } else {
+                                                trace("Rasterization returned no data");
+                                        }
+                                }
+                        } catch (error) {
+                                trace("Rasterization crashed");
+                                const errorText = String(error);
+                                trace(errorText);
+                                if (errorText.indexOf("Aborted(") >= 0) {
+                                        handleModuleAbort();
+                                }
+                        }
+                        if (!ok) {
+                                const preserveImage = hasSuccessfulRender && isSameDocumentUri(currentDocumentUri, lastSuccessfulRenderUri);
+                                if (!preserveImage) {
+                                        ZoomController.clearMetrics();
+                                }
+                                drawFailureCross({ preserveImage: preserveImage });
+                                setStatus("Rendering failed. Check trace output for details.", {
+                                        level: "error",
+                                });
+                        }
+                }
 
-		function setSource(newSource, options) {
-			const opts = options || {};
-			const persist = opts.persist !== false;
-			const nextUri = normalizeDocumentUri(opts.uri);
-			if (!isSameDocumentUri(nextUri, currentDocumentUri)) {
-				currentDocumentUri = nextUri;
-				hasSuccessfulRender = false;
-			}
-			currentSource = typeof newSource === "string" ? newSource : "";
-			if (persist) {
-				if (currentSource) {
-					Settings.write(STORAGE_KEYS.SOURCE, currentSource);
-				} else {
-					Settings.write(STORAGE_KEYS.SOURCE, null);
-				}
-			}
-			renderCurrentSource();
-		}
+                function getModuleReloadFunction() {
+                        const candidate = window.__ivgPreviewReloadModule;
+                        return typeof candidate === "function" ? candidate : null;
+                }
+
+                function handleModuleAbort() {
+                        const reloadModule = getModuleReloadFunction();
+                        if (!reloadModule) {
+                                trace("Renderer reload requested, but no reload function is available.");
+                                return;
+                        }
+                        if (moduleReloadPromise) {
+                                trace("Renderer recovery already in progress.");
+                                return;
+                        }
+                        moduleReady = false;
+                        moduleReloadPromise = reloadModule()
+                                .then(function () {
+                                        trace("Renderer reloaded successfully after crash.");
+                                })
+                                .catch(function (reloadError) {
+                                        trace("Failed to reload renderer: " + reloadError);
+                                        notifyHost("error", "Renderer restart failed. Reopen the preview panel to recover.");
+                                })
+                                .finally(function () {
+                                        moduleReloadPromise = null;
+                                });
+                        pendingSource = currentSource;
+                        pendingUri = currentDocumentUri;
+                        notifyHost("warning", "Renderer ran out of memory. Restarting preview…", { durationMs: 5000 });
+                        lastClampNotificationKey = null;
+                }
+
+                function setSource(newSource, options) {
+                        const opts = options || {};
+                        const persist = opts.persist !== false;
+                        const nextUri = normalizeDocumentUri(opts.uri);
+                        if (!isSameDocumentUri(nextUri, currentDocumentUri)) {
+                                currentDocumentUri = nextUri;
+                                hasSuccessfulRender = false;
+                                lastClampNotificationKey = null;
+                        }
+                        currentSource = typeof newSource === "string" ? newSource : "";
+                        if (persist) {
+                                if (currentSource) {
+                                        Settings.write(STORAGE_KEYS.SOURCE, currentSource);
+                                } else {
+                                        Settings.write(STORAGE_KEYS.SOURCE, null);
+                                }
+                        }
+                        renderCurrentSource();
+                }
 
 		function handleHostCommand(message) {
 			if (!message || typeof message !== "object") {

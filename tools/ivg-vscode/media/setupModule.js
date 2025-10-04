@@ -36,6 +36,50 @@ const moduleConfig = {
 //
 globalObject.Module = moduleConfig;
 
+let moduleFactory = null;
+let moduleInstantiation = null;
+
+function obtainModuleFactory() {
+        if (typeof moduleFactory === "function") {
+                return moduleFactory;
+        }
+        const current = globalObject.Module;
+        if (typeof current === "function") {
+                moduleFactory = current;
+                return moduleFactory;
+        }
+        return null;
+}
+
+function instantiateModule() {
+        if (moduleInstantiation) {
+                return moduleInstantiation;
+        }
+        const factory = obtainModuleFactory();
+        if (!factory) {
+                if (moduleConfig.__runtimeReady && globalObject.Module && globalObject.Module.FS) {
+                        notifyPreviewReady(globalObject.Module);
+                        return Promise.resolve(globalObject.Module);
+                }
+                return Promise.reject(new Error("IVG renderer factory unavailable."));
+        }
+        moduleConfig.__runtimeReady = false;
+        moduleInstantiation = factory(moduleConfig)
+                .then(function (instance) {
+                        globalObject.Module = instance;
+                        notifyPreviewReady(instance);
+                        return instance;
+                })
+                .finally(function () {
+                        moduleInstantiation = null;
+                });
+        return moduleInstantiation;
+}
+
+globalObject.__ivgPreviewReloadModule = function reloadModule() {
+        return instantiateModule();
+};
+
 function notifyPreviewReady(moduleInstance) {
 	let initSource = localStorage.getItem("ivgSource");
 	if (initSource == null || initSource === "") {
@@ -47,13 +91,7 @@ function notifyPreviewReady(moduleInstance) {
 }
 
 window.addEventListener("load", function () {
-	const currentModule = globalObject.Module;
-	if (typeof currentModule === "function") {
-		currentModule(moduleConfig).then(function (instance) {
-			globalObject.Module = instance;
-			notifyPreviewReady(instance);
-		});
-	} else if (moduleConfig.__runtimeReady && currentModule && currentModule.FS) {
-		notifyPreviewReady(currentModule);
-	}
+        instantiateModule().catch(function (error) {
+                trace("Failed to initialize IVG renderer: " + error);
+        });
 });
