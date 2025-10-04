@@ -493,6 +493,23 @@
 				Settings.write(STORAGE_KEYS.VECTOR_SCALING, vectorScalingEnabled ? "1" : "0");
 			}
 
+			function setVectorScalingEnabled(nextState, options) {
+				const settings = options || {};
+				const normalized = nextState === true;
+				if (vectorScalingEnabled === normalized) {
+					return;
+				}
+				vectorScalingEnabled = normalized;
+				if (settings.persist !== false) {
+					persistVectorScaling();
+				}
+				reflectVectorScalingState();
+				applyZoom();
+				if (rerenderCallback && settings.notify !== false) {
+					rerenderCallback("vector-toggle");
+				}
+			}
+
 			function applyZoom() {
 				if (ivgCanvas === null) {
 					return;
@@ -603,8 +620,7 @@
 					currentZoom = clampZoom(storedZoom);
 				}
 				const storedVector = Settings.read(STORAGE_KEYS.VECTOR_SCALING, "0");
-				vectorScalingEnabled = storedVector === "1";
-				reflectVectorScalingState();
+				setVectorScalingEnabled(storedVector === "1", { persist: false, notify: false });
 				populateZoomOptions();
 				applyZoom();
 				withElement(zoomOutButton, function attachZoomOut(button) {
@@ -628,13 +644,7 @@
 				withElement(vectorScalingToggle, function attachVectorToggle(button) {
 					button.addEventListener("click", function toggleVectorScaling(event) {
 						event.preventDefault();
-						vectorScalingEnabled = !vectorScalingEnabled;
-						persistVectorScaling();
-						reflectVectorScalingState();
-						applyZoom();
-						if (rerenderCallback) {
-							rerenderCallback("vector-toggle");
-						}
+						setVectorScalingEnabled(!vectorScalingEnabled);
 					});
 				});
 				withElement(zoomLevelSelect, function attachZoomSelect(select) {
@@ -698,6 +708,10 @@
 				applyZoom();
 			}
 
+			function getBaseMetrics() {
+				return baseMetrics;
+			}
+
 			function getRasterScale(pixelRatio) {
 				if (vectorScalingEnabled) {
 					return 1;
@@ -722,6 +736,8 @@
 				getRasterScale: getRasterScale,
 				usesVectorScaling: usesVectorScaling,
 				getZoom: getZoom,
+				setVectorScalingEnabled: setVectorScalingEnabled,
+				getBaseMetrics: getBaseMetrics,
 			};
 		})();
 
@@ -736,6 +752,8 @@
 		let hasSuccessfulRender = false;
 		let currentDocumentUri = null;
 		let lastSuccessfulRenderUri = null;
+		let moduleRecoveryPromise = null;
+		let suppressFailureStatus = false;
 
 		function notifyHost(level, message, options) {
 			const text = typeof message === "string" ? message : "";
@@ -760,6 +778,61 @@
 				notifyOptions.durationMs = opts.durationMs;
 			}
 			notifyHost(level, text, notifyOptions);
+		}
+
+		function describeError(error) {
+			if (error instanceof Error && typeof error.message === "string") {
+				return error.message;
+			}
+			if (error && typeof error === "object" && typeof error.message === "string") {
+				return error.message;
+			}
+			if (typeof error === "string") {
+				return error;
+			}
+			try {
+				return JSON.stringify(error);
+			} catch (serializationError) {
+				return String(error);
+			}
+		}
+
+		function isOutOfMemoryError(message) {
+			if (typeof message !== "string") {
+				return false;
+			}
+			const normalized = message.toLowerCase();
+			return normalized.includes("oom") || normalized.includes("out of memory");
+		}
+
+		function recoverFromOutOfMemory(message) {
+			const reloadModule = typeof global.__ivgReloadModule === "function" ? global.__ivgReloadModule : null;
+			if (moduleRecoveryPromise) {
+				return;
+			}
+			if (!reloadModule) {
+				setStatus("Renderer ran out of memory. Reload the preview to continue.", { level: "error" });
+				return;
+			}
+			suppressFailureStatus = true;
+			moduleReady = false;
+			pendingSource = currentSource;
+			pendingUri = currentDocumentUri;
+			if (typeof ZoomController.setVectorScalingEnabled === "function") {
+				ZoomController.setVectorScalingEnabled(false, { notify: false });
+			}
+			setStatus("Renderer ran out of memory. Restarting…", { level: "error" });
+			moduleRecoveryPromise = reloadModule()
+				.then(function handleRecoverySuccess() {
+					moduleRecoveryPromise = null;
+				})
+				.catch(function handleRecoveryFailure(error) {
+					moduleRecoveryPromise = null;
+					suppressFailureStatus = false;
+					trace("Failed to restart IVG rasterizer module.");
+					trace(describeError(error));
+					setStatus("Failed to restart renderer after running out of memory.", { level: "error" });
+				});
 		}
 
 		function clearTrace() {
@@ -958,7 +1031,11 @@
 				}
 			} catch (error) {
 				trace("Rasterization crashed");
-				trace(String(error));
+				const errorMessage = describeError(error);
+				trace(errorMessage);
+				if (isOutOfMemoryError(errorMessage)) {
+					recoverFromOutOfMemory(errorMessage);
+				}
 			}
 			if (!ok) {
 				const preserveImage = hasSuccessfulRender && isSameDocumentUri(currentDocumentUri, lastSuccessfulRenderUri);
@@ -966,9 +1043,11 @@
 					ZoomController.clearMetrics();
 				}
 				drawFailureCross({ preserveImage: preserveImage });
-				setStatus("Rendering failed. Check trace output for details.", {
-					level: "error",
-				});
+				if (!suppressFailureStatus) {
+					setStatus("Rendering failed. Check trace output for details.", {
+						level: "error",
+					});
+				}
 			}
 		}
 
@@ -1046,6 +1125,8 @@
 
 		function handleModuleInitialized(initialSource) {
 			moduleReady = true;
+			suppressFailureStatus = false;
+			moduleRecoveryPromise = null;
 			const stored = Settings.read(STORAGE_KEYS.SOURCE, "");
 			if (typeof stored === "string" && stored.length > 0) {
 				currentSource = stored;
