@@ -29,7 +29,7 @@ let previewConfig: PreviewConfig = readPreviewConfig();
 let generalConfig: GeneralConfig = readGeneralConfig();
 
 export function activate(context: vscode.ExtensionContext): void {
-console.log('IVGFiddle extension activated');
+console.log('IVG Preview extension activated');
 
 statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 statusBarItem.command = 'ivgfiddle.open';
@@ -46,7 +46,7 @@ const initialDocument = getActiveIvgDocument();
 
 const panel = vscode.window.createWebviewPanel(
 'ivgfiddle',
-'IVGFiddle',
+'IVG Preview',
 { viewColumn: vscode.ViewColumn.Active, preserveFocus: false },
 {
 enableScripts: true,
@@ -58,8 +58,8 @@ try {
 panel.webview.html = await getWebviewContent(context.extensionUri, panel.webview);
 } catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			vscode.window.showErrorMessage(`Failed to load IVGFiddle: ${message}`);
-			console.error('Failed to load IVGFiddle Webview', error);
+                        vscode.window.showErrorMessage(`Failed to load IVG Preview: ${message}`);
+                        console.error('Failed to load IVG Preview webview', error);
 			panel.dispose();
 			return;
 }
@@ -398,7 +398,7 @@ function showStatusBar(document: vscode.TextDocument, reason: StatusReason): voi
         ) {
                 suffix = `${suffix} • ${Math.round(lastPreviewDurationMs)} ms`;
         }
-        statusBarItem.text = `$(${icon}) IVGFiddle Preview: ${fileName}${suffix}`;
+        statusBarItem.text = `$(${icon}) IVG Preview: ${fileName}${suffix}`;
         const tooltipLines = [document.uri.fsPath];
         if (!previewConfig.autoRefresh) {
                 tooltipLines.push('Auto-refresh disabled');
@@ -458,7 +458,7 @@ function handleRefreshPreviewCommand(): void {
 
 function handleClearTraceCommand(): void {
         if (!ivgPanel) {
-                vscode.window.showInformationMessage('Open the IVGFiddle preview before clearing the trace.');
+                vscode.window.showInformationMessage('Open the IVG Preview panel before clearing the trace.');
                 return;
         }
         queueMessage({ type: 'clearTrace' });
