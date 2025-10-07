@@ -1064,8 +1064,8 @@ class SnapshotPlan {
 				{
 				}
 		
-				void addBlock(Interpreter& interpreter, const SnapshotBlock& block)
-				{
+                               uint32_t addBlock(Interpreter& interpreter, const SnapshotBlock& block)
+                               {
 					if (block.statements.empty()) {
 						Interpreter::throwBadSyntax("snapshot meta requires at least one statement block.");
 					}
@@ -1109,8 +1109,9 @@ class SnapshotPlan {
 						}
 					}
 		
-					++nextBlockOrdinal;
-				}
+                                       ++nextBlockOrdinal;
+                                       return blockOrdinal;
+                               }
 		
 const std::vector<SnapshotScenario>& getScenarios() const { return scenarios; }
 const std::vector<SnapshotEntry>& getEntries() const { return entries; }
@@ -1268,11 +1269,14 @@ const String& getBaseName() const { return baseName; }
 			class SnapshotCollector : public Executor {
 				public:
 				SnapshotCollector(SnapshotPlan& plan, const std::string& sourcePath, const String& sourceText, const std::vector<std::string>& includeDirs)
-				: plan(plan)
-				, sourcePath(sourcePath)
-				, sourceText(sourceText)
-				, includeDirs(includeDirs)
-				, scanOffset(0)
+                               : plan(plan)
+                               , sourcePath(sourcePath)
+                               , sourceText(sourceText)
+                               , includeDirs(includeDirs)
+                               , scanOffset(0)
+                               , activeEntrySelected(false)
+                               , activeEntryIndex(0)
+                               , activeInvocationCursor(0)
 				{
 				}
 		
@@ -1344,9 +1348,10 @@ const String& getBaseName() const { return baseName; }
 					block.statements = parseSnapshotStatements(interpreter, *rawStatements);
 					block.sourceLine = locateMetaLine();
 		
-					args.throwIfAnyUnfetched();
-					plan.addBlock(interpreter, block);
-					return true;
+                                        args.throwIfAnyUnfetched();
+                                        const uint32_t blockOrdinal = plan.addBlock(interpreter, block);
+                                        executeBlockForActiveScenario(interpreter, block, blockOrdinal);
+                                        return true;
 				}
 		
 		                private:
@@ -1379,12 +1384,59 @@ const String& getBaseName() const { return baseName; }
 					return line;
 				}
 		
-				SnapshotPlan& plan;
-				std::string sourcePath;
-				String sourceText;
-				std::vector<std::string> includeDirs;
-				size_t scanOffset;
-			};
+                                SnapshotPlan& plan;
+                                std::string sourcePath;
+                                String sourceText;
+                                std::vector<std::string> includeDirs;
+                                size_t scanOffset;
+                                bool activeEntrySelected;
+                                uint32_t activeEntryIndex;
+                                size_t activeInvocationCursor;
+
+                                void ensureActiveEntrySelected()
+                                {
+                                        if (activeEntrySelected) {
+                                                return;
+                                        }
+                                        const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
+                                        if (scenarios.empty()) {
+                                                return;
+                                        }
+                                        const SnapshotScenario& scenario = scenarios[0];
+                                        if (scenario.entryIndices.empty()) {
+                                                return;
+                                        }
+                                        activeEntryIndex = scenario.entryIndices[0];
+                                        activeInvocationCursor = 0;
+                                        activeEntrySelected = true;
+                                }
+
+                                void executeBlockForActiveScenario(Interpreter& interpreter, const SnapshotBlock& block, uint32_t blockOrdinal)
+                                {
+                                        ensureActiveEntrySelected();
+                                        if (!activeEntrySelected) {
+                                                return;
+                                        }
+                                        const std::vector<SnapshotEntry>& entries = plan.getEntries();
+                                        if (activeEntryIndex >= entries.size()) {
+                                                return;
+                                        }
+                                        const SnapshotEntry& entry = entries[activeEntryIndex];
+                                        if (activeInvocationCursor >= entry.invocations.size()) {
+                                                return;
+                                        }
+                                        const SnapshotInvocation& invocation = entry.invocations[activeInvocationCursor];
+                                        if (invocation.blockIndex != blockOrdinal) {
+                                                return;
+                                        }
+                                        const uint32_t statementOrdinal = invocation.statementOrdinal;
+                                        if (statementOrdinal == 0 || statementOrdinal > block.statements.size()) {
+                                                Interpreter::throwBadSyntax("snapshot statement ordinal exceeds available entries.");
+                                        }
+                                        interpreter.run(StringRange(block.statements[statementOrdinal - 1]));
+                                        ++activeInvocationCursor;
+                                }
+                        };
 		
 		        class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		                public:
