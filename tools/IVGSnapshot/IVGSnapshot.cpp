@@ -1265,16 +1265,19 @@ const String& getBaseName() const { return baseName; }
 		
 			static bool readFile(const std::string& path, String& contents);
 		
-			class SnapshotCollector : public Executor {
-				public:
-				SnapshotCollector(SnapshotPlan& plan, const std::string& sourcePath, const String& sourceText, const std::vector<std::string>& includeDirs)
-				: plan(plan)
-				, sourcePath(sourcePath)
-				, sourceText(sourceText)
-				, includeDirs(includeDirs)
-				, scanOffset(0)
-				{
-				}
+                       class SnapshotCollector : public Executor {
+                               public:
+                               SnapshotCollector(SnapshotPlan& plan, const std::string& sourcePath, const String& sourceText, const std::vector<std::string>& includeDirs)
+                               : plan(plan)
+                               , sourcePath(sourcePath)
+                               , sourceText(sourceText)
+                               , includeDirs(includeDirs)
+                               , scanOffset(0)
+                               , nextBlockOrdinal(0)
+                               , haveActiveEntry(false)
+                               , activeEntryIndex(0)
+                               {
+                               }
 		
 				bool format(Interpreter& interpreter, const FormatInfo& formatInfo) override
 				{
@@ -1343,28 +1346,80 @@ const String& getBaseName() const { return baseName; }
 		
 					block.statements = parseSnapshotStatements(interpreter, *rawStatements);
 					block.sourceLine = locateMetaLine();
-		
+
 					args.throwIfAnyUnfetched();
+					const uint32_t blockOrdinal = nextBlockOrdinal + 1;
 					plan.addBlock(interpreter, block);
+					nextBlockOrdinal = blockOrdinal;
+					executeActiveInvocation(interpreter, blockOrdinal);
 					return true;
+                               }
+
+                               private:
+
+
+                               std::string resolveRelativePath(const std::string& requested) const
+                               {
+                                       const size_t slash = sourcePath.find_last_of("/\\");
+                                       if (slash == std::string::npos) {
+                                               return requested;
+                                       }
+                                       return sourcePath.substr(0, slash + 1) + requested;
+                               }
+
+			void ensureActiveEntry()
+			{
+				if (haveActiveEntry) {
+					return;
 				}
-		
-		                private:
-		
-		
-		                std::string resolveRelativePath(const std::string& requested) const
-				{
-					const size_t slash = sourcePath.find_last_of("/\\");
-					if (slash == std::string::npos) {
-						return requested;
+
+				const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
+				if (scenarios.empty()) {
+					return;
+				}
+
+				const SnapshotScenario& scenario = scenarios.front();
+				if (scenario.entryIndices.empty()) {
+					return;
+				}
+
+				activeEntryIndex = scenario.entryIndices.front();
+				haveActiveEntry = true;
+			}
+
+			void executeActiveInvocation(Interpreter& interpreter, uint32_t blockOrdinal)
+			{
+				ensureActiveEntry();
+				if (!haveActiveEntry) {
+					return;
+				}
+
+				const std::vector<SnapshotEntry>& entries = plan.getEntries();
+				if (activeEntryIndex >= entries.size()) {
+					return;
+				}
+
+				const SnapshotEntry& entry = entries[activeEntryIndex];
+				const SnapshotInvocation* invocation = 0;
+				for (size_t i = 0; i < entry.invocations.size(); ++i) {
+					const SnapshotInvocation& candidate = entry.invocations[i];
+					if (candidate.blockIndex == blockOrdinal) {
+						invocation = &candidate;
+						break;
 					}
-					return sourcePath.substr(0, slash + 1) + requested;
 				}
-		
-				uint32_t locateMetaLine()
-				{
-					static const String TOKEN("meta snapshot");
-					const size_t position = sourceText.find(TOKEN, scanOffset);
+
+				if (invocation == 0) {
+					return;
+				}
+
+				interpreter.run(StringRange(invocation->statements));
+			}
+
+                               uint32_t locateMetaLine()
+                               {
+                                       static const String TOKEN("meta snapshot");
+                                       const size_t position = sourceText.find(TOKEN, scanOffset);
 					if (position == String::npos) {
 						return 0;
 					}
@@ -1379,12 +1434,15 @@ const String& getBaseName() const { return baseName; }
 					return line;
 				}
 		
-				SnapshotPlan& plan;
-				std::string sourcePath;
-				String sourceText;
-				std::vector<std::string> includeDirs;
-				size_t scanOffset;
-			};
+                               SnapshotPlan& plan;
+                               std::string sourcePath;
+                               String sourceText;
+                               std::vector<std::string> includeDirs;
+                               size_t scanOffset;
+                               uint32_t nextBlockOrdinal;
+                               bool haveActiveEntry;
+                               uint32_t activeEntryIndex;
+                       };
 		
 		        class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		                public:
