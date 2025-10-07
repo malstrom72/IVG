@@ -997,53 +997,51 @@ let traceDisplayLines = [];
 				const usesVectorScaling = ZoomController.usesVectorScaling();
 				const currentZoom = ZoomController.getZoom();
 				const rasterScale = usesVectorScaling ? currentZoom * devicePixelRatio : ZoomController.getRasterScale(devicePixelRatio);
-				const result = rasterizeIVG(currentSource, rasterScale);
-			if (result === 0) {
-				trace("Rasterizer returned no data.");
-			} else {
-					const module = global.Module;
-					const left = readInt32(module, result + 0);
-					const top = readInt32(module, result + 4);
-					const width = readInt32(module, result + 8);
-					const height = readInt32(module, result + 12);
-					const byteLength = width * height * 4;
-					const heapU8 = getHeapView(module, "HEAPU8");
-					if (!heapU8) {
-						throw new Error("WebAssembly heap unavailable");
-					}
-					const pixelOffset = result + 16;
-					const pixelData = heapU8.slice(pixelOffset, pixelOffset + byteLength);
-					module._deallocatePixels(result);
-					if (width > 0 && height > 0 && pixelData.length === byteLength) {
-						if (ivgCanvas.width !== width || ivgCanvas.height !== height) {
-							ivgCanvas.width = width;
-							ivgCanvas.height = height;
-						}
-						const imageData = ivgContext.createImageData(width, height);
-						imageData.data.set(pixelData);
-						ivgContext.putImageData(imageData, 0, 0);
-						ZoomController.applyRenderMetrics({
-							width: width,
-							height: height,
-							left: left,
-							top: top,
-							rasterScale: rasterScale,
-							renderZoom: usesVectorScaling ? currentZoom : 1,
-						});
-						const end = window.performance.now();
-						const durationMs = end - start;
-						trace("--- IVG completed in " + durationMs + "ms ---");
-						setStatus("Preview updated in " + durationMs + " ms.", {
-											level: "info",
-											durationMs: durationMs,
-						});
-						ok = true;
-						hasSuccessfulRender = true;
-						lastSuccessfulRenderUri = currentDocumentUri;
-					} else {
-						trace("Rasterization returned no data");
-					}
+			const result = rasterizeIVG(currentSource, rasterScale);
+			if (result !== 0) {
+				const module = global.Module;
+				const left = readInt32(module, result + 0);
+				const top = readInt32(module, result + 4);
+				const width = readInt32(module, result + 8);
+				const height = readInt32(module, result + 12);
+				const byteLength = width * height * 4;
+				const heapU8 = getHeapView(module, "HEAPU8");
+				if (!heapU8) {
+					throw new Error("WebAssembly heap unavailable");
 				}
+				const pixelOffset = result + 16;
+				const pixelData = heapU8.slice(pixelOffset, pixelOffset + byteLength);
+				module._deallocatePixels(result);
+				if (width > 0 && height > 0 && pixelData.length === byteLength) {
+					if (ivgCanvas.width !== width || ivgCanvas.height !== height) {
+						ivgCanvas.width = width;
+						ivgCanvas.height = height;
+					}
+					const imageData = ivgContext.createImageData(width, height);
+					imageData.data.set(pixelData);
+					ivgContext.putImageData(imageData, 0, 0);
+					ZoomController.applyRenderMetrics({
+						width: width,
+						height: height,
+						left: left,
+						top: top,
+						rasterScale: rasterScale,
+						renderZoom: usesVectorScaling ? currentZoom : 1,
+					});
+					const end = window.performance.now();
+					const durationMs = end - start;
+					trace("--- IVG completed in " + durationMs + "ms ---");
+					setStatus("Preview updated in " + durationMs + " ms.", {
+						level: "info",
+						durationMs: durationMs,
+					});
+					ok = true;
+					hasSuccessfulRender = true;
+					lastSuccessfulRenderUri = currentDocumentUri;
+				} else {
+					trace("Rasterization returned no data");
+				}
+			}
 			} catch (error) {
 				trace("Rasterization crashed");
 				const errorMessage = describeError(error);
