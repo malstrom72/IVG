@@ -1320,39 +1320,56 @@ const String& getBaseName() const { return baseName; }
 					(void)s;
 				}
 		
-		                bool meta(Interpreter& interpreter, const String& key, const String& arguments) override
-		                {
+				bool meta(Interpreter& interpreter, const String& key, const String& arguments) override
+				{
 					static const String SNAPSHOT_KEY("snapshot-1");
 					if (key != SNAPSHOT_KEY) {
 						return false;
 					}
-		
+
 					ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
-		
+
 					SnapshotBlock block;
 					block.validate = parseValidateFlag(interpreter, args.fetchOptional("validate"));
 					const String* scenarioLabel = args.fetchOptional("scenario");
 					if (scenarioLabel != 0) {
 						block.scenario = *scenarioLabel;
 					}
-		
+
 					const String* rawStatements = args.fetchOptional(0, false);
 					if (rawStatements == 0) {
 						Interpreter::throwBadSyntax("snapshot meta requires a statement list.");
 					}
-		
+
 					block.statements = parseSnapshotStatements(interpreter, *rawStatements);
 					block.sourceLine = locateMetaLine();
-		
+
 					args.throwIfAnyUnfetched();
 					plan.addBlock(interpreter, block);
+
+					executeSnapshotBlock(interpreter, block);
 					return true;
 				}
-		
-		                private:
-		
-		
-		                std::string resolveRelativePath(const std::string& requested) const
+
+				private:
+
+				void executeSnapshotBlock(Interpreter& interpreter, const SnapshotBlock& block)
+				{
+					if (block.statements.empty()) {
+						return;
+					}
+
+					const String& body = block.statements.front();
+					const StringRange trimmed = trimRange(StringRange(body));
+					if (trimmed.b == trimmed.e) {
+						return;
+					}
+
+					interpreter.run(StringRange(body));
+				}
+
+
+				std::string resolveRelativePath(const std::string& requested) const
 				{
 					const size_t slash = sourcePath.find_last_of("/\\");
 					if (slash == std::string::npos) {
