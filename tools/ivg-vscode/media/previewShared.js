@@ -19,10 +19,6 @@ emitTrace: adapter && typeof adapter.emitTrace === "function" ? adapter.emitTrac
 		const MAX_LOG_LINES = 1000;
 
 const statusElement = document.getElementById("status");
-const traceElement = document.getElementById("trace");
-const traceDiv = document.getElementById("traceDiv");
-const traceContainer = document.getElementById("traceContainer");
-const traceToggleButton = document.getElementById("traceToggleButton");
 const ivgCanvas = document.getElementById("ivgCanvas");
 		const ivgContext = ivgCanvas ? ivgCanvas.getContext("2d") : null;
 		const screenElement = document.getElementById("screen");
@@ -78,32 +74,6 @@ const ivgCanvas = document.getElementById("ivgCanvas");
 			}
 		}
 
-		let traceCollapsed = false;
-
-		function setTraceCollapsed(collapsed, options) {
-			const shouldCollapse = collapsed === true;
-			traceCollapsed = shouldCollapse;
-			toggleClass(traceContainer, "collapsed", shouldCollapse);
-			if (traceToggleButton) {
-				const label = shouldCollapse ? "Show trace" : "Hide trace";
-				const ariaLabel = shouldCollapse ? "Show trace output" : "Hide trace output";
-				traceToggleButton.textContent = label;
-				traceToggleButton.setAttribute("aria-expanded", shouldCollapse ? "false" : "true");
-				traceToggleButton.setAttribute("aria-label", ariaLabel);
-				traceToggleButton.setAttribute("title", ariaLabel);
-			}
-			if (!shouldCollapse && traceDiv && (!options || options.skipScroll !== true)) {
-				traceDiv.scrollTop = traceDiv.scrollHeight;
-			}
-		}
-
-		if (traceToggleButton) {
-			traceToggleButton.addEventListener("click", function handleTraceToggle() {
-				setTraceCollapsed(!traceCollapsed);
-			});
-		}
-
-		setTraceCollapsed(false, { skipScroll: true });
 
 		const Settings = (function createSettingsAdapter() {
 			function read(key, fallback) {
@@ -872,12 +842,6 @@ let traceDisplayLines = [];
 			lastLogLine = null;
 			repeatingLogLineCount = 0;
 			traceDisplayLines = [];
-			if (traceElement) {
-				traceElement.textContent = "";
-			}
-			if (traceDiv) {
-				traceDiv.scrollTop = 0;
-			}
 			host.emitTrace({ action: "clear" });
 		}
 
@@ -927,12 +891,6 @@ let traceDisplayLines = [];
 				lastLogLine = line;
 				repeatingLogLineCount = 1;
 				traceDisplayLines.push(displayLine);
-			}
-			if (traceElement) {
-				traceElement.textContent = allLogLines;
-			}
-			if (traceDiv) {
-				traceDiv.scrollTop = traceDiv.scrollHeight;
 			}
 			if (trimmed) {
 				host.emitTrace({ action: "reset", lines: traceDisplayLines.slice() });
@@ -1072,12 +1030,12 @@ let traceDisplayLines = [];
 							rasterScale: rasterScale,
 							renderZoom: usesVectorScaling ? currentZoom : 1,
 						});
-						trace("Completed IVG");
 						const end = window.performance.now();
-						trace("Time spent: " + (end - start) + "ms");
-						setStatus("Preview updated in " + (end - start) + " ms.", {
-							level: "info",
-							durationMs: end - start,
+						const durationMs = end - start;
+						trace("--- IVG completed in " + durationMs + "ms ---");
+						setStatus("Preview updated in " + durationMs + " ms.", {
+											level: "info",
+											durationMs: durationMs,
 						});
 						ok = true;
 						hasSuccessfulRender = true;
