@@ -1,15 +1,16 @@
 "use strict";
 
 (function createIvfPreviewModule(global) {
-	function createHostAdapter(adapter) {
-		const noop = function noop() {};
-		const notifyStatus = adapter && typeof adapter.notifyStatus === "function" ? adapter.notifyStatus : noop;
-		const onReady = adapter && typeof adapter.onReady === "function" ? adapter.onReady : noop;
-		return {
-			notifyStatus: notifyStatus,
-			onReady: onReady,
-		};
-	}
+function createHostAdapter(adapter) {
+const noop = function noop() {};
+const notifyStatus = adapter && typeof adapter.notifyStatus === "function" ? adapter.notifyStatus : noop;
+const onReady = adapter && typeof adapter.onReady === "function" ? adapter.onReady : noop;
+return {
+notifyStatus: notifyStatus,
+onReady: onReady,
+emitTrace: adapter && typeof adapter.emitTrace === "function" ? adapter.emitTrace : noop,
+};
+}
 
 	function createPreview(adapter) {
 		const host = createHostAdapter(adapter);
@@ -17,10 +18,12 @@
 		const MAX_LOG_SIZE = 64 * 1024;
 		const MAX_LOG_LINES = 1000;
 
-		const statusElement = document.getElementById("status");
-		const traceElement = document.getElementById("trace");
-		const traceDiv = document.getElementById("traceDiv");
-		const ivgCanvas = document.getElementById("ivgCanvas");
+const statusElement = document.getElementById("status");
+const traceElement = document.getElementById("trace");
+const traceDiv = document.getElementById("traceDiv");
+const traceContainer = document.getElementById("traceContainer");
+const traceToggleButton = document.getElementById("traceToggleButton");
+const ivgCanvas = document.getElementById("ivgCanvas");
 		const ivgContext = ivgCanvas ? ivgCanvas.getContext("2d") : null;
 		const screenElement = document.getElementById("screen");
 		const previewContainer = document.getElementById("previewContainer");
@@ -74,6 +77,33 @@
 				element.classList.remove(className);
 			}
 		}
+
+		let traceCollapsed = false;
+
+		function setTraceCollapsed(collapsed, options) {
+			const shouldCollapse = collapsed === true;
+			traceCollapsed = shouldCollapse;
+			toggleClass(traceContainer, "collapsed", shouldCollapse);
+			if (traceToggleButton) {
+				const label = shouldCollapse ? "Show trace" : "Hide trace";
+				const ariaLabel = shouldCollapse ? "Show trace output" : "Hide trace output";
+				traceToggleButton.textContent = label;
+				traceToggleButton.setAttribute("aria-expanded", shouldCollapse ? "false" : "true");
+				traceToggleButton.setAttribute("aria-label", ariaLabel);
+				traceToggleButton.setAttribute("title", ariaLabel);
+			}
+			if (!shouldCollapse && traceDiv && (!options || options.skipScroll !== true)) {
+				traceDiv.scrollTop = traceDiv.scrollHeight;
+			}
+		}
+
+		if (traceToggleButton) {
+			traceToggleButton.addEventListener("click", function handleTraceToggle() {
+				setTraceCollapsed(!traceCollapsed);
+			});
+		}
+
+		setTraceCollapsed(false, { skipScroll: true });
 
 		const Settings = (function createSettingsAdapter() {
 			function read(key, fallback) {
@@ -741,8 +771,9 @@
 			};
 		})();
 
-		let allLogLines = "";
-		let traceLinesCount = 0;
+let allLogLines = "";
+let traceLinesCount = 0;
+let traceDisplayLines = [];
 		let lastLogLine = null;
 		let repeatingLogLineCount = 0;
 		let moduleReady = false;
@@ -840,40 +871,62 @@
 			traceLinesCount = 0;
 			lastLogLine = null;
 			repeatingLogLineCount = 0;
+			traceDisplayLines = [];
 			if (traceElement) {
 				traceElement.textContent = "";
 			}
 			if (traceDiv) {
 				traceDiv.scrollTop = 0;
 			}
+			host.emitTrace({ action: "clear" });
 		}
 
 		function trace(message) {
 			const line = typeof message === "string" ? message : String(message);
+			if (!line) {
+				return;
+			}
+			let trimmed = false;
 			while (allLogLines.length > MAX_LOG_SIZE || traceLinesCount >= MAX_LOG_LINES) {
 				const offset = allLogLines.indexOf("\n");
 				if (offset < 0) {
+					allLogLines = "";
+					traceLinesCount = 0;
+					lastLogLine = null;
+					repeatingLogLineCount = 0;
+					traceDisplayLines = [];
+					trimmed = true;
 					break;
 				}
 				allLogLines = allLogLines.substr(offset + 1);
 				--traceLinesCount;
+				if (traceDisplayLines.length > 0) {
+					traceDisplayLines.shift();
+				}
+				trimmed = true;
 			}
-			if (lastLogLine === line) {
+			let displayLine = line;
+			let replaceLast = false;
+			if (lastLogLine === line && traceDisplayLines.length > 0) {
 				if (repeatingLogLineCount > 1) {
 					const offset = allLogLines.lastIndexOf(" *");
 					if (offset >= 0) {
 						allLogLines = allLogLines.substr(0, offset);
 					}
-				} else {
+				} else if (allLogLines.length > 0) {
 					allLogLines = allLogLines.substr(0, allLogLines.length - 1);
 				}
 				++repeatingLogLineCount;
+				displayLine = line + " *" + repeatingLogLineCount;
 				allLogLines += " *" + repeatingLogLineCount + "\n";
+				traceDisplayLines[traceDisplayLines.length - 1] = displayLine;
+				replaceLast = true;
 			} else {
 				allLogLines += line + "\n";
 				++traceLinesCount;
 				lastLogLine = line;
 				repeatingLogLineCount = 1;
+				traceDisplayLines.push(displayLine);
 			}
 			if (traceElement) {
 				traceElement.textContent = allLogLines;
@@ -881,6 +934,11 @@
 			if (traceDiv) {
 				traceDiv.scrollTop = traceDiv.scrollHeight;
 			}
+			if (trimmed) {
+				host.emitTrace({ action: "reset", lines: traceDisplayLines.slice() });
+				return;
+			}
+			host.emitTrace({ action: replaceLast ? "replace" : "append", text: displayLine });
 		}
 
 		function bindGlobalTrace() {
@@ -974,7 +1032,6 @@
 				return;
 			}
 			clearTrace();
-			trace("Rasterizing IVG");
 			const start = window.performance.now();
 			let ok = false;
 			try {
@@ -983,9 +1040,9 @@
 				const currentZoom = ZoomController.getZoom();
 				const rasterScale = usesVectorScaling ? currentZoom * devicePixelRatio : ZoomController.getRasterScale(devicePixelRatio);
 				const result = rasterizeIVG(currentSource, rasterScale);
-				if (result === 0) {
-					trace("Rasterization returned 0");
-				} else {
+			if (result === 0) {
+				trace("Rasterizer returned no data.");
+			} else {
 					const module = global.Module;
 					const left = readInt32(module, result + 0);
 					const top = readInt32(module, result + 4);
