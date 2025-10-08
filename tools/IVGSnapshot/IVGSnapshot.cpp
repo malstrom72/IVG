@@ -56,8 +56,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using namespace IMPD;
 
 	/**
-	        Loads an IVG source once and replays it on demand so snapshot
-	        playback can reuse parsed scripts without touching the core library.
+			Loads an IVG source once and replays it on demand so snapshot
+			playback can reuse parsed scripts without touching the core library.
 	**/
 	class CachedDocument {
 	public:
@@ -1057,148 +1057,266 @@ return false;
 
 
 class SnapshotPlan {
-				public:
-				explicit SnapshotPlan(const std::string& ivgPath)
-				: baseName(extractBaseName(ivgPath))
-				, nextBlockOrdinal(1)
-				{
+			public:
+			explicit SnapshotPlan(const std::string& ivgPath)
+			: baseName(extractBaseName(ivgPath))
+			, nextBlockOrdinal(1)
+			, collectingPlan(false)
+			, activeScenarioIndex(0)
+			, activeEntryOrdinal(1)
+			, collectionRunCursor(0)
+			, collectionRunsBuilt(false)
+			{
+			}
+
+			uint32_t addBlock(Interpreter& interpreter, const SnapshotBlock& block)
+			{
+				if (block.statements.empty()) {
+					Interpreter::throwBadSyntax("snapshot meta requires at least one statement block.");
 				}
-		
-				void addBlock(Interpreter& interpreter, const SnapshotBlock& block)
-				{
-					if (block.statements.empty()) {
-						Interpreter::throwBadSyntax("snapshot meta requires at least one statement block.");
+
+				const uint32_t blockOrdinal = nextBlockOrdinal;
+				const bool hasExplicitScenario = !block.scenario.empty();
+				if (hasExplicitScenario) {
+					const uint32_t scenarioIndex = resolveScenario(interpreter, block.scenario, block.validate, true);
+					SnapshotScenario& scenario = scenarios[scenarioIndex];
+					const uint32_t statementCount = static_cast<uint32_t>(block.statements.size());
+					if (!scenario.entryIndices.empty() && statementCount != scenario.entryIndices.size()) {
+						Interpreter::throwBadSyntax("scenario entry count does not match previous blocks.");
 					}
-		
-					const uint32_t blockOrdinal = nextBlockOrdinal;
-					const bool hasExplicitScenario = !block.scenario.empty();
-					if (hasExplicitScenario) {
-						const uint32_t scenarioIndex = resolveScenario(interpreter, block.scenario, block.validate, true);
+
+					for (uint32_t i = 0; i < statementCount; ++i) {
+						const uint32_t entryOrdinal = i + 1;
+						SnapshotEntry& entry = ensureEntry(scenarioIndex, scenario, entryOrdinal, block.validate, block.scenario);
+
+						SnapshotInvocation invocation;
+						invocation.blockIndex = blockOrdinal;
+						invocation.sourceLine = block.sourceLine;
+						invocation.statementOrdinal = entryOrdinal;
+						invocation.statements = block.statements[i];
+						entry.invocations.push_back(invocation);
+					}
+				} else {
+					const uint32_t statementCount = static_cast<uint32_t>(block.statements.size());
+					for (uint32_t i = 0; i < statementCount; ++i) {
+						const uint32_t entryOrdinal = 1;
+						const String scenarioName = synthesizeScenarioName(blockOrdinal, statementCount, i + 1);
+						const uint32_t scenarioIndex = resolveScenario(interpreter, scenarioName, block.validate, false);
 						SnapshotScenario& scenario = scenarios[scenarioIndex];
-						const uint32_t statementCount = static_cast<uint32_t>(block.statements.size());
-						if (!scenario.entryIndices.empty() && statementCount != scenario.entryIndices.size()) {
-							Interpreter::throwBadSyntax("scenario entry count does not match previous blocks.");
-						}
-		
-						for (uint32_t i = 0; i < statementCount; ++i) {
-							const uint32_t entryOrdinal = i + 1;
-							SnapshotEntry& entry = ensureEntry(scenarioIndex, scenario, entryOrdinal, block.validate, block.scenario);
-		
-							SnapshotInvocation invocation;
-							invocation.blockIndex = blockOrdinal;
-							invocation.sourceLine = block.sourceLine;
-							invocation.statementOrdinal = entryOrdinal;
-							invocation.statements = block.statements[i];
-							entry.invocations.push_back(invocation);
-						}
-					} else {
-						const uint32_t statementCount = static_cast<uint32_t>(block.statements.size());
-						for (uint32_t i = 0; i < statementCount; ++i) {
-							const uint32_t entryOrdinal = 1;
-							const String scenarioName = synthesizeScenarioName(blockOrdinal, statementCount, i + 1);
-							const uint32_t scenarioIndex = resolveScenario(interpreter, scenarioName, block.validate, false);
-							SnapshotScenario& scenario = scenarios[scenarioIndex];
-							SnapshotEntry& entry = ensureEntry(scenarioIndex, scenario, entryOrdinal, block.validate, scenarioName);
-		
-							SnapshotInvocation invocation;
-							invocation.blockIndex = blockOrdinal;
-							invocation.sourceLine = block.sourceLine;
-							invocation.statementOrdinal = i + 1;
-							invocation.statements = block.statements[i];
-							entry.invocations.push_back(invocation);
-						}
+						SnapshotEntry& entry = ensureEntry(scenarioIndex, scenario, entryOrdinal, block.validate, scenarioName);
+
+						SnapshotInvocation invocation;
+						invocation.blockIndex = blockOrdinal;
+						invocation.sourceLine = block.sourceLine;
+						invocation.statementOrdinal = i + 1;
+						invocation.statements = block.statements[i];
+						entry.invocations.push_back(invocation);
 					}
-		
-					++nextBlockOrdinal;
 				}
-		
-const std::vector<SnapshotScenario>& getScenarios() const { return scenarios; }
-const std::vector<SnapshotEntry>& getEntries() const { return entries; }
-const String& getBaseName() const { return baseName; }
-		
-				private:
-				String extractBaseName(const std::string& path) const
-				{
-					const size_t slash = path.find_last_of("/\\");
-					const size_t baseOffset = (slash == std::string::npos ? 0 : slash + 1);
-					size_t dot = path.find_last_of('.');
-					if (dot == std::string::npos || dot < baseOffset) {
-						dot = path.size();
+
+				++nextBlockOrdinal;
+				return blockOrdinal;
+			}
+
+			const std::vector<SnapshotScenario>& getScenarios() const { return scenarios; }
+			const std::vector<SnapshotEntry>& getEntries() const { return entries; }
+			const String& getBaseName() const { return baseName; }
+
+			void beginCollection()
+			{
+				collectingPlan = true;
+				activeScenarioIndex = 0;
+				activeEntryOrdinal = 1;
+				collectionRuns.clear();
+				collectionRunCursor = 0;
+				collectionRunsBuilt = false;
+			}
+
+			void completeCollectionPass()
+			{
+				collectingPlan = false;
+			}
+
+			bool prepareNextCollectionPass()
+			{
+				if (!collectionRunsBuilt) {
+					buildCollectionRuns();
+					collectionRunsBuilt = true;
+					if (collectionRuns.empty()) {
+						return false;
 					}
-					return String(path.c_str() + baseOffset, path.c_str() + dot);
+					collectionRunCursor = 0;
 				}
-		
-				String synthesizeScenarioName(uint32_t blockOrdinal, uint32_t blockCount, uint32_t entryOrdinal) const
-				{
-					String name = baseName;
+
+				if (collectionRuns.empty()) {
+					return false;
+				}
+				if (collectionRunCursor + 1 >= collectionRuns.size()) {
+					return false;
+				}
+
+				++collectionRunCursor;
+				const CollectionRun& run = collectionRuns[collectionRunCursor];
+				activeScenarioIndex = run.scenarioIndex;
+				activeEntryOrdinal = run.entryOrdinal;
+				collectingPlan = true;
+				return true;
+			}
+
+			bool isCollectingPlan() const
+			{
+				return collectingPlan;
+			}
+
+			uint32_t getActiveScenarioIndex() const
+			{
+				return activeScenarioIndex;
+			}
+
+			uint32_t getActiveEntryOrdinal() const
+			{
+				return activeEntryOrdinal;
+			}
+
+			const SnapshotInvocation* lookupInvocation(uint32_t blockOrdinal, uint32_t scenarioIndex, uint32_t entryOrdinal) const
+			{
+				if (scenarioIndex >= scenarios.size()) {
+					return 0;
+				}
+
+				const SnapshotScenario& scenario = scenarios[scenarioIndex];
+				if (entryOrdinal == 0 || entryOrdinal > scenario.entryIndices.size()) {
+					return 0;
+				}
+
+				const uint32_t entryIndex = scenario.entryIndices[entryOrdinal - 1];
+				const SnapshotEntry& entry = entries[entryIndex];
+				for (size_t i = 0; i < entry.invocations.size(); ++i) {
+					if (entry.invocations[i].blockIndex == blockOrdinal) {
+						return &entry.invocations[i];
+					}
+				}
+				return 0;
+			}
+
+			private:
+			String extractBaseName(const std::string& path) const
+			{
+				const size_t slash = path.find_last_of("/\\");
+				const size_t baseOffset = (slash == std::string::npos ? 0 : slash + 1);
+				size_t dot = path.find_last_of('.');
+				if (dot == std::string::npos || dot < baseOffset) {
+					dot = path.size();
+				}
+				return String(path.c_str() + baseOffset, path.c_str() + dot);
+			}
+
+			String synthesizeScenarioName(uint32_t blockOrdinal, uint32_t blockCount, uint32_t entryOrdinal) const
+			{
+				String name = baseName;
+				name += '-';
+				name += Interpreter::toString(static_cast<int32_t>(blockOrdinal));
+				if (blockCount > 1) {
 					name += '-';
-					name += Interpreter::toString(static_cast<int32_t>(blockOrdinal));
-					if (blockCount > 1) {
-						name += '-';
-						name += Interpreter::toString(static_cast<int32_t>(entryOrdinal));
-					}
-					return name;
+					name += Interpreter::toString(static_cast<int32_t>(entryOrdinal));
 				}
-		
-				uint32_t resolveScenario(Interpreter& interpreter, const String& name, bool validate, bool explicitScenario)
-				{
-					const std::map<String, uint32_t>::const_iterator it = scenarioLookup.find(name);
-					if (it != scenarioLookup.end()) {
-						SnapshotScenario& existing = scenarios[it->second];
-						if (existing.validate != validate) {
-							Interpreter::throwBadSyntax("scenario switches between validate yes/no.");
-						}
-						return it->second;
+				return name;
+			}
+
+			uint32_t resolveScenario(Interpreter& interpreter, const String& name, bool validate, bool explicitScenario)
+			{
+				const std::map<String, uint32_t>::const_iterator it = scenarioLookup.find(name);
+				if (it != scenarioLookup.end()) {
+					SnapshotScenario& existing = scenarios[it->second];
+					if (existing.validate != validate) {
+						Interpreter::throwBadSyntax("scenario switches between validate yes/no.");
 					}
-		
-					SnapshotScenario scenario;
-					scenario.name = name;
-					scenario.validate = validate;
-					scenario.explicitScenario = explicitScenario;
-		
-					scenarios.push_back(scenario);
-					const uint32_t index = static_cast<uint32_t>(scenarios.size() - 1);
-					scenarioLookup.insert(std::make_pair(name, index));
-					return index;
+					return it->second;
 				}
-		
-				SnapshotEntry& ensureEntry(uint32_t scenarioIndex, SnapshotScenario& scenario, uint32_t entryOrdinal, bool validate, const String& scenarioName)
-				{
-					const std::map<uint32_t, uint32_t>::const_iterator existing = scenario.entryLookup.find(entryOrdinal);
-					if (existing != scenario.entryLookup.end()) {
-						return entries[existing->second];
-					}
-		
-					SnapshotEntry entry;
-					entry.scenarioIndex = scenarioIndex;
-					entry.entryOrdinal = entryOrdinal;
-					entry.validate = validate;
-					entry.scenarioName = scenarioName;
-		
-					entries.push_back(entry);
-					const uint32_t entryIndex = static_cast<uint32_t>(entries.size() - 1);
-					scenario.entryLookup.insert(std::make_pair(entryOrdinal, entryIndex));
-		
-					size_t insertPosition = scenario.entryIndices.size();
-					for (size_t i = 0; i < scenario.entryIndices.size(); ++i) {
-						const SnapshotEntry& existingEntry = entries[scenario.entryIndices[i]];
-						if (existingEntry.entryOrdinal > entryOrdinal) {
-							insertPosition = i;
-							break;
-						}
-					}
-					scenario.entryIndices.insert(scenario.entryIndices.begin() + insertPosition, entryIndex);
-					return entries.back();
+
+				SnapshotScenario scenario;
+				scenario.name = name;
+				scenario.validate = validate;
+				scenario.explicitScenario = explicitScenario;
+
+				scenarios.push_back(scenario);
+				const uint32_t index = static_cast<uint32_t>(scenarios.size() - 1);
+				scenarioLookup.insert(std::make_pair(name, index));
+				return index;
+			}
+
+			SnapshotEntry& ensureEntry(uint32_t scenarioIndex, SnapshotScenario& scenario, uint32_t entryOrdinal, bool validate, const String& scenarioName)
+			{
+				const std::map<uint32_t, uint32_t>::const_iterator existing = scenario.entryLookup.find(entryOrdinal);
+				if (existing != scenario.entryLookup.end()) {
+					return entries[existing->second];
 				}
-		
-				String baseName;
-				std::vector<SnapshotEntry> entries;
-				std::vector<SnapshotScenario> scenarios;
-				std::map<String, uint32_t> scenarioLookup;
-				uint32_t nextBlockOrdinal;
+
+				SnapshotEntry entry;
+				entry.scenarioIndex = scenarioIndex;
+				entry.entryOrdinal = entryOrdinal;
+				entry.validate = validate;
+				entry.scenarioName = scenarioName;
+
+				entries.push_back(entry);
+				const uint32_t entryIndex = static_cast<uint32_t>(entries.size() - 1);
+				scenario.entryLookup.insert(std::make_pair(entryOrdinal, entryIndex));
+
+				size_t insertPosition = scenario.entryIndices.size();
+				for (size_t i = 0; i < scenario.entryIndices.size(); ++i) {
+					const SnapshotEntry& existingEntry = entries[scenario.entryIndices[i]];
+					if (existingEntry.entryOrdinal > entryOrdinal) {
+						insertPosition = i;
+						break;
+					}
+				}
+				scenario.entryIndices.insert(scenario.entryIndices.begin() + insertPosition, entryIndex);
+				return entries.back();
+			}
+
+			String baseName;
+			std::vector<SnapshotEntry> entries;
+			std::vector<SnapshotScenario> scenarios;
+			std::map<String, uint32_t> scenarioLookup;
+			uint32_t nextBlockOrdinal;
+			bool collectingPlan;
+			uint32_t activeScenarioIndex;
+			uint32_t activeEntryOrdinal;
+
+			struct CollectionRun {
+				uint32_t scenarioIndex;
+				uint32_t entryOrdinal;
 			};
-		
-			static bool isWhitespace(Char c)
+
+			std::vector<CollectionRun> collectionRuns;
+			size_t collectionRunCursor;
+			bool collectionRunsBuilt;
+
+			void buildCollectionRuns()
+			{
+				collectionRuns.clear();
+				for (uint32_t scenarioIndex = 0; scenarioIndex < scenarios.size(); ++scenarioIndex) {
+					const SnapshotScenario& scenario = scenarios[scenarioIndex];
+					if (scenario.entryIndices.empty()) {
+						continue;
+					}
+
+					for (uint32_t entryOrdinal = 1; entryOrdinal <= scenario.entryIndices.size(); ++entryOrdinal) {
+						CollectionRun run;
+						run.scenarioIndex = scenarioIndex;
+						run.entryOrdinal = entryOrdinal;
+						collectionRuns.push_back(run);
+					}
+				}
+
+				if (!collectionRuns.empty()) {
+					const CollectionRun& first = collectionRuns[0];
+					activeScenarioIndex = first.scenarioIndex;
+					activeEntryOrdinal = first.entryOrdinal;
+				}
+			}
+};
+static bool isWhitespace(Char c)
 			{
 				return (c == ' ' || c == '\t' || c == '\r' || c == '\n');
 			}
@@ -1345,29 +1463,34 @@ const String& getBaseName() const { return baseName; }
 					block.sourceLine = locateMetaLine();
 
 					args.throwIfAnyUnfetched();
-					plan.addBlock(interpreter, block);
 
-					executeSnapshotBlock(interpreter, block);
+					const uint32_t blockOrdinal = plan.addBlock(interpreter, block);
+
+					executeCollectionInvocation(interpreter, blockOrdinal);
+
 					return true;
 				}
 
-				private:
+			private:
 
-				void executeSnapshotBlock(Interpreter& interpreter, const SnapshotBlock& block)
-				{
-					if (block.statements.empty()) {
-						return;
-					}
-
-					const String& body = block.statements.front();
-					const StringRange trimmed = trimRange(StringRange(body));
-					if (trimmed.b == trimmed.e) {
-						return;
-					}
-
-					interpreter.run(StringRange(body));
+			void executeCollectionInvocation(Interpreter& interpreter, uint32_t blockOrdinal)
+			{
+				if (!plan.isCollectingPlan()) {
+					return;
 				}
 
+				const SnapshotInvocation* invocation = plan.lookupInvocation(blockOrdinal, plan.getActiveScenarioIndex(), plan.getActiveEntryOrdinal());
+				if (invocation == 0) {
+					return;
+				}
+
+				const StringRange trimmed = trimRange(StringRange(invocation->statements));
+				if (trimmed.b == trimmed.e) {
+					return;
+				}
+
+				interpreter.run(StringRange(invocation->statements));
+			}
 
 				std::string resolveRelativePath(const std::string& requested) const
 				{
@@ -1403,27 +1526,27 @@ const String& getBaseName() const { return baseName; }
 				size_t scanOffset;
 			};
 		
-		        class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
-		                public:
-		                SnapshotPlaybackExecutor(IVG::Canvas& canvas,
-		                const SnapshotScenario& scenario,
-		                const SnapshotEntry& entry,
-		                const CommandLineOptions& options,
-		                const std::string& sourcePath,
-		                SharedResources& sharedResources)
-		                : IVG::IVGExecutor(canvas)
-		                , scenario(scenario)
-		                , entry(entry)
-		                , includeDirs(options.includeDirs)
-		                , fontDirs(options.fontDirs)
-		                , imageDirs(options.imageDirs)
-		                , sourcePath(sourcePath)
-		                , verbose(options.verbose)
-		                , sharedResources(sharedResources)
-		                , nextBlockOrdinal(0)
-		                , invocationCursor(0)
-		                {
-		                }
+				class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
+						public:
+						SnapshotPlaybackExecutor(IVG::Canvas& canvas,
+						const SnapshotScenario& scenario,
+						const SnapshotEntry& entry,
+						const CommandLineOptions& options,
+						const std::string& sourcePath,
+						SharedResources& sharedResources)
+						: IVG::IVGExecutor(canvas)
+						, scenario(scenario)
+						, entry(entry)
+						, includeDirs(options.includeDirs)
+						, fontDirs(options.fontDirs)
+						, imageDirs(options.imageDirs)
+						, sourcePath(sourcePath)
+						, verbose(options.verbose)
+						, sharedResources(sharedResources)
+						, nextBlockOrdinal(0)
+						, invocationCursor(0)
+						{
+						}
 		
 				bool load(Interpreter& interpreter, const WideString& filename, String& contents) override
 				{
@@ -1665,8 +1788,8 @@ const String& getBaseName() const { return baseName; }
 			};
 		
 		
-		        static void printUsage(const char* program)
-		        {
+				static void printUsage(const char* program)
+				{
 				std::cout << "Usage: " << program << " [options] <ivg> [<ivg> ...]" << std::endl;
 				std::cout << "Options:" << std::endl;
 				std::cout << "\t--include-dir <path>\tAdd include search path." << std::endl;
@@ -2247,7 +2370,7 @@ SharedResources sharedResources;
 
 						const SnapshotEntry& entry = entries[scenario.entryIndices[j]];
 						if (options.verbose) {
-								std::cout << path << ":   entry " << entry.entryOrdinal << " name:" << entry.scenarioName
+								std::cout << path << ":	  entry " << entry.entryOrdinal << " name:" << entry.scenarioName
 										<< " (validate: " << (entry.validate ? "yes" : "no") << ")" << std::endl;
 						}
 
@@ -2297,30 +2420,39 @@ return run;
 
 SnapshotPlan plan(path);
 const String& source = document.getSource();
-SnapshotCollector collector(plan, path, source, options.includeDirs);
-STLMapVariables variables;
-FormatInfo formatInfo;
-Interpreter interpreter(collector, variables, formatInfo);
 
-try {
-interpreter.run(StringRange(source));
-} catch (Exception& e) {
-std::ostringstream message;
-message << e.getError();
-if (e.hasStatement()) {
-message << " near \"" << e.getStatement() << "\"";
-}
-run.fileFailed = true;
-run.exitCode = 1;
-run.fileError = message.str();
-std::cerr << path << ": " << run.fileError << std::endl;
-return run;
-} catch (std::exception& e) {
-run.fileFailed = true;
-run.exitCode = 1;
-run.fileError = e.what();
-std::cerr << path << ": " << run.fileError << std::endl;
-return run;
+plan.beginCollection();
+while (true) {
+	SnapshotCollector collector(plan, path, source, options.includeDirs);
+	STLMapVariables variables;
+	FormatInfo formatInfo;
+	Interpreter interpreter(collector, variables, formatInfo);
+
+	try {
+		interpreter.run(StringRange(source));
+	} catch (Exception& e) {
+		std::ostringstream message;
+		message << e.getError();
+		if (e.hasStatement()) {
+			message << " near \"" << e.getStatement() << "\"";
+		}
+		run.fileFailed = true;
+		run.exitCode = 1;
+		run.fileError = message.str();
+		std::cerr << path << ": " << run.fileError << std::endl;
+		return run;
+	} catch (std::exception& e) {
+		run.fileFailed = true;
+		run.exitCode = 1;
+		run.fileError = e.what();
+		std::cerr << path << ": " << run.fileError << std::endl;
+		return run;
+	}
+
+	plan.completeCollectionPass();
+	if (!plan.prepareNextCollectionPass()) {
+		break;
+	}
 }
 
 if (options.listOnly || options.verbose) {
