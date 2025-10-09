@@ -1973,17 +1973,17 @@ std::cout << "\t--force-update\t\tOverwrite goldens." << std::endl;
 						started = true;
 				}
 
-				bool enqueue(const SnapshotJob& job)
-				{
-						NuXThreads::MutexLock lock(mutex);
-						if (!started || finalizing || (exitOnFirstFailure && stopScheduling)) {
-								return false;
-						}
+                                bool enqueue(const SnapshotJob& job)
+                                {
+                                                NuXThreads::MutexLock lock(mutex);
+                                                if (!started || finalizing || (exitOnFirstFailure && stopScheduling)) {
+                                                                return false;
+                                                }
 
-						pendingJobs.push_back(job);
-						jobAvailable.signal();
-						return true;
-				}
+                                                pendingJobs.push_back(job);
+                                                jobAvailable.signal();
+                                                return true;
+                                }
 
 				bool fetchResult(SnapshotEntryResult& out, bool wait)
 				{
@@ -2006,38 +2006,38 @@ out = completedResults.front();
 						}
 				}
 
-				void finalize()
-				{
-						if (!started) {
-								return;
-						}
+                                void finalize()
+                                {
+                                                if (!started) {
+                                                                return;
+                                                }
 
-						uint32_t sentinelCount = 0;
-						{
-								NuXThreads::MutexLock lock(mutex);
-								if (!finalizing) {
-										finalizing = true;
-										stopScheduling = true;
-										sentinelCount = threadCount;
-										for (uint32_t i = 0; i < sentinelCount; ++i) {
-												SnapshotJob sentinelJob;
-												sentinelJob.sentinel = true;
-												pendingJobs.push_back(sentinelJob);
-										}
-								}
-						}
+                                                uint32_t sentinelCount = 0;
+                                                {
+                                                                NuXThreads::MutexLock lock(mutex);
+                                                                if (!finalizing) {
+                                                                                finalizing = true;
+                                                                                stopScheduling = true;
+                                                                                sentinelCount = threadCount;
+                                                                                for (uint32_t i = 0; i < sentinelCount; ++i) {
+                                                                                                SnapshotJob sentinelJob;
+                                                                                                sentinelJob.sentinel = true;
+                                                                                                pendingJobs.push_back(sentinelJob);
+                                                                                }
+                                                                }
+                                                }
 
-						for (uint32_t i = 0; i < sentinelCount; ++i) {
-								jobAvailable.signal();
-						}
+                                                for (uint32_t i = 0; i < sentinelCount; ++i) {
+                                                                jobAvailable.signal();
+                                                }
 
 						for (size_t i = 0; i < threads.size(); ++i) {
 								threads[i]->join();
 						}
-						workers.clear();
-						threads.clear();
-						started = false;
-				}
+                                                workers.clear();
+                                                threads.clear();
+                                                started = false;
+                                }
 
 				bool shouldStopScheduling()
 				{
@@ -2080,24 +2080,24 @@ out = completedResults.front();
 						}
 				}
 
-				bool takeJob(SnapshotJob& job)
-				{
-						while (true) {
-								{
-										NuXThreads::MutexLock lock(mutex);
-										if (!pendingJobs.empty()) {
-												job = pendingJobs.front();
-												pendingJobs.pop_front();
-												++activeWorkers;
-												return true;
-										}
-										if (finalizing) {
-												return false;
-										}
-								}
-								jobAvailable.wait();
-						}
-				}
+                                bool takeJob(SnapshotJob& job)
+                                {
+                                                while (true) {
+                                                                {
+                                                                                NuXThreads::MutexLock lock(mutex);
+                                                                                if (!pendingJobs.empty()) {
+                                                                                                job = pendingJobs.front();
+                                                                                                pendingJobs.pop_front();
+                                                                                                ++activeWorkers;
+                                                                                                return true;
+                                                                               }
+                                                                                if (finalizing) {
+                                                                                                return false;
+                                                                                }
+                                                                }
+                                                                jobAvailable.wait();
+                                                }
+                                }
 
 				void submitResult(SnapshotEntryResult& result)
 				{
@@ -2222,7 +2222,9 @@ static void flushSchedulerResults(
 	SnapshotRunResult& run)
 {
 	SnapshotEntryResult fetched;
-	while (scheduler.fetchResult(fetched, wait)) {
+	bool waitFlag = wait;
+	while (scheduler.fetchResult(fetched, waitFlag)) {
+		waitFlag = false;
 		const uint32_t ordinal = fetched.planOrdinal;
 		if (ordinal >= ordered.size()) {
 			continue;
@@ -2269,6 +2271,11 @@ SharedResources sharedResources;
 		if (threadCount == 0) {
 			const unsigned int hardware = std::thread::hardware_concurrency();
 			threadCount = (hardware > 0 ? hardware : 1);
+		}
+
+		const size_t totalJobs = entries.size();
+		if (totalJobs > 0 && threadCount > totalJobs) {
+			threadCount = static_cast<uint32_t>(totalJobs);
 		}
 
 		SnapshotScheduler scheduler(threadCount, options.exitOnFirstFailure);
@@ -2321,6 +2328,10 @@ SharedResources sharedResources;
 		}
 
 		flushSchedulerResults(scheduler, false, ordered, ready, nextLogIndex, run);
+		while (nextLogIndex < ordered.size()) {
+			flushSchedulerResults(scheduler, true, ordered, ready, nextLogIndex, run);
+		}
+
 		scheduler.finalize();
 		flushSchedulerResults(scheduler, true, ordered, ready, nextLogIndex, run);
 
