@@ -10,5 +10,5 @@ tools/IVGSnapshot/tests/ListOnlySample.ivg
 		Entry 1
 			Block 2 (statement 1), line 3
 				[  set dash 4  ]
-{"event":"snapshot-file-summary","ivg":"tools/IVGSnapshot/tests/ListOnlySample.ivg","entries":3,"draft":0,"validated":3,"updated":0,"failed":0,"diffFailures":0,"exitCode":0}
-{"event":"snapshot-run-summary","files":1,"failedFiles":0,"entries":3,"draft":0,"validated":3,"updated":0,"failed":0,"diffFailures":0}
+tools/IVGSnapshot/tests/ListOnlySample.ivg: processed 3 snapshots (3 validated, 0 draft). Updated: 0. Failed: 0. Diff failures: 0. Exit code: 0.
+Processed 1 file (0 files failed). Total snapshots: 3 (3 validated, 0 draft). Updated: 0. Failed: 0. Diff failures: 0.

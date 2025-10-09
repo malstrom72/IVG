@@ -483,120 +483,91 @@ return sanitized;
 	return true;
 	}
 
-	static std::string jsonEscape(const std::string& value)
-	{
-	std::ostringstream stream;
-	for (size_t i = 0; i < value.size(); ++i) {
-	const unsigned char c = static_cast<unsigned char>(value[i]);
-	switch (c) {
-	case '\\':
-	stream << "\\\\";
-	break;
-	case '"':
-	stream << "\\\"";
-	break;
-	case '\n':
-	stream << "\\n";
-	break;
-	case '\r':
-	stream << "\\r";
-	break;
-	case '\t':
-	stream << "\\t";
-	break;
-	default:
-	if (c < 0x20) {
-	char buffer[7];
-	std::snprintf(buffer, sizeof(buffer), "\\u%04X", static_cast<unsigned int>(c));
-	stream << buffer;
-	} else {
-	stream << value[i];
-	}
-	break;
-	}
-	}
-	return stream.str();
-	}
-	
 	static void logEntryResult(const SnapshotEntryResult& result)
-	{
+{
 	std::ostringstream stream;
-	stream << "{\"event\":\"snapshot-entry\"";
-	stream << ",\"ivg\":\"" << jsonEscape(result.ivgPath) << "\"";
-	stream << ",\"scenario\":\"" << jsonEscape(result.scenarioName) << "\"";
-		stream << ",\"entry\":" << result.entryOrdinal;
-		stream << ",\"block\":" << result.blockIndex;
-		stream << ",\"validate\":" << (result.validate ? "true" : "false");
-		stream << ",\"rendered\":" << (result.rendered ? "true" : "false");
-		stream << ",\"diffed\":" << (result.diffed ? "true" : "false");
-		stream << ",\"skipped\":" << (result.skipped ? "true" : "false");
-		stream << ",\"updated\":" << (result.updated ? "true" : "false");
-		stream << ",\"success\":" << (result.success ? "true" : "false");
-		stream << ",\"identifier\":\"" << jsonEscape(result.identifier) << "\"";
-		stream << ",\"golden\":\"" << jsonEscape(result.goldenPath) << "\"";
-	stream << ",\"disabled\":\"" << jsonEscape(result.disabledPath) << "\"";
-	stream << ",\"actual\":\"" << jsonEscape(result.actualPath) << "\"";
-	stream << ",\"diff\":\"" << jsonEscape(result.diffPath) << "\"";
-	stream << ",\"backup\":\"" << jsonEscape(result.backupPath) << "\"";
+	stream << result.ivgPath << ": scenario " << (result.scenarioName.empty() ? "(unnamed)" : result.scenarioName);
+	stream << ", entry " << result.entryOrdinal << " (block " << result.blockIndex << ")";
+	stream << " [" << (result.validate ? "validate" : "draft") << "]";
+
+	if (result.skipped) {
+		stream << " - skipped (draft output).";
+	} else if (!result.success) {
+		stream << " - FAILED.";
+	} else if (result.updated) {
+		stream << " - updated golden image.";
+	} else if (result.diffed) {
+		stream << " - compared against golden image.";
+	} else if (result.rendered) {
+		stream << " - rendered successfully.";
+	} else {
+		stream << " - no rendering performed.";
+	}
+
+	if (!result.identifier.empty()) {
+		stream << " Snapshot id: " << result.identifier << '.';
+	}
 	if (!result.message.empty()) {
-	stream << ",\"message\":\"" << jsonEscape(result.message) << "\"";
+		stream << ' ' << result.message;
+	}
+
+	if (result.skipped && !result.disabledPath.empty()) {
+		stream << " Draft saved to " << result.disabledPath << '.';
+	}
+	if (result.updated && !result.goldenPath.empty()) {
+		stream << " Golden stored at " << result.goldenPath << '.';
+	}
+	if (result.diffed) {
+		if (!result.actualPath.empty()) {
+			stream << " Actual: " << result.actualPath << '.';
+		}
+		if (!result.diffPath.empty()) {
+			stream << " Diff: " << result.diffPath << '.';
+		}
 	}
 	if (result.hasDiffStats) {
-	std::ostringstream diff;
-	diff.setf(std::ios::fixed);
-	diff << "{\"width\":" << result.diffStats.width
-	<< ",\"height\":" << result.diffStats.height
-	<< ",\"pixels\":" << result.diffStats.differingPixels
-	<< ",\"max\":{\"alpha\":" << result.diffStats.maxAlphaDiff
-	<< ",\"red\":" << result.diffStats.maxRedDiff
-	<< ",\"green\":" << result.diffStats.maxGreenDiff
-	<< ",\"blue\":" << result.diffStats.maxBlueDiff << "}"
-	<< ",\"mean\":{\"alpha\":" << std::setprecision(4) << result.diffStats.meanAlphaDiff
-	<< ",\"red\":" << result.diffStats.meanRedDiff
-	<< ",\"green\":" << result.diffStats.meanGreenDiff
-	<< ",\"blue\":" << result.diffStats.meanBlueDiff << "}}";
-	stream << ",\"diffStats\":" << diff.str();
+		stream << " Diff stats: " << result.diffStats.differingPixels << " pixel"
+			<< (result.diffStats.differingPixels == 1 ? "" : "s")
+			<< " changed within a " << result.diffStats.width << 'x' << result.diffStats.height << " image.";
+		stream.setf(std::ios::fixed);
+		stream << " Max channel delta (A/R/G/B): "
+			<< result.diffStats.maxAlphaDiff << '/' << result.diffStats.maxRedDiff << '/'
+			<< result.diffStats.maxGreenDiff << '/' << result.diffStats.maxBlueDiff << '.';
+		stream << " Mean channel delta (A/R/G/B): "
+			<< std::setprecision(4) << result.diffStats.meanAlphaDiff << '/' << result.diffStats.meanRedDiff << '/'
+			<< result.diffStats.meanGreenDiff << '/' << result.diffStats.meanBlueDiff << '.';
 	}
-	stream << "}";
+
 	std::cout << stream.str() << std::endl;
-	}
-	
-	static void logFileSummary(const std::string& path, const SnapshotRunResult& run)
-	{
+}
+
+static void logFileSummary(const std::string& path, const SnapshotRunResult& run)
+{
 	std::ostringstream stream;
-	stream << "{\"event\":\"snapshot-file-summary\"";
-	stream << ",\"ivg\":\"" << jsonEscape(path) << "\"";
-	stream << ",\"entries\":" << run.totalEntries;
-	stream << ",\"draft\":" << run.draftEntries;
-	stream << ",\"validated\":" << run.validatedEntries;
-	stream << ",\"updated\":" << run.updatedEntries;
-	stream << ",\"failed\":" << run.failedEntries;
-	stream << ",\"diffFailures\":" << run.diffFailures;
-	stream << ",\"exitCode\":" << run.exitCode;
+	const char* entryLabel = (run.totalEntries == 1 ? "snapshot" : "snapshots");
+	stream << path << ": processed " << run.totalEntries << ' ' << entryLabel << " (";
+	stream << run.validatedEntries << " validated, " << run.draftEntries << " draft)";
+	stream << ". Updated: " << run.updatedEntries << ". Failed: " << run.failedEntries;
+	stream << ". Diff failures: " << run.diffFailures << ". Exit code: " << run.exitCode << '.';
 	if (run.fileFailed && !run.fileError.empty()) {
-	stream << ",\"error\":\"" << jsonEscape(run.fileError) << "\"";
+		stream << " Error: " << run.fileError;
 	}
-	stream << "}";
 	std::cout << stream.str() << std::endl;
-	}
-	
-		static void logRunSummary(const SnapshotTotals& totals)
-		{
-		std::ostringstream stream;
-		stream << "{\"event\":\"snapshot-run-summary\"";
-		stream << ",\"files\":" << totals.filesProcessed;
-		stream << ",\"failedFiles\":" << totals.failedFiles;
-		stream << ",\"entries\":" << totals.totalEntries;
-		stream << ",\"draft\":" << totals.draftEntries;
-		stream << ",\"validated\":" << totals.validatedEntries;
-		stream << ",\"updated\":" << totals.updatedEntries;
-		stream << ",\"failed\":" << totals.failedEntries;
-		stream << ",\"diffFailures\":" << totals.diffFailures;
-		stream << "}";
-		std::cout << stream.str() << std::endl;
-		}
+}
 
-
+static void logRunSummary(const SnapshotTotals& totals)
+{
+	std::ostringstream stream;
+	const char* fileLabel = (totals.filesProcessed == 1 ? "file" : "files");
+	const char* failedLabel = (totals.failedFiles == 1 ? "file" : "files");
+	stream << "Processed " << totals.filesProcessed << ' ' << fileLabel;
+	stream << " (" << totals.failedFiles << ' ' << failedLabel << " failed).";
+	stream << " Total snapshots: " << totals.totalEntries << " ("
+		<< totals.validatedEntries << " validated, " << totals.draftEntries << " draft).";
+	stream << " Updated: " << totals.updatedEntries << ". Failed: " << totals.failedEntries;
+	stream << ". Diff failures: " << totals.diffFailures << '.';
+	std::cout << stream.str() << std::endl;
+}
 
 static bool loadPngRaster(const std::string& path, NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>& outRaster);
 static bool writeRasterToPng(const std::string& path, const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>& raster, std::string& error);
@@ -1457,7 +1428,8 @@ static bool isWhitespace(Char c)
 				bool meta(Interpreter& interpreter, const String& key, const String& arguments) override
 				{
 					static const String SNAPSHOT_KEY("snapshot-1");
-					if (key != SNAPSHOT_KEY) {
+					static const String LEGACY_KEY("snapshot");
+					if (key != SNAPSHOT_KEY && key != LEGACY_KEY) {
 						return false;
 					}
 
@@ -1634,7 +1606,8 @@ static bool isWhitespace(Char c)
 				bool meta(Interpreter& interpreter, const String& key, const String& arguments) override
 				{
 					static const String SNAPSHOT_KEY("snapshot-1");
-					if (key != SNAPSHOT_KEY) {
+					static const String LEGACY_KEY("snapshot");
+					if (key != SNAPSHOT_KEY && key != LEGACY_KEY) {
 						return false;
 					}
 		
