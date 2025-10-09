@@ -1062,10 +1062,11 @@ class SnapshotPlan {
 			: baseName(extractBaseName(ivgPath))
 			, nextBlockOrdinal(1)
 			, collectingPlan(false)
-			, activeScenarioIndex(0)
-			, activeEntryOrdinal(1)
-			, collectionRunCursor(0)
-			, collectionRunsBuilt(false)
+                       , activeScenarioIndex(0)
+                       , activeEntryOrdinal(1)
+                       , collectionRunCursor(0)
+                       , collectionRunsBuilt(false)
+                       , recordedBlockCursor(0)
 			{
 			}
 
@@ -1075,8 +1076,17 @@ class SnapshotPlan {
 					Interpreter::throwBadSyntax("snapshot meta requires at least one statement block.");
 				}
 
-				const uint32_t blockOrdinal = nextBlockOrdinal;
-				const bool hasExplicitScenario = !block.scenario.empty();
+                               uint32_t blockOrdinal = nextBlockOrdinal;
+                               if (collectionRunsBuilt) {
+                                       if (recordedBlockCursor >= recordedBlockOrdinals.size()) {
+                                               Interpreter::throwBadSyntax("snapshot replay encountered an unexpected block.");
+                                       }
+                                       blockOrdinal = recordedBlockOrdinals[recordedBlockCursor++];
+                                       return blockOrdinal;
+                               }
+
+                               recordedBlockOrdinals.push_back(blockOrdinal);
+                               const bool hasExplicitScenario = !block.scenario.empty();
 				if (hasExplicitScenario) {
 					const uint32_t scenarioIndex = resolveScenario(interpreter, block.scenario, block.validate, true);
 					SnapshotScenario& scenario = scenarios[scenarioIndex];
@@ -1122,46 +1132,50 @@ class SnapshotPlan {
 			const std::vector<SnapshotEntry>& getEntries() const { return entries; }
 			const String& getBaseName() const { return baseName; }
 
-			void beginCollection()
-			{
-				collectingPlan = true;
-				activeScenarioIndex = 0;
-				activeEntryOrdinal = 1;
-				collectionRuns.clear();
-				collectionRunCursor = 0;
-				collectionRunsBuilt = false;
-			}
+                       void beginCollection()
+                       {
+                               collectingPlan = true;
+                               activeScenarioIndex = 0;
+                               activeEntryOrdinal = 1;
+                               collectionRuns.clear();
+                               collectionRunCursor = 0;
+                               collectionRunsBuilt = false;
+                               recordedBlockOrdinals.clear();
+                               recordedBlockCursor = 0;
+                       }
 
 			void completeCollectionPass()
 			{
 				collectingPlan = false;
 			}
 
-			bool prepareNextCollectionPass()
-			{
-				if (!collectionRunsBuilt) {
-					buildCollectionRuns();
-					collectionRunsBuilt = true;
-					if (collectionRuns.empty()) {
-						return false;
-					}
-					collectionRunCursor = 0;
-				}
+                       bool prepareNextCollectionPass()
+                       {
+                               if (!collectionRunsBuilt) {
+                                       buildCollectionRuns();
+                                       collectionRunsBuilt = true;
+                                       if (collectionRuns.empty()) {
+                                               return false;
+                                       }
+                                       collectionRunCursor = 0;
+                                       recordedBlockCursor = 0;
+                               }
 
-				if (collectionRuns.empty()) {
-					return false;
-				}
-				if (collectionRunCursor + 1 >= collectionRuns.size()) {
-					return false;
-				}
+                               if (collectionRuns.empty()) {
+                                       return false;
+                               }
+                               if (collectionRunCursor + 1 >= collectionRuns.size()) {
+                                       return false;
+                               }
 
-				++collectionRunCursor;
-				const CollectionRun& run = collectionRuns[collectionRunCursor];
-				activeScenarioIndex = run.scenarioIndex;
-				activeEntryOrdinal = run.entryOrdinal;
-				collectingPlan = true;
-				return true;
-			}
+                               ++collectionRunCursor;
+                               const CollectionRun& run = collectionRuns[collectionRunCursor];
+                               activeScenarioIndex = run.scenarioIndex;
+                               activeEntryOrdinal = run.entryOrdinal;
+                               collectingPlan = true;
+                               recordedBlockCursor = 0;
+                               return true;
+                       }
 
 			bool isCollectingPlan() const
 			{
@@ -1280,10 +1294,12 @@ class SnapshotPlan {
 			std::map<String, uint32_t> scenarioLookup;
 			uint32_t nextBlockOrdinal;
 			bool collectingPlan;
-			uint32_t activeScenarioIndex;
-			uint32_t activeEntryOrdinal;
+                       uint32_t activeScenarioIndex;
+                       uint32_t activeEntryOrdinal;
+                       std::vector<uint32_t> recordedBlockOrdinals;
+                       size_t recordedBlockCursor;
 
-			struct CollectionRun {
+                       struct CollectionRun {
 				uint32_t scenarioIndex;
 				uint32_t entryOrdinal;
 			};
@@ -1928,76 +1944,6 @@ std::cout << "\t--force-update\t\tOverwrite goldens." << std::endl;
 					}
 				}
 			}
-		static void writeIvGFiddleManifest(const CommandLineOptions& options, const std::string& ivgPath, const SnapshotPlan& plan)
-		{
-				const std::string baseName = stringFromIMPD(plan.getBaseName());
-				const std::string sanitizedBase = sanitizeFileComponent(baseName);
-				std::string root = (options.outputDir.empty() ? extractDirectory(ivgPath) : options.outputDir);
-				if (!sanitizedBase.empty()) {
-						root = joinPath(root, sanitizedBase);
-				}
-
-				if (!ensureDirectory(root)) {
-						std::cerr << ivgPath << ": failed to prepare manifest directory: " << root << std::endl;
-						return;
-				}
-
-				const std::string manifestPath = joinPath(root, "manifest.ivgfiddle.json");
-				const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
-				const std::vector<SnapshotEntry>& entries = plan.getEntries();
-
-				std::ostringstream stream;
-				stream << "{\"ivg\":\"" << jsonEscape(ivgPath) << "\"";
-				stream << ",\"base\":\"" << jsonEscape(baseName) << "\"";
-				stream << ",\"scenarios\":[";
-				for (size_t i = 0; i < scenarios.size(); ++i) {
-						if (i > 0) {
-								stream << ',';
-						}
-						const SnapshotScenario& scenario = scenarios[i];
-						stream << "{\"name\":\"" << jsonEscape(stringFromIMPD(scenario.name)) << "\"";
-						stream << ",\"validate\":" << (scenario.validate ? "true" : "false");
-						stream << ",\"explicit\":" << (scenario.explicitScenario ? "true" : "false");
-						stream << ",\"entries\":[";
-						for (size_t j = 0; j < scenario.entryIndices.size(); ++j) {
-								if (j > 0) {
-										stream << ',';
-								}
-								const SnapshotEntry& entry = entries[scenario.entryIndices[j]];
-								const uint32_t blockIndex = (entry.invocations.empty() ? 0 : entry.invocations[0].blockIndex);
-								stream << "{\"ordinal\":" << entry.entryOrdinal;
-								stream << ",\"block\":" << blockIndex;
-								stream << ",\"identifier\":\"" << jsonEscape(buildEntryIdentifier(baseName, entry)) << "\"";
-								stream << ",\"label\":\"" << jsonEscape(stringFromIMPD(entry.scenarioName)) << "\"";
-								stream << ",\"validate\":" << (entry.validate ? "true" : "false");
-								stream << ",\"invocations\":[";
-								for (size_t k = 0; k < entry.invocations.size(); ++k) {
-										if (k > 0) {
-												stream << ',';
-										}
-										const SnapshotInvocation& invocation = entry.invocations[k];
-										stream << "{\"block\":" << invocation.blockIndex
-												<< ",\"statement\":" << invocation.statementOrdinal
-												<< ",\"line\":" << invocation.sourceLine << "}";
-								}
-								stream << "]}";
-						}
-						stream << "]}";
-				}
-				stream << "]}";
-
-				std::ofstream manifest(manifestPath.c_str(), std::ios::binary);
-				if (!manifest.good()) {
-						std::cerr << ivgPath << ": failed to open manifest for writing: " << manifestPath << std::endl;
-						return;
-				}
-
-				manifest << stream.str();
-				if (!manifest.good()) {
-						std::cerr << ivgPath << ": failed to write manifest: " << manifestPath << std::endl;
-				}
-		}
-
 		struct SnapshotJob {
 				SnapshotJob()
 				: options(0)
@@ -2464,8 +2410,6 @@ while (true) {
 if (options.listOnly || options.verbose) {
 printPlan(path, plan);
 }
-
-writeIvGFiddleManifest(options, path, plan);
 
 if (options.listOnly) {
 const std::vector<SnapshotEntry>& entries = plan.getEntries();
