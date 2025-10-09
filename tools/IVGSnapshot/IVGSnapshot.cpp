@@ -907,6 +907,27 @@ private:
 				return (*reinterpret_cast<const unsigned int*>(bytes) == 0x1D2C3B4A);
 			}
 		
+static unsigned int convertPremultipliedChannelToStraight(unsigned int value, unsigned int alpha)
+{
+	if (alpha == 0 || value == 0) {
+		return 0;
+	}
+	unsigned int numerator = value * 255u + (alpha / 2u);
+	unsigned int result = numerator / alpha;
+	if (result > 255u) {
+		result = 255u;
+	}
+	return result;
+}
+
+static unsigned int convertStraightChannelToPremultiplied(unsigned int value, unsigned int alpha)
+{
+	if (alpha == 0 || value == 0) {
+		return 0;
+	}
+	return (value * alpha + 127u) / 255u;
+}
+
 static bool loadPngRaster(const std::string& path, NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>& outRaster)
 {
 FILE* file = std::fopen(path.c_str(), "rb");
@@ -951,11 +972,11 @@ return false;
 							unsigned int g = src[x * 4 + 1];
 							unsigned int r = src[x * 4 + 2];
 							unsigned int a = src[x * 4 + 3];
-							if (a != 0xFF) {
-								r = (r * a + 0x7F) >> 8;
-								g = (g * a + 0x7F) >> 8;
-								b = (b * a + 0x7F) >> 8;
-							}
+                                                        if (a != 0xFF) {
+                                                                r = convertStraightChannelToPremultiplied(r, a);
+                                                                g = convertStraightChannelToPremultiplied(g, a);
+                                                                b = convertStraightChannelToPremultiplied(b, a);
+                                                        }
 							dest[x] = (a << 24) | (r << 16) | (g << 8) | b;
 						}
 					}
@@ -1000,10 +1021,9 @@ unsigned int r = (pixel >> 16) & 0xFF;
 unsigned int g = (pixel >> 8) & 0xFF;
 unsigned int b = pixel & 0xFF;
 if (a != 0 && a != 0xFF) {
-const unsigned int m = 0xFFFFu / a;
-r = (r * m) >> 8;
-g = (g * m) >> 8;
-b = (b * m) >> 8;
+r = convertPremultipliedChannelToStraight(r, a);
+g = convertPremultipliedChannelToStraight(g, a);
+b = convertPremultipliedChannelToStraight(b, a);
 }
 dest[x * 4 + 0] = static_cast<unsigned char>(r);
 dest[x * 4 + 1] = static_cast<unsigned char>(g);
