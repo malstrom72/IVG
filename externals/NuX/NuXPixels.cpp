@@ -22,6 +22,7 @@
 **/
 #include <math.h>
 #include <algorithm>
+#include <limits.h>
 #include "NuXPixels.h"
 #include "NuXPixelsImpl.h"
 #if (NUXPIXELS_SIMD)
@@ -485,8 +486,10 @@ Path& Path::arcSweep(double centerX, double centerY, double sweepRadians, double
 	assert(0.0 < curveQuality);
 
 	const Vertex pos(getPosition());
-	const double sx = (pos.x - centerX) / ratioX;
-	const double sy = (pos.y - centerY) / ratioY;
+	const double offsetX = pos.x - centerX;
+	const double offsetY = pos.y - centerY;
+	const double sx = (ratioX == 0.0 ? 0.0 : offsetX / ratioX);
+	const double sy = (ratioY == 0.0 ? 0.0 : offsetY / ratioY);
 
 	const double major = maxValue(fabs(ratioX), fabs(ratioY));
 	const double diameter = maxValue(major, 1.0) * 2.0 * sqrt(sx * sx + sy * sy);
@@ -523,8 +526,10 @@ Path& Path::arcMove(double centerX, double centerY, double sweepRadians, double 
 	assert(-PI2 <= sweepRadians && sweepRadians <= PI2);
 
 	const Vertex pos(getPosition());
-	const double sx = (pos.x - centerX) / ratioX;
-	const double sy = (pos.y - centerY) / ratioY;
+	const double offsetX = pos.x - centerX;
+	const double offsetY = pos.y - centerY;
+	const double sx = (ratioX == 0.0 ? 0.0 : offsetX / ratioX);
+	const double sy = (ratioY == 0.0 ? 0.0 : offsetY / ratioY);
 
 	double rx = cos(sweepRadians);
 	double ry = sin(sweepRadians);
@@ -544,15 +549,9 @@ Path& Path::arcMove(double centerX, double centerY, double sweepRadians, double 
 
 Path& Path::addEllipse(double centerX, double centerY, double radiusX, double radiusY, double curveQuality) {
 	assert(0.0 < curveQuality);
-	if (fabs(radiusX) < EPSILON) {
-		addLine(centerX, centerY - radiusY, centerX, centerY + radiusY);
-	} else if (fabs(radiusY) < EPSILON) {
-		addLine(centerX - radiusX, centerY, centerX + radiusX, centerY);
-	} else {
-		double sweepSign = ((radiusX < 0.0) != (radiusY < 0.0) ? -1.0 : 1.0);
-		moveTo(centerX + radiusX, centerY);
-		arcSweep(centerX, centerY, sweepSign * PI2, radiusX, radiusY, curveQuality);
-	}
+	double sweepSign = ((radiusX < 0.0) != (radiusY < 0.0) ? -1.0 : 1.0);
+	moveTo(centerX + radiusX, centerY);
+	arcSweep(centerX, centerY, sweepSign * PI2, radiusX, radiusY, curveQuality);
 	close();
 	return *this;
 }

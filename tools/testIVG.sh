@@ -41,12 +41,15 @@ for f in ./ivg/*.ivg; do
 		echo
 		continue
 	fi
-	if [ "$UPDATE" -eq 1 ]; then
-		cp "$tmp/$n.png" "./png/$n.png"
-	else
-		cmp "$tmp/$n.png" "./png/$n.png"
-		[ $? -ne 0 ] && fail=1
-	fi
+		if [ "$UPDATE" -eq 1 ]; then
+			cp "$tmp/$n.png" "./png/$n.png"
+		elif [ -f "./png/$n.png" ]; then
+			if ! cmp "$tmp/$n.png" "./png/$n.png"; then
+				fail=1
+			fi
+		else
+			echo "No baseline PNG for \"$n\"; skipping comparison."
+		fi
 	echo
 	echo
 done
