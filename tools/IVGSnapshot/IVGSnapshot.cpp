@@ -1441,12 +1441,9 @@ static bool isWhitespace(Char c)
 						block.scenario = *scenarioLabel;
 					}
 
-					const String* rawStatements = args.fetchOptional(0, false);
-					if (rawStatements == 0) {
-						Interpreter::throwBadSyntax("snapshot meta requires a statement list.");
-					}
+					const String& rawStatements = args.fetchRequired(0, false);
 
-					block.statements = parseSnapshotStatements(interpreter, *rawStatements);
+					block.statements = parseSnapshotStatements(interpreter, rawStatements);
 					block.sourceLine = locateMetaLine();
 
 					args.throwIfAnyUnfetched();
@@ -1611,17 +1608,16 @@ static bool isWhitespace(Char c)
 		
 					ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
 		
+					const String* validateFlag = args.fetchOptional("validate");
+					const bool blockValidate = parseValidateFlag(interpreter, validateFlag);
 					const String* scenarioLabel = args.fetchOptional("scenario");
-					const String* rawStatements = args.fetchOptional(0, false);
-					if (rawStatements == 0) {
-						Interpreter::throwBadSyntax("snapshot meta requires a statement list.");
-					}
-		
+					const String& rawStatements = args.fetchRequired(0, false);
+
 					const bool hasLabel = (scenarioLabel != 0);
 					const bool blockTargetsScenario = (scenario.explicitScenario ? (hasLabel && *scenarioLabel == scenario.name) : !hasLabel);
-		
+
 					++nextBlockOrdinal;
-		
+
 					const SnapshotInvocation* invocation = 0;
 					if (invocationCursor < entry.invocations.size()) {
 						const SnapshotInvocation& candidate = entry.invocations[invocationCursor];
@@ -1630,7 +1626,7 @@ static bool isWhitespace(Char c)
 							++invocationCursor;
 						}
 					}
-		
+
 					if (!blockTargetsScenario) {
 						args.throwIfAnyUnfetched();
 						if (invocation != 0) {
@@ -1638,21 +1634,25 @@ static bool isWhitespace(Char c)
 						}
 						return true;
 					}
-		
+
 					if (invocation == 0) {
 						Interpreter::throwBadSyntax("missing snapshot invocation for scenario block.");
 					}
-		
-					StringVector statements = parseSnapshotStatements(interpreter, *rawStatements);
+
+					if (blockValidate != entry.validate) {
+						Interpreter::throwBadSyntax("snapshot validate flag changed between collection and playback.");
+					}
+
+					StringVector statements = parseSnapshotStatements(interpreter, rawStatements);
 					if (invocation->statementOrdinal == 0 || invocation->statementOrdinal > statements.size()) {
 						Interpreter::throwBadSyntax("snapshot statement ordinal exceeds available entries.");
 					}
-		
+
 					const String& statementBody = statements[invocation->statementOrdinal - 1];
 					if (statementBody != invocation->statements) {
 						Interpreter::throwBadSyntax("snapshot statements changed between collection and playback.");
 					}
-		
+
 					args.throwIfAnyUnfetched();
 		
 					if (verbose) {
