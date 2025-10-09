@@ -172,31 +172,95 @@ namespace {
 		ExpectEqual(entries[scenarios[2].entryIndices[0]].entryOrdinal, 1, "third implicit entry ordinal");
 	}
 
-	void TestValidateMismatch()
-	{
-		const char* source =
-		"meta snapshot scenario:toggle validate:no [ [ draft ] ]\n"
-		"meta snapshot scenario:toggle [ [ validate ] ]\n";
+		void TestValidateMismatch()
+		{
+			const char* source =
+			"meta snapshot scenario:toggle validate:no [ [ draft ] ]\n"
+			"meta snapshot scenario:toggle [ [ validate ] ]\n";
 
-		String text(source);
-		SnapshotPlan plan("mismatch.ivg");
-		std::vector<std::string> includeDirs;
-		SnapshotCollector collector(plan, "mismatch.ivg", text, includeDirs);
-		STLMapVariables variables;
-		FormatInfo formatInfo;
-		formatInfo.formatId = "meta";
-		formatInfo.uses.insert("snapshot-1");
-		Interpreter interpreter(collector, variables, formatInfo);
+			String textSource(source);
+			SnapshotPlan plan("mismatch.ivg");
+			std::vector<std::string> includeDirs;
+			SnapshotCollector collector(plan, "mismatch.ivg", textSource, includeDirs);
+			STLMapVariables variables;
+			FormatInfo formatInfo;
+			formatInfo.formatId = "meta";
+			formatInfo.uses.insert("snapshot-1");
+			Interpreter interpreter(collector, variables, formatInfo);
 
-		bool caught = false;
-		try {
-			interpreter.run(StringRange(text));
-		} catch (Exception& e) {
-			caught = true;
-			Expect(e.getError() == "scenario switches between validate yes/no.", "validate mismatch error message");
+			bool caught = false;
+			try {
+				interpreter.run(StringRange(textSource));
+			} catch (Exception& e) {
+				caught = true;
+				Expect(e.getError() == "scenario switches between validate yes/no.", "validate mismatch error message");
+			}
+			Expect(caught, "validate mismatch should throw");
 		}
-		Expect(caught, "validate mismatch should throw");
-	}
+
+		void TestDraftValidateWorkflow()
+		{
+			const char* tempEnv = std::getenv("TMPDIR");
+			const std::string tempRoot = (tempEnv != 0 && tempEnv[0] != '\0') ? std::string(tempEnv) : std::string("/tmp");
+
+			CommandLineOptions options;
+			options.outputDir = joinPath(tempRoot, "IVGSnapshotWorkflowTest");
+			options.forceUpdate = false;
+
+			SnapshotScenario scenario;
+			scenario.name = "workflow";
+			scenario.validate = true;
+			scenario.entryIndices.push_back(0);
+
+			SnapshotEntry entry;
+			entry.scenarioIndex = 0;
+			entry.entryOrdinal = 1;
+			entry.validate = true;
+			entry.scenarioName = "workflow";
+
+			SnapshotGolden golden("workflow.ivg", "workflow", scenario, entry, options);
+
+			SnapshotEntryResult paths;
+			golden.populateResult(paths);
+			Expect(ensureDirectory(extractDirectory(paths.goldenPath)), "create workflow directory");
+			removeFileIfExists(paths.goldenPath);
+			removeFileIfExists(paths.oldPath);
+			removeFileIfExists(paths.actualPath);
+			removeFileIfExists(paths.diffPath);
+			removeFileIfExists(paths.backupPath);
+
+			NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> raster(NuXPixels::IntRect(0, 0, 1, 1));
+			raster.getPixelPointer()[0] = 0xFFFFFFFFu;
+
+			SnapshotEntryResult draftResult;
+			Expect(golden.writeDraft(raster, draftResult), "draft write should succeed");
+			Expect(draftResult.success, "draft result success flag");
+			Expect(draftResult.skipped, "draft result skipped flag");
+			Expect(fileExists(draftResult.oldPath), "old draft file should exist");
+			Expect(!fileExists(draftResult.goldenPath), "golden should not exist after draft");
+
+			SnapshotEntryResult validateResult;
+			Expect(golden.validate(raster, false, validateResult), "validate should promote draft");
+			Expect(validateResult.success, "validate result success flag");
+			Expect(validateResult.updated, "validate should mark updated");
+			Expect(!validateResult.skipped, "validate should not be skipped");
+			Expect(fileExists(validateResult.goldenPath), "golden should exist after validate");
+			Expect(!fileExists(validateResult.oldPath), "old draft file should be removed");
+			Expect(validateResult.message.find("promoted draft image") != std::string::npos, "validate should report promotion");
+
+			SnapshotEntryResult secondResult;
+			Expect(golden.validate(raster, false, secondResult), "second validate should compare against golden");
+			Expect(secondResult.success, "second validate success flag");
+			Expect(!secondResult.updated, "second validate should not mark updated");
+			Expect(!secondResult.diffed, "second validate should not diff");
+			Expect(secondResult.message.empty(), "second validate should not report message");
+
+			removeFileIfExists(secondResult.goldenPath);
+			removeFileIfExists(secondResult.actualPath);
+			removeFileIfExists(secondResult.diffPath);
+			removeFileIfExists(secondResult.backupPath);
+			removeFileIfExists(paths.oldPath);
+		}
 
 } // namespace
 
@@ -207,5 +271,6 @@ int main()
 	TestRepeatedScenario();
 	TestDefaultScenarioNames();
 	TestValidateMismatch();
+	TestDraftValidateWorkflow();
 	return 0;
 }

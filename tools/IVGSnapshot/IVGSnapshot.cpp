@@ -720,24 +720,37 @@ const CommandLineOptions& options)
 			}
 
 			if (!goldenExists) {
-				if (oldExists) {
-					if (!writeRasterToPng(goldenPath, raster, error)) {
-						result.success = false;
-						result.message = error;
-						return false;
-					}
+				if (!oldExists) {
+					result.success = false;
+					result.message = std::string("missing golden: ") + goldenPath + " (no .old fallback present)";
+					return false;
+				}
+
+				const NuXPixels::IntRect bounds = raster.calcBounds();
+				if (bounds.width <= 0 || bounds.height <= 0) {
+					removeFileIfExists(goldenPath);
 					removeFileIfExists(oldPath);
 					removeFileIfExists(actualPath);
 					removeFileIfExists(diffPath);
 					result.updated = true;
+					result.success = true;
+					result.message = std::string("promoted draft image to golden: ") + goldenPath + '.';
+					return true;
+				}
+
+				if (!writeRasterToPng(goldenPath, raster, error)) {
 					result.success = false;
-					result.message = std::string("no golden image was available; regenerated ") + goldenPath + " for the next validation run.";
+					result.message = error;
 					return false;
 				}
-				result.success = false;
-				result.message = std::string("missing golden: ") + goldenPath + " (no .old fallback present)";
-				return false;
-}
+				removeFileIfExists(oldPath);
+				removeFileIfExists(actualPath);
+				removeFileIfExists(diffPath);
+				result.updated = true;
+				result.success = true;
+				result.message = std::string("promoted draft image to golden: ") + goldenPath + '.';
+				return true;
+			}
 
 			NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> goldenRaster;
 			if (!loadPngRaster(goldenPath, goldenRaster)) {
@@ -927,11 +940,11 @@ return false;
 					const png_uint_32 height = png_get_image_height(png, info);
 					png_bytep* rows = png_get_rows(png, info);
 		
-					outRaster = NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>(NuXPixels::IntRect(0, 0,
+					NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> tempRaster(NuXPixels::IntRect(0, 0,
 						static_cast<int>(width), static_cast<int>(height)));
-		
+
 					for (png_uint_32 y = 0; y < height; ++y) {
-						NuXPixels::ARGB32::Pixel* dest = outRaster.getPixelPointer() + y * outRaster.getStride();
+						NuXPixels::ARGB32::Pixel* dest = tempRaster.getPixelPointer() + y * tempRaster.getStride();
 						png_bytep src = rows[y];
 						for (png_uint_32 x = 0; x < width; ++x) {
 							unsigned int b = src[x * 4 + 0];
@@ -944,8 +957,10 @@ return false;
 								b = (b * a + 0x7F) >> 8;
 							}
 							dest[x] = (a << 24) | (r << 16) | (g << 8) | b;
-}
-}
+						}
+					}
+
+					outRaster = tempRaster;
 
 					png_destroy_read_struct(&png, &info, 0);
 					std::fclose(file);
