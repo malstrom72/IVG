@@ -2074,7 +2074,7 @@ std::cout << "\t--force-update\t\tOverwrite goldens." << std::endl;
 								{
 										NuXThreads::MutexLock lock(mutex);
 										if (!completedResults.empty()) {
-												out = std::move(completedResults.front());
+out = completedResults.front();
 												completedResults.pop_front();
 												return true;
 										}
@@ -2187,7 +2187,7 @@ std::cout << "\t--force-update\t\tOverwrite goldens." << std::endl;
 						const bool success = result.success;
 						{
 								NuXThreads::MutexLock lock(mutex);
-								completedResults.push_back(std::move(result));
+completedResults.push_back(result);
 								if (!success && exitOnFirstFailure) {
 										stopScheduling = true;
 								}
@@ -2219,8 +2219,8 @@ std::cout << "\t--force-update\t\tOverwrite goldens." << std::endl;
 				NuXThreads::Event resultAvailable;
 				std::deque<SnapshotJob> pendingJobs;
 				std::deque<SnapshotEntryResult> completedResults;
-				std::vector<std::unique_ptr<Worker>> workers;
-				std::vector<std::unique_ptr<NuXThreads::Thread>> threads;
+				std::vector<std::unique_ptr<Worker> > workers;
+				std::vector<std::unique_ptr<NuXThreads::Thread> > threads;
 				uint32_t activeWorkers;
 		};
 static SnapshotEntryResult renderEntry(const CommandLineOptions& options,
@@ -2293,9 +2293,50 @@ return result;
 
 return result;
 }
-		
-		
-		
+
+
+
+static void flushSchedulerResults(
+	SnapshotScheduler& scheduler,
+	bool wait,
+	std::vector<SnapshotEntryResult>& ordered,
+	std::vector<bool>& ready,
+	size_t& nextLogIndex,
+	SnapshotRunResult& run)
+{
+	SnapshotEntryResult fetched;
+	while (scheduler.fetchResult(fetched, wait)) {
+		const uint32_t ordinal = fetched.planOrdinal;
+		if (ordinal >= ordered.size()) {
+			continue;
+		}
+
+		ordered[ordinal] = fetched;
+		ready[ordinal] = true;
+
+		while (nextLogIndex < ordered.size() && ready[nextLogIndex]) {
+			SnapshotEntryResult& recorded = ordered[nextLogIndex];
+			run.entries.push_back(recorded);
+			++run.totalEntries;
+			if (recorded.validate) {
+				++run.validatedEntries;
+			} else {
+				++run.draftEntries;
+			}
+			if (recorded.updated) {
+				++run.updatedEntries;
+			}
+			if (!recorded.success) {
+				++run.failedEntries;
+				if (recorded.diffed) {
+					++run.diffFailures;
+				}
+			}
+			logEntryResult(recorded);
+			++nextLogIndex;
+		}
+	}
+}
 static SnapshotRunResult renderPlan(const CommandLineOptions& options,
 const std::string& path,
 const CachedDocument& document,
@@ -2309,8 +2350,8 @@ SharedResources sharedResources;
 
 		uint32_t threadCount = options.threads;
 		if (threadCount == 0) {
-				const unsigned int hardware = std::thread::hardware_concurrency();
-				threadCount = (hardware > 0 ? hardware : 1);
+			const unsigned int hardware = std::thread::hardware_concurrency();
+			threadCount = (hardware > 0 ? hardware : 1);
 		}
 
 		SnapshotScheduler scheduler(threadCount, options.exitOnFirstFailure);
@@ -2321,85 +2362,50 @@ SharedResources sharedResources;
 		size_t nextLogIndex = 0;
 		bool schedulingStopped = false;
 
-		auto flushResults = [&](bool wait) {
-				SnapshotEntryResult fetched;
-				while (scheduler.fetchResult(fetched, wait)) {
-						const uint32_t ordinal = fetched.planOrdinal;
-						if (ordinal >= ordered.size()) {
-								continue;
-						}
-
-						ordered[ordinal] = std::move(fetched);
-						ready[ordinal] = true;
-
-						while (nextLogIndex < ordered.size() && ready[nextLogIndex]) {
-								SnapshotEntryResult& recorded = ordered[nextLogIndex];
-								run.entries.push_back(recorded);
-								++run.totalEntries;
-								if (recorded.validate) {
-										++run.validatedEntries;
-								} else {
-										++run.draftEntries;
-								}
-								if (recorded.updated) {
-										++run.updatedEntries;
-								}
-								if (!recorded.success) {
-										++run.failedEntries;
-										if (recorded.diffed) {
-												++run.diffFailures;
-										}
-								}
-								logEntryResult(recorded);
-								++nextLogIndex;
-						}
-				}
-		};
-
 		for (size_t i = 0; i < scenarios.size() && !schedulingStopped; ++i) {
-				const SnapshotScenario& scenario = scenarios[i];
+			const SnapshotScenario& scenario = scenarios[i];
+			if (options.verbose) {
+				std::cout << path << ": scenario " << scenario.name << " (validate: " << (scenario.validate ? "yes" : "no") << ")" << std::endl;
+			}
+
+			for (size_t j = 0; j < scenario.entryIndices.size(); ++j) {
+				if (options.exitOnFirstFailure && scheduler.shouldStopScheduling()) {
+					schedulingStopped = true;
+					break;
+				}
+
+				const SnapshotEntry& entry = entries[scenario.entryIndices[j]];
 				if (options.verbose) {
-						std::cout << path << ": scenario " << scenario.name << " (validate: " << (scenario.validate ? "yes" : "no") << ")" << std::endl;
+					std::cout << path << ":	  entry " << entry.entryOrdinal << " name:" << entry.scenarioName
+						<< " (validate: " << (entry.validate ? "yes" : "no") << ")" << std::endl;
 				}
 
-				for (size_t j = 0; j < scenario.entryIndices.size(); ++j) {
-						if (options.exitOnFirstFailure && scheduler.shouldStopScheduling()) {
-								schedulingStopped = true;
-								break;
-						}
+				SnapshotJob job;
+				job.options = &options;
+				job.ivgPath = &path;
+				job.baseName = &baseName;
+				job.document = &document;
+				job.sharedResources = &sharedResources;
+				job.scenario = &scenario;
+				job.entry = &entry;
+				job.planOrdinal = static_cast<uint32_t>(ordered.size());
 
-						const SnapshotEntry& entry = entries[scenario.entryIndices[j]];
-						if (options.verbose) {
-								std::cout << path << ":	  entry " << entry.entryOrdinal << " name:" << entry.scenarioName
-										<< " (validate: " << (entry.validate ? "yes" : "no") << ")" << std::endl;
-						}
-
-						SnapshotJob job;
-						job.options = &options;
-						job.ivgPath = &path;
-						job.baseName = &baseName;
-						job.document = &document;
-						job.sharedResources = &sharedResources;
-						job.scenario = &scenario;
-						job.entry = &entry;
-						job.planOrdinal = static_cast<uint32_t>(ordered.size());
-
-						if (!scheduler.enqueue(job)) {
-								schedulingStopped = true;
-								break;
-						}
-
-						ordered.push_back(SnapshotEntryResult());
-						ready.push_back(false);
-						flushResults(false);
+				if (!scheduler.enqueue(job)) {
+					schedulingStopped = true;
+					break;
 				}
 
-				flushResults(false);
+				ordered.push_back(SnapshotEntryResult());
+				ready.push_back(false);
+				flushSchedulerResults(scheduler, false, ordered, ready, nextLogIndex, run);
+			}
+
+			flushSchedulerResults(scheduler, false, ordered, ready, nextLogIndex, run);
 		}
 
-		flushResults(false);
+		flushSchedulerResults(scheduler, false, ordered, ready, nextLogIndex, run);
 		scheduler.finalize();
-		flushResults(true);
+		flushSchedulerResults(scheduler, true, ordered, ready, nextLogIndex, run);
 
 		if (run.failedEntries > 0) {
 				run.exitCode = 1;
