@@ -1428,8 +1428,7 @@ static bool isWhitespace(Char c)
 				bool meta(Interpreter& interpreter, const String& key, const String& arguments) override
 				{
 					static const String SNAPSHOT_KEY("snapshot-1");
-					static const String LEGACY_KEY("snapshot");
-					if (key != SNAPSHOT_KEY && key != LEGACY_KEY) {
+					if (key != SNAPSHOT_KEY) {
 						return false;
 					}
 
@@ -1606,8 +1605,7 @@ static bool isWhitespace(Char c)
 				bool meta(Interpreter& interpreter, const String& key, const String& arguments) override
 				{
 					static const String SNAPSHOT_KEY("snapshot-1");
-					static const String LEGACY_KEY("snapshot");
-					if (key != SNAPSHOT_KEY && key != LEGACY_KEY) {
+					if (key != SNAPSHOT_KEY) {
 						return false;
 					}
 		
