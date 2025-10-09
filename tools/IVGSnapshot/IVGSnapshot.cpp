@@ -196,8 +196,8 @@ using namespace IMPD;
 				bool updated;
 				bool success;
 				bool hasDiffStats;
-				std::string goldenPath;
-				std::string disabledPath;
+std::string goldenPath;
+std::string oldPath;
 				std::string actualPath;
 				std::string diffPath;
 				std::string backupPath;
@@ -511,8 +511,8 @@ return sanitized;
 		stream << ' ' << result.message;
 	}
 
-	if (result.skipped && !result.disabledPath.empty()) {
-		stream << " Draft saved to " << result.disabledPath << '.';
+if (result.skipped && !result.oldPath.empty()) {
+stream << " Draft saved to " << result.oldPath << '.';
 	}
 	if (result.updated && !result.goldenPath.empty()) {
 		stream << " Golden stored at " << result.goldenPath << '.';
@@ -588,278 +588,299 @@ const SnapshotScenario& scenario,
 const SnapshotEntry& entry,
 const CommandLineOptions& options)
 {
-const std::string sanitizedBase = sanitizeFileComponent(baseName);
-std::string root = (options.outputDir.empty() ? extractDirectory(ivgPath) : options.outputDir);
-if (!sanitizedBase.empty()) {
-root = joinPath(root, sanitizedBase);
-}
-std::string scenarioName = stringFromIMPD(entry.scenarioName);
-if (scenario.entryIndices.size() > 1) {
-scenarioName += "-";
-scenarioName += Interpreter::toString(static_cast<int32_t>(entry.entryOrdinal));
-}
-scenarioName = sanitizeFileComponent(scenarioName);
-const std::string stem = joinPath(root, scenarioName);
-goldenPath = stem + ".png";
-disabledPath = stem + ".png.disabled";
-actualPath = stem + ".actual.png";
-diffPath = stem + ".diff.png";
-backupPath = stem + ".png.bak";
+			const std::string sanitizedBase = sanitizeFileComponent(baseName);
+			std::string root = (options.outputDir.empty() ? extractDirectory(ivgPath) : options.outputDir);
+			if (!sanitizedBase.empty()) {
+				root = joinPath(root, sanitizedBase);
+			}
+			std::string scenarioName = stringFromIMPD(entry.scenarioName);
+			if (scenario.entryIndices.size() > 1) {
+				scenarioName += "-";
+				scenarioName += Interpreter::toString(static_cast<int32_t>(entry.entryOrdinal));
+			}
+			scenarioName = sanitizeFileComponent(scenarioName);
+			const std::string stem = joinPath(root, scenarioName);
+			goldenPath = stem + ".png";
+			oldPath = stem + ".png.old";
+			actualPath = stem + ".actual.png";
+			diffPath = stem + ".diff.png";
+			backupPath = stem + ".png.bak";
+		}
+
+		void populateResult(SnapshotEntryResult& result) const
+		{
+			result.goldenPath = goldenPath;
+			result.oldPath = oldPath;
+			result.actualPath = actualPath;
+			result.diffPath = diffPath;
+			result.backupPath = backupPath;
+		}
+
+		bool writeDraft(const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>& raster, SnapshotEntryResult& result) const
+		{
+			populateResult(result);
+			result.skipped = true;
+			result.updated = false;
+			result.diffed = false;
+			result.hasDiffStats = false;
+			result.success = true;
+
+			const NuXPixels::IntRect bounds = raster.calcBounds();
+			if (bounds.width <= 0 || bounds.height <= 0) {
+				removeFileIfExists(oldPath);
+				removeFileIfExists(actualPath);
+				removeFileIfExists(diffPath);
+				removeFileIfExists(goldenPath);
+				return true;
+			}
+
+			if (!ensureParentDirectory(oldPath)) {
+				result.success = false;
+				result.message = std::string("failed to prepare directory for ") + oldPath + ": " + std::strerror(errno);
+				return false;
+			}
+
+			if (fileExists(goldenPath)) {
+				std::string renameError;
+				if (!renameFile(goldenPath, oldPath, renameError)) {
+					result.success = false;
+					result.message = renameError;
+					return false;
+				}
+			}
+
+			std::string error;
+			if (!writeRasterToPng(oldPath, raster, error)) {
+				result.success = false;
+				result.message = error;
+				return false;
+			}
+			removeFileIfExists(actualPath);
+			removeFileIfExists(diffPath);
+			removeFileIfExists(goldenPath);
+			return true;
+		}
+
+		bool validate(const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>& raster, bool forceUpdate, SnapshotEntryResult& result) const
+		{
+			populateResult(result);
+			result.skipped = false;
+			result.diffed = false;
+			result.updated = false;
+			result.hasDiffStats = false;
+
+			std::string error;
+			if (!ensureParentDirectory(goldenPath)) {
+				result.success = false;
+				result.message = std::string("failed to prepare directory for ") + goldenPath + ": " + std::strerror(errno);
+				return false;
+			}
+
+			const bool goldenExists = fileExists(goldenPath);
+			const bool oldExists = fileExists(oldPath);
+
+			if (forceUpdate) {
+				const NuXPixels::IntRect bounds = raster.calcBounds();
+				if (bounds.width <= 0 || bounds.height <= 0) {
+					removeFileIfExists(goldenPath);
+					removeFileIfExists(oldPath);
+					removeFileIfExists(actualPath);
+					removeFileIfExists(diffPath);
+					removeFileIfExists(backupPath);
+					result.updated = true;
+					result.success = true;
+					return true;
+				}
+
+				if (goldenExists) {
+					if (!renameFile(goldenPath, backupPath, error)) {
+						result.success = false;
+						result.message = error;
+						return false;
+					}
+				} else if (oldExists) {
+					if (!renameFile(oldPath, backupPath, error)) {
+						result.success = false;
+						result.message = error;
+						return false;
+					}
+				}
+
+				removeFileIfExists(actualPath);
+				removeFileIfExists(diffPath);
+				if (!writeRasterToPng(goldenPath, raster, error)) {
+					result.success = false;
+					result.message = error;
+					return false;
+				}
+				removeFileIfExists(oldPath);
+				result.updated = true;
+				result.success = true;
+				return true;
+			}
+
+			if (!goldenExists) {
+				if (oldExists) {
+					if (!writeRasterToPng(goldenPath, raster, error)) {
+						result.success = false;
+						result.message = error;
+						return false;
+					}
+					removeFileIfExists(oldPath);
+					removeFileIfExists(actualPath);
+					removeFileIfExists(diffPath);
+					result.updated = true;
+					result.success = false;
+					result.message = std::string("no golden image was available; regenerated ") + goldenPath + " for the next validation run.";
+					return false;
+				}
+				result.success = false;
+				result.message = std::string("missing golden: ") + goldenPath + " (no .old fallback present)";
+				return false;
 }
 
-void populateResult(SnapshotEntryResult& result) const
-{
-result.goldenPath = goldenPath;
-result.disabledPath = disabledPath;
-result.actualPath = actualPath;
-result.diffPath = diffPath;
-result.backupPath = backupPath;
-}
+			NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> goldenRaster;
+			if (!loadPngRaster(goldenPath, goldenRaster)) {
+				result.success = false;
+				result.message = std::string("failed to read golden PNG: ") + goldenPath;
+				return false;
+			}
 
-bool writeDraft(const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>& raster, SnapshotEntryResult& result) const
-{
-populateResult(result);
-result.skipped = true;
-result.updated = false;
-result.diffed = false;
-result.hasDiffStats = false;
-result.success = true;
+			const NuXPixels::IntRect actualBounds = raster.calcBounds();
+			const NuXPixels::IntRect goldenBounds = goldenRaster.calcBounds();
+			const int left = NuXPixels::minValue(actualBounds.left, goldenBounds.left);
+			const int top = NuXPixels::minValue(actualBounds.top, goldenBounds.top);
+			const int right = NuXPixels::maxValue(actualBounds.calcRight(), goldenBounds.calcRight());
+			const int bottom = NuXPixels::maxValue(actualBounds.calcBottom(), goldenBounds.calcBottom());
+			const int width = (right > left ? right - left : 0);
+			const int height = (bottom > top ? bottom - top : 0);
 
-const NuXPixels::IntRect bounds = raster.calcBounds();
-if (bounds.width <= 0 || bounds.height <= 0) {
-removeFileIfExists(disabledPath);
-removeFileIfExists(actualPath);
-removeFileIfExists(diffPath);
-return true;
-}
+			SnapshotDiffStats stats;
+			stats.width = static_cast<uint32_t>(width);
+			stats.height = static_cast<uint32_t>(height);
 
-if (!ensureParentDirectory(disabledPath)) {
-result.success = false;
-result.message = std::string("failed to prepare directory for ") + disabledPath + ": " + std::strerror(errno);
-return false;
-}
+			if (width <= 0 || height <= 0) {
+				result.success = true;
+				removeFileIfExists(actualPath);
+				removeFileIfExists(diffPath);
+				return true;
+			}
 
-std::string error;
-if (!writeRasterToPng(disabledPath, raster, error)) {
-result.success = false;
-result.message = error;
-return false;
-}
-removeFileIfExists(actualPath);
-removeFileIfExists(diffPath);
-return true;
-}
+			NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> diffRaster(NuXPixels::IntRect(left, top, width, height));
+			const NuXPixels::ARGB32::Pixel* actualPixels = raster.getPixelPointer();
+			const NuXPixels::ARGB32::Pixel* goldenPixelsPtr = goldenRaster.getPixelPointer();
+			const int actualStride = raster.getStride();
+			const int goldenStride = goldenRaster.getStride();
+			NuXPixels::ARGB32::Pixel* diffPixels = diffRaster.getPixelPointer();
+			const int diffStride = diffRaster.getStride();
 
-bool validate(const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>& raster, bool forceUpdate, SnapshotEntryResult& result) const
-{
-populateResult(result);
-result.skipped = false;
-result.diffed = false;
-result.updated = false;
-result.hasDiffStats = false;
+			uint64_t sumAlpha = 0;
+			uint64_t sumRed = 0;
+			uint64_t sumGreen = 0;
+			uint64_t sumBlue = 0;
+			bool match = true;
 
-std::string error;
-if (!ensureParentDirectory(goldenPath)) {
-result.success = false;
-result.message = std::string("failed to prepare directory for ") + goldenPath + ": " + std::strerror(errno);
-return false;
-}
+			for (int y = top; y < bottom; ++y) {
+				NuXPixels::ARGB32::Pixel* diffRow = diffPixels + y * diffStride;
+				const NuXPixels::ARGB32::Pixel* actualRow = (y >= actualBounds.top && y < actualBounds.calcBottom()) ? actualPixels + y * actualStride : 0;
+				const NuXPixels::ARGB32::Pixel* goldenRow = (y >= goldenBounds.top && y < goldenBounds.calcBottom()) ? goldenPixelsPtr + y * goldenStride : 0;
+				for (int x = left; x < right; ++x) {
+					const NuXPixels::ARGB32::Pixel actualPixel = (actualRow != 0 && x >= actualBounds.left && x < actualBounds.calcRight()) ? actualRow[x] : 0;
+					const NuXPixels::ARGB32::Pixel goldenPixel = (goldenRow != 0 && x >= goldenBounds.left && x < goldenBounds.calcRight()) ? goldenRow[x] : 0;
+					if (actualPixel == goldenPixel) {
+						diffRow[x] = 0;
+						continue;
+					}
+					match = false;
+					++stats.differingPixels;
+					const unsigned int actualA = (actualPixel >> 24) & 0xFF;
+					const unsigned int actualR = (actualPixel >> 16) & 0xFF;
+					const unsigned int actualG = (actualPixel >> 8) & 0xFF;
+					const unsigned int actualB = actualPixel & 0xFF;
+					const unsigned int goldenA = (goldenPixel >> 24) & 0xFF;
+					const unsigned int goldenR = (goldenPixel >> 16) & 0xFF;
+					const unsigned int goldenG = (goldenPixel >> 8) & 0xFF;
+					const unsigned int goldenB = goldenPixel & 0xFF;
+					const unsigned int diffA = (actualA > goldenA ? actualA - goldenA : goldenA - actualA);
+					const unsigned int diffR = (actualR > goldenR ? actualR - goldenR : goldenR - actualR);
+					const unsigned int diffG = (actualG > goldenG ? actualG - goldenG : goldenG - actualG);
+					const unsigned int diffB = (actualB > goldenB ? actualB - goldenB : goldenB - actualB);
+					if (diffA > stats.maxAlphaDiff) {
+						stats.maxAlphaDiff = diffA;
+					}
+					if (diffR > stats.maxRedDiff) {
+						stats.maxRedDiff = diffR;
+					}
+					if (diffG > stats.maxGreenDiff) {
+						stats.maxGreenDiff = diffG;
+					}
+					if (diffB > stats.maxBlueDiff) {
+						stats.maxBlueDiff = diffB;
+					}
+					sumAlpha += diffA;
+					sumRed += diffR;
+					sumGreen += diffG;
+					sumBlue += diffB;
+					unsigned int scaledR = diffR * 4;
+					unsigned int scaledG = diffG * 4;
+					unsigned int scaledB = diffB * 4;
+					if (scaledR > 255) {
+						scaledR = 255;
+					}
+					if (scaledG > 255) {
+						scaledG = 255;
+					}
+					if (scaledB > 255) {
+						scaledB = 255;
+					}
+					diffRow[x] = (0xFFu << 24) | (scaledR << 16) | (scaledG << 8) | scaledB;
+				}
+			}
 
-const bool goldenExists = fileExists(goldenPath);
-const bool disabledExists = fileExists(disabledPath);
+			const uint64_t pixelCount = static_cast<uint64_t>(width) * static_cast<uint64_t>(height);
+			if (pixelCount > 0) {
+				stats.meanAlphaDiff = static_cast<double>(sumAlpha) / pixelCount;
+				stats.meanRedDiff = static_cast<double>(sumRed) / pixelCount;
+				stats.meanGreenDiff = static_cast<double>(sumGreen) / pixelCount;
+				stats.meanBlueDiff = static_cast<double>(sumBlue) / pixelCount;
+			}
 
-if (forceUpdate) {
-const NuXPixels::IntRect bounds = raster.calcBounds();
-if (bounds.width <= 0 || bounds.height <= 0) {
-removeFileIfExists(goldenPath);
-removeFileIfExists(disabledPath);
-removeFileIfExists(actualPath);
-removeFileIfExists(diffPath);
-removeFileIfExists(backupPath);
-result.updated = true;
-result.success = true;
-return true;
-}
+			if (match) {
+				result.success = true;
+				removeFileIfExists(actualPath);
+				removeFileIfExists(diffPath);
+				return true;
+			}
 
-if (goldenExists) {
-if (!renameFile(goldenPath, backupPath, error)) {
-result.success = false;
-result.message = error;
-return false;
-}
-} else if (disabledExists) {
-if (!renameFile(disabledPath, backupPath, error)) {
-result.success = false;
-result.message = error;
-return false;
-}
-}
+			result.success = false;
+			result.diffed = true;
+			result.hasDiffStats = true;
+			result.diffStats = stats;
 
-removeFileIfExists(actualPath);
-removeFileIfExists(diffPath);
-if (!writeRasterToPng(goldenPath, raster, error)) {
-result.success = false;
-result.message = error;
-return false;
-}
-removeFileIfExists(disabledPath);
-result.updated = true;
-result.success = true;
-return true;
-}
+			std::ostringstream summary;
+			summary << "differs from golden (pixels: " << stats.differingPixels << "/" << (stats.width * stats.height) << ")";
+			result.message = summary.str();
 
-if (!goldenExists) {
-result.success = false;
-if (disabledExists) {
-result.message = std::string("missing golden: ") + goldenPath + " (draft exists; rerun with --force-update)";
-} else {
-result.message = std::string("missing golden: ") + goldenPath;
-}
-return false;
-}
+			removeFileIfExists(actualPath);
+			removeFileIfExists(diffPath);
+			if (!writeRasterToPng(actualPath, raster, error)) {
+				result.message = error;
+				return false;
+			}
+			if (!writeRasterToPng(diffPath, diffRaster, error)) {
+				result.message = error;
+				return false;
+			}
 
-NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> goldenRaster;
-if (!loadPngRaster(goldenPath, goldenRaster)) {
-result.success = false;
-result.message = std::string("failed to read golden PNG: ") + goldenPath;
-return false;
-}
-
-const NuXPixels::IntRect actualBounds = raster.calcBounds();
-const NuXPixels::IntRect goldenBounds = goldenRaster.calcBounds();
-const int left = NuXPixels::minValue(actualBounds.left, goldenBounds.left);
-const int top = NuXPixels::minValue(actualBounds.top, goldenBounds.top);
-const int right = NuXPixels::maxValue(actualBounds.calcRight(), goldenBounds.calcRight());
-const int bottom = NuXPixels::maxValue(actualBounds.calcBottom(), goldenBounds.calcBottom());
-const int width = (right > left ? right - left : 0);
-const int height = (bottom > top ? bottom - top : 0);
-
-SnapshotDiffStats stats;
-stats.width = static_cast<uint32_t>(width);
-stats.height = static_cast<uint32_t>(height);
-
-if (width <= 0 || height <= 0) {
-result.success = true;
-removeFileIfExists(actualPath);
-removeFileIfExists(diffPath);
-return true;
-}
-
-NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> diffRaster(NuXPixels::IntRect(left, top, width, height));
-const NuXPixels::ARGB32::Pixel* actualPixels = raster.getPixelPointer();
-const NuXPixels::ARGB32::Pixel* goldenPixelsPtr = goldenRaster.getPixelPointer();
-const int actualStride = raster.getStride();
-const int goldenStride = goldenRaster.getStride();
-NuXPixels::ARGB32::Pixel* diffPixels = diffRaster.getPixelPointer();
-const int diffStride = diffRaster.getStride();
-
-uint64_t sumAlpha = 0;
-uint64_t sumRed = 0;
-uint64_t sumGreen = 0;
-uint64_t sumBlue = 0;
-bool match = true;
-
-for (int y = top; y < bottom; ++y) {
-NuXPixels::ARGB32::Pixel* diffRow = diffPixels + y * diffStride;
-const NuXPixels::ARGB32::Pixel* actualRow = (y >= actualBounds.top && y < actualBounds.calcBottom()) ? actualPixels + y * actualStride : 0;
-const NuXPixels::ARGB32::Pixel* goldenRow = (y >= goldenBounds.top && y < goldenBounds.calcBottom()) ? goldenPixelsPtr + y * goldenStride : 0;
-for (int x = left; x < right; ++x) {
-const NuXPixels::ARGB32::Pixel actualPixel = (actualRow != 0 && x >= actualBounds.left && x < actualBounds.calcRight()) ? actualRow[x] : 0;
-const NuXPixels::ARGB32::Pixel goldenPixel = (goldenRow != 0 && x >= goldenBounds.left && x < goldenBounds.calcRight()) ? goldenRow[x] : 0;
-if (actualPixel == goldenPixel) {
-diffRow[x] = 0;
-continue;
-}
-match = false;
-++stats.differingPixels;
-const unsigned int actualA = (actualPixel >> 24) & 0xFF;
-const unsigned int actualR = (actualPixel >> 16) & 0xFF;
-const unsigned int actualG = (actualPixel >> 8) & 0xFF;
-const unsigned int actualB = actualPixel & 0xFF;
-const unsigned int goldenA = (goldenPixel >> 24) & 0xFF;
-const unsigned int goldenR = (goldenPixel >> 16) & 0xFF;
-const unsigned int goldenG = (goldenPixel >> 8) & 0xFF;
-const unsigned int goldenB = goldenPixel & 0xFF;
-const unsigned int diffA = (actualA > goldenA ? actualA - goldenA : goldenA - actualA);
-const unsigned int diffR = (actualR > goldenR ? actualR - goldenR : goldenR - actualR);
-const unsigned int diffG = (actualG > goldenG ? actualG - goldenG : goldenG - actualG);
-const unsigned int diffB = (actualB > goldenB ? actualB - goldenB : goldenB - actualB);
-if (diffA > stats.maxAlphaDiff) {
-stats.maxAlphaDiff = diffA;
-}
-if (diffR > stats.maxRedDiff) {
-stats.maxRedDiff = diffR;
-}
-if (diffG > stats.maxGreenDiff) {
-stats.maxGreenDiff = diffG;
-}
-if (diffB > stats.maxBlueDiff) {
-stats.maxBlueDiff = diffB;
-}
-sumAlpha += diffA;
-sumRed += diffR;
-sumGreen += diffG;
-sumBlue += diffB;
-unsigned int scaledR = diffR * 4;
-unsigned int scaledG = diffG * 4;
-unsigned int scaledB = diffB * 4;
-if (scaledR > 255) {
-scaledR = 255;
-}
-if (scaledG > 255) {
-scaledG = 255;
-}
-if (scaledB > 255) {
-scaledB = 255;
-}
-diffRow[x] = (0xFFu << 24) | (scaledR << 16) | (scaledG << 8) | scaledB;
-}
-}
-
-const uint64_t pixelCount = static_cast<uint64_t>(width) * static_cast<uint64_t>(height);
-if (pixelCount > 0) {
-stats.meanAlphaDiff = static_cast<double>(sumAlpha) / pixelCount;
-stats.meanRedDiff = static_cast<double>(sumRed) / pixelCount;
-stats.meanGreenDiff = static_cast<double>(sumGreen) / pixelCount;
-stats.meanBlueDiff = static_cast<double>(sumBlue) / pixelCount;
-}
-
-if (match) {
-result.success = true;
-removeFileIfExists(actualPath);
-removeFileIfExists(diffPath);
-return true;
-}
-
-result.success = false;
-result.diffed = true;
-result.hasDiffStats = true;
-result.diffStats = stats;
-
-std::ostringstream summary;
-summary << "differs from golden (pixels: " << stats.differingPixels << "/" << (stats.width * stats.height) << ")";
-result.message = summary.str();
-
-removeFileIfExists(actualPath);
-removeFileIfExists(diffPath);
-if (!writeRasterToPng(actualPath, raster, error)) {
-result.message = error;
-return false;
-}
-if (!writeRasterToPng(diffPath, diffRaster, error)) {
-result.message = error;
-return false;
-}
-
-return false;
-}
+			return false;
+		}
 
 private:
-std::string goldenPath;
-std::string disabledPath;
-std::string actualPath;
-std::string diffPath;
-std::string backupPath;
+			std::string goldenPath;
+			std::string oldPath;
+			std::string actualPath;
+			std::string diffPath;
+			std::string backupPath;
 };
 
 	static void PNGAPI snapshotPNGError(png_structp png, png_const_charp message)
