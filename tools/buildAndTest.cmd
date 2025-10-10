@@ -40,31 +40,31 @@ CD ..
 REM C sources for libpng and zlib
 SET CSOURCES=
 FOR %%f IN (
-png.c pngerror.c pngget.c pngmem.c pngpread.c pngread.c
-pngrio.c pngrtran.c pngrutil.c pngset.c pngtrans.c pngwio.c
-pngwrite.c pngwtran.c pngwutil.c
+	png.c pngerror.c pngget.c pngmem.c pngpread.c pngread.c
+	pngrio.c pngrtran.c pngrutil.c pngset.c pngtrans.c pngwio.c
+	pngwrite.c pngwtran.c pngwutil.c
 ) DO (
-SET "CSOURCES=!CSOURCES! externals\libpng\%%f"
+	SET "CSOURCES=!CSOURCES! externals\libpng\%%f"
 )
 FOR %%f IN (
-adler32.c compress.c crc32.c deflate.c infback.c inffast.c
-inflate.c inftrees.c trees.c uncompr.c zutil.c
+	adler32.c compress.c crc32.c deflate.c infback.c inffast.c
+	inflate.c inftrees.c trees.c uncompr.c zutil.c
 ) DO (
-SET "CSOURCES=!CSOURCES! externals\zlib\%%f"
+	SET "CSOURCES=!CSOURCES! externals\zlib\%%f"
 )
 
 CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVG2PNG "-DNUXPIXELS_SIMD=%simd%" ^
-/I"." /I"externals" /I"externals\libpng" /I"externals\zlib" ^
-.\tools\IVG2PNG.cpp .\src\IVG.cpp .\src\IMPD.cpp .\externals\NuX\NuXPixels.cpp ^
-%CSOURCES% || EXIT /B 1
+		/I"." /I"externals" /I"externals\libpng" /I"externals\zlib" ^
+		.\tools\IVG2PNG.cpp .\src\IVG.cpp .\src\IMPD.cpp .\externals\NuX\NuXPixels.cpp ^
+		%CSOURCES% || EXIT /B 1
 
 CALL .\tools\BuildCpp.cmd %1 %2 .\output\InvalidIVGTest ^
-"-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" ^
-.\tests\invalidIVG.cpp .\src\IVG.cpp .\src\IMPD.cpp .\externals\NuX\NuXPixels.cpp || EXIT /B 1
+		"-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" ^
+		.\tests\invalidIVG.cpp .\src\IVG.cpp .\src\IMPD.cpp .\externals\NuX\NuXPixels.cpp || EXIT /B 1
 
 CALL .\tools\BuildCpp.cmd %1 %2 .\output\PolygonMaskTest ^
-"-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" ^
-.\tools\PolygonMaskTest.cpp .\externals\NuX\NuXPixels.cpp || EXIT /B 1
+		"-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" ^
+		.\tools\PolygonMaskTest.cpp .\externals\NuX\NuXPixels.cpp || EXIT /B 1
 
 ECHO Testing...
 CD tests
@@ -77,7 +77,7 @@ fc invalidIVGCheck.txt invalidIVGResults.txt || GOTO error
 DEL invalidIVGCheck.txt
 CALL ..\tools\testIVG.cmd ..\output\IVG2PNG || GOTO error
 IF NOT "%SKIP_SVG%"=="" (
-		ECHO Skipping SVG tests
+	ECHO Skipping SVG tests
 ) ELSE (
 	WHERE node >NUL 2>NUL
 	IF ERRORLEVEL 1 (
