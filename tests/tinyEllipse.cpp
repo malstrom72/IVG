@@ -20,5 +20,13 @@ int main() {
 		std::cerr << "tiny ry produced a line" << std::endl;
 		return 1;
 	}
+	if (!checkTiny(0.0, 1.0)) {
+		std::cerr << "zero rx produced a line" << std::endl;
+		return 1;
+	}
+	if (!checkTiny(1.0, 0.0)) {
+		std::cerr << "zero ry produced a line" << std::endl;
+		return 1;
+	}
 	return 0;
 }

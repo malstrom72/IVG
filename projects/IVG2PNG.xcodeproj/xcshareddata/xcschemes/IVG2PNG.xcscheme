@@ -53,7 +53,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "fuzzCrashes/crash-623409a39fa086462ffb41e75622c409aa0c0a66 output.png"
+            argument = "test2.ivg test2.png"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>
