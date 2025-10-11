@@ -24,59 +24,35 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-/*
- *  NuXThreadsCarbon.h
- *  NuXTest
- *
- *  Created by Magnus Lidström on 1/9/06.
- *  Copyright 2005-2025 NuEdge Development. All rights reserved.
- *
- */
+#ifndef NuXFilesWin32_h
+#define NuXFilesWin32_h
 
-#ifndef NuXThreadsCarbon_h
-#define NuXThreadsCarbon_h
+#if (_WIN32_WINNT < 0x0500)
+	#undef _WIN32_WINNT
+	#define _WIN32_WINNT 0x0500
+#endif
+#if !defined(WIN32_LEAN_AND_MEAN)
+	#define WIN32_LEAN_AND_MEAN
+#endif
 
-#include <Carbon/Carbon.h>
+#include <Windows.h>
+#include "NuXFiles.h"
 
-#include "NuXThreads.h"
+namespace NuXFiles {
 
-namespace NuXThreads {
-
-class Mutex::Impl {
-	friend class Mutex;
-	protected:	Impl();
-	public:		::MPCriticalRegionID getCarbonCriticalRegionId() const;
-	protected:	::MPCriticalRegionID criticalRegionId;
-	private:	Impl(const Impl& copy); // N/A
-	private:	Impl& operator=(const Impl& copy); // N/A
-};
-
-class Event::Impl {
-	friend class Event;
-	protected:	Impl();
-	public:		::MPEventID getCarbonEventId() const;
-	protected:	::MPEventID eventId;
-	private:	Impl(const Impl& copy); // N/A
-	private:	Impl& operator=(const Impl& copy); // N/A
-};
-
-class Thread::Impl {
-	friend class Thread;
-	protected:	Impl(Runnable* runner);
-	public:		::MPTaskID getCarbonTaskId() const;
+class ReadOnlyFile::Impl {
+	friend class ReadOnlyFile;
+	friend class ReadWriteFile;
+	friend class ExchangingFile;
+	public:		Impl(const Path& path, ::HANDLE handle) : path(path), handle(handle) { } // Inherit handle.
+	public:		::HANDLE getWin32Handle() const { return handle; }
 	public:		virtual ~Impl();
-	protected:	static ::OSStatus carbonTaskEntryPoint(void* parameter);
-	protected:	AtomicInt keepCounter;
-	protected:	Runnable* volatile runner;
-	protected:	::MPTaskID taskId;
-	protected:	::MPQueueID queueId;
-	protected:	Event startEvent;
-	protected:	bool started;
-	protected:	bool killed;
+	protected:	Path path;
+	protected:	::HANDLE handle;
 	private:	Impl(const Impl& copy); // N/A
 	private:	Impl& operator=(const Impl& copy); // N/A
 };
 
-} /* namespace NuX */
+}
 
 #endif

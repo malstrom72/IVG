@@ -56,8 +56,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using namespace IMPD;
 
 	/**
-	        Loads an IVG source once and replays it on demand so snapshot
-	        playback can reuse parsed scripts without touching the core library.
+			Loads an IVG source once and replays it on demand so snapshot
+			playback can reuse parsed scripts without touching the core library.
 	**/
 	class CachedDocument {
 	public:
@@ -196,8 +196,8 @@ using namespace IMPD;
 				bool updated;
 				bool success;
 				bool hasDiffStats;
-				std::string goldenPath;
-				std::string disabledPath;
+std::string goldenPath;
+std::string oldPath;
 				std::string actualPath;
 				std::string diffPath;
 				std::string backupPath;
@@ -483,120 +483,91 @@ return sanitized;
 	return true;
 	}
 
-	static std::string jsonEscape(const std::string& value)
-	{
-	std::ostringstream stream;
-	for (size_t i = 0; i < value.size(); ++i) {
-	const unsigned char c = static_cast<unsigned char>(value[i]);
-	switch (c) {
-	case '\\':
-	stream << "\\\\";
-	break;
-	case '"':
-	stream << "\\\"";
-	break;
-	case '\n':
-	stream << "\\n";
-	break;
-	case '\r':
-	stream << "\\r";
-	break;
-	case '\t':
-	stream << "\\t";
-	break;
-	default:
-	if (c < 0x20) {
-	char buffer[7];
-	std::snprintf(buffer, sizeof(buffer), "\\u%04X", static_cast<unsigned int>(c));
-	stream << buffer;
-	} else {
-	stream << value[i];
-	}
-	break;
-	}
-	}
-	return stream.str();
-	}
-	
 	static void logEntryResult(const SnapshotEntryResult& result)
-	{
+{
 	std::ostringstream stream;
-	stream << "{\"event\":\"snapshot-entry\"";
-	stream << ",\"ivg\":\"" << jsonEscape(result.ivgPath) << "\"";
-	stream << ",\"scenario\":\"" << jsonEscape(result.scenarioName) << "\"";
-		stream << ",\"entry\":" << result.entryOrdinal;
-		stream << ",\"block\":" << result.blockIndex;
-		stream << ",\"validate\":" << (result.validate ? "true" : "false");
-		stream << ",\"rendered\":" << (result.rendered ? "true" : "false");
-		stream << ",\"diffed\":" << (result.diffed ? "true" : "false");
-		stream << ",\"skipped\":" << (result.skipped ? "true" : "false");
-		stream << ",\"updated\":" << (result.updated ? "true" : "false");
-		stream << ",\"success\":" << (result.success ? "true" : "false");
-		stream << ",\"identifier\":\"" << jsonEscape(result.identifier) << "\"";
-		stream << ",\"golden\":\"" << jsonEscape(result.goldenPath) << "\"";
-	stream << ",\"disabled\":\"" << jsonEscape(result.disabledPath) << "\"";
-	stream << ",\"actual\":\"" << jsonEscape(result.actualPath) << "\"";
-	stream << ",\"diff\":\"" << jsonEscape(result.diffPath) << "\"";
-	stream << ",\"backup\":\"" << jsonEscape(result.backupPath) << "\"";
+	stream << result.ivgPath << ": scenario " << (result.scenarioName.empty() ? "(unnamed)" : result.scenarioName);
+	stream << ", entry " << result.entryOrdinal << " (block " << result.blockIndex << ")";
+	stream << " [" << (result.validate ? "validate" : "draft") << "]";
+
+	if (result.skipped) {
+		stream << " - skipped (draft output).";
+	} else if (!result.success) {
+		stream << " - FAILED.";
+	} else if (result.updated) {
+		stream << " - updated golden image.";
+	} else if (result.diffed) {
+		stream << " - compared against golden image.";
+	} else if (result.rendered) {
+		stream << " - rendered successfully.";
+	} else {
+		stream << " - no rendering performed.";
+	}
+
+	if (!result.identifier.empty()) {
+		stream << " Snapshot id: " << result.identifier << '.';
+	}
 	if (!result.message.empty()) {
-	stream << ",\"message\":\"" << jsonEscape(result.message) << "\"";
+		stream << ' ' << result.message;
+	}
+
+if (result.skipped && !result.oldPath.empty()) {
+stream << " Draft saved to " << result.oldPath << '.';
+	}
+	if (result.updated && !result.goldenPath.empty()) {
+		stream << " Golden stored at " << result.goldenPath << '.';
+	}
+	if (result.diffed) {
+		if (!result.actualPath.empty()) {
+			stream << " Actual: " << result.actualPath << '.';
+		}
+		if (!result.diffPath.empty()) {
+			stream << " Diff: " << result.diffPath << '.';
+		}
 	}
 	if (result.hasDiffStats) {
-	std::ostringstream diff;
-	diff.setf(std::ios::fixed);
-	diff << "{\"width\":" << result.diffStats.width
-	<< ",\"height\":" << result.diffStats.height
-	<< ",\"pixels\":" << result.diffStats.differingPixels
-	<< ",\"max\":{\"alpha\":" << result.diffStats.maxAlphaDiff
-	<< ",\"red\":" << result.diffStats.maxRedDiff
-	<< ",\"green\":" << result.diffStats.maxGreenDiff
-	<< ",\"blue\":" << result.diffStats.maxBlueDiff << "}"
-	<< ",\"mean\":{\"alpha\":" << std::setprecision(4) << result.diffStats.meanAlphaDiff
-	<< ",\"red\":" << result.diffStats.meanRedDiff
-	<< ",\"green\":" << result.diffStats.meanGreenDiff
-	<< ",\"blue\":" << result.diffStats.meanBlueDiff << "}}";
-	stream << ",\"diffStats\":" << diff.str();
+		stream << " Diff stats: " << result.diffStats.differingPixels << " pixel"
+			<< (result.diffStats.differingPixels == 1 ? "" : "s")
+			<< " changed within a " << result.diffStats.width << 'x' << result.diffStats.height << " image.";
+		stream.setf(std::ios::fixed);
+		stream << " Max channel delta (A/R/G/B): "
+			<< result.diffStats.maxAlphaDiff << '/' << result.diffStats.maxRedDiff << '/'
+			<< result.diffStats.maxGreenDiff << '/' << result.diffStats.maxBlueDiff << '.';
+		stream << " Mean channel delta (A/R/G/B): "
+			<< std::setprecision(4) << result.diffStats.meanAlphaDiff << '/' << result.diffStats.meanRedDiff << '/'
+			<< result.diffStats.meanGreenDiff << '/' << result.diffStats.meanBlueDiff << '.';
 	}
-	stream << "}";
+
 	std::cout << stream.str() << std::endl;
-	}
-	
-	static void logFileSummary(const std::string& path, const SnapshotRunResult& run)
-	{
+}
+
+static void logFileSummary(const std::string& path, const SnapshotRunResult& run)
+{
 	std::ostringstream stream;
-	stream << "{\"event\":\"snapshot-file-summary\"";
-	stream << ",\"ivg\":\"" << jsonEscape(path) << "\"";
-	stream << ",\"entries\":" << run.totalEntries;
-	stream << ",\"draft\":" << run.draftEntries;
-	stream << ",\"validated\":" << run.validatedEntries;
-	stream << ",\"updated\":" << run.updatedEntries;
-	stream << ",\"failed\":" << run.failedEntries;
-	stream << ",\"diffFailures\":" << run.diffFailures;
-	stream << ",\"exitCode\":" << run.exitCode;
+	const char* entryLabel = (run.totalEntries == 1 ? "snapshot" : "snapshots");
+	stream << path << ": processed " << run.totalEntries << ' ' << entryLabel << " (";
+	stream << run.validatedEntries << " validated, " << run.draftEntries << " draft)";
+	stream << ". Updated: " << run.updatedEntries << ". Failed: " << run.failedEntries;
+	stream << ". Diff failures: " << run.diffFailures << ". Exit code: " << run.exitCode << '.';
 	if (run.fileFailed && !run.fileError.empty()) {
-	stream << ",\"error\":\"" << jsonEscape(run.fileError) << "\"";
+		stream << " Error: " << run.fileError;
 	}
-	stream << "}";
 	std::cout << stream.str() << std::endl;
-	}
-	
-		static void logRunSummary(const SnapshotTotals& totals)
-		{
-		std::ostringstream stream;
-		stream << "{\"event\":\"snapshot-run-summary\"";
-		stream << ",\"files\":" << totals.filesProcessed;
-		stream << ",\"failedFiles\":" << totals.failedFiles;
-		stream << ",\"entries\":" << totals.totalEntries;
-		stream << ",\"draft\":" << totals.draftEntries;
-		stream << ",\"validated\":" << totals.validatedEntries;
-		stream << ",\"updated\":" << totals.updatedEntries;
-		stream << ",\"failed\":" << totals.failedEntries;
-		stream << ",\"diffFailures\":" << totals.diffFailures;
-		stream << "}";
-		std::cout << stream.str() << std::endl;
-		}
+}
 
-
+static void logRunSummary(const SnapshotTotals& totals)
+{
+	std::ostringstream stream;
+	const char* fileLabel = (totals.filesProcessed == 1 ? "file" : "files");
+	const char* failedLabel = (totals.failedFiles == 1 ? "file" : "files");
+	stream << "Processed " << totals.filesProcessed << ' ' << fileLabel;
+	stream << " (" << totals.failedFiles << ' ' << failedLabel << " failed).";
+	stream << " Total snapshots: " << totals.totalEntries << " ("
+		<< totals.validatedEntries << " validated, " << totals.draftEntries << " draft).";
+	stream << " Updated: " << totals.updatedEntries << ". Failed: " << totals.failedEntries;
+	stream << ". Diff failures: " << totals.diffFailures << '.';
+	std::cout << stream.str() << std::endl;
+}
 
 static bool loadPngRaster(const std::string& path, NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>& outRaster);
 static bool writeRasterToPng(const std::string& path, const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>& raster, std::string& error);
@@ -617,278 +588,312 @@ const SnapshotScenario& scenario,
 const SnapshotEntry& entry,
 const CommandLineOptions& options)
 {
-const std::string sanitizedBase = sanitizeFileComponent(baseName);
-std::string root = (options.outputDir.empty() ? extractDirectory(ivgPath) : options.outputDir);
-if (!sanitizedBase.empty()) {
-root = joinPath(root, sanitizedBase);
-}
-std::string scenarioName = stringFromIMPD(entry.scenarioName);
-if (scenario.entryIndices.size() > 1) {
-scenarioName += "-";
-scenarioName += Interpreter::toString(static_cast<int32_t>(entry.entryOrdinal));
-}
-scenarioName = sanitizeFileComponent(scenarioName);
-const std::string stem = joinPath(root, scenarioName);
-goldenPath = stem + ".png";
-disabledPath = stem + ".png.disabled";
-actualPath = stem + ".actual.png";
-diffPath = stem + ".diff.png";
-backupPath = stem + ".png.bak";
-}
+			const std::string sanitizedBase = sanitizeFileComponent(baseName);
+			std::string root = (options.outputDir.empty() ? extractDirectory(ivgPath) : options.outputDir);
+			if (!sanitizedBase.empty()) {
+				root = joinPath(root, sanitizedBase);
+			}
+			std::string scenarioName = stringFromIMPD(entry.scenarioName);
+			if (scenario.entryIndices.size() > 1) {
+				scenarioName += "-";
+				scenarioName += Interpreter::toString(static_cast<int32_t>(entry.entryOrdinal));
+			}
+			scenarioName = sanitizeFileComponent(scenarioName);
+			const std::string stem = joinPath(root, scenarioName);
+			goldenPath = stem + ".png";
+			oldPath = stem + ".png.old";
+			actualPath = stem + ".actual.png";
+			diffPath = stem + ".diff.png";
+			backupPath = stem + ".png.bak";
+		}
 
-void populateResult(SnapshotEntryResult& result) const
-{
-result.goldenPath = goldenPath;
-result.disabledPath = disabledPath;
-result.actualPath = actualPath;
-result.diffPath = diffPath;
-result.backupPath = backupPath;
-}
+		void populateResult(SnapshotEntryResult& result) const
+		{
+			result.goldenPath = goldenPath;
+			result.oldPath = oldPath;
+			result.actualPath = actualPath;
+			result.diffPath = diffPath;
+			result.backupPath = backupPath;
+		}
 
-bool writeDraft(const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>& raster, SnapshotEntryResult& result) const
-{
-populateResult(result);
-result.skipped = true;
-result.updated = false;
-result.diffed = false;
-result.hasDiffStats = false;
-result.success = true;
+		bool writeDraft(const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>& raster, SnapshotEntryResult& result) const
+		{
+			populateResult(result);
+			result.skipped = true;
+			result.updated = false;
+			result.diffed = false;
+			result.hasDiffStats = false;
+			result.success = true;
 
-const NuXPixels::IntRect bounds = raster.calcBounds();
-if (bounds.width <= 0 || bounds.height <= 0) {
-removeFileIfExists(disabledPath);
-removeFileIfExists(actualPath);
-removeFileIfExists(diffPath);
-return true;
-}
+			const NuXPixels::IntRect bounds = raster.calcBounds();
+			if (bounds.width <= 0 || bounds.height <= 0) {
+				removeFileIfExists(oldPath);
+				removeFileIfExists(actualPath);
+				removeFileIfExists(diffPath);
+				removeFileIfExists(goldenPath);
+				return true;
+			}
 
-if (!ensureParentDirectory(disabledPath)) {
-result.success = false;
-result.message = std::string("failed to prepare directory for ") + disabledPath + ": " + std::strerror(errno);
-return false;
-}
+			if (!ensureParentDirectory(oldPath)) {
+				result.success = false;
+				result.message = std::string("failed to prepare directory for ") + oldPath + ": " + std::strerror(errno);
+				return false;
+			}
 
-std::string error;
-if (!writeRasterToPng(disabledPath, raster, error)) {
-result.success = false;
-result.message = error;
-return false;
-}
-removeFileIfExists(actualPath);
-removeFileIfExists(diffPath);
-return true;
-}
+			if (fileExists(goldenPath)) {
+				std::string renameError;
+				if (!renameFile(goldenPath, oldPath, renameError)) {
+					result.success = false;
+					result.message = renameError;
+					return false;
+				}
+			}
 
-bool validate(const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>& raster, bool forceUpdate, SnapshotEntryResult& result) const
-{
-populateResult(result);
-result.skipped = false;
-result.diffed = false;
-result.updated = false;
-result.hasDiffStats = false;
+			std::string error;
+			if (!writeRasterToPng(oldPath, raster, error)) {
+				result.success = false;
+				result.message = error;
+				return false;
+			}
+			removeFileIfExists(actualPath);
+			removeFileIfExists(diffPath);
+			removeFileIfExists(goldenPath);
+			return true;
+		}
 
-std::string error;
-if (!ensureParentDirectory(goldenPath)) {
-result.success = false;
-result.message = std::string("failed to prepare directory for ") + goldenPath + ": " + std::strerror(errno);
-return false;
-}
+		bool validate(const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>& raster, bool forceUpdate, SnapshotEntryResult& result) const
+		{
+			populateResult(result);
+			result.skipped = false;
+			result.diffed = false;
+			result.updated = false;
+			result.hasDiffStats = false;
 
-const bool goldenExists = fileExists(goldenPath);
-const bool disabledExists = fileExists(disabledPath);
+			std::string error;
+			if (!ensureParentDirectory(goldenPath)) {
+				result.success = false;
+				result.message = std::string("failed to prepare directory for ") + goldenPath + ": " + std::strerror(errno);
+				return false;
+			}
 
-if (forceUpdate) {
-const NuXPixels::IntRect bounds = raster.calcBounds();
-if (bounds.width <= 0 || bounds.height <= 0) {
-removeFileIfExists(goldenPath);
-removeFileIfExists(disabledPath);
-removeFileIfExists(actualPath);
-removeFileIfExists(diffPath);
-removeFileIfExists(backupPath);
-result.updated = true;
-result.success = true;
-return true;
-}
+			const bool goldenExists = fileExists(goldenPath);
+			const bool oldExists = fileExists(oldPath);
 
-if (goldenExists) {
-if (!renameFile(goldenPath, backupPath, error)) {
-result.success = false;
-result.message = error;
-return false;
-}
-} else if (disabledExists) {
-if (!renameFile(disabledPath, backupPath, error)) {
-result.success = false;
-result.message = error;
-return false;
-}
-}
+			if (forceUpdate) {
+				const NuXPixels::IntRect bounds = raster.calcBounds();
+				if (bounds.width <= 0 || bounds.height <= 0) {
+					removeFileIfExists(goldenPath);
+					removeFileIfExists(oldPath);
+					removeFileIfExists(actualPath);
+					removeFileIfExists(diffPath);
+					removeFileIfExists(backupPath);
+					result.updated = true;
+					result.success = true;
+					return true;
+				}
 
-removeFileIfExists(actualPath);
-removeFileIfExists(diffPath);
-if (!writeRasterToPng(goldenPath, raster, error)) {
-result.success = false;
-result.message = error;
-return false;
-}
-removeFileIfExists(disabledPath);
-result.updated = true;
-result.success = true;
-return true;
-}
+				if (goldenExists) {
+					if (!renameFile(goldenPath, backupPath, error)) {
+						result.success = false;
+						result.message = error;
+						return false;
+					}
+				} else if (oldExists) {
+					if (!renameFile(oldPath, backupPath, error)) {
+						result.success = false;
+						result.message = error;
+						return false;
+					}
+				}
 
-if (!goldenExists) {
-result.success = false;
-if (disabledExists) {
-result.message = std::string("missing golden: ") + goldenPath + " (draft exists; rerun with --force-update)";
-} else {
-result.message = std::string("missing golden: ") + goldenPath;
-}
-return false;
-}
+				removeFileIfExists(actualPath);
+				removeFileIfExists(diffPath);
+				if (!writeRasterToPng(goldenPath, raster, error)) {
+					result.success = false;
+					result.message = error;
+					return false;
+				}
+				removeFileIfExists(oldPath);
+				result.updated = true;
+				result.success = true;
+				return true;
+			}
 
-NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> goldenRaster;
-if (!loadPngRaster(goldenPath, goldenRaster)) {
-result.success = false;
-result.message = std::string("failed to read golden PNG: ") + goldenPath;
-return false;
-}
+			if (!goldenExists) {
+				if (!oldExists) {
+					result.success = false;
+					result.message = std::string("missing golden: ") + goldenPath + " (no .old fallback present)";
+					return false;
+				}
 
-const NuXPixels::IntRect actualBounds = raster.calcBounds();
-const NuXPixels::IntRect goldenBounds = goldenRaster.calcBounds();
-const int left = NuXPixels::minValue(actualBounds.left, goldenBounds.left);
-const int top = NuXPixels::minValue(actualBounds.top, goldenBounds.top);
-const int right = NuXPixels::maxValue(actualBounds.calcRight(), goldenBounds.calcRight());
-const int bottom = NuXPixels::maxValue(actualBounds.calcBottom(), goldenBounds.calcBottom());
-const int width = (right > left ? right - left : 0);
-const int height = (bottom > top ? bottom - top : 0);
+				const NuXPixels::IntRect bounds = raster.calcBounds();
+				if (bounds.width <= 0 || bounds.height <= 0) {
+					removeFileIfExists(goldenPath);
+					removeFileIfExists(oldPath);
+					removeFileIfExists(actualPath);
+					removeFileIfExists(diffPath);
+					result.updated = true;
+					result.success = true;
+					result.message = std::string("promoted draft image to golden: ") + goldenPath + '.';
+					return true;
+				}
 
-SnapshotDiffStats stats;
-stats.width = static_cast<uint32_t>(width);
-stats.height = static_cast<uint32_t>(height);
+				if (!writeRasterToPng(goldenPath, raster, error)) {
+					result.success = false;
+					result.message = error;
+					return false;
+				}
+				removeFileIfExists(oldPath);
+				removeFileIfExists(actualPath);
+				removeFileIfExists(diffPath);
+				result.updated = true;
+				result.success = true;
+				result.message = std::string("promoted draft image to golden: ") + goldenPath + '.';
+				return true;
+			}
 
-if (width <= 0 || height <= 0) {
-result.success = true;
-removeFileIfExists(actualPath);
-removeFileIfExists(diffPath);
-return true;
-}
+			NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> goldenRaster;
+			if (!loadPngRaster(goldenPath, goldenRaster)) {
+				result.success = false;
+				result.message = std::string("failed to read golden PNG: ") + goldenPath;
+				return false;
+			}
 
-NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> diffRaster(NuXPixels::IntRect(left, top, width, height));
-const NuXPixels::ARGB32::Pixel* actualPixels = raster.getPixelPointer();
-const NuXPixels::ARGB32::Pixel* goldenPixelsPtr = goldenRaster.getPixelPointer();
-const int actualStride = raster.getStride();
-const int goldenStride = goldenRaster.getStride();
-NuXPixels::ARGB32::Pixel* diffPixels = diffRaster.getPixelPointer();
-const int diffStride = diffRaster.getStride();
+			const NuXPixels::IntRect actualBounds = raster.calcBounds();
+			const NuXPixels::IntRect goldenBounds = goldenRaster.calcBounds();
+			const int left = NuXPixels::minValue(actualBounds.left, goldenBounds.left);
+			const int top = NuXPixels::minValue(actualBounds.top, goldenBounds.top);
+			const int right = NuXPixels::maxValue(actualBounds.calcRight(), goldenBounds.calcRight());
+			const int bottom = NuXPixels::maxValue(actualBounds.calcBottom(), goldenBounds.calcBottom());
+			const int width = (right > left ? right - left : 0);
+			const int height = (bottom > top ? bottom - top : 0);
 
-uint64_t sumAlpha = 0;
-uint64_t sumRed = 0;
-uint64_t sumGreen = 0;
-uint64_t sumBlue = 0;
-bool match = true;
+			SnapshotDiffStats stats;
+			stats.width = static_cast<uint32_t>(width);
+			stats.height = static_cast<uint32_t>(height);
 
-for (int y = top; y < bottom; ++y) {
-NuXPixels::ARGB32::Pixel* diffRow = diffPixels + y * diffStride;
-const NuXPixels::ARGB32::Pixel* actualRow = (y >= actualBounds.top && y < actualBounds.calcBottom()) ? actualPixels + y * actualStride : 0;
-const NuXPixels::ARGB32::Pixel* goldenRow = (y >= goldenBounds.top && y < goldenBounds.calcBottom()) ? goldenPixelsPtr + y * goldenStride : 0;
-for (int x = left; x < right; ++x) {
-const NuXPixels::ARGB32::Pixel actualPixel = (actualRow != 0 && x >= actualBounds.left && x < actualBounds.calcRight()) ? actualRow[x] : 0;
-const NuXPixels::ARGB32::Pixel goldenPixel = (goldenRow != 0 && x >= goldenBounds.left && x < goldenBounds.calcRight()) ? goldenRow[x] : 0;
-if (actualPixel == goldenPixel) {
-diffRow[x] = 0;
-continue;
-}
-match = false;
-++stats.differingPixels;
-const unsigned int actualA = (actualPixel >> 24) & 0xFF;
-const unsigned int actualR = (actualPixel >> 16) & 0xFF;
-const unsigned int actualG = (actualPixel >> 8) & 0xFF;
-const unsigned int actualB = actualPixel & 0xFF;
-const unsigned int goldenA = (goldenPixel >> 24) & 0xFF;
-const unsigned int goldenR = (goldenPixel >> 16) & 0xFF;
-const unsigned int goldenG = (goldenPixel >> 8) & 0xFF;
-const unsigned int goldenB = goldenPixel & 0xFF;
-const unsigned int diffA = (actualA > goldenA ? actualA - goldenA : goldenA - actualA);
-const unsigned int diffR = (actualR > goldenR ? actualR - goldenR : goldenR - actualR);
-const unsigned int diffG = (actualG > goldenG ? actualG - goldenG : goldenG - actualG);
-const unsigned int diffB = (actualB > goldenB ? actualB - goldenB : goldenB - actualB);
-if (diffA > stats.maxAlphaDiff) {
-stats.maxAlphaDiff = diffA;
-}
-if (diffR > stats.maxRedDiff) {
-stats.maxRedDiff = diffR;
-}
-if (diffG > stats.maxGreenDiff) {
-stats.maxGreenDiff = diffG;
-}
-if (diffB > stats.maxBlueDiff) {
-stats.maxBlueDiff = diffB;
-}
-sumAlpha += diffA;
-sumRed += diffR;
-sumGreen += diffG;
-sumBlue += diffB;
-unsigned int scaledR = diffR * 4;
-unsigned int scaledG = diffG * 4;
-unsigned int scaledB = diffB * 4;
-if (scaledR > 255) {
-scaledR = 255;
-}
-if (scaledG > 255) {
-scaledG = 255;
-}
-if (scaledB > 255) {
-scaledB = 255;
-}
-diffRow[x] = (0xFFu << 24) | (scaledR << 16) | (scaledG << 8) | scaledB;
-}
-}
+			if (width <= 0 || height <= 0) {
+				result.success = true;
+				removeFileIfExists(actualPath);
+				removeFileIfExists(diffPath);
+				return true;
+			}
 
-const uint64_t pixelCount = static_cast<uint64_t>(width) * static_cast<uint64_t>(height);
-if (pixelCount > 0) {
-stats.meanAlphaDiff = static_cast<double>(sumAlpha) / pixelCount;
-stats.meanRedDiff = static_cast<double>(sumRed) / pixelCount;
-stats.meanGreenDiff = static_cast<double>(sumGreen) / pixelCount;
-stats.meanBlueDiff = static_cast<double>(sumBlue) / pixelCount;
-}
+			NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> diffRaster(NuXPixels::IntRect(left, top, width, height));
+			const NuXPixels::ARGB32::Pixel* actualPixels = raster.getPixelPointer();
+			const NuXPixels::ARGB32::Pixel* goldenPixelsPtr = goldenRaster.getPixelPointer();
+			const int actualStride = raster.getStride();
+			const int goldenStride = goldenRaster.getStride();
+			NuXPixels::ARGB32::Pixel* diffPixels = diffRaster.getPixelPointer();
+			const int diffStride = diffRaster.getStride();
 
-if (match) {
-result.success = true;
-removeFileIfExists(actualPath);
-removeFileIfExists(diffPath);
-return true;
-}
+			uint64_t sumAlpha = 0;
+			uint64_t sumRed = 0;
+			uint64_t sumGreen = 0;
+			uint64_t sumBlue = 0;
+			bool match = true;
 
-result.success = false;
-result.diffed = true;
-result.hasDiffStats = true;
-result.diffStats = stats;
+			for (int y = top; y < bottom; ++y) {
+				NuXPixels::ARGB32::Pixel* diffRow = diffPixels + y * diffStride;
+				const NuXPixels::ARGB32::Pixel* actualRow = (y >= actualBounds.top && y < actualBounds.calcBottom()) ? actualPixels + y * actualStride : 0;
+				const NuXPixels::ARGB32::Pixel* goldenRow = (y >= goldenBounds.top && y < goldenBounds.calcBottom()) ? goldenPixelsPtr + y * goldenStride : 0;
+				for (int x = left; x < right; ++x) {
+					const NuXPixels::ARGB32::Pixel actualPixel = (actualRow != 0 && x >= actualBounds.left && x < actualBounds.calcRight()) ? actualRow[x] : 0;
+					const NuXPixels::ARGB32::Pixel goldenPixel = (goldenRow != 0 && x >= goldenBounds.left && x < goldenBounds.calcRight()) ? goldenRow[x] : 0;
+					if (actualPixel == goldenPixel) {
+						diffRow[x] = 0;
+						continue;
+					}
+					match = false;
+					++stats.differingPixels;
+					const unsigned int actualA = (actualPixel >> 24) & 0xFF;
+					const unsigned int actualR = (actualPixel >> 16) & 0xFF;
+					const unsigned int actualG = (actualPixel >> 8) & 0xFF;
+					const unsigned int actualB = actualPixel & 0xFF;
+					const unsigned int goldenA = (goldenPixel >> 24) & 0xFF;
+					const unsigned int goldenR = (goldenPixel >> 16) & 0xFF;
+					const unsigned int goldenG = (goldenPixel >> 8) & 0xFF;
+					const unsigned int goldenB = goldenPixel & 0xFF;
+					const unsigned int diffA = (actualA > goldenA ? actualA - goldenA : goldenA - actualA);
+					const unsigned int diffR = (actualR > goldenR ? actualR - goldenR : goldenR - actualR);
+					const unsigned int diffG = (actualG > goldenG ? actualG - goldenG : goldenG - actualG);
+					const unsigned int diffB = (actualB > goldenB ? actualB - goldenB : goldenB - actualB);
+					if (diffA > stats.maxAlphaDiff) {
+						stats.maxAlphaDiff = diffA;
+					}
+					if (diffR > stats.maxRedDiff) {
+						stats.maxRedDiff = diffR;
+					}
+					if (diffG > stats.maxGreenDiff) {
+						stats.maxGreenDiff = diffG;
+					}
+					if (diffB > stats.maxBlueDiff) {
+						stats.maxBlueDiff = diffB;
+					}
+					sumAlpha += diffA;
+					sumRed += diffR;
+					sumGreen += diffG;
+					sumBlue += diffB;
+					unsigned int scaledR = diffR * 4;
+					unsigned int scaledG = diffG * 4;
+					unsigned int scaledB = diffB * 4;
+					if (scaledR > 255) {
+						scaledR = 255;
+					}
+					if (scaledG > 255) {
+						scaledG = 255;
+					}
+					if (scaledB > 255) {
+						scaledB = 255;
+					}
+					diffRow[x] = (0xFFu << 24) | (scaledR << 16) | (scaledG << 8) | scaledB;
+				}
+			}
 
-std::ostringstream summary;
-summary << "differs from golden (pixels: " << stats.differingPixels << "/" << (stats.width * stats.height) << ")";
-result.message = summary.str();
+			const uint64_t pixelCount = static_cast<uint64_t>(width) * static_cast<uint64_t>(height);
+			if (pixelCount > 0) {
+				stats.meanAlphaDiff = static_cast<double>(sumAlpha) / pixelCount;
+				stats.meanRedDiff = static_cast<double>(sumRed) / pixelCount;
+				stats.meanGreenDiff = static_cast<double>(sumGreen) / pixelCount;
+				stats.meanBlueDiff = static_cast<double>(sumBlue) / pixelCount;
+			}
 
-removeFileIfExists(actualPath);
-removeFileIfExists(diffPath);
-if (!writeRasterToPng(actualPath, raster, error)) {
-result.message = error;
-return false;
-}
-if (!writeRasterToPng(diffPath, diffRaster, error)) {
-result.message = error;
-return false;
-}
+			if (match) {
+				result.success = true;
+				removeFileIfExists(actualPath);
+				removeFileIfExists(diffPath);
+				return true;
+			}
 
-return false;
-}
+			result.success = false;
+			result.diffed = true;
+			result.hasDiffStats = true;
+			result.diffStats = stats;
+
+			std::ostringstream summary;
+			summary << "differs from golden (pixels: " << stats.differingPixels << "/" << (stats.width * stats.height) << ")";
+			result.message = summary.str();
+
+			removeFileIfExists(actualPath);
+			removeFileIfExists(diffPath);
+			if (!writeRasterToPng(actualPath, raster, error)) {
+				result.message = error;
+				return false;
+			}
+			if (!writeRasterToPng(diffPath, diffRaster, error)) {
+				result.message = error;
+				return false;
+			}
+
+			return false;
+		}
 
 private:
-std::string goldenPath;
-std::string disabledPath;
-std::string actualPath;
-std::string diffPath;
-std::string backupPath;
+			std::string goldenPath;
+			std::string oldPath;
+			std::string actualPath;
+			std::string diffPath;
+			std::string backupPath;
 };
 
 	static void PNGAPI snapshotPNGError(png_structp png, png_const_charp message)
@@ -902,6 +907,27 @@ std::string backupPath;
 				return (*reinterpret_cast<const unsigned int*>(bytes) == 0x1D2C3B4A);
 			}
 		
+static unsigned int convertPremultipliedChannelToStraight(unsigned int value, unsigned int alpha)
+{
+	if (alpha == 0 || value == 0) {
+		return 0;
+	}
+	unsigned int numerator = value * 255u + (alpha / 2u);
+	unsigned int result = numerator / alpha;
+	if (result > 255u) {
+		result = 255u;
+	}
+	return result;
+}
+
+static unsigned int convertStraightChannelToPremultiplied(unsigned int value, unsigned int alpha)
+{
+	if (alpha == 0 || value == 0) {
+		return 0;
+	}
+	return (value * alpha + 127u) / 255u;
+}
+
 static bool loadPngRaster(const std::string& path, NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>& outRaster)
 {
 FILE* file = std::fopen(path.c_str(), "rb");
@@ -935,25 +961,27 @@ return false;
 					const png_uint_32 height = png_get_image_height(png, info);
 					png_bytep* rows = png_get_rows(png, info);
 		
-					outRaster = NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>(NuXPixels::IntRect(0, 0,
+					NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> tempRaster(NuXPixels::IntRect(0, 0,
 						static_cast<int>(width), static_cast<int>(height)));
-		
+
 					for (png_uint_32 y = 0; y < height; ++y) {
-						NuXPixels::ARGB32::Pixel* dest = outRaster.getPixelPointer() + y * outRaster.getStride();
+						NuXPixels::ARGB32::Pixel* dest = tempRaster.getPixelPointer() + y * tempRaster.getStride();
 						png_bytep src = rows[y];
 						for (png_uint_32 x = 0; x < width; ++x) {
 							unsigned int b = src[x * 4 + 0];
 							unsigned int g = src[x * 4 + 1];
 							unsigned int r = src[x * 4 + 2];
 							unsigned int a = src[x * 4 + 3];
-							if (a != 0xFF) {
-								r = (r * a + 0x7F) >> 8;
-								g = (g * a + 0x7F) >> 8;
-								b = (b * a + 0x7F) >> 8;
-							}
+                                                        if (a != 0xFF) {
+                                                                r = convertStraightChannelToPremultiplied(r, a);
+                                                                g = convertStraightChannelToPremultiplied(g, a);
+                                                                b = convertStraightChannelToPremultiplied(b, a);
+                                                        }
 							dest[x] = (a << 24) | (r << 16) | (g << 8) | b;
-}
-}
+						}
+					}
+
+					outRaster = tempRaster;
 
 					png_destroy_read_struct(&png, &info, 0);
 					std::fclose(file);
@@ -993,10 +1021,9 @@ unsigned int r = (pixel >> 16) & 0xFF;
 unsigned int g = (pixel >> 8) & 0xFF;
 unsigned int b = pixel & 0xFF;
 if (a != 0 && a != 0xFF) {
-const unsigned int m = 0xFFFFu / a;
-r = (r * m) >> 8;
-g = (g * m) >> 8;
-b = (b * m) >> 8;
+r = convertPremultipliedChannelToStraight(r, a);
+g = convertPremultipliedChannelToStraight(g, a);
+b = convertPremultipliedChannelToStraight(b, a);
 }
 dest[x * 4 + 0] = static_cast<unsigned char>(r);
 dest[x * 4 + 1] = static_cast<unsigned char>(g);
@@ -1057,148 +1084,282 @@ return false;
 
 
 class SnapshotPlan {
-				public:
-				explicit SnapshotPlan(const std::string& ivgPath)
-				: baseName(extractBaseName(ivgPath))
-				, nextBlockOrdinal(1)
-				{
+			public:
+			explicit SnapshotPlan(const std::string& ivgPath)
+			: baseName(extractBaseName(ivgPath))
+			, nextBlockOrdinal(1)
+			, collectingPlan(false)
+                       , activeScenarioIndex(0)
+                       , activeEntryOrdinal(1)
+                       , collectionRunCursor(0)
+                       , collectionRunsBuilt(false)
+                       , recordedBlockCursor(0)
+			{
+			}
+
+			uint32_t addBlock(Interpreter& interpreter, const SnapshotBlock& block)
+			{
+				if (block.statements.empty()) {
+					Interpreter::throwBadSyntax("snapshot meta requires at least one statement block.");
 				}
-		
-				void addBlock(Interpreter& interpreter, const SnapshotBlock& block)
-				{
-					if (block.statements.empty()) {
-						Interpreter::throwBadSyntax("snapshot meta requires at least one statement block.");
+
+                               uint32_t blockOrdinal = nextBlockOrdinal;
+                               if (collectionRunsBuilt) {
+                                       if (recordedBlockCursor >= recordedBlockOrdinals.size()) {
+                                               Interpreter::throwBadSyntax("snapshot replay encountered an unexpected block.");
+                                       }
+                                       blockOrdinal = recordedBlockOrdinals[recordedBlockCursor++];
+                                       return blockOrdinal;
+                               }
+
+                               recordedBlockOrdinals.push_back(blockOrdinal);
+                               const bool hasExplicitScenario = !block.scenario.empty();
+				if (hasExplicitScenario) {
+					const uint32_t scenarioIndex = resolveScenario(interpreter, block.scenario, block.validate, true);
+					SnapshotScenario& scenario = scenarios[scenarioIndex];
+					const uint32_t statementCount = static_cast<uint32_t>(block.statements.size());
+					if (!scenario.entryIndices.empty() && statementCount != scenario.entryIndices.size()) {
+						Interpreter::throwBadSyntax("scenario entry count does not match previous blocks.");
 					}
-		
-					const uint32_t blockOrdinal = nextBlockOrdinal;
-					const bool hasExplicitScenario = !block.scenario.empty();
-					if (hasExplicitScenario) {
-						const uint32_t scenarioIndex = resolveScenario(interpreter, block.scenario, block.validate, true);
+
+					for (uint32_t i = 0; i < statementCount; ++i) {
+						const uint32_t entryOrdinal = i + 1;
+						SnapshotEntry& entry = ensureEntry(scenarioIndex, scenario, entryOrdinal, block.validate, block.scenario);
+
+						SnapshotInvocation invocation;
+						invocation.blockIndex = blockOrdinal;
+						invocation.sourceLine = block.sourceLine;
+						invocation.statementOrdinal = entryOrdinal;
+						invocation.statements = block.statements[i];
+						entry.invocations.push_back(invocation);
+					}
+				} else {
+					const uint32_t statementCount = static_cast<uint32_t>(block.statements.size());
+					for (uint32_t i = 0; i < statementCount; ++i) {
+						const uint32_t entryOrdinal = 1;
+						const String scenarioName = synthesizeScenarioName(blockOrdinal, statementCount, i + 1);
+						const uint32_t scenarioIndex = resolveScenario(interpreter, scenarioName, block.validate, false);
 						SnapshotScenario& scenario = scenarios[scenarioIndex];
-						const uint32_t statementCount = static_cast<uint32_t>(block.statements.size());
-						if (!scenario.entryIndices.empty() && statementCount != scenario.entryIndices.size()) {
-							Interpreter::throwBadSyntax("scenario entry count does not match previous blocks.");
-						}
-		
-						for (uint32_t i = 0; i < statementCount; ++i) {
-							const uint32_t entryOrdinal = i + 1;
-							SnapshotEntry& entry = ensureEntry(scenarioIndex, scenario, entryOrdinal, block.validate, block.scenario);
-		
-							SnapshotInvocation invocation;
-							invocation.blockIndex = blockOrdinal;
-							invocation.sourceLine = block.sourceLine;
-							invocation.statementOrdinal = entryOrdinal;
-							invocation.statements = block.statements[i];
-							entry.invocations.push_back(invocation);
-						}
-					} else {
-						const uint32_t statementCount = static_cast<uint32_t>(block.statements.size());
-						for (uint32_t i = 0; i < statementCount; ++i) {
-							const uint32_t entryOrdinal = 1;
-							const String scenarioName = synthesizeScenarioName(blockOrdinal, statementCount, i + 1);
-							const uint32_t scenarioIndex = resolveScenario(interpreter, scenarioName, block.validate, false);
-							SnapshotScenario& scenario = scenarios[scenarioIndex];
-							SnapshotEntry& entry = ensureEntry(scenarioIndex, scenario, entryOrdinal, block.validate, scenarioName);
-		
-							SnapshotInvocation invocation;
-							invocation.blockIndex = blockOrdinal;
-							invocation.sourceLine = block.sourceLine;
-							invocation.statementOrdinal = i + 1;
-							invocation.statements = block.statements[i];
-							entry.invocations.push_back(invocation);
-						}
+						SnapshotEntry& entry = ensureEntry(scenarioIndex, scenario, entryOrdinal, block.validate, scenarioName);
+
+						SnapshotInvocation invocation;
+						invocation.blockIndex = blockOrdinal;
+						invocation.sourceLine = block.sourceLine;
+						invocation.statementOrdinal = i + 1;
+						invocation.statements = block.statements[i];
+						entry.invocations.push_back(invocation);
 					}
-		
-					++nextBlockOrdinal;
 				}
-		
-const std::vector<SnapshotScenario>& getScenarios() const { return scenarios; }
-const std::vector<SnapshotEntry>& getEntries() const { return entries; }
-const String& getBaseName() const { return baseName; }
-		
-				private:
-				String extractBaseName(const std::string& path) const
-				{
-					const size_t slash = path.find_last_of("/\\");
-					const size_t baseOffset = (slash == std::string::npos ? 0 : slash + 1);
-					size_t dot = path.find_last_of('.');
-					if (dot == std::string::npos || dot < baseOffset) {
-						dot = path.size();
+
+				++nextBlockOrdinal;
+				return blockOrdinal;
+			}
+
+			const std::vector<SnapshotScenario>& getScenarios() const { return scenarios; }
+			const std::vector<SnapshotEntry>& getEntries() const { return entries; }
+			const String& getBaseName() const { return baseName; }
+
+                       void beginCollection()
+                       {
+                               collectingPlan = true;
+                               activeScenarioIndex = 0;
+                               activeEntryOrdinal = 1;
+                               collectionRuns.clear();
+                               collectionRunCursor = 0;
+                               collectionRunsBuilt = false;
+                               recordedBlockOrdinals.clear();
+                               recordedBlockCursor = 0;
+                       }
+
+			void completeCollectionPass()
+			{
+				collectingPlan = false;
+			}
+
+                       bool prepareNextCollectionPass()
+                       {
+                               if (!collectionRunsBuilt) {
+                                       buildCollectionRuns();
+                                       collectionRunsBuilt = true;
+                                       if (collectionRuns.empty()) {
+                                               return false;
+                                       }
+                                       collectionRunCursor = 0;
+                                       recordedBlockCursor = 0;
+                               }
+
+                               if (collectionRuns.empty()) {
+                                       return false;
+                               }
+                               if (collectionRunCursor + 1 >= collectionRuns.size()) {
+                                       return false;
+                               }
+
+                               ++collectionRunCursor;
+                               const CollectionRun& run = collectionRuns[collectionRunCursor];
+                               activeScenarioIndex = run.scenarioIndex;
+                               activeEntryOrdinal = run.entryOrdinal;
+                               collectingPlan = true;
+                               recordedBlockCursor = 0;
+                               return true;
+                       }
+
+			bool isCollectingPlan() const
+			{
+				return collectingPlan;
+			}
+
+			uint32_t getActiveScenarioIndex() const
+			{
+				return activeScenarioIndex;
+			}
+
+			uint32_t getActiveEntryOrdinal() const
+			{
+				return activeEntryOrdinal;
+			}
+
+			const SnapshotInvocation* lookupInvocation(uint32_t blockOrdinal, uint32_t scenarioIndex, uint32_t entryOrdinal) const
+			{
+				if (scenarioIndex >= scenarios.size()) {
+					return 0;
+				}
+
+				const SnapshotScenario& scenario = scenarios[scenarioIndex];
+				if (entryOrdinal == 0 || entryOrdinal > scenario.entryIndices.size()) {
+					return 0;
+				}
+
+				const uint32_t entryIndex = scenario.entryIndices[entryOrdinal - 1];
+				const SnapshotEntry& entry = entries[entryIndex];
+				for (size_t i = 0; i < entry.invocations.size(); ++i) {
+					if (entry.invocations[i].blockIndex == blockOrdinal) {
+						return &entry.invocations[i];
 					}
-					return String(path.c_str() + baseOffset, path.c_str() + dot);
 				}
-		
-				String synthesizeScenarioName(uint32_t blockOrdinal, uint32_t blockCount, uint32_t entryOrdinal) const
-				{
-					String name = baseName;
+				return 0;
+			}
+
+			private:
+			String extractBaseName(const std::string& path) const
+			{
+				const size_t slash = path.find_last_of("/\\");
+				const size_t baseOffset = (slash == std::string::npos ? 0 : slash + 1);
+				size_t dot = path.find_last_of('.');
+				if (dot == std::string::npos || dot < baseOffset) {
+					dot = path.size();
+				}
+				return String(path.c_str() + baseOffset, path.c_str() + dot);
+			}
+
+			String synthesizeScenarioName(uint32_t blockOrdinal, uint32_t blockCount, uint32_t entryOrdinal) const
+			{
+				String name = baseName;
+				name += '-';
+				name += Interpreter::toString(static_cast<int32_t>(blockOrdinal));
+				if (blockCount > 1) {
 					name += '-';
-					name += Interpreter::toString(static_cast<int32_t>(blockOrdinal));
-					if (blockCount > 1) {
-						name += '-';
-						name += Interpreter::toString(static_cast<int32_t>(entryOrdinal));
-					}
-					return name;
+					name += Interpreter::toString(static_cast<int32_t>(entryOrdinal));
 				}
-		
-				uint32_t resolveScenario(Interpreter& interpreter, const String& name, bool validate, bool explicitScenario)
-				{
-					const std::map<String, uint32_t>::const_iterator it = scenarioLookup.find(name);
-					if (it != scenarioLookup.end()) {
-						SnapshotScenario& existing = scenarios[it->second];
-						if (existing.validate != validate) {
-							Interpreter::throwBadSyntax("scenario switches between validate yes/no.");
-						}
-						return it->second;
+				return name;
+			}
+
+			uint32_t resolveScenario(Interpreter& interpreter, const String& name, bool validate, bool explicitScenario)
+			{
+				const std::map<String, uint32_t>::const_iterator it = scenarioLookup.find(name);
+				if (it != scenarioLookup.end()) {
+					SnapshotScenario& existing = scenarios[it->second];
+					if (existing.validate != validate) {
+						Interpreter::throwBadSyntax("scenario switches between validate yes/no.");
 					}
-		
-					SnapshotScenario scenario;
-					scenario.name = name;
-					scenario.validate = validate;
-					scenario.explicitScenario = explicitScenario;
-		
-					scenarios.push_back(scenario);
-					const uint32_t index = static_cast<uint32_t>(scenarios.size() - 1);
-					scenarioLookup.insert(std::make_pair(name, index));
-					return index;
+					return it->second;
 				}
-		
-				SnapshotEntry& ensureEntry(uint32_t scenarioIndex, SnapshotScenario& scenario, uint32_t entryOrdinal, bool validate, const String& scenarioName)
-				{
-					const std::map<uint32_t, uint32_t>::const_iterator existing = scenario.entryLookup.find(entryOrdinal);
-					if (existing != scenario.entryLookup.end()) {
-						return entries[existing->second];
-					}
-		
-					SnapshotEntry entry;
-					entry.scenarioIndex = scenarioIndex;
-					entry.entryOrdinal = entryOrdinal;
-					entry.validate = validate;
-					entry.scenarioName = scenarioName;
-		
-					entries.push_back(entry);
-					const uint32_t entryIndex = static_cast<uint32_t>(entries.size() - 1);
-					scenario.entryLookup.insert(std::make_pair(entryOrdinal, entryIndex));
-		
-					size_t insertPosition = scenario.entryIndices.size();
-					for (size_t i = 0; i < scenario.entryIndices.size(); ++i) {
-						const SnapshotEntry& existingEntry = entries[scenario.entryIndices[i]];
-						if (existingEntry.entryOrdinal > entryOrdinal) {
-							insertPosition = i;
-							break;
-						}
-					}
-					scenario.entryIndices.insert(scenario.entryIndices.begin() + insertPosition, entryIndex);
-					return entries.back();
+
+				SnapshotScenario scenario;
+				scenario.name = name;
+				scenario.validate = validate;
+				scenario.explicitScenario = explicitScenario;
+
+				scenarios.push_back(scenario);
+				const uint32_t index = static_cast<uint32_t>(scenarios.size() - 1);
+				scenarioLookup.insert(std::make_pair(name, index));
+				return index;
+			}
+
+			SnapshotEntry& ensureEntry(uint32_t scenarioIndex, SnapshotScenario& scenario, uint32_t entryOrdinal, bool validate, const String& scenarioName)
+			{
+				const std::map<uint32_t, uint32_t>::const_iterator existing = scenario.entryLookup.find(entryOrdinal);
+				if (existing != scenario.entryLookup.end()) {
+					return entries[existing->second];
 				}
-		
-				String baseName;
-				std::vector<SnapshotEntry> entries;
-				std::vector<SnapshotScenario> scenarios;
-				std::map<String, uint32_t> scenarioLookup;
-				uint32_t nextBlockOrdinal;
+
+				SnapshotEntry entry;
+				entry.scenarioIndex = scenarioIndex;
+				entry.entryOrdinal = entryOrdinal;
+				entry.validate = validate;
+				entry.scenarioName = scenarioName;
+
+				entries.push_back(entry);
+				const uint32_t entryIndex = static_cast<uint32_t>(entries.size() - 1);
+				scenario.entryLookup.insert(std::make_pair(entryOrdinal, entryIndex));
+
+				size_t insertPosition = scenario.entryIndices.size();
+				for (size_t i = 0; i < scenario.entryIndices.size(); ++i) {
+					const SnapshotEntry& existingEntry = entries[scenario.entryIndices[i]];
+					if (existingEntry.entryOrdinal > entryOrdinal) {
+						insertPosition = i;
+						break;
+					}
+				}
+				scenario.entryIndices.insert(scenario.entryIndices.begin() + insertPosition, entryIndex);
+				return entries.back();
+			}
+
+			String baseName;
+			std::vector<SnapshotEntry> entries;
+			std::vector<SnapshotScenario> scenarios;
+			std::map<String, uint32_t> scenarioLookup;
+			uint32_t nextBlockOrdinal;
+			bool collectingPlan;
+                       uint32_t activeScenarioIndex;
+                       uint32_t activeEntryOrdinal;
+                       std::vector<uint32_t> recordedBlockOrdinals;
+                       size_t recordedBlockCursor;
+
+                       struct CollectionRun {
+				uint32_t scenarioIndex;
+				uint32_t entryOrdinal;
 			};
-		
-			static bool isWhitespace(Char c)
+
+			std::vector<CollectionRun> collectionRuns;
+			size_t collectionRunCursor;
+			bool collectionRunsBuilt;
+
+			void buildCollectionRuns()
+			{
+				collectionRuns.clear();
+				for (uint32_t scenarioIndex = 0; scenarioIndex < scenarios.size(); ++scenarioIndex) {
+					const SnapshotScenario& scenario = scenarios[scenarioIndex];
+					if (scenario.entryIndices.empty()) {
+						continue;
+					}
+
+					for (uint32_t entryOrdinal = 1; entryOrdinal <= scenario.entryIndices.size(); ++entryOrdinal) {
+						CollectionRun run;
+						run.scenarioIndex = scenarioIndex;
+						run.entryOrdinal = entryOrdinal;
+						collectionRuns.push_back(run);
+					}
+				}
+
+				if (!collectionRuns.empty()) {
+					const CollectionRun& first = collectionRuns[0];
+					activeScenarioIndex = first.scenarioIndex;
+					activeEntryOrdinal = first.entryOrdinal;
+				}
+			}
+};
+static bool isWhitespace(Char c)
 			{
 				return (c == ' ' || c == '\t' || c == '\r' || c == '\n');
 			}
@@ -1320,39 +1481,58 @@ const String& getBaseName() const { return baseName; }
 					(void)s;
 				}
 		
-		                bool meta(Interpreter& interpreter, const String& key, const String& arguments) override
-		                {
+				bool meta(Interpreter& interpreter, const String& key, const String& arguments) override
+				{
 					static const String SNAPSHOT_KEY("snapshot-1");
 					if (key != SNAPSHOT_KEY) {
 						return false;
 					}
-		
+
 					ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
-		
+
 					SnapshotBlock block;
 					block.validate = parseValidateFlag(interpreter, args.fetchOptional("validate"));
 					const String* scenarioLabel = args.fetchOptional("scenario");
 					if (scenarioLabel != 0) {
 						block.scenario = *scenarioLabel;
 					}
-		
-					const String* rawStatements = args.fetchOptional(0, false);
-					if (rawStatements == 0) {
-						Interpreter::throwBadSyntax("snapshot meta requires a statement list.");
-					}
-		
-					block.statements = parseSnapshotStatements(interpreter, *rawStatements);
+
+					const String& rawStatements = args.fetchRequired(0, false);
+
+					block.statements = parseSnapshotStatements(interpreter, rawStatements);
 					block.sourceLine = locateMetaLine();
-		
+
 					args.throwIfAnyUnfetched();
-					plan.addBlock(interpreter, block);
+
+					const uint32_t blockOrdinal = plan.addBlock(interpreter, block);
+
+					executeCollectionInvocation(interpreter, blockOrdinal);
+
 					return true;
 				}
-		
-		                private:
-		
-		
-		                std::string resolveRelativePath(const std::string& requested) const
+
+			private:
+
+			void executeCollectionInvocation(Interpreter& interpreter, uint32_t blockOrdinal)
+			{
+				if (!plan.isCollectingPlan()) {
+					return;
+				}
+
+				const SnapshotInvocation* invocation = plan.lookupInvocation(blockOrdinal, plan.getActiveScenarioIndex(), plan.getActiveEntryOrdinal());
+				if (invocation == 0) {
+					return;
+				}
+
+				const StringRange trimmed = trimRange(StringRange(invocation->statements));
+				if (trimmed.b == trimmed.e) {
+					return;
+				}
+
+				interpreter.run(StringRange(invocation->statements));
+			}
+
+				std::string resolveRelativePath(const std::string& requested) const
 				{
 					const size_t slash = sourcePath.find_last_of("/\\");
 					if (slash == std::string::npos) {
@@ -1386,27 +1566,27 @@ const String& getBaseName() const { return baseName; }
 				size_t scanOffset;
 			};
 		
-		        class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
-		                public:
-		                SnapshotPlaybackExecutor(IVG::Canvas& canvas,
-		                const SnapshotScenario& scenario,
-		                const SnapshotEntry& entry,
-		                const CommandLineOptions& options,
-		                const std::string& sourcePath,
-		                SharedResources& sharedResources)
-		                : IVG::IVGExecutor(canvas)
-		                , scenario(scenario)
-		                , entry(entry)
-		                , includeDirs(options.includeDirs)
-		                , fontDirs(options.fontDirs)
-		                , imageDirs(options.imageDirs)
-		                , sourcePath(sourcePath)
-		                , verbose(options.verbose)
-		                , sharedResources(sharedResources)
-		                , nextBlockOrdinal(0)
-		                , invocationCursor(0)
-		                {
-		                }
+				class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
+						public:
+						SnapshotPlaybackExecutor(IVG::Canvas& canvas,
+						const SnapshotScenario& scenario,
+						const SnapshotEntry& entry,
+						const CommandLineOptions& options,
+						const std::string& sourcePath,
+						SharedResources& sharedResources)
+						: IVG::IVGExecutor(canvas)
+						, scenario(scenario)
+						, entry(entry)
+						, includeDirs(options.includeDirs)
+						, fontDirs(options.fontDirs)
+						, imageDirs(options.imageDirs)
+						, sourcePath(sourcePath)
+						, verbose(options.verbose)
+						, sharedResources(sharedResources)
+						, nextBlockOrdinal(0)
+						, invocationCursor(0)
+						{
+						}
 		
 				bool load(Interpreter& interpreter, const WideString& filename, String& contents) override
 				{
@@ -1484,17 +1664,16 @@ const String& getBaseName() const { return baseName; }
 		
 					ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
 		
+					const String* validateFlag = args.fetchOptional("validate");
+					const bool blockValidate = parseValidateFlag(interpreter, validateFlag);
 					const String* scenarioLabel = args.fetchOptional("scenario");
-					const String* rawStatements = args.fetchOptional(0, false);
-					if (rawStatements == 0) {
-						Interpreter::throwBadSyntax("snapshot meta requires a statement list.");
-					}
-		
+					const String& rawStatements = args.fetchRequired(0, false);
+
 					const bool hasLabel = (scenarioLabel != 0);
 					const bool blockTargetsScenario = (scenario.explicitScenario ? (hasLabel && *scenarioLabel == scenario.name) : !hasLabel);
-		
+
 					++nextBlockOrdinal;
-		
+
 					const SnapshotInvocation* invocation = 0;
 					if (invocationCursor < entry.invocations.size()) {
 						const SnapshotInvocation& candidate = entry.invocations[invocationCursor];
@@ -1503,7 +1682,7 @@ const String& getBaseName() const { return baseName; }
 							++invocationCursor;
 						}
 					}
-		
+
 					if (!blockTargetsScenario) {
 						args.throwIfAnyUnfetched();
 						if (invocation != 0) {
@@ -1511,21 +1690,25 @@ const String& getBaseName() const { return baseName; }
 						}
 						return true;
 					}
-		
+
 					if (invocation == 0) {
 						Interpreter::throwBadSyntax("missing snapshot invocation for scenario block.");
 					}
-		
-					StringVector statements = parseSnapshotStatements(interpreter, *rawStatements);
+
+					if (blockValidate != entry.validate) {
+						Interpreter::throwBadSyntax("snapshot validate flag changed between collection and playback.");
+					}
+
+					StringVector statements = parseSnapshotStatements(interpreter, rawStatements);
 					if (invocation->statementOrdinal == 0 || invocation->statementOrdinal > statements.size()) {
 						Interpreter::throwBadSyntax("snapshot statement ordinal exceeds available entries.");
 					}
-		
+
 					const String& statementBody = statements[invocation->statementOrdinal - 1];
 					if (statementBody != invocation->statements) {
 						Interpreter::throwBadSyntax("snapshot statements changed between collection and playback.");
 					}
-		
+
 					args.throwIfAnyUnfetched();
 		
 					if (verbose) {
@@ -1648,8 +1831,8 @@ const String& getBaseName() const { return baseName; }
 			};
 		
 		
-		        static void printUsage(const char* program)
-		        {
+				static void printUsage(const char* program)
+				{
 				std::cout << "Usage: " << program << " [options] <ivg> [<ivg> ...]" << std::endl;
 				std::cout << "Options:" << std::endl;
 				std::cout << "\t--include-dir <path>\tAdd include search path." << std::endl;
@@ -1788,76 +1971,6 @@ std::cout << "\t--force-update\t\tOverwrite goldens." << std::endl;
 					}
 				}
 			}
-		static void writeIvGFiddleManifest(const CommandLineOptions& options, const std::string& ivgPath, const SnapshotPlan& plan)
-		{
-				const std::string baseName = stringFromIMPD(plan.getBaseName());
-				const std::string sanitizedBase = sanitizeFileComponent(baseName);
-				std::string root = (options.outputDir.empty() ? extractDirectory(ivgPath) : options.outputDir);
-				if (!sanitizedBase.empty()) {
-						root = joinPath(root, sanitizedBase);
-				}
-
-				if (!ensureDirectory(root)) {
-						std::cerr << ivgPath << ": failed to prepare manifest directory: " << root << std::endl;
-						return;
-				}
-
-				const std::string manifestPath = joinPath(root, "manifest.ivgfiddle.json");
-				const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
-				const std::vector<SnapshotEntry>& entries = plan.getEntries();
-
-				std::ostringstream stream;
-				stream << "{\"ivg\":\"" << jsonEscape(ivgPath) << "\"";
-				stream << ",\"base\":\"" << jsonEscape(baseName) << "\"";
-				stream << ",\"scenarios\":[";
-				for (size_t i = 0; i < scenarios.size(); ++i) {
-						if (i > 0) {
-								stream << ',';
-						}
-						const SnapshotScenario& scenario = scenarios[i];
-						stream << "{\"name\":\"" << jsonEscape(stringFromIMPD(scenario.name)) << "\"";
-						stream << ",\"validate\":" << (scenario.validate ? "true" : "false");
-						stream << ",\"explicit\":" << (scenario.explicitScenario ? "true" : "false");
-						stream << ",\"entries\":[";
-						for (size_t j = 0; j < scenario.entryIndices.size(); ++j) {
-								if (j > 0) {
-										stream << ',';
-								}
-								const SnapshotEntry& entry = entries[scenario.entryIndices[j]];
-								const uint32_t blockIndex = (entry.invocations.empty() ? 0 : entry.invocations[0].blockIndex);
-								stream << "{\"ordinal\":" << entry.entryOrdinal;
-								stream << ",\"block\":" << blockIndex;
-								stream << ",\"identifier\":\"" << jsonEscape(buildEntryIdentifier(baseName, entry)) << "\"";
-								stream << ",\"label\":\"" << jsonEscape(stringFromIMPD(entry.scenarioName)) << "\"";
-								stream << ",\"validate\":" << (entry.validate ? "true" : "false");
-								stream << ",\"invocations\":[";
-								for (size_t k = 0; k < entry.invocations.size(); ++k) {
-										if (k > 0) {
-												stream << ',';
-										}
-										const SnapshotInvocation& invocation = entry.invocations[k];
-										stream << "{\"block\":" << invocation.blockIndex
-												<< ",\"statement\":" << invocation.statementOrdinal
-												<< ",\"line\":" << invocation.sourceLine << "}";
-								}
-								stream << "]}";
-						}
-						stream << "]}";
-				}
-				stream << "]}";
-
-				std::ofstream manifest(manifestPath.c_str(), std::ios::binary);
-				if (!manifest.good()) {
-						std::cerr << ivgPath << ": failed to open manifest for writing: " << manifestPath << std::endl;
-						return;
-				}
-
-				manifest << stream.str();
-				if (!manifest.good()) {
-						std::cerr << ivgPath << ": failed to write manifest: " << manifestPath << std::endl;
-				}
-		}
-
 		struct SnapshotJob {
 				SnapshotJob()
 				: options(0)
@@ -1916,17 +2029,17 @@ std::cout << "\t--force-update\t\tOverwrite goldens." << std::endl;
 						started = true;
 				}
 
-				bool enqueue(const SnapshotJob& job)
-				{
-						NuXThreads::MutexLock lock(mutex);
-						if (!started || finalizing || (exitOnFirstFailure && stopScheduling)) {
-								return false;
-						}
+                                bool enqueue(const SnapshotJob& job)
+                                {
+                                                NuXThreads::MutexLock lock(mutex);
+                                                if (!started || finalizing || (exitOnFirstFailure && stopScheduling)) {
+                                                                return false;
+                                                }
 
-						pendingJobs.push_back(job);
-						jobAvailable.signal();
-						return true;
-				}
+                                                pendingJobs.push_back(job);
+                                                jobAvailable.signal();
+                                                return true;
+                                }
 
 				bool fetchResult(SnapshotEntryResult& out, bool wait)
 				{
@@ -1934,7 +2047,7 @@ std::cout << "\t--force-update\t\tOverwrite goldens." << std::endl;
 								{
 										NuXThreads::MutexLock lock(mutex);
 										if (!completedResults.empty()) {
-												out = std::move(completedResults.front());
+out = completedResults.front();
 												completedResults.pop_front();
 												return true;
 										}
@@ -1949,38 +2062,38 @@ std::cout << "\t--force-update\t\tOverwrite goldens." << std::endl;
 						}
 				}
 
-				void finalize()
-				{
-						if (!started) {
-								return;
-						}
+                                void finalize()
+                                {
+                                                if (!started) {
+                                                                return;
+                                                }
 
-						uint32_t sentinelCount = 0;
-						{
-								NuXThreads::MutexLock lock(mutex);
-								if (!finalizing) {
-										finalizing = true;
-										stopScheduling = true;
-										sentinelCount = threadCount;
-										for (uint32_t i = 0; i < sentinelCount; ++i) {
-												SnapshotJob sentinelJob;
-												sentinelJob.sentinel = true;
-												pendingJobs.push_back(sentinelJob);
-										}
-								}
-						}
+                                                uint32_t sentinelCount = 0;
+                                                {
+                                                                NuXThreads::MutexLock lock(mutex);
+                                                                if (!finalizing) {
+                                                                                finalizing = true;
+                                                                                stopScheduling = true;
+                                                                                sentinelCount = threadCount;
+                                                                                for (uint32_t i = 0; i < sentinelCount; ++i) {
+                                                                                                SnapshotJob sentinelJob;
+                                                                                                sentinelJob.sentinel = true;
+                                                                                                pendingJobs.push_back(sentinelJob);
+                                                                                }
+                                                                }
+                                                }
 
-						for (uint32_t i = 0; i < sentinelCount; ++i) {
-								jobAvailable.signal();
-						}
+                                                for (uint32_t i = 0; i < sentinelCount; ++i) {
+                                                                jobAvailable.signal();
+                                                }
 
 						for (size_t i = 0; i < threads.size(); ++i) {
 								threads[i]->join();
 						}
-						workers.clear();
-						threads.clear();
-						started = false;
-				}
+                                                workers.clear();
+                                                threads.clear();
+                                                started = false;
+                                }
 
 				bool shouldStopScheduling()
 				{
@@ -2023,31 +2136,31 @@ std::cout << "\t--force-update\t\tOverwrite goldens." << std::endl;
 						}
 				}
 
-				bool takeJob(SnapshotJob& job)
-				{
-						while (true) {
-								{
-										NuXThreads::MutexLock lock(mutex);
-										if (!pendingJobs.empty()) {
-												job = pendingJobs.front();
-												pendingJobs.pop_front();
-												++activeWorkers;
-												return true;
-										}
-										if (finalizing) {
-												return false;
-										}
-								}
-								jobAvailable.wait();
-						}
-				}
+                                bool takeJob(SnapshotJob& job)
+                                {
+                                                while (true) {
+                                                                {
+                                                                                NuXThreads::MutexLock lock(mutex);
+                                                                                if (!pendingJobs.empty()) {
+                                                                                                job = pendingJobs.front();
+                                                                                                pendingJobs.pop_front();
+                                                                                                ++activeWorkers;
+                                                                                                return true;
+                                                                               }
+                                                                                if (finalizing) {
+                                                                                                return false;
+                                                                                }
+                                                                }
+                                                                jobAvailable.wait();
+                                                }
+                                }
 
 				void submitResult(SnapshotEntryResult& result)
 				{
 						const bool success = result.success;
 						{
 								NuXThreads::MutexLock lock(mutex);
-								completedResults.push_back(std::move(result));
+completedResults.push_back(result);
 								if (!success && exitOnFirstFailure) {
 										stopScheduling = true;
 								}
@@ -2079,8 +2192,8 @@ std::cout << "\t--force-update\t\tOverwrite goldens." << std::endl;
 				NuXThreads::Event resultAvailable;
 				std::deque<SnapshotJob> pendingJobs;
 				std::deque<SnapshotEntryResult> completedResults;
-				std::vector<std::unique_ptr<Worker>> workers;
-				std::vector<std::unique_ptr<NuXThreads::Thread>> threads;
+				std::vector<std::unique_ptr<Worker> > workers;
+				std::vector<std::unique_ptr<NuXThreads::Thread> > threads;
 				uint32_t activeWorkers;
 		};
 static SnapshotEntryResult renderEntry(const CommandLineOptions& options,
@@ -2153,9 +2266,52 @@ return result;
 
 return result;
 }
-		
-		
-		
+
+
+
+static void flushSchedulerResults(
+	SnapshotScheduler& scheduler,
+	bool wait,
+	std::vector<SnapshotEntryResult>& ordered,
+	std::vector<bool>& ready,
+	size_t& nextLogIndex,
+	SnapshotRunResult& run)
+{
+	SnapshotEntryResult fetched;
+	bool waitFlag = wait;
+	while (scheduler.fetchResult(fetched, waitFlag)) {
+		waitFlag = false;
+		const uint32_t ordinal = fetched.planOrdinal;
+		if (ordinal >= ordered.size()) {
+			continue;
+		}
+
+		ordered[ordinal] = fetched;
+		ready[ordinal] = true;
+
+		while (nextLogIndex < ordered.size() && ready[nextLogIndex]) {
+			SnapshotEntryResult& recorded = ordered[nextLogIndex];
+			run.entries.push_back(recorded);
+			++run.totalEntries;
+			if (recorded.validate) {
+				++run.validatedEntries;
+			} else {
+				++run.draftEntries;
+			}
+			if (recorded.updated) {
+				++run.updatedEntries;
+			}
+			if (!recorded.success) {
+				++run.failedEntries;
+				if (recorded.diffed) {
+					++run.diffFailures;
+				}
+			}
+			logEntryResult(recorded);
+			++nextLogIndex;
+		}
+	}
+}
 static SnapshotRunResult renderPlan(const CommandLineOptions& options,
 const std::string& path,
 const CachedDocument& document,
@@ -2169,8 +2325,13 @@ SharedResources sharedResources;
 
 		uint32_t threadCount = options.threads;
 		if (threadCount == 0) {
-				const unsigned int hardware = std::thread::hardware_concurrency();
-				threadCount = (hardware > 0 ? hardware : 1);
+			const unsigned int hardware = std::thread::hardware_concurrency();
+			threadCount = (hardware > 0 ? hardware : 1);
+		}
+
+		const size_t totalJobs = entries.size();
+		if (totalJobs > 0 && threadCount > totalJobs) {
+			threadCount = static_cast<uint32_t>(totalJobs);
 		}
 
 		SnapshotScheduler scheduler(threadCount, options.exitOnFirstFailure);
@@ -2181,85 +2342,54 @@ SharedResources sharedResources;
 		size_t nextLogIndex = 0;
 		bool schedulingStopped = false;
 
-		auto flushResults = [&](bool wait) {
-				SnapshotEntryResult fetched;
-				while (scheduler.fetchResult(fetched, wait)) {
-						const uint32_t ordinal = fetched.planOrdinal;
-						if (ordinal >= ordered.size()) {
-								continue;
-						}
-
-						ordered[ordinal] = std::move(fetched);
-						ready[ordinal] = true;
-
-						while (nextLogIndex < ordered.size() && ready[nextLogIndex]) {
-								SnapshotEntryResult& recorded = ordered[nextLogIndex];
-								run.entries.push_back(recorded);
-								++run.totalEntries;
-								if (recorded.validate) {
-										++run.validatedEntries;
-								} else {
-										++run.draftEntries;
-								}
-								if (recorded.updated) {
-										++run.updatedEntries;
-								}
-								if (!recorded.success) {
-										++run.failedEntries;
-										if (recorded.diffed) {
-												++run.diffFailures;
-										}
-								}
-								logEntryResult(recorded);
-								++nextLogIndex;
-						}
-				}
-		};
-
 		for (size_t i = 0; i < scenarios.size() && !schedulingStopped; ++i) {
-				const SnapshotScenario& scenario = scenarios[i];
+			const SnapshotScenario& scenario = scenarios[i];
+			if (options.verbose) {
+				std::cout << path << ": scenario " << scenario.name << " (validate: " << (scenario.validate ? "yes" : "no") << ")" << std::endl;
+			}
+
+			for (size_t j = 0; j < scenario.entryIndices.size(); ++j) {
+				if (options.exitOnFirstFailure && scheduler.shouldStopScheduling()) {
+					schedulingStopped = true;
+					break;
+				}
+
+				const SnapshotEntry& entry = entries[scenario.entryIndices[j]];
 				if (options.verbose) {
-						std::cout << path << ": scenario " << scenario.name << " (validate: " << (scenario.validate ? "yes" : "no") << ")" << std::endl;
+					std::cout << path << ":	  entry " << entry.entryOrdinal << " name:" << entry.scenarioName
+						<< " (validate: " << (entry.validate ? "yes" : "no") << ")" << std::endl;
 				}
 
-				for (size_t j = 0; j < scenario.entryIndices.size(); ++j) {
-						if (options.exitOnFirstFailure && scheduler.shouldStopScheduling()) {
-								schedulingStopped = true;
-								break;
-						}
+				SnapshotJob job;
+				job.options = &options;
+				job.ivgPath = &path;
+				job.baseName = &baseName;
+				job.document = &document;
+				job.sharedResources = &sharedResources;
+				job.scenario = &scenario;
+				job.entry = &entry;
+				job.planOrdinal = static_cast<uint32_t>(ordered.size());
 
-						const SnapshotEntry& entry = entries[scenario.entryIndices[j]];
-						if (options.verbose) {
-								std::cout << path << ":   entry " << entry.entryOrdinal << " name:" << entry.scenarioName
-										<< " (validate: " << (entry.validate ? "yes" : "no") << ")" << std::endl;
-						}
-
-						SnapshotJob job;
-						job.options = &options;
-						job.ivgPath = &path;
-						job.baseName = &baseName;
-						job.document = &document;
-						job.sharedResources = &sharedResources;
-						job.scenario = &scenario;
-						job.entry = &entry;
-						job.planOrdinal = static_cast<uint32_t>(ordered.size());
-
-						if (!scheduler.enqueue(job)) {
-								schedulingStopped = true;
-								break;
-						}
-
-						ordered.push_back(SnapshotEntryResult());
-						ready.push_back(false);
-						flushResults(false);
+				if (!scheduler.enqueue(job)) {
+					schedulingStopped = true;
+					break;
 				}
 
-				flushResults(false);
+				ordered.push_back(SnapshotEntryResult());
+				ready.push_back(false);
+				flushSchedulerResults(scheduler, false, ordered, ready, nextLogIndex, run);
+			}
+
+			flushSchedulerResults(scheduler, false, ordered, ready, nextLogIndex, run);
 		}
 
-		flushResults(false);
+		flushSchedulerResults(scheduler, false, ordered, ready, nextLogIndex, run);
+		while (nextLogIndex < ordered.size()) {
+			flushSchedulerResults(scheduler, true, ordered, ready, nextLogIndex, run);
+		}
+
 		scheduler.finalize();
-		flushResults(true);
+		flushSchedulerResults(scheduler, true, ordered, ready, nextLogIndex, run);
 
 		if (run.failedEntries > 0) {
 				run.exitCode = 1;
@@ -2280,37 +2410,44 @@ return run;
 
 SnapshotPlan plan(path);
 const String& source = document.getSource();
-SnapshotCollector collector(plan, path, source, options.includeDirs);
-STLMapVariables variables;
-FormatInfo formatInfo;
-Interpreter interpreter(collector, variables, formatInfo);
 
-try {
-interpreter.run(StringRange(source));
-} catch (Exception& e) {
-std::ostringstream message;
-message << e.getError();
-if (e.hasStatement()) {
-message << " near \"" << e.getStatement() << "\"";
-}
-run.fileFailed = true;
-run.exitCode = 1;
-run.fileError = message.str();
-std::cerr << path << ": " << run.fileError << std::endl;
-return run;
-} catch (std::exception& e) {
-run.fileFailed = true;
-run.exitCode = 1;
-run.fileError = e.what();
-std::cerr << path << ": " << run.fileError << std::endl;
-return run;
+plan.beginCollection();
+while (true) {
+	SnapshotCollector collector(plan, path, source, options.includeDirs);
+	STLMapVariables variables;
+	FormatInfo formatInfo;
+	Interpreter interpreter(collector, variables, formatInfo);
+
+	try {
+		interpreter.run(StringRange(source));
+	} catch (Exception& e) {
+		std::ostringstream message;
+		message << e.getError();
+		if (e.hasStatement()) {
+			message << " near \"" << e.getStatement() << "\"";
+		}
+		run.fileFailed = true;
+		run.exitCode = 1;
+		run.fileError = message.str();
+		std::cerr << path << ": " << run.fileError << std::endl;
+		return run;
+	} catch (std::exception& e) {
+		run.fileFailed = true;
+		run.exitCode = 1;
+		run.fileError = e.what();
+		std::cerr << path << ": " << run.fileError << std::endl;
+		return run;
+	}
+
+	plan.completeCollectionPass();
+	if (!plan.prepareNextCollectionPass()) {
+		break;
+	}
 }
 
 if (options.listOnly || options.verbose) {
 printPlan(path, plan);
 }
-
-writeIvGFiddleManifest(options, path, plan);
 
 if (options.listOnly) {
 const std::vector<SnapshotEntry>& entries = plan.getEntries();
