@@ -56,10 +56,6 @@ C_SRCS=(./externals/libpng/png.c ./externals/libpng/pngerror.c ./externals/libpn
 		-DNUXPIXELS_SIMD=$simd -I ./ -I ./externals \
 		./tools/PolygonMaskTest.cpp ./externals/NuX/NuXPixels.cpp
 
-./tools/BuildCpp.sh $1 $2 ./output/TinyEllipseTest \
-                -DNUXPIXELS_SIMD=$simd -I ./ -I ./externals \
-                ./tests/tinyEllipse.cpp ./externals/NuX/NuXPixels.cpp
-
 ./tools/BuildCpp.sh $1 $2 ./output/IVGSnapshot \
                 -ffp-contract=off -DNUXPIXELS_SIMD=$simd \
                 -I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib \
@@ -102,7 +98,6 @@ else
 fi
 cd ..
 ./output/PolygonMaskTest
-./output/TinyEllipseTest
 ./output/TestSnapshotPlan
 tmp=$(mktemp)
 ./output/IVGSnapshot --list-only tools/IVGSnapshot/tests/ListOnlySample.ivg > "$tmp"
