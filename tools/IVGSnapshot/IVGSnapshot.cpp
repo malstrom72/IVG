@@ -47,6 +47,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <utility>
 #include <vector>
 
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#endif
+
 #include <png.h>
 #include <zlib.h>
 
@@ -251,11 +261,30 @@ static std::string stringFromIMPD(const String &value) {
 }
 
 static std::wstring pathStringToWide(const std::string &path) {
+	if (path.empty()) {
+		return std::wstring();
+	}
+#if defined(_WIN32)
+	const int sourceLength = static_cast<int>(path.size());
+	const int wideLength =
+		::MultiByteToWideChar(CP_ACP, MB_ERR_INVALID_CHARS, path.data(), sourceLength, 0, 0);
+	if (wideLength <= 0) {
+		throw std::range_error("failed to convert native path to wide characters");
+	}
+	std::wstring wide(static_cast<size_t>(wideLength), L'\0');
+	const int converted = ::MultiByteToWideChar(CP_ACP, MB_ERR_INVALID_CHARS, path.data(), sourceLength
+			, &wide[0], wideLength);
+	if (converted != wideLength) {
+		throw std::range_error("failed to convert native path to wide characters");
+	}
+	return wide;
+#else
 	std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
 	return converter.from_bytes(path);
+#endif
 }
 
-static NuXFiles::Path pathFromUTF8(const std::string &path) {
+static NuXFiles::Path pathFromNativeString(const std::string &path) {
 	if (path.empty()) {
 		return NuXFiles::Path();
 	}
@@ -314,7 +343,7 @@ static bool fileExists(const std::string &path) {
 		return false;
 	}
 	try {
-		const NuXFiles::Path filePath = pathFromUTF8(path);
+		const NuXFiles::Path filePath = pathFromNativeString(path);
 		return (!filePath.isNull() && filePath.isFile());
 	} catch (const NuXFiles::Exception &) {
 		return false;
@@ -328,7 +357,7 @@ static bool directoryExists(const std::string &path) {
 		return false;
 	}
 	try {
-		const NuXFiles::Path dirPath = pathFromUTF8(path);
+		const NuXFiles::Path dirPath = pathFromNativeString(path);
 		return (!dirPath.isNull() && dirPath.isDirectory());
 	} catch (const NuXFiles::Exception &) {
 		return false;
@@ -377,7 +406,7 @@ static bool ensureDirectory(const std::string &path) {
 	if (path.empty()) {
 		return true;
 	}
-	return ensureDirectoryPath(pathFromUTF8(path));
+	return ensureDirectoryPath(pathFromNativeString(path));
 }
 
 static bool ensureParentDirectory(const std::string &filePath) {
@@ -385,7 +414,7 @@ static bool ensureParentDirectory(const std::string &filePath) {
 		return true;
 	}
 	try {
-		const NuXFiles::Path target = pathFromUTF8(filePath);
+		const NuXFiles::Path target = pathFromNativeString(filePath);
 		if (target.isNull() || target.isRoot()) {
 			return true;
 		}
@@ -402,7 +431,7 @@ static void removeFileIfExists(const std::string &path) {
 		return;
 	}
 	try {
-		const NuXFiles::Path filePath = pathFromUTF8(path);
+		const NuXFiles::Path filePath = pathFromNativeString(path);
 		if (!filePath.isNull() && filePath.exists() && filePath.isFile()) {
 			filePath.erase();
 		}
@@ -420,8 +449,8 @@ static bool renameFile(const std::string &from, const std::string &to,
 	}
 	removeFileIfExists(to);
 	try {
-		const NuXFiles::Path fromPath = pathFromUTF8(from);
-		const NuXFiles::Path toPath = pathFromUTF8(to);
+		const NuXFiles::Path fromPath = pathFromNativeString(from);
+		const NuXFiles::Path toPath = pathFromNativeString(to);
 		if (fromPath.isNull() || toPath.isNull()) {
 			return true;
 		}
