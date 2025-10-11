@@ -2113,6 +2113,7 @@ class SnapshotScheduler {
 		}
 
 		for (size_t i = 0; i < threads.size(); ++i) {
+			jobAvailable.signal();
 			threads[i]->join();
 		}
 		workers.clear();
@@ -2196,6 +2197,7 @@ class SnapshotScheduler {
 			}
 		}
 		resultAvailable.signal();
+		jobAvailable.signal();
 	}
 
 	uint32_t threadCount;
