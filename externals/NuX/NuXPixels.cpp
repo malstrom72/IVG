@@ -108,10 +108,10 @@ static inline void sort(int& a, int& b) {
 	b = x + (y & ~z);
 }
 
-static double calcCircleRotationVector(double curveQuality, double diameter, double& rx, double& ry) {
-	const double t = (diameter < EPSILON ? PI2
+static double calcCircleRotationVector(double curveQuality, double diameter, double maxT, double& rx, double& ry) {
+	const double t = minValue((diameter < EPSILON ? PI2
 			: minValue(maxValue(1.0 / sqrt(curveQuality * diameter), PI2 / MAX_CIRCLE_DIVISIONS)
-			, PI2 / MIN_CIRCLE_DIVISIONS));
+			, PI2 / MIN_CIRCLE_DIVISIONS)), maxT);
 	rx = cos(t);
 	ry = sin(t);
 	return t;
@@ -484,16 +484,20 @@ Path& Path::addRect(double left, double top, double width, double height) {
 Path& Path::arcSweep(double centerX, double centerY, double sweepRadians, double ratioX, double ratioY, double curveQuality) {
 	assert(-PI2 <= sweepRadians && sweepRadians <= PI2);
 	assert(0.0 < curveQuality);
-
+	
 	const Vertex pos(getPosition());
-	const double sx = (pos.x - centerX) / ratioX;
-	const double sy = (pos.y - centerY) / ratioY;
+
+	assert(EPSILON < fabs(ratioX) || fabs(pos.x - centerX) < EPSILON);	// zero x or ratio requires zero width or height
+	assert(EPSILON < fabs(ratioY) || fabs(pos.y - centerY) < EPSILON);	// zero x or ratio requires zero width or height
+
+	const double sx = (EPSILON < fabs(ratioX) ? (pos.x - centerX) / ratioX : 0.0);
+	const double sy = (EPSILON < fabs(ratioY) ? (pos.y - centerY) / ratioY : 0.0);
 
 	const double major = maxValue(fabs(ratioX), fabs(ratioY));
 	const double diameter = maxValue(major, 1.0) * 2.0 * sqrt(sx * sx + sy * sy);
 
 	double rx, ry;
-	const double t = calcCircleRotationVector(curveQuality, diameter, rx, ry);
+	const double t = calcCircleRotationVector(curveQuality, diameter, 0.5 * abs(sweepRadians), rx, ry);
 
 	double s = sweepRadians;
 	if (s < 0) {
@@ -513,9 +517,9 @@ Path& Path::arcSweep(double centerX, double centerY, double sweepRadians, double
 	}
 	rx = cos(sweepRadians);
 	ry = sin(sweepRadians);
-	px = sx * rx - sy * ry;
-	py = sx * ry + sy * rx;
-	lineTo(centerX + px * ratioX, centerY + py * ratioY);
+	const double ex = centerX + (sx * rx - sy * ry) * ratioX;
+	const double ey = centerY + (sx * ry + sy * rx) * ratioY;
+	lineTo(ex, ey);
 
 	return *this;
 }
@@ -524,16 +528,18 @@ Path& Path::arcMove(double centerX, double centerY, double sweepRadians, double 
 	assert(-PI2 <= sweepRadians && sweepRadians <= PI2);
 
 	const Vertex pos(getPosition());
-	const double sx = (pos.x - centerX) / ratioX;
-	const double sy = (pos.y - centerY) / ratioY;
 
-	double rx = cos(sweepRadians);
-	double ry = sin(sweepRadians);
-	double px = sx * rx - sy * ry;
-	double py = sx * ry + sy * rx;
+	assert(EPSILON < fabs(ratioX) || fabs(pos.x - centerX) < EPSILON);	// zero x or ratio requires zero width or height
+	assert(EPSILON < fabs(ratioY) || fabs(pos.y - centerY) < EPSILON);	// zero x or ratio requires zero width or height
 
-	const double endX = centerX + px * ratioX;
-	const double endY = centerY + py * ratioY;
+	const double sx = (EPSILON < fabs(ratioX) ? (pos.x - centerX) / ratioX : 0.0);
+	const double sy = (EPSILON < fabs(ratioY) ? (pos.y - centerY) / ratioY : 0.0);
+
+	const double rx = cos(sweepRadians);
+	const double ry = sin(sweepRadians);
+
+	const double endX = centerX + (sx * rx - sy * ry) * ratioX;
+	const double endY = centerY + (sx * ry + sy * rx) * ratioY;
 
 	if (!instructions.empty() && instructions.back().first == MOVE) {
 		instructions.back().second = Vertex(endX, endY);
@@ -550,7 +556,7 @@ Path& Path::addEllipse(double centerX, double centerY, double radiusX, double ra
 	} else if (fabs(radiusY) < EPSILON) {
 		addLine(centerX - radiusX, centerY, centerX + radiusX, centerY);
 	} else {
-		double sweepSign = ((radiusX < 0.0) != (radiusY < 0.0) ? -1.0 : 1.0);
+		const double sweepSign = ((radiusX < 0.0) != (radiusY < 0.0) ? -1.0 : 1.0);
 		moveTo(centerX + radiusX, centerY);
 		arcSweep(centerX, centerY, sweepSign * PI2, radiusX, radiusY, curveQuality);
 	}
@@ -560,8 +566,12 @@ Path& Path::addEllipse(double centerX, double centerY, double radiusX, double ra
 
 Path& Path::addCircle(double centerX, double centerY, double radius, double curveQuality) {
 	assert(0.0 < curveQuality);
-	moveTo(centerX + radius, centerY);
-	arcSweep(centerX, centerY, PI2, radius, radius, curveQuality);
+	if (fabs(radius) < EPSILON) {
+		moveTo(centerX, centerY);
+	} else {
+		moveTo(centerX + radius, centerY);
+		arcSweep(centerX, centerY, PI2, radius, radius, curveQuality);
+	}
 	close();
 	return *this;
 }
@@ -751,7 +761,7 @@ Path& Path::stroke(double width, EndCapStyle endCaps, JointStyle joints, double 
 	double rx = 0.0;
 	double ry = 0.0;
 	if (joints == CURVE || endCaps == ROUND) {
-		calcCircleRotationVector(curveQuality, width, rx, ry);
+		calcCircleRotationVector(curveQuality, width, 0.5 * PI, rx, ry);
 	}
 
 	Vertex lv(0.0, 0.0);
