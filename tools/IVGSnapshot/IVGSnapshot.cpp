@@ -387,12 +387,36 @@ static bool ensureDirectoryPath(const NuXFiles::Path &directory) {
 			return false;
 		}
 		for (std::vector<NuXFiles::Path>::reverse_iterator it =
-				 toCreate.rbegin();
+				toCreate.rbegin();
 			 it != toCreate.rend(); ++it) {
 			if (it->isRoot()) {
 				continue;
 			}
-			it->create();
+			try {
+				it->create();
+			} catch (const NuXFiles::Exception &) {
+				try {
+					if (it->exists() && it->isDirectory()) {
+						continue;
+					}
+				} catch (const NuXFiles::Exception &) {
+					return false;
+				} catch (const std::exception &) {
+					return false;
+				}
+				return false;
+			} catch (const std::exception &) {
+				try {
+					if (it->exists() && it->isDirectory()) {
+						continue;
+					}
+				} catch (const NuXFiles::Exception &) {
+					return false;
+				} catch (const std::exception &) {
+					return false;
+				}
+				return false;
+			}
 		}
 		return directory.exists() && directory.isDirectory();
 	} catch (const NuXFiles::Exception &) {
@@ -1696,35 +1720,36 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		const String &rawStatements = args.fetchRequired(0, false);
 
 		const bool hasLabel = (scenarioLabel != 0);
-		const bool blockTargetsScenario =
-			(scenario.explicitScenario
-				 ? (hasLabel && *scenarioLabel == scenario.name)
-				 : !hasLabel);
 
-		++nextBlockOrdinal;
+		const uint32_t blockOrdinal = ++nextBlockOrdinal;
 
 		const SnapshotInvocation *invocation = 0;
 		if (invocationCursor < entry.invocations.size()) {
 			const SnapshotInvocation &candidate =
 				entry.invocations[invocationCursor];
-			if (candidate.blockIndex == nextBlockOrdinal) {
+			if (candidate.blockIndex == blockOrdinal) {
 				invocation = &candidate;
 				++invocationCursor;
 			}
 		}
 
+		const bool blockTargetsScenario =
+			(scenario.explicitScenario
+				 ? (hasLabel && *scenarioLabel == scenario.name)
+				 : (!hasLabel && invocation != 0));
+
 		if (!blockTargetsScenario) {
 			args.throwIfAnyUnfetched();
 			if (invocation != 0) {
 				Interpreter::throwBadSyntax(
-					"unexpected snapshot invocation for scenario.");
+								"unexpected snapshot invocation for scenario.");
 			}
 			return true;
 		}
 
 		if (invocation == 0) {
 			Interpreter::throwBadSyntax(
-				"missing snapshot invocation for scenario block.");
+								"missing snapshot invocation for scenario block.");
 		}
 
 		if (blockValidate != entry.validate) {
@@ -2112,6 +2137,7 @@ class SnapshotScheduler {
 		}
 
 		for (size_t i = 0; i < threads.size(); ++i) {
+			jobAvailable.signal();
 			threads[i]->join();
 		}
 		workers.clear();
@@ -2195,6 +2221,7 @@ class SnapshotScheduler {
 			}
 		}
 		resultAvailable.signal();
+		jobAvailable.signal();
 	}
 
 	uint32_t threadCount;
