@@ -338,6 +338,8 @@
 			let currentZoom = ZOOM_CONSTANTS.DEFAULT;
 			let baseMetrics = null;
 			let vectorScalingEnabled = false;
+			let vectorScalingPreferred = false;
+			let vectorScalingSuppressed = false;
 			const ZOOM_EPSILON = 0.0001;
 			let rerenderCallback = null;
 
@@ -490,24 +492,61 @@
 			}
 
 			function persistVectorScaling() {
-				Settings.write(STORAGE_KEYS.VECTOR_SCALING, vectorScalingEnabled ? "1" : "0");
+				Settings.write(
+					STORAGE_KEYS.VECTOR_SCALING,
+					vectorScalingPreferred ? "1" : "0"
+				);
 			}
 
 			function setVectorScalingEnabled(nextState, options) {
 				const settings = options || {};
 				const normalized = nextState === true;
-				if (vectorScalingEnabled === normalized) {
+				if (settings.skipPreferenceUpdate !== true) {
+					vectorScalingPreferred = normalized;
+				}
+				const shouldPersist = settings.skipPersist === true ? false : settings.persist !== false;
+				const shouldNotify = settings.notify !== false;
+				if (vectorScalingEnabled === normalized && settings.force !== true) {
+					if (normalized) {
+						vectorScalingSuppressed = false;
+					} else if (settings.suppressPreference === true) {
+						vectorScalingSuppressed = true;
+					} else if (settings.skipPreferenceUpdate !== true) {
+						vectorScalingSuppressed = false;
+					}
+					reflectVectorScalingState();
 					return;
 				}
 				vectorScalingEnabled = normalized;
-				if (settings.persist !== false) {
+				if (normalized) {
+					vectorScalingSuppressed = false;
+				} else if (settings.suppressPreference === true) {
+					vectorScalingSuppressed = true;
+				} else if (settings.skipPreferenceUpdate !== true) {
+					vectorScalingSuppressed = false;
+				}
+				if (shouldPersist) {
 					persistVectorScaling();
 				}
 				reflectVectorScalingState();
 				applyZoom();
-				if (rerenderCallback && settings.notify !== false) {
+				if (rerenderCallback && shouldNotify) {
 					rerenderCallback("vector-toggle");
 				}
+			}
+
+			function restorePreferredVectorScaling() {
+				if (!vectorScalingPreferred) {
+					vectorScalingSuppressed = false;
+					return false;
+				}
+				if (!vectorScalingSuppressed || vectorScalingEnabled) {
+					return false;
+				}
+				setVectorScalingEnabled(true, {
+					skipPreferenceUpdate: true,
+				});
+				return true;
 			}
 
 			function applyZoom() {
@@ -723,6 +762,10 @@
 				return vectorScalingEnabled;
 			}
 
+			function isVectorScalingPreferred() {
+				return vectorScalingPreferred;
+			}
+
 			function getZoom() {
 				return currentZoom;
 			}
@@ -735,8 +778,10 @@
 				clearMetrics: clearMetrics,
 				getRasterScale: getRasterScale,
 				usesVectorScaling: usesVectorScaling,
+				isVectorScalingPreferred: isVectorScalingPreferred,
 				getZoom: getZoom,
 				setVectorScalingEnabled: setVectorScalingEnabled,
+				restorePreferredVectorScaling: restorePreferredVectorScaling,
 				getBaseMetrics: getBaseMetrics,
 			};
 		})();
@@ -819,7 +864,12 @@
 			pendingSource = currentSource;
 			pendingUri = currentDocumentUri;
 			if (typeof ZoomController.setVectorScalingEnabled === "function") {
-				ZoomController.setVectorScalingEnabled(false, { notify: false });
+				ZoomController.setVectorScalingEnabled(false, {
+					notify: false,
+					skipPersist: true,
+					skipPreferenceUpdate: true,
+					suppressPreference: true,
+				});
 			}
 			setStatus("Renderer ran out of memory. Restarting…", { level: "error" });
 			moduleRecoveryPromise = reloadModule()
@@ -1036,6 +1086,9 @@
 				if (isOutOfMemoryError(errorMessage)) {
 					recoverFromOutOfMemory(errorMessage);
 				}
+			}
+			if (ok) {
+				ZoomController.restorePreferredVectorScaling();
 			}
 			if (!ok) {
 				const preserveImage = hasSuccessfulRender && isSameDocumentUri(currentDocumentUri, lastSuccessfulRenderUri);

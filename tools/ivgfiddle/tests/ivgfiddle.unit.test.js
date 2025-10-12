@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { initializeIvfFiddleForTests, flushAnimationFrames } = require("./ivgfiddleTestHarness");
+const { initializeIvfFiddleForTests } = require("./ivgfiddleTestHarness");
 
 function setup() {
 	return initializeIvfFiddleForTests();
@@ -81,15 +81,41 @@ test("Vector scaling updates canvas attributes", () => {
 	assert.ok(String(canvas.style.transform).includes("scale(2"));
 });
 
-test("Vector raster failure queues bitmap fallback", () => {
-	// TODO: expand to assert trace strings like "Vector rescale was disabled" once the harness exposes trace output.
+test("Vector raster failure preserves zoom mode", () => {
+        const context = setup();
+        const zoomController = context.exports.ZoomController;
+        const storageKeys = context.exports.STORAGE_KEYS;
+        zoomController.setVectorScalingEnabled(true, { skipRerender: true });
+        assert.equal(context.window.localStorage.getItem(storageKeys.VECTOR_SCALING), "1");
+        const disabled = zoomController.handleVectorRasterFailure({ vectorRenderLimit: 1, renderZoom: 2 });
+        assert.equal(disabled, false);
+        assert.equal(zoomController.isVectorScalingEnabled(), true);
+        assert.equal(context.window.localStorage.getItem(storageKeys.VECTOR_SCALING), "1");
+});
+
+test("Vector toggle keeps zoom after baseline reset", () => {
 	const context = setup();
 	const zoomController = context.exports.ZoomController;
-	zoomController.setVectorScalingEnabled(true, { skipRerender: true });
-	const disabled = zoomController.handleVectorRasterFailure({ vectorRenderLimit: 1, renderZoom: 2 });
-	assert.equal(disabled, true);
-	assert.equal(zoomController.isVectorScalingEnabled(), false);
-	flushAnimationFrames(context.window);
+	const canvas = context.elements.ivgCanvas;
+	zoomController.setCanvasMetrics({
+		width: 400,
+		height: 200,
+		translateX: 8,
+		translateY: 16,
+		zoomApplied: 1,
+		vectorRenderLimit: Infinity,
+	});
+	zoomController.setZoom(0.25, { skipPersist: true, skipVectorRefresh: true });
+	assert.equal(canvas.style.transform, "translate(8px,16px) scale(0.25)");
+	zoomController.invalidateBaseMetrics();
+	assert.equal(zoomController.getBaseMetrics(), null);
+	assert.equal(canvas.style.transform, "translate(8px,16px) scale(0.25)");
+	zoomController.setVectorScalingEnabled(true, { skipRerender: true, skipPersist: true });
+	assert.equal(canvas.style.transform, "translate(2px,4px)");
+	assert.equal(canvas.style.width, "100px");
+	zoomController.setVectorScalingEnabled(false, { skipRerender: true, skipPersist: true });
+	assert.equal(canvas.style.transform, "translate(8px,16px) scale(0.25)");
+	assert.equal(canvas.style.width, "400px");
 });
 
 test("estimateVectorPixelBudget honors heap reserve", () => {
