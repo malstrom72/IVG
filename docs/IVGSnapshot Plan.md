@@ -166,7 +166,7 @@ void renderPlan(const SnapshotPlan& plan);
 - Parallelisation is postponed: once NuXThreads scheduling lands, `renderPlan` will enqueue `renderEntry` calls on the worker pool instead of running them inline.
 
 ## Golden Lifecycle
-- Goldens default to `<basename>/<scenario>.png` beside the IVG when `--output-dir` is absent.
+- Goldens default to `<sanitized-source>__<scenario>.png` beside the IVG when `--snapshot-dir` is absent, where `sanitized-source` replaces directory separators and drive markers with underscores.
 - Draft mode (`validate:no`) writes `<scenario>.png.disabled` and records success without comparison.
 - Validation mode requires an existing golden unless `--force-update` is supplied. When updating, the previous golden becomes `<scenario>.png.bak`.
 - Compare failures drop `<scenario>.actual.png` and `<scenario>.diff.png` alongside the golden to help debugging.

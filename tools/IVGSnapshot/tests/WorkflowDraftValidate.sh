@@ -30,11 +30,16 @@ SNAP
 output_dir="$temp_dir/snapshots"
 mkdir -p "$output_dir"
 
-run_draft="$("$snapshot_tool" --output-dir "$output_dir" "$ivg_file")"
+run_draft="$("$snapshot_tool" --snapshot-dir "$output_dir" "$ivg_file")"
 printf '%s\n' "$run_draft"
 
-golden_path="$output_dir/snaptest/snaptest-1.png"
-old_path="$output_dir/snaptest/snaptest-1.png.old"
+snapshot_prefix="${ivg_file%.*}"
+snapshot_prefix="${snapshot_prefix//\\/_}"
+snapshot_prefix="${snapshot_prefix//\//_}"
+snapshot_prefix="${snapshot_prefix//:/_}"
+
+golden_path="$output_dir/${snapshot_prefix}__snaptest-1.png"
+old_path="$output_dir/${snapshot_prefix}__snaptest-1.png.old"
 if [ ! -f "$old_path" ] && [ ! -f "$golden_path" ]; then
 	echo "Draft run did not produce a .png.old artifact." >&2
 	exit 1
@@ -52,7 +57,7 @@ FILL $color
 ELLIPSE 15,15,14
 SNAP
 
-run_validate1="$("$snapshot_tool" --output-dir "$output_dir" "$ivg_file")"
+run_validate1="$("$snapshot_tool" --snapshot-dir "$output_dir" "$ivg_file")"
 printf '%s\n' "$run_validate1"
 
 if printf '%s\n' "$run_validate1" | grep -q "FAILED"; then
@@ -60,7 +65,7 @@ if printf '%s\n' "$run_validate1" | grep -q "FAILED"; then
 	exit 1
 fi
 
-run_validate2="$("$snapshot_tool" --output-dir "$output_dir" "$ivg_file")"
+run_validate2="$("$snapshot_tool" --snapshot-dir "$output_dir" "$ivg_file")"
 printf '%s\n' "$run_validate2"
 
 if printf '%s\n' "$run_validate2" | grep -q "FAILED"; then

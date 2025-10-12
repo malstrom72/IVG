@@ -244,7 +244,7 @@ struct CommandLineOptions {
 	std::vector<std::string> includeDirs;
 	std::vector<std::string> fontDirs;
 	std::vector<std::string> imageDirs;
-	std::string outputDir;
+	std::string snapshotDir;
 	bool forceUpdate;
 	bool listOnly;
 	bool verbose;
@@ -322,20 +322,34 @@ static std::string joinPath(const std::string &base,
 static std::string sanitizeFileComponent(const std::string &name) {
 	std::string sanitized = name;
 	for (size_t i = 0; i < sanitized.size(); ++i) {
-		if (sanitized[i] == '/' || sanitized[i] == '\\') {
+		if (sanitized[i] == '/' || sanitized[i] == '\\' || sanitized[i] == ':') {
 			sanitized[i] = '_';
 		}
 	}
 	return sanitized;
 }
 
-static std::string buildEntryIdentifier(const std::string &baseName,
+static std::string buildSnapshotSourceTag(const std::string &ivgPath) {
+	std::string normalized = ivgPath;
+	for (size_t i = 0; i < normalized.size(); ++i) {
+		if (normalized[i] == '\\') {
+			normalized[i] = '/';
+		}
+	}
+	const size_t dot = normalized.find_last_of('.');
+	if (dot != std::string::npos) {
+		normalized.resize(dot);
+	}
+	return sanitizeFileComponent(normalized);
+}
+
+static std::string buildEntryIdentifier(const std::string &snapshotBase,
 										const SnapshotEntry &entry) {
 	const uint32_t blockIndex =
 		(entry.invocations.empty() ? 0 : entry.invocations[0].blockIndex);
 	std::ostringstream stream;
-	stream << baseName << '#' << stringFromIMPD(entry.scenarioName) << '#'
-		   << blockIndex << '#' << entry.entryOrdinal;
+	stream << snapshotBase << '#' << stringFromIMPD(entry.scenarioName) << '#'
+			<< blockIndex << '#' << entry.entryOrdinal;
 	return stream.str();
 }
 
@@ -738,22 +752,19 @@ static bool writeRasterToPng(
 	std::string &error);
 static SnapshotEntryResult
 renderEntry(const CommandLineOptions &options, const std::string &path,
-			const std::string &baseName, const CachedDocument &document,
-			SharedResources &sharedResources, const SnapshotScenario &scenario,
-			const SnapshotEntry &entry);
+		const std::string &snapshotBase, const CachedDocument &document,
+		SharedResources &sharedResources, const SnapshotScenario &scenario,
+		const SnapshotEntry &entry);
 
 class SnapshotGolden {
   public:
-	SnapshotGolden(const std::string &ivgPath, const std::string &baseName,
-				   const SnapshotScenario &scenario, const SnapshotEntry &entry,
-				   const CommandLineOptions &options) {
-		const std::string sanitizedBase = sanitizeFileComponent(baseName);
-		std::string root =
-			(options.outputDir.empty() ? extractDirectory(ivgPath)
-									   : options.outputDir);
-		if (!sanitizedBase.empty()) {
-			root = joinPath(root, sanitizedBase);
-		}
+	SnapshotGolden(const std::string &ivgPath, const std::string &snapshotBase,
+	                           const SnapshotScenario &scenario, const SnapshotEntry &entry,
+	                           const CommandLineOptions &options) {
+		const std::string sanitizedBase = sanitizeFileComponent(snapshotBase);
+		const std::string root =
+			(options.snapshotDir.empty() ? extractDirectory(ivgPath)
+			                                           : options.snapshotDir);
 		std::string scenarioName = stringFromIMPD(entry.scenarioName);
 		if (scenario.entryIndices.size() > 1) {
 			scenarioName += "-";
@@ -761,7 +772,11 @@ class SnapshotGolden {
 				Interpreter::toString(static_cast<int32_t>(entry.entryOrdinal));
 		}
 		scenarioName = sanitizeFileComponent(scenarioName);
-		const std::string stem = joinPath(root, scenarioName);
+		std::string fileStem = scenarioName;
+		if (!sanitizedBase.empty()) {
+			fileStem = sanitizedBase + "__" + fileStem;
+		}
+		const std::string stem = joinPath(root, fileStem);
 		goldenPath = stem + ".png";
 		oldPath = stem + ".png.old";
 		actualPath = stem + ".actual.png";
@@ -2045,7 +2060,7 @@ static void printUsage(const char *program) {
 			  << std::endl;
 	std::cout << "\t--font-dir <path>\tAdd font search path." << std::endl;
 	std::cout << "\t--image-dir <path>\tAdd image search path." << std::endl;
-	std::cout << "\t--output-dir <path>\tOverride output directory."
+	std::cout << "\t--snapshot-dir <path>\tOverride snapshot directory."
 			  << std::endl;
 	std::cout << "\t--force-update\t\tOverwrite goldens." << std::endl;
 	std::cout << "\t--threads <n>\t\tNumber of worker threads." << std::endl;
@@ -2102,12 +2117,12 @@ static bool parseCommandLine(int argc, char **argv,
 				return false;
 			}
 			options.imageDirs.push_back(argv[++i]);
-		} else if (arg == "--output-dir") {
+		} else if (arg == "--snapshot-dir") {
 			if (i + 1 >= argc) {
-				std::cerr << "--output-dir requires a path." << std::endl;
+				std::cerr << "--snapshot-dir requires a path." << std::endl;
 				return false;
 			}
-			options.outputDir = argv[++i];
+			options.snapshotDir = argv[++i];
 		} else if (arg == "--force-update") {
 			options.forceUpdate = true;
 		} else if (arg == "--threads") {
@@ -2138,7 +2153,11 @@ static bool parseCommandLine(int argc, char **argv,
 	}
 
 	if (options.ivgPaths.empty()) {
-		std::cerr << "no IVG files specified." << std::endl;
+		if (argc <= 1) {
+			printUsage(argv[0]);
+		} else {
+			std::cerr << "no IVG files specified." << std::endl;
+		}
 		return false;
 	}
 	return true;
@@ -2186,12 +2205,12 @@ static void printPlan(const std::string &path, const SnapshotPlan &plan) {
 }
 struct SnapshotJob {
 	SnapshotJob()
-		: options(0), ivgPath(0), baseName(0), document(0), sharedResources(0),
+		: options(0), ivgPath(0), snapshotBase(0), document(0), sharedResources(0),
 		  scenario(0), entry(0), planOrdinal(0), sentinel(false) {}
 
 	const CommandLineOptions *options;
 	const std::string *ivgPath;
-	const std::string *baseName;
+	const std::string *snapshotBase;
 	const CachedDocument *document;
 	SharedResources *sharedResources;
 	const SnapshotScenario *scenario;
@@ -2317,7 +2336,7 @@ class SnapshotScheduler {
 			}
 
 			SnapshotEntryResult result = renderEntry(
-				*job.options, *job.ivgPath, *job.baseName, *job.document,
+				*job.options, *job.ivgPath, *job.snapshotBase, *job.document,
 				*job.sharedResources, *job.scenario, *job.entry);
 			result.planOrdinal = job.planOrdinal;
 			submitResult(result);
@@ -2384,7 +2403,7 @@ class SnapshotScheduler {
 };
 static SnapshotEntryResult
 renderEntry(const CommandLineOptions &options, const std::string &path,
-			const std::string &baseName, const CachedDocument &document,
+			const std::string &snapshotBase, const CachedDocument &document,
 			SharedResources &sharedResources, const SnapshotScenario &scenario,
 			const SnapshotEntry &entry) {
 	SnapshotEntryResult result;
@@ -2394,7 +2413,7 @@ renderEntry(const CommandLineOptions &options, const std::string &path,
 	result.validate = entry.validate;
 	result.blockIndex =
 		(entry.invocations.empty() ? 0 : entry.invocations[0].blockIndex);
-	result.identifier = buildEntryIdentifier(baseName, entry);
+		result.identifier = buildEntryIdentifier(snapshotBase, entry);
 
 	IVG::SelfContainedARGB32Canvas canvas;
 	SnapshotPlaybackExecutor executor(canvas, scenario, entry, options, path,
@@ -2435,7 +2454,7 @@ renderEntry(const CommandLineOptions &options, const std::string &path,
 		return result;
 	}
 
-	SnapshotGolden golden(path, baseName, scenario, entry, options);
+		SnapshotGolden golden(path, snapshotBase, scenario, entry, options);
 	if (!entry.validate) {
 		if (!golden.writeDraft(*raster, result)) {
 			if (result.message.empty()) {
@@ -2505,7 +2524,7 @@ static SnapshotRunResult renderPlan(const CommandLineOptions &options,
 	SnapshotRunResult run;
 	const std::vector<SnapshotScenario> &scenarios = plan.getScenarios();
 	const std::vector<SnapshotEntry> &entries = plan.getEntries();
-	const std::string baseName = stringFromIMPD(plan.getBaseName());
+	const std::string snapshotBase = buildSnapshotSourceTag(path);
 	SharedResources sharedResources;
 
 	uint32_t threadCount = options.threads;
@@ -2553,7 +2572,7 @@ static SnapshotRunResult renderPlan(const CommandLineOptions &options,
 			SnapshotJob job;
 			job.options = &options;
 			job.ivgPath = &path;
-			job.baseName = &baseName;
+			job.snapshotBase = &snapshotBase;
 			job.document = &document;
 			job.sharedResources = &sharedResources;
 			job.scenario = &scenario;

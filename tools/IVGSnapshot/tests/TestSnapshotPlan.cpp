@@ -204,7 +204,7 @@ namespace {
 			const std::string tempRoot = (tempEnv != 0 && tempEnv[0] != '\0') ? std::string(tempEnv) : std::string("/tmp");
 
 			CommandLineOptions options;
-			options.outputDir = joinPath(tempRoot, "IVGSnapshotWorkflowTest");
+			options.snapshotDir = joinPath(tempRoot, "IVGSnapshotWorkflowTest");
 			options.forceUpdate = false;
 
 			SnapshotScenario scenario;
