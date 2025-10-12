@@ -10,5 +10,16 @@ tools/IVGSnapshot/tests/ListOnlySample.ivg
 		Entry 1
 			Block 2 (statement 1), line 3
 				[  set dash 4  ]
-tools/IVGSnapshot/tests/ListOnlySample.ivg: processed 3 snapshots (3 validated, 0 draft). Updated: 0. Failed: 0. Diff failures: 0. Exit code: 0.
-Processed 1 file (0 files failed). Total snapshots: 3 (3 validated, 0 draft). Updated: 0. Failed: 0. Diff failures: 0.
+# tools/IVGSnapshot/tests/ListOnlySample.ivg
+
+Summary
+  Snapshots       : 3 total (3 validated)
+  Updated         : 0
+  Failed          : 0 (diff failures: 0)
+
+# Overall Summary
+
+  Processed files : 1 (0 failed)
+  Snapshots       : 3 total (3 validated)
+  Updated         : 0
+  Failed          : 0 (diff failures: 0)

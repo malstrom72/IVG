@@ -31,6 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <codecvt>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <fstream>
@@ -488,103 +489,246 @@ static bool renameFile(const std::string &from, const std::string &to,
 	return false;
 }
 
-static void logEntryResult(const SnapshotEntryResult &result) {
-	std::ostringstream stream;
-	stream << result.ivgPath << ": scenario "
-		   << (result.scenarioName.empty() ? "(unnamed)" : result.scenarioName);
-	stream << ", entry " << result.entryOrdinal << " (block "
-		   << result.blockIndex << ")";
-	stream << " [" << (result.validate ? "validate" : "draft") << "]";
+static std::string abbreviatePathForDisplay(const std::string &path) {
+	if (path.empty()) {
+		return path;
+	}
+	const char *homeEnv = std::getenv("HOME");
+	if (homeEnv == nullptr || homeEnv[0] == '\0') {
+		return path;
+	}
+	std::string home(homeEnv);
+	while (!home.empty() && (home.back() == '/' || home.back() == '\\')) {
+		home.pop_back();
+	}
+	if (home.empty()) {
+		return path;
+	}
+	if (path.size() == home.size() && path.compare(0, home.size(), home) == 0) {
+		return "~";
+	}
+	if (path.size() > home.size() && path.compare(0, home.size(), home) == 0) {
+		const char next = path[home.size()];
+		if (next == '/' || next == '\\') {
+			return "~" + path.substr(home.size());
+		}
+	}
+	return path;
+}
 
+static std::vector<std::string> splitLines(const std::string &text) {
+	std::vector<std::string> lines;
+	if (text.empty()) {
+		return lines;
+	}
+	std::string current;
+	for (size_t i = 0; i < text.size(); ++i) {
+		const char c = text[i];
+		if (c == '\r') {
+			continue;
+		}
+		if (c == '\n') {
+			lines.push_back(current);
+			current.clear();
+			continue;
+		}
+		current += c;
+	}
+	if (!current.empty()) {
+		lines.push_back(current);
+	}
+	return lines;
+}
+
+static std::vector<std::string> formatErrorMessage(const std::string &message) {
+	const std::string prefix = "failed to prepare directory for ";
+	if (message.compare(0, prefix.size(), prefix) == 0) {
+		const size_t colon = message.find(':', prefix.size());
+		if (colon != std::string::npos) {
+			std::vector<std::string> lines;
+			lines.push_back("failed to prepare directory for");
+			const std::string rawPath = message.substr(prefix.size(), colon - prefix.size());
+			lines.push_back(abbreviatePathForDisplay(rawPath));
+			std::string reason = message.substr(colon + 1);
+			while (!reason.empty() && reason[0] == ' ') {
+				reason.erase(0, 1);
+			}
+			if (!reason.empty()) {
+				lines.push_back("(" + reason + ")");
+			}
+			return lines;
+		}
+	}
+	return splitLines(message);
+}
+
+static std::string describeEntryStatus(const SnapshotEntryResult &result) {
 	if (result.skipped) {
-		stream << " - skipped (draft output).";
-	} else if (!result.success) {
-		stream << " - FAILED.";
-	} else if (result.updated) {
-		stream << " - updated golden image.";
-	} else if (result.diffed) {
-		stream << " - compared against golden image.";
-	} else if (result.rendered) {
-		stream << " - rendered successfully.";
-	} else {
-		stream << " - no rendering performed.";
+		return "SKIPPED";
 	}
-
-	if (!result.identifier.empty()) {
-		stream << " Snapshot id: " << result.identifier << '.';
+	if (!result.success) {
+		return "FAILED";
 	}
-	if (!result.message.empty()) {
-		stream << ' ' << result.message;
-	}
-
-	if (result.skipped && !result.oldPath.empty()) {
-		stream << " Draft saved to " << result.oldPath << '.';
-	}
-	if (result.updated && !result.goldenPath.empty()) {
-		stream << " Golden stored at " << result.goldenPath << '.';
+	if (result.updated) {
+		return "UPDATED";
 	}
 	if (result.diffed) {
-		if (!result.actualPath.empty()) {
-			stream << " Actual: " << result.actualPath << '.';
-		}
-		if (!result.diffPath.empty()) {
-			stream << " Diff: " << result.diffPath << '.';
-		}
+		return "VALIDATED";
+	}
+	if (result.rendered) {
+		return "RENDERED";
+	}
+	return "NO ACTION";
+}
+
+static void printDetailLines(const std::string &label,
+			const std::vector<std::string> &lines) {
+	if (lines.empty()) {
+		return;
+	}
+	static const size_t labelWidth = 12;
+	const std::string indent = "	";
+	std::ostringstream firstLine;
+	firstLine << indent << std::left
+			  << std::setw(static_cast<int>(labelWidth)) << label;
+	firstLine << " : " << lines[0];
+	std::cout << firstLine.str() << std::endl;
+	const std::string continuation(indent.size() + labelWidth + 3, ' ');
+	for (size_t i = 1; i < lines.size(); ++i) {
+		std::cout << continuation << lines[i] << std::endl;
+	}
+}
+
+static void printDetail(const std::string &label, const std::string &value) {
+	if (value.empty()) {
+		return;
+	}
+	printDetailLines(label, splitLines(value));
+}
+
+static void printPathDetail(const std::string &label, const std::string &path) {
+	if (path.empty()) {
+		return;
+	}
+	printDetailLines(label, std::vector<std::string>(1, abbreviatePathForDisplay(path)));
+}
+
+static void printEntryReport(const SnapshotEntryResult &result) {
+	const std::string status = describeEntryStatus(result);
+	std::cout << "	Entry " << result.entryOrdinal << " (block "
+			  << result.blockIndex << ") - " << status << std::endl;
+	printDetail("Snapshot ID", result.identifier);
+	if (result.skipped) {
+		printPathDetail("Draft path", result.oldPath);
+	}
+	if (result.updated) {
+		printPathDetail("Golden path", result.goldenPath);
+	}
+	if (result.diffed) {
+		printPathDetail("Actual path", result.actualPath);
+		printPathDetail("Diff path", result.diffPath);
+	}
+	if (!result.success && !result.message.empty()) {
+		printDetailLines("Error", formatErrorMessage(result.message));
+	} else if (!result.message.empty()) {
+		printDetail("Message", result.message);
 	}
 	if (result.hasDiffStats) {
-		stream << " Diff stats: " << result.diffStats.differingPixels
-			   << " pixel" << (result.diffStats.differingPixels == 1 ? "" : "s")
-			   << " changed within a " << result.diffStats.width << 'x'
-			   << result.diffStats.height << " image.";
-		stream.setf(std::ios::fixed);
-		stream << " Max channel delta (A/R/G/B): "
-			   << result.diffStats.maxAlphaDiff << '/'
-			   << result.diffStats.maxRedDiff << '/'
-			   << result.diffStats.maxGreenDiff << '/'
-			   << result.diffStats.maxBlueDiff << '.';
-		stream << " Mean channel delta (A/R/G/B): " << std::setprecision(4)
-			   << result.diffStats.meanAlphaDiff << '/'
-			   << result.diffStats.meanRedDiff << '/'
-			   << result.diffStats.meanGreenDiff << '/'
-			   << result.diffStats.meanBlueDiff << '.';
+		std::ostringstream stats;
+		stats << result.diffStats.differingPixels << " pixel"
+			  << (result.diffStats.differingPixels == 1 ? "" : "s")
+			  << " changed within a " << result.diffStats.width << 'x'
+			  << result.diffStats.height << " image.";
+		printDetail("Diff stats", stats.str());
+		std::ostringstream maxDelta;
+		maxDelta << result.diffStats.maxAlphaDiff << '/'
+				<< result.diffStats.maxRedDiff << '/'
+				<< result.diffStats.maxGreenDiff << '/'
+				<< result.diffStats.maxBlueDiff;
+		printDetail("Max delta", maxDelta.str());
+		std::ostringstream meanDelta;
+		meanDelta.setf(std::ios::fixed);
+		meanDelta << std::setprecision(4) << result.diffStats.meanAlphaDiff << '/'
+				  << result.diffStats.meanRedDiff << '/'
+				  << result.diffStats.meanGreenDiff << '/'
+				  << result.diffStats.meanBlueDiff;
+		printDetail("Mean delta", meanDelta.str());
 	}
-
-	std::cout << stream.str() << std::endl;
 }
 
-static void logFileSummary(const std::string &path,
-						   const SnapshotRunResult &run) {
-	std::ostringstream stream;
-	const char *entryLabel = (run.totalEntries == 1 ? "snapshot" : "snapshots");
-	stream << path << ": processed " << run.totalEntries << ' ' << entryLabel
-		   << " (";
-	stream << run.validatedEntries << " validated, " << run.draftEntries
-		   << " draft)";
-	stream << ". Updated: " << run.updatedEntries
-		   << ". Failed: " << run.failedEntries;
-	stream << ". Diff failures: " << run.diffFailures
-		   << ". Exit code: " << run.exitCode << '.';
-	if (run.fileFailed && !run.fileError.empty()) {
-		stream << " Error: " << run.fileError;
+static void printSummaryLine(const std::string &label, const std::string &value) {
+	static const size_t labelWidth = 15;
+	const std::string indent = "  ";
+	std::ostringstream line;
+	line << indent << std::left
+		 << std::setw(static_cast<int>(labelWidth)) << label;
+	line << " : " << value;
+	std::cout << line.str() << std::endl;
+}
+
+static void logFileReport(const std::string &path, const SnapshotRunResult &run) {
+	std::cout << "# " << path << std::endl << std::endl;
+	bool printedSection = false;
+	if (!run.entries.empty()) {
+		std::string previousScenario;
+		bool firstScenario = true;
+		bool firstEntry = true;
+		for (size_t i = 0; i < run.entries.size(); ++i) {
+			const SnapshotEntryResult &entry = run.entries[i];
+			const std::string scenarioName =
+			(entry.scenarioName.empty() ? "(unnamed)" : entry.scenarioName);
+			if (firstScenario || scenarioName != previousScenario) {
+				if (!firstScenario) {
+					std::cout << std::endl;
+				}
+				std::cout << "Scenario: " << scenarioName << std::endl;
+				previousScenario = scenarioName;
+				firstScenario = false;
+				firstEntry = true;
+			}
+			if (!firstEntry) {
+				std::cout << std::endl;
+			}
+			printEntryReport(entry);
+			firstEntry = false;
+		}
+		printedSection = true;
 	}
-	std::cout << stream.str() << std::endl;
+	if (run.entries.empty() && run.fileFailed && !run.fileError.empty()) {
+		printDetailLines("Error", formatErrorMessage(run.fileError));
+		printedSection = true;
+	}
+	if (printedSection) {
+		std::cout << std::endl;
+	}
+	std::cout << "Summary" << std::endl;
+	std::ostringstream snapshotLine;
+	snapshotLine << run.totalEntries << " total (" << run.validatedEntries
+				 << " validated)";
+	printSummaryLine("Snapshots", snapshotLine.str());
+	printSummaryLine("Updated", Interpreter::toString(static_cast<int32_t>(run.updatedEntries)));
+	std::ostringstream failedLine;
+	failedLine << run.failedEntries << " (diff failures: " << run.diffFailures << ')';
+	printSummaryLine("Failed", failedLine.str());
+	std::cout << std::endl;
 }
 
-static void logRunSummary(const SnapshotTotals &totals) {
-	std::ostringstream stream;
-	const char *fileLabel = (totals.filesProcessed == 1 ? "file" : "files");
-	const char *failedLabel = (totals.failedFiles == 1 ? "file" : "files");
-	stream << "Processed " << totals.filesProcessed << ' ' << fileLabel;
-	stream << " (" << totals.failedFiles << ' ' << failedLabel << " failed).";
-	stream << " Total snapshots: " << totals.totalEntries << " ("
-		   << totals.validatedEntries << " validated, " << totals.draftEntries
-		   << " draft).";
-	stream << " Updated: " << totals.updatedEntries
-		   << ". Failed: " << totals.failedEntries;
-	stream << ". Diff failures: " << totals.diffFailures << '.';
-	std::cout << stream.str() << std::endl;
+static void logTotalsSummary(const SnapshotTotals &totals) {
+	std::cout << "# Overall Summary" << std::endl << std::endl;
+	std::ostringstream processedLine;
+	processedLine << totals.filesProcessed << " (" << totals.failedFiles
+				  << " failed)";
+	printSummaryLine("Processed files", processedLine.str());
+	std::ostringstream snapshotLine;
+	snapshotLine << totals.totalEntries << " total (" << totals.validatedEntries
+				 << " validated)";
+	printSummaryLine("Snapshots", snapshotLine.str());
+	printSummaryLine("Updated", Interpreter::toString(static_cast<int32_t>(totals.updatedEntries)));
+	std::ostringstream failedLine;
+	failedLine << totals.failedEntries << " (diff failures: " << totals.diffFailures
+			   << ')';
+	printSummaryLine("Failed", failedLine.str());
 }
-
 static bool
 loadPngRaster(const std::string &path,
 			  NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &outRaster);
@@ -2350,7 +2494,6 @@ static void flushSchedulerResults(SnapshotScheduler &scheduler, bool wait,
 					++run.diffFailures;
 				}
 			}
-			logEntryResult(recorded);
 			++nextLogIndex;
 		}
 	}
@@ -2560,7 +2703,7 @@ int main(int argc, char **argv) {
 		const std::string &path = options.ivgPaths[i];
 		SnapshotRunResult run = processFile(options, path);
 		totals.accumulate(run);
-		logFileSummary(path, run);
+		logFileReport(path, run);
 		if (run.exitCode != 0 || run.fileFailed) {
 			if (exitCode == 0) {
 				exitCode = (run.exitCode != 0 ? run.exitCode : 1);
@@ -2570,7 +2713,7 @@ int main(int argc, char **argv) {
 			}
 		}
 	}
-	logRunSummary(totals);
+	logTotalsSummary(totals);
 	return exitCode;
 }
 
