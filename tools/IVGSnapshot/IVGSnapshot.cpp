@@ -387,12 +387,36 @@ static bool ensureDirectoryPath(const NuXFiles::Path &directory) {
 			return false;
 		}
 		for (std::vector<NuXFiles::Path>::reverse_iterator it =
-				 toCreate.rbegin();
+				toCreate.rbegin();
 			 it != toCreate.rend(); ++it) {
 			if (it->isRoot()) {
 				continue;
 			}
-			it->create();
+			try {
+				it->create();
+			} catch (const NuXFiles::Exception &) {
+				try {
+					if (it->exists() && it->isDirectory()) {
+						continue;
+					}
+				} catch (const NuXFiles::Exception &) {
+					return false;
+				} catch (const std::exception &) {
+					return false;
+				}
+				return false;
+			} catch (const std::exception &) {
+				try {
+					if (it->exists() && it->isDirectory()) {
+						continue;
+					}
+				} catch (const NuXFiles::Exception &) {
+					return false;
+				} catch (const std::exception &) {
+					return false;
+				}
+				return false;
+			}
 		}
 		return directory.exists() && directory.isDirectory();
 	} catch (const NuXFiles::Exception &) {
