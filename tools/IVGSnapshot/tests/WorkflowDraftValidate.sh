@@ -33,10 +33,25 @@ mkdir -p "$output_dir"
 run_draft="$("$snapshot_tool" --snapshot-dir "$output_dir" "$ivg_file")"
 printf '%s\n' "$run_draft"
 
-snapshot_prefix="${ivg_file%.*}"
-snapshot_prefix="${snapshot_prefix//\\/_}"
-snapshot_prefix="${snapshot_prefix//\//_}"
-snapshot_prefix="${snapshot_prefix//:/_}"
+snapshot_prefix="$(
+python3 - <<'PY' "$ivg_file"
+import sys
+path = sys.argv[1]
+path = path.replace("\\", "/")
+dot = path.rfind(".")
+if dot != -1:
+    path = path[:dot]
+result = []
+for ch in path:
+    if ch == "_":
+        result.append("__")
+    elif ch in "/:":
+        result.append("_")
+    else:
+        result.append(ch)
+print("".join(result))
+PY
+)"
 
 golden_path="$output_dir/${snapshot_prefix}__snaptest-1.png"
 old_path="$output_dir/${snapshot_prefix}__snaptest-1.png.old"

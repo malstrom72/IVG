@@ -320,10 +320,17 @@ static std::string joinPath(const std::string &base,
 }
 
 static std::string sanitizeFileComponent(const std::string &name) {
-	std::string sanitized = name;
-	for (size_t i = 0; i < sanitized.size(); ++i) {
-		if (sanitized[i] == '/' || sanitized[i] == '\\' || sanitized[i] == ':') {
-			sanitized[i] = '_';
+	std::string sanitized;
+	sanitized.reserve(name.size() * 2);
+	for (size_t i = 0; i < name.size(); ++i) {
+		const char ch = name[i];
+		if (ch == '_') {
+			sanitized.push_back('_');
+			sanitized.push_back('_');
+		} else if (ch == '/' || ch == '\\' || ch == ':') {
+			sanitized.push_back('_');
+		} else {
+			sanitized.push_back(ch);
 		}
 	}
 	return sanitized;
