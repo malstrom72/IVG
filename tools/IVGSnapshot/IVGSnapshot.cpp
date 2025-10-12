@@ -377,35 +377,36 @@ static std::string buildSnapshotSourceTag(const std::string &ivgPath,
 				withoutExtension = sourcePath;
 			}
 
-			std::wstring relativeWide;
-			if (!rootDir.isNull()) {
-				try {
-					if (!rootDir.makeRelative(withoutExtension, true, relativeWide)
-						&& relativeWide.empty()) {
-						relativeWide = withoutExtension.getFullPath();
-					}
-				} catch (const NuXFiles::Exception &) {
-					relativeWide.clear();
-				} catch (const std::exception &) {
-					relativeWide.clear();
-				}
-			}
-			if (relativeWide.empty()) {
-				try {
-					relativeWide = withoutExtension.getFullPath();
-				} catch (const NuXFiles::Exception &) {
-					relativeWide.clear();
-				} catch (const std::exception &) {
-					relativeWide.clear();
-				}
-			}
+                        std::wstring relativeWide;
+                        bool haveRelative = false;
+                        if (!rootDir.isNull()) {
+                                try {
+                                        if (rootDir.makeRelative(withoutExtension, false, relativeWide)) {
+                                                haveRelative = !relativeWide.empty();
+                                        }
+                                } catch (const NuXFiles::Exception &) {
+                                        relativeWide.clear();
+                                } catch (const std::exception &) {
+                                        relativeWide.clear();
+                                }
+                        }
+                        if (!haveRelative) {
+                                try {
+                                        relativeWide = withoutExtension.getFullPath();
+                                        haveRelative = !relativeWide.empty();
+                                } catch (const NuXFiles::Exception &) {
+                                        relativeWide.clear();
+                                } catch (const std::exception &) {
+                                        relativeWide.clear();
+                                }
+                        }
 
-			if (!relativeWide.empty()) {
-				try {
-					std::string relative = pathStringFromWide(relativeWide);
-					if (!relative.empty()) {
-						for (size_t i = 0; i < relative.size(); ++i) {
-							if (relative[i] == '\\') {
+                        if (haveRelative) {
+                                try {
+                                        std::string relative = pathStringFromWide(relativeWide);
+                                        if (!relative.empty()) {
+                                                for (size_t i = 0; i < relative.size(); ++i) {
+                                                        if (relative[i] == '\\') {
 								relative[i] = '/';
 							}
 						}
