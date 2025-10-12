@@ -30,28 +30,36 @@ SNAP
 output_dir="$temp_dir/snapshots"
 mkdir -p "$output_dir"
 
-run_draft="$("$snapshot_tool" --snapshot-dir "$output_dir" "$ivg_file")"
+run_draft="$("$snapshot_tool" --snapshot-dir "$output_dir" --root-dir "$temp_dir" "$ivg_file")"
 printf '%s\n' "$run_draft"
 
 snapshot_prefix="$(
-python3 - <<'PY' "$ivg_file"
+python3 - <<'PY' "$ivg_file" "$temp_dir"
+import os
 import sys
-path = sys.argv[1]
-path = path.replace("\\", "/")
-dot = path.rfind(".")
-if dot != -1:
-    path = path[:dot]
+from pathlib import Path
+
+ivg_path = Path(sys.argv[1]).with_suffix("")
+root_path = Path(sys.argv[2])
+
+try:
+    relative = ivg_path.relative_to(root_path)
+except ValueError:
+    relative = ivg_path
+
+path = str(relative).replace(os.sep, "/")
 result = []
 for ch in path:
     if ch == "_":
         result.append("__")
-    elif ch in "/:":
+    elif ch in "/\\:":
         result.append("_")
     else:
         result.append(ch)
+
 print("".join(result))
 PY
-)"
+ )"
 
 golden_path="$output_dir/${snapshot_prefix}__snaptest-1.png"
 old_path="$output_dir/${snapshot_prefix}__snaptest-1.png.old"
@@ -72,7 +80,7 @@ FILL $color
 ELLIPSE 15,15,14
 SNAP
 
-run_validate1="$("$snapshot_tool" --snapshot-dir "$output_dir" "$ivg_file")"
+run_validate1="$("$snapshot_tool" --snapshot-dir "$output_dir" --root-dir "$temp_dir" "$ivg_file")"
 printf '%s\n' "$run_validate1"
 
 if printf '%s\n' "$run_validate1" | grep -q "FAILED"; then
@@ -80,7 +88,7 @@ if printf '%s\n' "$run_validate1" | grep -q "FAILED"; then
 	exit 1
 fi
 
-run_validate2="$("$snapshot_tool" --snapshot-dir "$output_dir" "$ivg_file")"
+run_validate2="$("$snapshot_tool" --snapshot-dir "$output_dir" --root-dir "$temp_dir" "$ivg_file")"
 printf '%s\n' "$run_validate2"
 
 if printf '%s\n' "$run_validate2" | grep -q "FAILED"; then
