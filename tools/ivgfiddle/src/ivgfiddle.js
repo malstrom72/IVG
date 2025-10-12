@@ -618,6 +618,8 @@ const ZoomController = (function createZoomController() {
 	let currentZoom = ZOOM_CONSTANTS.DEFAULT;
 	let baseMetrics = null;
 	let vectorScalingEnabled = false;
+	let vectorScalingPreferred = false;
+	let vectorScalingSuppressed = false;
 	let lastRenderZoom = 1;
 	let lastVectorRenderLimit = Infinity;
 	let rerenderRequestPending = false;
@@ -775,7 +777,10 @@ const ZoomController = (function createZoomController() {
 	}
 
 	function persistVectorScaling() {
-		Settings.write(STORAGE_KEYS.VECTOR_SCALING, vectorScalingEnabled ? "1" : "0");
+		Settings.write(
+			STORAGE_KEYS.VECTOR_SCALING,
+			vectorScalingPreferred ? "1" : "0"
+		);
 	}
 
 	function scheduleVectorRerender(reason) {
@@ -905,11 +910,28 @@ const ZoomController = (function createZoomController() {
 	function setVectorScalingEnabled(value, options) {
 		const settings = options || {};
 		const normalized = value === true;
+		if (settings.skipPreferenceUpdate !== true) {
+			vectorScalingPreferred = normalized;
+		}
 		if (normalized === vectorScalingEnabled && settings.force !== true) {
+			if (normalized) {
+				vectorScalingSuppressed = false;
+			} else if (settings.suppressPreference === true) {
+				vectorScalingSuppressed = true;
+			} else if (settings.skipPreferenceUpdate !== true) {
+				vectorScalingSuppressed = false;
+			}
 			reflectVectorScalingState();
 			return;
 		}
 		vectorScalingEnabled = normalized;
+		if (normalized) {
+			vectorScalingSuppressed = false;
+		} else if (settings.suppressPreference === true) {
+			vectorScalingSuppressed = true;
+		} else if (settings.skipPreferenceUpdate !== true) {
+			vectorScalingSuppressed = false;
+		}
 		if (!settings.skipPersist) {
 			persistVectorScaling();
 		}
@@ -925,6 +947,20 @@ const ZoomController = (function createZoomController() {
 				runIVG("vector-toggle-disabled");
 			});
 		}
+	}
+
+	function restorePreferredVectorScaling() {
+		if (!vectorScalingPreferred) {
+			vectorScalingSuppressed = false;
+			return false;
+		}
+		if (!vectorScalingSuppressed || vectorScalingEnabled) {
+			return false;
+		}
+		setVectorScalingEnabled(true, {
+			skipPreferenceUpdate: true,
+		});
+		return true;
 	}
 
 	function bindUIEvents() {
@@ -965,13 +1001,17 @@ const ZoomController = (function createZoomController() {
 			lastRenderZoom = details.renderZoom;
 		}
 		invalidateBaseMetrics();
-		if (!vectorScalingEnabled) {
+		const wasEnabled = vectorScalingEnabled;
+		if (!wasEnabled) {
 			return false;
 		}
 		setVectorScalingEnabled(false, {
 			skipRerender: true,
+			skipPersist: true,
+			skipPreferenceUpdate: true,
+			suppressPreference: true,
 		});
-		return true;
+		return wasEnabled;
 	}
 
 	function targetBlocksShortcut(element) {
@@ -1081,6 +1121,10 @@ const ZoomController = (function createZoomController() {
 		return vectorScalingEnabled;
 	}
 
+	function isVectorScalingPreferred() {
+		return vectorScalingPreferred;
+	}
+
 	function getBaseMetrics() {
 		return baseMetrics;
 	}
@@ -1103,8 +1147,10 @@ const ZoomController = (function createZoomController() {
 		applyZoom: applyZoom,
 		setCanvasMetrics: setCanvasMetrics,
 		setVectorScalingEnabled: setVectorScalingEnabled,
+		restorePreferredVectorScaling: restorePreferredVectorScaling,
 		getZoom: getZoom,
 		isVectorScalingEnabled: isVectorScalingEnabled,
+		isVectorScalingPreferred: isVectorScalingPreferred,
 		getBaseMetrics: getBaseMetrics,
 		handleVectorRasterFailure: handleVectorRasterFailure,
 		invalidateBaseMetrics: invalidateBaseMetrics,
@@ -1497,6 +1543,9 @@ function runIVG(reason) {
 			}
 			ZoomController.queueBitmapFallback("vector-fallback");
 		}
+	}
+	if (ok) {
+		ZoomController.restorePreferredVectorScaling();
 	}
 	if (!ok) {
 		ivgContext.beginPath();
