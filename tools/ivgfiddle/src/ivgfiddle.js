@@ -616,7 +616,8 @@ BackgroundController.init();
 
 const ZoomController = (function createZoomController() {
 	let currentZoom = ZOOM_CONSTANTS.DEFAULT;
-	let baseMetrics = null;
+	let displayMetrics = null;
+	let baselineMetrics = null;
 	let vectorScalingEnabled = false;
 	let vectorScalingPreferred = false;
 	let vectorScalingSuppressed = false;
@@ -815,9 +816,10 @@ const ZoomController = (function createZoomController() {
 			return;
 		}
 		ivgCanvas.setAttribute("data-scaling-mode", vectorScalingEnabled ? "vector" : "bitmap");
-		// Safari currently ignores `image-rendering: pixelated`, so bitmap mode may still interpolate there.
-		if (baseMetrics === null) {
-			ivgCanvas.style.transformOrigin = "top left";
+		const metrics = displayMetrics;
+		const targetZoom = vectorScalingEnabled ? currentZoom : 1;
+		ivgCanvas.style.transformOrigin = "top left";
+		if (metrics === null) {
 			if (vectorScalingEnabled) {
 				ivgCanvas.style.transform = "translate(0px, 0px)";
 			} else {
@@ -825,11 +827,8 @@ const ZoomController = (function createZoomController() {
 			}
 			return;
 		}
-		const metrics = baseMetrics;
-		const targetZoom = vectorScalingEnabled ? currentZoom : 1;
 		ivgCanvas.style.width = metrics.width * targetZoom + "px";
 		ivgCanvas.style.height = metrics.height * targetZoom + "px";
-		ivgCanvas.style.transformOrigin = "top left";
 		if (vectorScalingEnabled) {
 			ivgCanvas.style.transform = "translate(" + metrics.translateX * targetZoom + "px," + metrics.translateY * targetZoom + "px)";
 			if (Math.abs(lastRenderZoom - currentZoom) > ZOOM_EPSILON) {
@@ -1084,7 +1083,8 @@ const ZoomController = (function createZoomController() {
 
 	function setCanvasMetrics(metrics) {
 		if (metrics === null) {
-			baseMetrics = null;
+			displayMetrics = null;
+			baselineMetrics = null;
 			lastVectorRenderLimit = Infinity;
 			vectorBaselineReady = false;
 			applyZoom();
@@ -1093,11 +1093,17 @@ const ZoomController = (function createZoomController() {
 		const appliedZoom = metrics.zoomApplied || 1;
 		lastRenderZoom = appliedZoom;
 		lastVectorRenderLimit = Number.isFinite(metrics.vectorRenderLimit) ? metrics.vectorRenderLimit : Infinity;
-		baseMetrics = {
+		displayMetrics = {
 			width: metrics.width / appliedZoom,
 			height: metrics.height / appliedZoom,
 			translateX: metrics.translateX / appliedZoom,
 			translateY: metrics.translateY / appliedZoom,
+		};
+		baselineMetrics = {
+			width: displayMetrics.width,
+			height: displayMetrics.height,
+			translateX: displayMetrics.translateX,
+			translateY: displayMetrics.translateY,
 		};
 		vectorBaselineReady = true;
 		applyZoom();
@@ -1116,11 +1122,11 @@ const ZoomController = (function createZoomController() {
 	}
 
 	function getBaseMetrics() {
-		return baseMetrics;
+		return baselineMetrics;
 	}
 
 	function invalidateBaseMetrics() {
-		baseMetrics = null;
+		baselineMetrics = null;
 		lastVectorRenderLimit = Infinity;
 		vectorBaselineReady = false;
 	}
@@ -1501,7 +1507,6 @@ function runIVG(reason) {
 				renderZoom: renderZoom,
 				vectorRenderLimit: vectorRenderLimit,
 			});
-			trace("Vector rescale failed; preserving current zoom mode.");
 		}
 	} else {
 		ok = false;
@@ -1522,7 +1527,6 @@ function runIVG(reason) {
 				renderZoom: renderZoom,
 				vectorRenderLimit: vectorRenderLimit,
 			});
-			trace("Vector rescale crashed; preserving current zoom mode.");
 		}
 	}
 	if (ok) {
