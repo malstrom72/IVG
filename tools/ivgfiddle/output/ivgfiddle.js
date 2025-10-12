@@ -1001,17 +1001,7 @@ const ZoomController = (function createZoomController() {
 			lastRenderZoom = details.renderZoom;
 		}
 		invalidateBaseMetrics();
-		const wasEnabled = vectorScalingEnabled;
-		if (!wasEnabled) {
-			return false;
-		}
-		setVectorScalingEnabled(false, {
-			skipRerender: true,
-			skipPersist: true,
-			skipPreferenceUpdate: true,
-			suppressPreference: true,
-		});
-		return wasEnabled;
+		return false;
 	}
 
 	function targetBlocksShortcut(element) {
@@ -1507,26 +1497,20 @@ function runIVG(reason) {
 		} else if (!skipVectorRaster) {
 			trace("Aborted IVG");
 			if (vectorRescaleEnabled) {
-				const vectorDisabled = ZoomController.handleVectorRasterFailure({
+				ZoomController.handleVectorRasterFailure({
 					renderZoom: renderZoom,
 					vectorRenderLimit: vectorRenderLimit,
 				});
-				if (vectorDisabled) {
-					trace("Vector rescale was disabled after a failed rasterization - falling back to bitmap zoom.");
-				}
-				ZoomController.queueBitmapFallback("vector-fallback");
+				trace("Vector rescale failed; preserving current zoom mode.");
 			}
 		} else {
 			ok = false;
 			if (vectorRescaleEnabled) {
-				const vectorDisabled = ZoomController.handleVectorRasterFailure({
+				ZoomController.handleVectorRasterFailure({
 					renderZoom: renderZoom,
 					vectorRenderLimit: vectorRenderLimit,
 				});
-				if (vectorDisabled) {
-					trace("Vector rescale was disabled after exceeding the safe rasterization limits. Falling back to bitmap zoom.");
-				}
-				ZoomController.queueBitmapFallback("vector-preflight-limit");
+				trace("Vector preflight limits exceeded; retaining current zoom mode.");
 			}
 		}
 		Settings.write(STORAGE_KEYS.RUN_ON_STARTUP, "true");
@@ -1534,14 +1518,11 @@ function runIVG(reason) {
 		trace("Rasterization crashed");
 		trace(e);
 		if (vectorRescaleEnabled) {
-			const vectorDisabled = ZoomController.handleVectorRasterFailure({
+			ZoomController.handleVectorRasterFailure({
 				renderZoom: renderZoom,
 				vectorRenderLimit: vectorRenderLimit,
 			});
-			if (vectorDisabled) {
-				trace("Vector rescale crashed - falling back to bitmap zoom.");
-			}
-			ZoomController.queueBitmapFallback("vector-fallback");
+			trace("Vector rescale crashed; preserving current zoom mode.");
 		}
 	}
 	if (ok) {

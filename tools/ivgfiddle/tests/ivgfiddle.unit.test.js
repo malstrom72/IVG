@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { initializeIvfFiddleForTests, flushAnimationFrames } = require("./ivgfiddleTestHarness");
+const { initializeIvfFiddleForTests } = require("./ivgfiddleTestHarness");
 
 function setup() {
 	return initializeIvfFiddleForTests();
@@ -81,21 +81,16 @@ test("Vector scaling updates canvas attributes", () => {
 	assert.ok(String(canvas.style.transform).includes("scale(2"));
 });
 
-test("Vector raster failure queues bitmap fallback", () => {
-	// TODO: expand to assert trace strings like "Vector rescale was disabled" once the harness exposes trace output.
+test("Vector raster failure preserves zoom mode", () => {
 	const context = setup();
 	const zoomController = context.exports.ZoomController;
 	const storageKeys = context.exports.STORAGE_KEYS;
 	zoomController.setVectorScalingEnabled(true, { skipRerender: true });
 	assert.equal(context.window.localStorage.getItem(storageKeys.VECTOR_SCALING), "1");
 	const disabled = zoomController.handleVectorRasterFailure({ vectorRenderLimit: 1, renderZoom: 2 });
-	assert.equal(disabled, true);
-	assert.equal(zoomController.isVectorScalingEnabled(), false);
-	assert.equal(context.window.localStorage.getItem(storageKeys.VECTOR_SCALING), "1");
-	const restored = zoomController.restorePreferredVectorScaling();
-	assert.equal(restored, true);
+	assert.equal(disabled, false);
 	assert.equal(zoomController.isVectorScalingEnabled(), true);
-	flushAnimationFrames(context.window);
+	assert.equal(context.window.localStorage.getItem(storageKeys.VECTOR_SCALING), "1");
 });
 
 test("estimateVectorPixelBudget honors heap reserve", () => {
