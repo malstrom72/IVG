@@ -1,15 +1,16 @@
 "use strict";
 
 (function createIvfPreviewModule(global) {
-	function createHostAdapter(adapter) {
-		const noop = function noop() {};
-		const notifyStatus = adapter && typeof adapter.notifyStatus === "function" ? adapter.notifyStatus : noop;
-		const onReady = adapter && typeof adapter.onReady === "function" ? adapter.onReady : noop;
-		return {
-			notifyStatus: notifyStatus,
-			onReady: onReady,
-		};
-	}
+function createHostAdapter(adapter) {
+const noop = function noop() {};
+const notifyStatus = adapter && typeof adapter.notifyStatus === "function" ? adapter.notifyStatus : noop;
+const onReady = adapter && typeof adapter.onReady === "function" ? adapter.onReady : noop;
+return {
+notifyStatus: notifyStatus,
+onReady: onReady,
+emitTrace: adapter && typeof adapter.emitTrace === "function" ? adapter.emitTrace : noop,
+};
+}
 
 	function createPreview(adapter) {
 		const host = createHostAdapter(adapter);
@@ -17,10 +18,8 @@
 		const MAX_LOG_SIZE = 64 * 1024;
 		const MAX_LOG_LINES = 1000;
 
-		const statusElement = document.getElementById("status");
-		const traceElement = document.getElementById("trace");
-		const traceDiv = document.getElementById("traceDiv");
-		const ivgCanvas = document.getElementById("ivgCanvas");
+const statusElement = document.getElementById("status");
+const ivgCanvas = document.getElementById("ivgCanvas");
 		const ivgContext = ivgCanvas ? ivgCanvas.getContext("2d") : null;
 		const screenElement = document.getElementById("screen");
 		const previewContainer = document.getElementById("previewContainer");
@@ -74,6 +73,7 @@
 				element.classList.remove(className);
 			}
 		}
+
 
 		const Settings = (function createSettingsAdapter() {
 			function read(key, fallback) {
@@ -786,8 +786,9 @@
 			};
 		})();
 
-		let allLogLines = "";
-		let traceLinesCount = 0;
+let allLogLines = "";
+let traceLinesCount = 0;
+let traceDisplayLines = [];
 		let lastLogLine = null;
 		let repeatingLogLineCount = 0;
 		let moduleReady = false;
@@ -890,47 +891,62 @@
 			traceLinesCount = 0;
 			lastLogLine = null;
 			repeatingLogLineCount = 0;
-			if (traceElement) {
-				traceElement.textContent = "";
-			}
-			if (traceDiv) {
-				traceDiv.scrollTop = 0;
-			}
+			traceDisplayLines = [];
+			host.emitTrace({ action: "clear" });
 		}
 
 		function trace(message) {
 			const line = typeof message === "string" ? message : String(message);
+			if (!line) {
+				return;
+			}
+			let trimmed = false;
 			while (allLogLines.length > MAX_LOG_SIZE || traceLinesCount >= MAX_LOG_LINES) {
 				const offset = allLogLines.indexOf("\n");
 				if (offset < 0) {
+					allLogLines = "";
+					traceLinesCount = 0;
+					lastLogLine = null;
+					repeatingLogLineCount = 0;
+					traceDisplayLines = [];
+					trimmed = true;
 					break;
 				}
 				allLogLines = allLogLines.substr(offset + 1);
 				--traceLinesCount;
+				if (traceDisplayLines.length > 0) {
+					traceDisplayLines.shift();
+				}
+				trimmed = true;
 			}
-			if (lastLogLine === line) {
+			let displayLine = line;
+			let replaceLast = false;
+			if (lastLogLine === line && traceDisplayLines.length > 0) {
 				if (repeatingLogLineCount > 1) {
 					const offset = allLogLines.lastIndexOf(" *");
 					if (offset >= 0) {
 						allLogLines = allLogLines.substr(0, offset);
 					}
-				} else {
+				} else if (allLogLines.length > 0) {
 					allLogLines = allLogLines.substr(0, allLogLines.length - 1);
 				}
 				++repeatingLogLineCount;
+				displayLine = line + " *" + repeatingLogLineCount;
 				allLogLines += " *" + repeatingLogLineCount + "\n";
+				traceDisplayLines[traceDisplayLines.length - 1] = displayLine;
+				replaceLast = true;
 			} else {
 				allLogLines += line + "\n";
 				++traceLinesCount;
 				lastLogLine = line;
 				repeatingLogLineCount = 1;
+				traceDisplayLines.push(displayLine);
 			}
-			if (traceElement) {
-				traceElement.textContent = allLogLines;
+			if (trimmed) {
+				host.emitTrace({ action: "reset", lines: traceDisplayLines.slice() });
+				return;
 			}
-			if (traceDiv) {
-				traceDiv.scrollTop = traceDiv.scrollHeight;
-			}
+			host.emitTrace({ action: replaceLast ? "replace" : "append", text: displayLine });
 		}
 
 		function bindGlobalTrace() {
@@ -1024,7 +1040,6 @@
 				return;
 			}
 			clearTrace();
-			trace("Rasterizing IVG");
 			const start = window.performance.now();
 			let ok = false;
 			try {
@@ -1032,53 +1047,51 @@
 				const usesVectorScaling = ZoomController.usesVectorScaling();
 				const currentZoom = ZoomController.getZoom();
 				const rasterScale = usesVectorScaling ? currentZoom * devicePixelRatio : ZoomController.getRasterScale(devicePixelRatio);
-				const result = rasterizeIVG(currentSource, rasterScale);
-				if (result === 0) {
-					trace("Rasterization returned 0");
-				} else {
-					const module = global.Module;
-					const left = readInt32(module, result + 0);
-					const top = readInt32(module, result + 4);
-					const width = readInt32(module, result + 8);
-					const height = readInt32(module, result + 12);
-					const byteLength = width * height * 4;
-					const heapU8 = getHeapView(module, "HEAPU8");
-					if (!heapU8) {
-						throw new Error("WebAssembly heap unavailable");
-					}
-					const pixelOffset = result + 16;
-					const pixelData = heapU8.slice(pixelOffset, pixelOffset + byteLength);
-					module._deallocatePixels(result);
-					if (width > 0 && height > 0 && pixelData.length === byteLength) {
-						if (ivgCanvas.width !== width || ivgCanvas.height !== height) {
-							ivgCanvas.width = width;
-							ivgCanvas.height = height;
-						}
-						const imageData = ivgContext.createImageData(width, height);
-						imageData.data.set(pixelData);
-						ivgContext.putImageData(imageData, 0, 0);
-						ZoomController.applyRenderMetrics({
-							width: width,
-							height: height,
-							left: left,
-							top: top,
-							rasterScale: rasterScale,
-							renderZoom: usesVectorScaling ? currentZoom : 1,
-						});
-						trace("Completed IVG");
-						const end = window.performance.now();
-						trace("Time spent: " + (end - start) + "ms");
-						setStatus("Preview updated in " + (end - start) + " ms.", {
-							level: "info",
-							durationMs: end - start,
-						});
-						ok = true;
-						hasSuccessfulRender = true;
-						lastSuccessfulRenderUri = currentDocumentUri;
-					} else {
-						trace("Rasterization returned no data");
-					}
+			const result = rasterizeIVG(currentSource, rasterScale);
+			if (result !== 0) {
+				const module = global.Module;
+				const left = readInt32(module, result + 0);
+				const top = readInt32(module, result + 4);
+				const width = readInt32(module, result + 8);
+				const height = readInt32(module, result + 12);
+				const byteLength = width * height * 4;
+				const heapU8 = getHeapView(module, "HEAPU8");
+				if (!heapU8) {
+					throw new Error("WebAssembly heap unavailable");
 				}
+				const pixelOffset = result + 16;
+				const pixelData = heapU8.slice(pixelOffset, pixelOffset + byteLength);
+				module._deallocatePixels(result);
+				if (width > 0 && height > 0 && pixelData.length === byteLength) {
+					if (ivgCanvas.width !== width || ivgCanvas.height !== height) {
+						ivgCanvas.width = width;
+						ivgCanvas.height = height;
+					}
+					const imageData = ivgContext.createImageData(width, height);
+					imageData.data.set(pixelData);
+					ivgContext.putImageData(imageData, 0, 0);
+					ZoomController.applyRenderMetrics({
+						width: width,
+						height: height,
+						left: left,
+						top: top,
+						rasterScale: rasterScale,
+						renderZoom: usesVectorScaling ? currentZoom : 1,
+					});
+					const end = window.performance.now();
+					const durationMs = end - start;
+					trace("--- IVG completed in " + durationMs + "ms ---");
+					setStatus("Preview updated in " + durationMs + " ms.", {
+						level: "info",
+						durationMs: durationMs,
+					});
+					ok = true;
+					hasSuccessfulRender = true;
+					lastSuccessfulRenderUri = currentDocumentUri;
+				} else {
+					trace("Rasterization returned no data");
+				}
+			}
 			} catch (error) {
 				trace("Rasterization crashed");
 				const errorMessage = describeError(error);

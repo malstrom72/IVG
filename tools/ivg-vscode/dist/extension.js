@@ -50,10 +50,17 @@ const PREVIEW_LANGUAGE_ID = 'ivg';
 const DEFAULT_DEBOUNCE_MS = 150;
 const CONFIG_SECTION = 'ivgfiddle.preview';
 const GENERAL_CONFIG_SECTION = 'ivgfiddle';
+const TRACE_OUTPUT_CHANNEL_NAME = 'IVG Preview Trace';
+const TRACE_SHOW_ACTION = 'Show Trace Output';
+let traceOutputChannel;
+let traceOutputLines = [];
 let previewConfig = readPreviewConfig();
 let generalConfig = readGeneralConfig();
 function activate(context) {
     console.log('IVG Preview extension activated');
+    traceOutputChannel = vscode.window.createOutputChannel(TRACE_OUTPUT_CHANNEL_NAME);
+    context.subscriptions.push(traceOutputChannel);
+    clearTraceOutput();
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
     statusBarItem.command = 'ivgfiddle.open';
     statusBarItem.hide();
@@ -90,6 +97,11 @@ function activate(context) {
                 webviewReady = true;
                 flushPendingMessages();
                 syncActiveDocument('panelFocus');
+                return;
+            }
+            if (type === 'trace') {
+                const payload = message.message;
+                processTraceMessage(payload);
                 return;
             }
             if (type === 'status') {
@@ -461,7 +473,7 @@ function processStatusMessage(message) {
         return;
     }
     if (level === 'error') {
-        vscode.window.showErrorMessage(text);
+        showTraceErrorMessage(text);
         return;
     }
     clearTransientStatusMessage();
@@ -481,4 +493,82 @@ function clearTransientStatusMessage() {
         transientStatusMessage.dispose();
         transientStatusMessage = undefined;
     }
+}
+function processTraceMessage(raw) {
+    if (!raw || (typeof raw !== 'object' && typeof raw !== 'function')) {
+        return;
+    }
+    const payload = raw;
+    const action = typeof payload.action === 'string' ? payload.action : '';
+    if (!action) {
+        return;
+    }
+    if (action === 'clear') {
+        clearTraceOutput();
+        return;
+    }
+    if (action === 'reset') {
+        const lines = Array.isArray(payload.lines)
+            ? payload.lines.filter((entry) => typeof entry === 'string')
+            : [];
+        resetTraceOutput(lines);
+        return;
+    }
+    if (action === 'append') {
+        if (typeof payload.text === 'string') {
+            appendTraceOutputLine(payload.text);
+        }
+        return;
+    }
+    if (action === 'replace' && typeof payload.text === 'string') {
+        replaceLastTraceOutputLine(payload.text);
+    }
+}
+function getTraceOutputChannel() {
+    if (!traceOutputChannel) {
+        traceOutputChannel = vscode.window.createOutputChannel(TRACE_OUTPUT_CHANNEL_NAME);
+    }
+    return traceOutputChannel;
+}
+function clearTraceOutput() {
+    traceOutputLines = [];
+    if (traceOutputChannel) {
+        traceOutputChannel.clear();
+    }
+}
+function resetTraceOutput(lines) {
+    const channel = getTraceOutputChannel();
+    traceOutputLines = lines.slice();
+    channel.clear();
+    for (const line of traceOutputLines) {
+        channel.appendLine(line);
+    }
+}
+function appendTraceOutputLine(line) {
+    traceOutputLines.push(line);
+    getTraceOutputChannel().appendLine(line);
+}
+function replaceLastTraceOutputLine(line) {
+    if (traceOutputLines.length === 0) {
+        appendTraceOutputLine(line);
+        return;
+    }
+    traceOutputLines[traceOutputLines.length - 1] = line;
+    const channel = getTraceOutputChannel();
+    channel.clear();
+    for (const entry of traceOutputLines) {
+        channel.appendLine(entry);
+    }
+}
+function revealTraceOutput(preserveFocus) {
+    const channel = getTraceOutputChannel();
+    channel.show(preserveFocus === true);
+}
+function showTraceErrorMessage(message) {
+    const action = TRACE_SHOW_ACTION;
+    vscode.window.showErrorMessage(message, action).then((selection) => {
+        if (selection === action) {
+            revealTraceOutput();
+        }
+    });
 }

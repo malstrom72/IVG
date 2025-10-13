@@ -14,6 +14,11 @@ const PREVIEW_LANGUAGE_ID = 'ivg';
 const DEFAULT_DEBOUNCE_MS = 150;
 const CONFIG_SECTION = 'ivgfiddle.preview';
 const GENERAL_CONFIG_SECTION = 'ivgfiddle';
+const TRACE_OUTPUT_CHANNEL_NAME = 'IVG Preview Trace';
+const TRACE_SHOW_ACTION = 'Show Trace Output';
+
+let traceOutputChannel: vscode.OutputChannel | undefined;
+let traceOutputLines: string[] = [];
 
 interface PreviewConfig {
 autoRefresh: boolean;
@@ -30,6 +35,10 @@ let generalConfig: GeneralConfig = readGeneralConfig();
 
 export function activate(context: vscode.ExtensionContext): void {
 console.log('IVG Preview extension activated');
+
+traceOutputChannel = vscode.window.createOutputChannel(TRACE_OUTPUT_CHANNEL_NAME);
+context.subscriptions.push(traceOutputChannel);
+clearTraceOutput();
 
 statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 statusBarItem.command = 'ivgfiddle.open';
@@ -76,6 +85,11 @@ if (type === 'ready') {
 webviewReady = true;
 flushPendingMessages();
 syncActiveDocument('panelFocus');
+return;
+}
+if (type === 'trace') {
+const payload = (message as { message?: unknown }).message;
+processTraceMessage(payload);
 return;
 }
 if (type === 'status') {
@@ -496,10 +510,10 @@ function processStatusMessage(message: { level?: unknown; message?: unknown; dur
         if (!text) {
                 return;
         }
-        if (level === 'error') {
-                vscode.window.showErrorMessage(text);
-                return;
-        }
+if (level === 'error') {
+showTraceErrorMessage(text);
+return;
+}
         clearTransientStatusMessage();
         transientStatusMessage = vscode.window.setStatusBarMessage(text, 5000);
 }
@@ -515,8 +529,94 @@ function refreshStatusBar(): void {
 }
 
 function clearTransientStatusMessage(): void {
-        if (transientStatusMessage) {
-                transientStatusMessage.dispose();
-                transientStatusMessage = undefined;
-        }
+	if (transientStatusMessage) {
+		transientStatusMessage.dispose();
+		transientStatusMessage = undefined;
+	}
+}
+
+function processTraceMessage(raw: unknown): void {
+	if (!raw || (typeof raw !== 'object' && typeof raw !== 'function')) {
+		return;
+	}
+	const payload = raw as { action?: unknown; text?: unknown; lines?: unknown };
+	const action = typeof payload.action === 'string' ? payload.action : '';
+	if (!action) {
+		return;
+	}
+	if (action === 'clear') {
+		clearTraceOutput();
+		return;
+	}
+	if (action === 'reset') {
+		const lines = Array.isArray(payload.lines)
+			? payload.lines.filter((entry): entry is string => typeof entry === 'string')
+			: [];
+		resetTraceOutput(lines);
+		return;
+	}
+	if (action === 'append') {
+		if (typeof payload.text === 'string') {
+			appendTraceOutputLine(payload.text);
+		}
+		return;
+	}
+	if (action === 'replace' && typeof payload.text === 'string') {
+		replaceLastTraceOutputLine(payload.text);
+	}
+}
+
+function getTraceOutputChannel(): vscode.OutputChannel {
+	if (!traceOutputChannel) {
+		traceOutputChannel = vscode.window.createOutputChannel(TRACE_OUTPUT_CHANNEL_NAME);
+	}
+	return traceOutputChannel;
+}
+
+function clearTraceOutput(): void {
+	traceOutputLines = [];
+	if (traceOutputChannel) {
+		traceOutputChannel.clear();
+	}
+}
+
+function resetTraceOutput(lines: string[]): void {
+	const channel = getTraceOutputChannel();
+	traceOutputLines = lines.slice();
+	channel.clear();
+	for (const line of traceOutputLines) {
+		channel.appendLine(line);
+	}
+}
+
+function appendTraceOutputLine(line: string): void {
+	traceOutputLines.push(line);
+	getTraceOutputChannel().appendLine(line);
+}
+
+function replaceLastTraceOutputLine(line: string): void {
+	if (traceOutputLines.length === 0) {
+		appendTraceOutputLine(line);
+		return;
+	}
+	traceOutputLines[traceOutputLines.length - 1] = line;
+	const channel = getTraceOutputChannel();
+	channel.clear();
+	for (const entry of traceOutputLines) {
+		channel.appendLine(entry);
+	}
+}
+
+function revealTraceOutput(preserveFocus?: boolean): void {
+	const channel = getTraceOutputChannel();
+	channel.show(preserveFocus === true);
+}
+
+function showTraceErrorMessage(message: string): void {
+	const action = TRACE_SHOW_ACTION;
+	vscode.window.showErrorMessage(message, action).then((selection) => {
+		if (selection === action) {
+			revealTraceOutput();
+		}
+	});
 }

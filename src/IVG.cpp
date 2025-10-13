@@ -143,7 +143,9 @@ static void appendArcSegment(const Vertex& startPos, const Vertex& endPos, doubl
 		, bool sweepCW, bool largeArc, double curveQuality, Path& path) {
 	rx = fabs(rx);
 	ry = fabs(ry);
-	if (rx < EPSILON || ry < EPSILON) return;
+	if (rx < EPSILON || ry < EPSILON) {
+		return;
+	}
 	Vertex s(startPos);
 	Vertex e(endPos);
 	AffineTransformation affineReverse;
@@ -180,7 +182,7 @@ static void appendArcSegment(const Vertex& startPos, const Vertex& endPos, doubl
 		tempPath.arcSweep(centerX, centerY, sweepRadians, rx, ry, curveQuality);
 		tempPath.transform(affineReverse);
 		if (path.size() + tempPath.size() >= PATH_INSTRUCTION_LIMIT) {
-                    Interpreter::throwRunTimeError("Path instruction limit exceeded.");
+			Interpreter::throwRunTimeError("Path instruction limit exceeded.");
 		}
 		path.append(tempPath);
 	} else {

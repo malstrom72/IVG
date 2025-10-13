@@ -2,16 +2,16 @@
 <html lang="en">
 	<head>
 		<meta charset="utf-8">
-            <title>IVG Preview</title>
-                <link rel="stylesheet" href="./ivgfiddle.css">
-                <script type="text/javascript" src="./setupModule.js"></script>
-                <script type="text/javascript" src="./rasterizeIVG.js"></script>
-                <script type="text/javascript" src="./previewShared.js"></script>
+		<title>IVG Preview</title>
+		<link rel="stylesheet" href="./ivgfiddle.css">
+		<script type="text/javascript" src="./setupModule.js"></script>
+		<script type="text/javascript" src="./rasterizeIVG.js"></script>
+		<script type="text/javascript" src="./previewShared.js"></script>
 	</head>
 	<body>
 		<div id="stage" class="flex-col">
-                    <div id="previewContainer" class="flex-col grow" role="region" aria-label="IVG Preview canvas">
-                            <div id="canvasToolbar" class="flex-row" role="group" aria-label="IVG Preview canvas tools">
+			<div id="previewContainer" class="flex-col grow" role="region" aria-label="IVG Preview canvas">
+				<div id="canvasToolbar" class="flex-row" role="group" aria-label="IVG Preview canvas tools">
 					<label id="zoomLevelLabel" class="toolbar-label" for="zoomLevelSelect">Zoom</label>
 					<button id="zoomOutButton" class="toolbar-button" type="button" aria-label="Zoom out">&minus;</button>
 					<select id="zoomLevelSelect" aria-labelledby="zoomLevelLabel">
@@ -49,10 +49,8 @@
 					</canvas>
 				</div>
 			</div>
-			<div id="traceDiv">
-				<pre id="trace"></pre>
-			</div>
 		</div>
-                <script type="text/javascript" src="./ivgfiddle.js"></script>
+		<script type="text/javascript" src="./ivgfiddle.js"></script>
 	</body>
 </html>
+

@@ -22,12 +22,23 @@
 		vscodeApi.postMessage(payload);
 	}
 
+	function emitTrace(message) {
+		if (!vscodeApi || !message || typeof message !== "object") {
+			return;
+		}
+		vscodeApi.postMessage({
+			type: "trace",
+			message: message,
+		});
+	}
+
 	function createPreviewInstance() {
 		if (!window.IVGFiddlePreview || typeof window.IVGFiddlePreview.create !== "function") {
 			return null;
 		}
 		const preview = window.IVGFiddlePreview.create({
 			notifyStatus: notifyStatus,
+			emitTrace: emitTrace,
 			onReady: function handleReady() {
 				if (vscodeApi) {
 					vscodeApi.postMessage({ type: "ready" });
