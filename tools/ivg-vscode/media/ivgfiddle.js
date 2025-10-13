@@ -68,15 +68,17 @@
 		if (!window.IVGFiddlePreview || typeof window.IVGFiddlePreview.create !== "function") {
 			return null;
 		}
-		const preview = window.IVGFiddlePreview.create({
+		const hostBridge = {
 			notifyStatus: notifyStatus,
+			// Always supply the trace emitter so preview events reach the VS Code Output channel.
 			emitTrace: emitTrace,
 			onReady: function handleReady() {
 				if (vscodeApi) {
 					vscodeApi.postMessage({ type: "ready" });
 				}
 			},
-		});
+		};
+		const preview = window.IVGFiddlePreview.create(hostBridge);
 		preview.initialize();
 		return preview;
 	}
