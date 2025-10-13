@@ -105,4 +105,8 @@ tmp=$(mktemp)
 ./output/IVGSnapshot --list-only tools/IVGSnapshot/tests/ListOnlySample.ivg > "$tmp"
 diff --strip-trailing-cr tools/IVGSnapshot/tests/ListOnlySample.txt "$tmp"
 rm "$tmp"
+tmp=$(mktemp)
+./output/IVGSnapshot --list-only tools/IVGSnapshot/tests/ListScenarioVariants.ivg > "$tmp"
+diff --strip-trailing-cr tools/IVGSnapshot/tests/ListScenarioVariants.txt "$tmp"
+rm "$tmp"
 exit 0

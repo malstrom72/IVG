@@ -92,7 +92,67 @@ run_validate2="$("$snapshot_tool" --snapshot-dir "$output_dir" --root-dir "$temp
 printf '%s\n' "$run_validate2"
 
 if printf '%s\n' "$run_validate2" | grep -q "FAILED"; then
-	echo "Second validation run reported a failure." >&2
+        echo "Second validation run reported a failure." >&2
+        exit 1
+fi
+
+cat <<'SNAP' > "$ivg_file"
+format ivg-3 uses:snapshot-1
+bounds 0,0,37,37
+meta snapshot validate:no [
+        color=#E74C3C
+        highlight=#FFFFFF
+        shadow=#000000
+]
+FILL $color
+ELLIPSE 15,15,14
+SNAP
+
+run_disable="$("$snapshot_tool" --snapshot-dir "$output_dir" --root-dir "$temp_dir" "$ivg_file")"
+printf '%s\n' "$run_disable"
+
+if printf '%s\n' "$run_disable" | grep -q "FAILED"; then
+	echo "Disabling validation reported a failure." >&2
+	exit 1
+fi
+
+if [ ! -f "$old_path" ]; then
+	echo "Disabling validation did not regenerate the .png.old draft." >&2
+	exit 1
+fi
+
+if [ -f "$golden_path" ]; then
+	echo "Golden image was not removed when validation was disabled." >&2
+	exit 1
+fi
+
+cat <<'SNAP' > "$ivg_file"
+format ivg-3 uses:snapshot-1
+bounds 0,0,37,37
+meta snapshot validate:yes [
+        color=#E74C3C
+        highlight=#FFFFFF
+        shadow=#000000
+]
+FILL $color
+ELLIPSE 15,15,14
+SNAP
+
+run_reenable="$("$snapshot_tool" --snapshot-dir "$output_dir" --root-dir "$temp_dir" "$ivg_file")"
+printf '%s\n' "$run_reenable"
+
+if printf '%s\n' "$run_reenable" | grep -q "FAILED"; then
+	echo "Re-enabling validation reported a failure." >&2
+	exit 1
+fi
+
+if [ ! -f "$golden_path" ]; then
+	echo "Golden image was not restored after re-enabling validation." >&2
+	exit 1
+fi
+
+if [ -f "$old_path" ]; then
+	echo "Draft artifact still present after re-enabling validation." >&2
 	exit 1
 fi
 
