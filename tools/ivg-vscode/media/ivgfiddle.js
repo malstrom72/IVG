@@ -26,12 +26,35 @@
 		if (!vscodeApi) {
 			return;
 		}
-		const payload =
-				message && typeof message === "object"
-						? message
-						: typeof message === "string" && message.length > 0
-								? { action: "append", text: message }
-								: null;
+		let payload = null;
+		if (typeof message === "string") {
+			if (message.length === 0) {
+				return;
+			}
+			payload = { action: "append", text: message };
+		} else if (message && typeof message === "object") {
+			const action = typeof message.action === "string" ? message.action : "";
+			if (!action) {
+				return;
+			}
+			if (action === "reset") {
+				const lines = Array.isArray(message.lines)
+					? message.lines.filter((entry) => typeof entry === "string")
+					: [];
+				payload = { action: "reset" };
+				if (lines.length > 0) {
+					payload.lines = lines;
+				}
+			} else if (action === "clear") {
+				payload = { action: "clear" };
+			} else {
+				const text = typeof message.text === "string" ? message.text : "";
+				if (!text) {
+					return;
+				}
+				payload = { action: action, text: text };
+			}
+		}
 		if (!payload) {
 			return;
 		}
