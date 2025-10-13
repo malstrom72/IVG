@@ -18,7 +18,7 @@ IF NOT EXIST "%output%" MKDIR "%output%"
 
 COPY "%src%\ivgfiddle.html" "%src%\ivgfiddle.js" "%src%\setupModule.js" "%src%\previewShared.js" "%output%" >NUL
 IF NOT EXIST "%output%\ace" MKDIR "%output%\ace"
-COPY "%src%\ace\ace.js" "%src%\ace\ext-searchbox.js" "%src%\ace\mode-ivg.js" "%src%\ace\theme-twilight.js" "%output%\ace" >NUL
+COPY "%src%\ace\ace.js" "%src%\ace\ext-searchbox.js" "%src%\ace\theme-twilight.js" "%src%\ace\ivg.js" "%src%\ace\ivg_highlight_rules.js" "%output%\ace" >NUL
 
 WHERE node >NUL 2>NUL
 IF ERRORLEVEL 1 (
