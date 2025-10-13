@@ -1,0 +1,8 @@
+format snapshot uses:[snapshot-1]
+meta snapshot scenario:alpha [ [ set fill red ], [ set stroke blue ] ]
+meta snapshot scenario:alpha [ [ set highlight gold ], [ set outline green ] ]
+meta snapshot validate:no [ set dash 4 ]
+meta snapshot [ [ set implicit-one ], [ set implicit-two ] ]
+meta snapshot [ set implicit-three ]
+meta snapshot scenario:beta validate:no [ set shadow black ]
+meta snapshot scenario:beta validate:no [ set shadow gray ]
