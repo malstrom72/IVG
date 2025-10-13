@@ -616,8 +616,11 @@ BackgroundController.init();
 
 const ZoomController = (function createZoomController() {
 	let currentZoom = ZOOM_CONSTANTS.DEFAULT;
-	let baseMetrics = null;
+	let displayMetrics = null;
+	let baselineMetrics = null;
 	let vectorScalingEnabled = false;
+	let vectorScalingPreferred = false;
+	let vectorScalingSuppressed = false;
 	let lastRenderZoom = 1;
 	let lastVectorRenderLimit = Infinity;
 	let rerenderRequestPending = false;
@@ -775,7 +778,10 @@ const ZoomController = (function createZoomController() {
 	}
 
 	function persistVectorScaling() {
-		Settings.write(STORAGE_KEYS.VECTOR_SCALING, vectorScalingEnabled ? "1" : "0");
+		Settings.write(
+			STORAGE_KEYS.VECTOR_SCALING,
+			vectorScalingPreferred ? "1" : "0"
+		);
 	}
 
 	function scheduleVectorRerender(reason) {
@@ -810,9 +816,10 @@ const ZoomController = (function createZoomController() {
 			return;
 		}
 		ivgCanvas.setAttribute("data-scaling-mode", vectorScalingEnabled ? "vector" : "bitmap");
-		// Safari currently ignores `image-rendering: pixelated`, so bitmap mode may still interpolate there.
-		if (baseMetrics === null) {
-			ivgCanvas.style.transformOrigin = "top left";
+		const metrics = displayMetrics;
+		const targetZoom = vectorScalingEnabled ? currentZoom : 1;
+		ivgCanvas.style.transformOrigin = "top left";
+		if (metrics === null) {
 			if (vectorScalingEnabled) {
 				ivgCanvas.style.transform = "translate(0px, 0px)";
 			} else {
@@ -820,11 +827,8 @@ const ZoomController = (function createZoomController() {
 			}
 			return;
 		}
-		const metrics = baseMetrics;
-		const targetZoom = vectorScalingEnabled ? currentZoom : 1;
 		ivgCanvas.style.width = metrics.width * targetZoom + "px";
 		ivgCanvas.style.height = metrics.height * targetZoom + "px";
-		ivgCanvas.style.transformOrigin = "top left";
 		if (vectorScalingEnabled) {
 			ivgCanvas.style.transform = "translate(" + metrics.translateX * targetZoom + "px," + metrics.translateY * targetZoom + "px)";
 			if (Math.abs(lastRenderZoom - currentZoom) > ZOOM_EPSILON) {
@@ -905,11 +909,28 @@ const ZoomController = (function createZoomController() {
 	function setVectorScalingEnabled(value, options) {
 		const settings = options || {};
 		const normalized = value === true;
+		if (settings.skipPreferenceUpdate !== true) {
+			vectorScalingPreferred = normalized;
+		}
 		if (normalized === vectorScalingEnabled && settings.force !== true) {
+			if (normalized) {
+				vectorScalingSuppressed = false;
+			} else if (settings.suppressPreference === true) {
+				vectorScalingSuppressed = true;
+			} else if (settings.skipPreferenceUpdate !== true) {
+				vectorScalingSuppressed = false;
+			}
 			reflectVectorScalingState();
 			return;
 		}
 		vectorScalingEnabled = normalized;
+		if (normalized) {
+			vectorScalingSuppressed = false;
+		} else if (settings.suppressPreference === true) {
+			vectorScalingSuppressed = true;
+		} else if (settings.skipPreferenceUpdate !== true) {
+			vectorScalingSuppressed = false;
+		}
 		if (!settings.skipPersist) {
 			persistVectorScaling();
 		}
@@ -925,6 +946,20 @@ const ZoomController = (function createZoomController() {
 				runIVG("vector-toggle-disabled");
 			});
 		}
+	}
+
+	function restorePreferredVectorScaling() {
+		if (!vectorScalingPreferred) {
+			vectorScalingSuppressed = false;
+			return false;
+		}
+		if (!vectorScalingSuppressed || vectorScalingEnabled) {
+			return false;
+		}
+		setVectorScalingEnabled(true, {
+			skipPreferenceUpdate: true,
+		});
+		return true;
 	}
 
 	function bindUIEvents() {
@@ -965,13 +1000,7 @@ const ZoomController = (function createZoomController() {
 			lastRenderZoom = details.renderZoom;
 		}
 		invalidateBaseMetrics();
-		if (!vectorScalingEnabled) {
-			return false;
-		}
-		setVectorScalingEnabled(false, {
-			skipRerender: true,
-		});
-		return true;
+		return false;
 	}
 
 	function targetBlocksShortcut(element) {
@@ -1054,7 +1083,8 @@ const ZoomController = (function createZoomController() {
 
 	function setCanvasMetrics(metrics) {
 		if (metrics === null) {
-			baseMetrics = null;
+			displayMetrics = null;
+			baselineMetrics = null;
 			lastVectorRenderLimit = Infinity;
 			vectorBaselineReady = false;
 			applyZoom();
@@ -1063,11 +1093,17 @@ const ZoomController = (function createZoomController() {
 		const appliedZoom = metrics.zoomApplied || 1;
 		lastRenderZoom = appliedZoom;
 		lastVectorRenderLimit = Number.isFinite(metrics.vectorRenderLimit) ? metrics.vectorRenderLimit : Infinity;
-		baseMetrics = {
+		displayMetrics = {
 			width: metrics.width / appliedZoom,
 			height: metrics.height / appliedZoom,
 			translateX: metrics.translateX / appliedZoom,
 			translateY: metrics.translateY / appliedZoom,
+		};
+		baselineMetrics = {
+			width: displayMetrics.width,
+			height: displayMetrics.height,
+			translateX: displayMetrics.translateX,
+			translateY: displayMetrics.translateY,
 		};
 		vectorBaselineReady = true;
 		applyZoom();
@@ -1081,12 +1117,16 @@ const ZoomController = (function createZoomController() {
 		return vectorScalingEnabled;
 	}
 
+	function isVectorScalingPreferred() {
+		return vectorScalingPreferred;
+	}
+
 	function getBaseMetrics() {
-		return baseMetrics;
+		return baselineMetrics;
 	}
 
 	function invalidateBaseMetrics() {
-		baseMetrics = null;
+		baselineMetrics = null;
 		lastVectorRenderLimit = Infinity;
 		vectorBaselineReady = false;
 	}
@@ -1103,8 +1143,10 @@ const ZoomController = (function createZoomController() {
 		applyZoom: applyZoom,
 		setCanvasMetrics: setCanvasMetrics,
 		setVectorScalingEnabled: setVectorScalingEnabled,
+		restorePreferredVectorScaling: restorePreferredVectorScaling,
 		getZoom: getZoom,
 		isVectorScalingEnabled: isVectorScalingEnabled,
+		isVectorScalingPreferred: isVectorScalingPreferred,
 		getBaseMetrics: getBaseMetrics,
 		handleVectorRasterFailure: handleVectorRasterFailure,
 		invalidateBaseMetrics: invalidateBaseMetrics,
@@ -1458,45 +1500,37 @@ function runIVG(reason) {
 			if (vectorRescaleEnabled && baselineRender && targetRenderZoom > renderZoom + 0.0001) {
 				ZoomController.requestVectorRerender("vector-baseline");
 			}
-		} else if (!skipVectorRaster) {
-			trace("Aborted IVG");
-			if (vectorRescaleEnabled) {
-				const vectorDisabled = ZoomController.handleVectorRasterFailure({
-					renderZoom: renderZoom,
-					vectorRenderLimit: vectorRenderLimit,
-				});
-				if (vectorDisabled) {
-					trace("Vector rescale was disabled after a failed rasterization - falling back to bitmap zoom.");
-				}
-				ZoomController.queueBitmapFallback("vector-fallback");
-			}
-		} else {
-			ok = false;
-			if (vectorRescaleEnabled) {
-				const vectorDisabled = ZoomController.handleVectorRasterFailure({
-					renderZoom: renderZoom,
-					vectorRenderLimit: vectorRenderLimit,
-				});
-				if (vectorDisabled) {
-					trace("Vector rescale was disabled after exceeding the safe rasterization limits. Falling back to bitmap zoom.");
-				}
-				ZoomController.queueBitmapFallback("vector-preflight-limit");
-			}
+	} else if (!skipVectorRaster) {
+		trace("Aborted IVG");
+		if (vectorRescaleEnabled) {
+			ZoomController.handleVectorRasterFailure({
+				renderZoom: renderZoom,
+				vectorRenderLimit: vectorRenderLimit,
+			});
 		}
-		Settings.write(STORAGE_KEYS.RUN_ON_STARTUP, "true");
+	} else {
+		ok = false;
+		if (vectorRescaleEnabled) {
+			ZoomController.handleVectorRasterFailure({
+				renderZoom: renderZoom,
+				vectorRenderLimit: vectorRenderLimit,
+			});
+			trace("Vector preflight limits exceeded; retaining current zoom mode.");
+		}
+	}
+	Settings.write(STORAGE_KEYS.RUN_ON_STARTUP, "true");
 	} catch (e) {
 		trace("Rasterization crashed");
 		trace(e);
 		if (vectorRescaleEnabled) {
-			const vectorDisabled = ZoomController.handleVectorRasterFailure({
+			ZoomController.handleVectorRasterFailure({
 				renderZoom: renderZoom,
 				vectorRenderLimit: vectorRenderLimit,
 			});
-			if (vectorDisabled) {
-				trace("Vector rescale crashed - falling back to bitmap zoom.");
-			}
-			ZoomController.queueBitmapFallback("vector-fallback");
 		}
+	}
+	if (ok) {
+		ZoomController.restorePreferredVectorScaling();
 	}
 	if (!ok) {
 		ivgContext.beginPath();
