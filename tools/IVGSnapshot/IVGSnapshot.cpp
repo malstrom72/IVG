@@ -244,7 +244,8 @@ struct CommandLineOptions {
 	std::vector<std::string> includeDirs;
 	std::vector<std::string> fontDirs;
 	std::vector<std::string> imageDirs;
-	std::string outputDir;
+	std::string snapshotDir;
+	NuXFiles::Path rootDir;
 	bool forceUpdate;
 	bool listOnly;
 	bool verbose;
@@ -253,7 +254,8 @@ struct CommandLineOptions {
 	std::vector<std::string> ivgPaths;
 
 	CommandLineOptions()
-		: forceUpdate(false), listOnly(false), verbose(false),
+		: rootDir(NuXFiles::Path::getCurrentDirectoryPath()),
+		  forceUpdate(false), listOnly(false), verbose(false),
 		  exitOnFirstFailure(false), threads(0) {}
 };
 
@@ -262,9 +264,9 @@ static std::string stringFromIMPD(const String &value) {
 }
 
 static std::wstring pathStringToWide(const std::string &path) {
-	if (path.empty()) {
-		return std::wstring();
-	}
+        if (path.empty()) {
+                return std::wstring();
+        }
 #if defined(_WIN32)
 	const int sourceLength = static_cast<int>(path.size());
 	const int wideLength =
@@ -281,15 +283,40 @@ static std::wstring pathStringToWide(const std::string &path) {
 	return wide;
 #else
 	std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-	return converter.from_bytes(path);
+        return converter.from_bytes(path);
 #endif
 }
 
-static NuXFiles::Path pathFromNativeString(const std::string &path) {
+static std::string pathStringFromWide(const std::wstring &path) {
 	if (path.empty()) {
-		return NuXFiles::Path();
+		return std::string();
 	}
-	try {
+#if defined(_WIN32)
+	const int sourceLength = static_cast<int>(path.size());
+	const int narrowLength =
+			::WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS, path.data(), sourceLength,
+							0, 0, 0, 0);
+	if (narrowLength <= 0) {
+		throw std::range_error("failed to convert wide path to native characters");
+	}
+	std::string narrow(static_cast<size_t>(narrowLength), '\0');
+	const int converted =
+			::WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS, path.data(), sourceLength,
+							&narrow[0], narrowLength, 0, 0);
+	if (converted != narrowLength) {
+		throw std::range_error("failed to convert wide path to native characters");
+	}
+	return narrow;
+#else
+	std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+	return converter.to_bytes(path);
+#endif
+}
+static NuXFiles::Path pathFromNativeString(const std::string &path) {
+        if (path.empty()) {
+                return NuXFiles::Path();
+        }
+        try {
 		return NuXFiles::Path(pathStringToWide(path));
 	} catch (const std::range_error &) {
 		return NuXFiles::Path();
@@ -320,22 +347,156 @@ static std::string joinPath(const std::string &base,
 }
 
 static std::string sanitizeFileComponent(const std::string &name) {
-	std::string sanitized = name;
-	for (size_t i = 0; i < sanitized.size(); ++i) {
-		if (sanitized[i] == '/' || sanitized[i] == '\\') {
-			sanitized[i] = '_';
+	std::string sanitized;
+	sanitized.reserve(name.size() * 2);
+	for (size_t i = 0; i < name.size(); ++i) {
+		const char ch = name[i];
+		if (ch == '_') {
+			sanitized.push_back('_');
+			sanitized.push_back('_');
+		} else if (ch == '/' || ch == '\\' || ch == ':') {
+			sanitized.push_back('_');
+		} else {
+			sanitized.push_back(ch);
 		}
 	}
 	return sanitized;
 }
 
-static std::string buildEntryIdentifier(const std::string &baseName,
+static bool tryBuildRelativeSnapshotTag(const NuXFiles::Path &rootDir,
+						const NuXFiles::Path &withoutExtension,
+						std::string &relative) {
+	if (rootDir.isNull()) {
+		return false;
+	}
+
+	std::wstring relativeWide;
+	try {
+		if (rootDir.makeRelative(withoutExtension, false, relativeWide)) {
+			if (!relativeWide.empty()) {
+				try {
+					relative = pathStringFromWide(relativeWide);
+				} catch (const std::exception &) {
+					relative.clear();
+					return false;
+				}
+				for (size_t i = 0; i < relative.size(); ++i) {
+					if (relative[i] == '\\') {
+						relative[i] = '/';
+					}
+				}
+				return true;
+			}
+		}
+	} catch (const NuXFiles::Exception &) {
+		relativeWide.clear();
+	} catch (const std::exception &) {
+		relativeWide.clear();
+	}
+
+	std::wstring rootWide;
+	std::wstring targetWide;
+	try {
+		rootWide = rootDir.getFullPath();
+		targetWide = withoutExtension.getFullPath();
+	} catch (const NuXFiles::Exception &) {
+		return false;
+	} catch (const std::exception &) {
+		return false;
+	}
+
+	if (rootWide.empty() || targetWide.empty()) {
+		return false;
+	}
+
+	std::wstring normalizedRoot;
+	try {
+		normalizedRoot = NuXFiles::Path::appendSeparator(rootWide);
+	} catch (const NuXFiles::Exception &) {
+		normalizedRoot = rootWide;
+	} catch (const std::exception &) {
+		normalizedRoot = rootWide;
+	}
+	if (!normalizedRoot.empty()) {
+		const wchar_t separator = NuXFiles::Path::getSeparator();
+		if (normalizedRoot[normalizedRoot.size() - 1] != separator) {
+			normalizedRoot.push_back(separator);
+		}
+	}
+
+	if (normalizedRoot.empty()) {
+		return false;
+	}
+	if (targetWide.size() <= normalizedRoot.size()) {
+		return false;
+	}
+	if (targetWide.compare(0, normalizedRoot.size(), normalizedRoot) != 0) {
+		return false;
+	}
+
+	const std::wstring remainder = targetWide.substr(normalizedRoot.size());
+	if (remainder.empty()) {
+		return false;
+	}
+
+	try {
+		relative = pathStringFromWide(remainder);
+	} catch (const std::exception &) {
+		return false;
+	}
+	for (size_t i = 0; i < relative.size(); ++i) {
+		if (relative[i] == '\\') {
+			relative[i] = '/';
+		}
+	}
+	return true;
+}
+
+
+
+static std::string buildSnapshotSourceTag(const std::string &ivgPath,
+						const NuXFiles::Path &rootDir) {
+	try {
+		const NuXFiles::Path sourcePath = pathFromNativeString(ivgPath);
+		if (!sourcePath.isNull()) {
+			NuXFiles::Path withoutExtension(sourcePath);
+			try {
+				withoutExtension = sourcePath.withoutExtension();
+			} catch (const NuXFiles::Exception &) {
+				withoutExtension = sourcePath;
+			} catch (const std::exception &) {
+				withoutExtension = sourcePath;
+			}
+
+			std::string relative;
+			if (tryBuildRelativeSnapshotTag(rootDir, withoutExtension, relative)) {
+				return sanitizeFileComponent(relative);
+			}
+		}
+	} catch (const std::exception &) {
+	}
+
+	std::string normalized = ivgPath;
+	for (size_t i = 0; i < normalized.size(); ++i) {
+		if (normalized[i] == '\\') {
+			normalized[i] = '/';
+		}
+	}
+	const size_t dot = normalized.find_last_of('.');
+	if (dot != std::string::npos) {
+		normalized.resize(dot);
+	}
+	return sanitizeFileComponent(normalized);
+}
+
+
+static std::string buildEntryIdentifier(const std::string &snapshotBase,
 										const SnapshotEntry &entry) {
 	const uint32_t blockIndex =
 		(entry.invocations.empty() ? 0 : entry.invocations[0].blockIndex);
 	std::ostringstream stream;
-	stream << baseName << '#' << stringFromIMPD(entry.scenarioName) << '#'
-		   << blockIndex << '#' << entry.entryOrdinal;
+	stream << snapshotBase << '#' << stringFromIMPD(entry.scenarioName) << '#'
+			<< blockIndex << '#' << entry.entryOrdinal;
 	return stream.str();
 }
 
@@ -738,30 +899,30 @@ static bool writeRasterToPng(
 	std::string &error);
 static SnapshotEntryResult
 renderEntry(const CommandLineOptions &options, const std::string &path,
-			const std::string &baseName, const CachedDocument &document,
-			SharedResources &sharedResources, const SnapshotScenario &scenario,
-			const SnapshotEntry &entry);
+		const std::string &snapshotBase, const CachedDocument &document,
+		SharedResources &sharedResources, const SnapshotScenario &scenario,
+		const SnapshotEntry &entry);
 
 class SnapshotGolden {
   public:
-	SnapshotGolden(const std::string &ivgPath, const std::string &baseName,
-				   const SnapshotScenario &scenario, const SnapshotEntry &entry,
-				   const CommandLineOptions &options) {
-		const std::string sanitizedBase = sanitizeFileComponent(baseName);
-		std::string root =
-			(options.outputDir.empty() ? extractDirectory(ivgPath)
-									   : options.outputDir);
-		if (!sanitizedBase.empty()) {
-			root = joinPath(root, sanitizedBase);
-		}
-		std::string scenarioName = stringFromIMPD(entry.scenarioName);
-		if (scenario.entryIndices.size() > 1) {
+	SnapshotGolden(const std::string &ivgPath, const std::string &snapshotBase,
+	                           const SnapshotScenario &scenario, const SnapshotEntry &entry,
+	                           const CommandLineOptions &options) {
+                const std::string root =
+                        (options.snapshotDir.empty() ? extractDirectory(ivgPath)
+                                                                   : options.snapshotDir);
+                std::string scenarioName = stringFromIMPD(entry.scenarioName);
+                if (scenario.entryIndices.size() > 1) {
 			scenarioName += "-";
 			scenarioName +=
 				Interpreter::toString(static_cast<int32_t>(entry.entryOrdinal));
-		}
-		scenarioName = sanitizeFileComponent(scenarioName);
-		const std::string stem = joinPath(root, scenarioName);
+                }
+                scenarioName = sanitizeFileComponent(scenarioName);
+                std::string fileStem = scenarioName;
+                if (!snapshotBase.empty()) {
+                        fileStem = snapshotBase + "__" + fileStem;
+                }
+		const std::string stem = joinPath(root, fileStem);
 		goldenPath = stem + ".png";
 		oldPath = stem + ".png.old";
 		actualPath = stem + ".actual.png";
@@ -2045,7 +2206,9 @@ static void printUsage(const char *program) {
 			  << std::endl;
 	std::cout << "\t--font-dir <path>\tAdd font search path." << std::endl;
 	std::cout << "\t--image-dir <path>\tAdd image search path." << std::endl;
-	std::cout << "\t--output-dir <path>\tOverride output directory."
+	std::cout << "\t--snapshot-dir <path>\tOverride snapshot directory."
+			  << std::endl;
+	std::cout << "\t--root-dir <path>\t\tRoot for snapshot name generation."
 			  << std::endl;
 	std::cout << "\t--force-update\t\tOverwrite goldens." << std::endl;
 	std::cout << "\t--threads <n>\t\tNumber of worker threads." << std::endl;
@@ -2056,7 +2219,6 @@ static void printUsage(const char *program) {
 			  << std::endl;
 	std::cout << "\t--help\t\t\tShow this message." << std::endl;
 }
-
 static bool parseUnsigned(const std::string &text, uint32_t &value) {
 	if (text.empty()) {
 		return false;
@@ -2102,12 +2264,24 @@ static bool parseCommandLine(int argc, char **argv,
 				return false;
 			}
 			options.imageDirs.push_back(argv[++i]);
-		} else if (arg == "--output-dir") {
+		} else if (arg == "--snapshot-dir") {
 			if (i + 1 >= argc) {
-				std::cerr << "--output-dir requires a path." << std::endl;
+				std::cerr << "--snapshot-dir requires a path." << std::endl;
 				return false;
 			}
-			options.outputDir = argv[++i];
+			options.snapshotDir = argv[++i];
+		} else if (arg == "--root-dir") {
+			if (i + 1 >= argc) {
+				std::cerr << "--root-dir requires a path." << std::endl;
+				return false;
+			}
+			const std::string rootArgument(argv[++i]);
+			options.rootDir = pathFromNativeString(rootArgument);
+			if (options.rootDir.isNull()) {
+				std::cerr << "failed to parse root directory: " << rootArgument
+						<< std::endl;
+				return false;
+			}
 		} else if (arg == "--force-update") {
 			options.forceUpdate = true;
 		} else if (arg == "--threads") {
@@ -2138,7 +2312,11 @@ static bool parseCommandLine(int argc, char **argv,
 	}
 
 	if (options.ivgPaths.empty()) {
-		std::cerr << "no IVG files specified." << std::endl;
+		if (argc <= 1) {
+			printUsage(argv[0]);
+		} else {
+			std::cerr << "no IVG files specified." << std::endl;
+		}
 		return false;
 	}
 	return true;
@@ -2186,12 +2364,12 @@ static void printPlan(const std::string &path, const SnapshotPlan &plan) {
 }
 struct SnapshotJob {
 	SnapshotJob()
-		: options(0), ivgPath(0), baseName(0), document(0), sharedResources(0),
+		: options(0), ivgPath(0), snapshotBase(0), document(0), sharedResources(0),
 		  scenario(0), entry(0), planOrdinal(0), sentinel(false) {}
 
 	const CommandLineOptions *options;
 	const std::string *ivgPath;
-	const std::string *baseName;
+	const std::string *snapshotBase;
 	const CachedDocument *document;
 	SharedResources *sharedResources;
 	const SnapshotScenario *scenario;
@@ -2317,7 +2495,7 @@ class SnapshotScheduler {
 			}
 
 			SnapshotEntryResult result = renderEntry(
-				*job.options, *job.ivgPath, *job.baseName, *job.document,
+				*job.options, *job.ivgPath, *job.snapshotBase, *job.document,
 				*job.sharedResources, *job.scenario, *job.entry);
 			result.planOrdinal = job.planOrdinal;
 			submitResult(result);
@@ -2384,7 +2562,7 @@ class SnapshotScheduler {
 };
 static SnapshotEntryResult
 renderEntry(const CommandLineOptions &options, const std::string &path,
-			const std::string &baseName, const CachedDocument &document,
+			const std::string &snapshotBase, const CachedDocument &document,
 			SharedResources &sharedResources, const SnapshotScenario &scenario,
 			const SnapshotEntry &entry) {
 	SnapshotEntryResult result;
@@ -2394,7 +2572,7 @@ renderEntry(const CommandLineOptions &options, const std::string &path,
 	result.validate = entry.validate;
 	result.blockIndex =
 		(entry.invocations.empty() ? 0 : entry.invocations[0].blockIndex);
-	result.identifier = buildEntryIdentifier(baseName, entry);
+		result.identifier = buildEntryIdentifier(snapshotBase, entry);
 
 	IVG::SelfContainedARGB32Canvas canvas;
 	SnapshotPlaybackExecutor executor(canvas, scenario, entry, options, path,
@@ -2435,7 +2613,7 @@ renderEntry(const CommandLineOptions &options, const std::string &path,
 		return result;
 	}
 
-	SnapshotGolden golden(path, baseName, scenario, entry, options);
+		SnapshotGolden golden(path, snapshotBase, scenario, entry, options);
 	if (!entry.validate) {
 		if (!golden.writeDraft(*raster, result)) {
 			if (result.message.empty()) {
@@ -2499,13 +2677,13 @@ static void flushSchedulerResults(SnapshotScheduler &scheduler, bool wait,
 	}
 }
 static SnapshotRunResult renderPlan(const CommandLineOptions &options,
-									const std::string &path,
-									const CachedDocument &document,
-									const SnapshotPlan &plan) {
-	SnapshotRunResult run;
-	const std::vector<SnapshotScenario> &scenarios = plan.getScenarios();
-	const std::vector<SnapshotEntry> &entries = plan.getEntries();
-	const std::string baseName = stringFromIMPD(plan.getBaseName());
+                                                                        const std::string &path,
+                                                                        const CachedDocument &document,
+                                                                        const SnapshotPlan &plan) {
+        SnapshotRunResult run;
+        const std::vector<SnapshotScenario> &scenarios = plan.getScenarios();
+        const std::vector<SnapshotEntry> &entries = plan.getEntries();
+        const std::string snapshotBase = buildSnapshotSourceTag(path, options.rootDir);
 	SharedResources sharedResources;
 
 	uint32_t threadCount = options.threads;
@@ -2553,7 +2731,7 @@ static SnapshotRunResult renderPlan(const CommandLineOptions &options,
 			SnapshotJob job;
 			job.options = &options;
 			job.ivgPath = &path;
-			job.baseName = &baseName;
+			job.snapshotBase = &snapshotBase;
 			job.document = &document;
 			job.sharedResources = &sharedResources;
 			job.scenario = &scenario;
