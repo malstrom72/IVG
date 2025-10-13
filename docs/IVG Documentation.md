@@ -803,6 +803,7 @@ Example:
     define path star [svg:[M0,0 L10,0 L5,8 z]]
     fill gold
     PATH star transform:[rotate 45]
+![](images/definePathExample.png)
 
 #### define pattern
 
@@ -818,13 +819,14 @@ Syntax:
 
 Example:
 
-        define pattern stripes [
-                bounds 0,0,4,4
-                fill black
-                rect 0,0,2,4
-        ]
-        fill pattern:stripes
-        rect 0,0,20,20
+    define pattern stripes [
+        bounds 0,0,4,4
+        fill black
+        rect 0,0,2,4
+    ]
+    fill pattern:stripes
+    rect 0,0,20,20
+![](images/definePatternExample.png)
 
 ### fill
 
