@@ -72,6 +72,17 @@
 				"configuration": "./language-configuration.json"
 			}
 		],
+		"grammars": [
+			{
+				"language": "ivg",
+				"scopeName": "source.ivg",
+				"path": "./syntaxes/ivg.tmLanguage"
+			},
+			{
+				"scopeName": "source.impd",
+				"path": "./syntaxes/impd.tmLanguage"
+			}
+		],
 		"snippets": [
 			{
 				"language": "ivg",
