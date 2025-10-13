@@ -23,12 +23,21 @@
 	}
 
 	function emitTrace(message) {
-		if (!vscodeApi || !message || typeof message !== "object") {
+		if (!vscodeApi) {
+			return;
+		}
+		const payload =
+				message && typeof message === "object"
+						? message
+						: typeof message === "string" && message.length > 0
+								? { action: "append", text: message }
+								: null;
+		if (!payload) {
 			return;
 		}
 		vscodeApi.postMessage({
 			type: "trace",
-			message: message,
+			message: payload,
 		});
 	}
 
