@@ -46,10 +46,48 @@ define(function (require, exports, module) {
 
 		this.$rules = {
 			start: [
+				// PATH svg:[ ... ] block with SVG letter commands and path DSL compounds
 				{
-					token: "string.other.svgpath",
-					regex: /\[M[^\]]*\]/,
-					caseInsensitive: true,
+					token: "meta.path.svg.begin.ivg",
+					regex: /\bPATH\s+(?:svg:)\s*\[/i,
+					push: [
+						{
+							token: "meta.path.svg.end.ivg",
+							regex: /\]/,
+							next: "pop",
+						},
+						// SVG path single-letter commands
+						{
+							token: "keyword.operator.svg.path.ivg",
+							regex: /[MLHVCSQTAZ]/i,
+						},
+						// IVG path DSL compounds (appear in mixed examples)
+						{
+							token: "support.function.path.ivg",
+							regex: /\b(?:move-to|move-angle|line-to|line-angle|bezier-to|arc-to|arc-sweep|arc-move|close|rect|polygon|ellipse|text|path|anchor|cursor)\b/i,
+						},
+						{ include: "#variable" },
+						{ include: "#number" },
+					],
+				},
+				// PATH [ ... ] IVG DSL block
+				{
+					token: "meta.path.dsl.begin.ivg",
+					regex: /\bPATH\s*\[/i,
+					push: [
+						{
+							token: "meta.path.dsl.end.ivg",
+							regex: /\]/,
+							next: "pop",
+						},
+						{
+							token: "support.function.path.ivg",
+							regex: /\b(?:move-to|move-angle|line-to|line-angle|bezier-to|arc-to|arc-sweep|arc-move|close|rect|polygon|ellipse|text|path|anchor|cursor)\b/i,
+						},
+						{ include: "#variable" },
+						{ include: "#number" },
+						{ include: "#impd" },
+					],
 				},
 				{
 					include: "#impd",
@@ -69,9 +107,38 @@ define(function (require, exports, module) {
 				},
 				{
 					token: "constant.language.other.ivg",
-					regex:
-						/\b(?:linear|radial|butt|round|square|bevel|curve|miter|non-zero|even-odd|left|center|right|top|middle|bottom left|center|right)\b/,
+					regex: /\b(?:linear|radial|butt|round|square|bevel|miter|non-zero|even-odd)\b/,
 					caseInsensitive: true,
+				},
+				{
+					token: "constant.language.align.ivg",
+					regex: /\b(?:left|center|right|top|middle|bottom)\b/,
+					caseInsensitive: true,
+				},
+				// property keys (only when followed by ':')
+				{
+					token: "support.constant.option.ivg",
+					regex: /\b(?:align|clip|width|height|stretch|opacity|anchor|rule|size|color|outline|at)(?=\s*:)/i,
+				},
+				{
+					token: "support.constant.paint.ivg",
+					regex: /\b(?:gradient|pattern|from|to|stops|relative)(?=\s*:)/i,
+				},
+				{
+					token: "support.constant.options.ivg",
+					regex: /\b(?:aa-gamma|curve-quality|pattern-resolution)(?=\s*:)/i,
+				},
+				{
+					token: "support.constant.stroke.ivg",
+					regex: /\b(?:caps|joints|dash|dash-offset|miter-limit|type)(?=\s*:)/i,
+				},
+				{
+					token: "support.constant.arc.ivg",
+					regex: /\b(?:turn|large|rotate)(?=\s*:)/i,
+				},
+				{
+					token: "constant.language.arc-values.ivg",
+					regex: /(?<!-)\b(?:cw|ccw|pie|chord|sweep)\b/i,
 				},
 				{
 					token: "support.function.color.ivg",
@@ -80,12 +147,12 @@ define(function (require, exports, module) {
 				},
 				{
 					token: "support.function.instruction.ivg",
-					regex: /\b(?:rect|line|ellipse)\b/,
+					regex: /\b(?:rect|line|ellipse|polygon|path|text|image|star|wipe)\b/,
 					caseInsensitive: true,
 				},
 				{
 					token: "support.function.instruction.ivg",
-					regex: /\b(?:bounds|context|options|pen|fill|mask|reset|RECT|ELLIPSE|STAR|PATH|WIPE)\b/,
+					regex: /\b(?:bounds|context|options|pen|fill|mask|reset|RECT|ELLIPSE|STAR|PATH|WIPE|LINE|POLYGON)\b/,
 					caseInsensitive: true,
 				},
 				{
@@ -95,7 +162,7 @@ define(function (require, exports, module) {
 				},
 				{
 					token: "support.function.instruction.ivg",
-					regex: /\b(?:define\s+font|define\s+image|define\s+path|font|TEXT|IMAGE|PATH)\b/,
+					regex: /\b(?:define\s+font|define\s+image|define\s+path|define\s+pattern|font|TEXT|IMAGE|PATH)\b/,
 					caseInsensitive: true,
 				},
 			],
