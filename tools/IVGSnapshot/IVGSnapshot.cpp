@@ -363,8 +363,99 @@ static std::string sanitizeFileComponent(const std::string &name) {
 	return sanitized;
 }
 
+static bool tryBuildRelativeSnapshotTag(const NuXFiles::Path &rootDir,
+						const NuXFiles::Path &withoutExtension,
+						std::string &relative) {
+	if (rootDir.isNull()) {
+		return false;
+	}
+
+	std::wstring relativeWide;
+	try {
+		if (rootDir.makeRelative(withoutExtension, false, relativeWide)) {
+			if (!relativeWide.empty()) {
+				try {
+					relative = pathStringFromWide(relativeWide);
+				} catch (const std::exception &) {
+					relative.clear();
+					return false;
+				}
+				for (size_t i = 0; i < relative.size(); ++i) {
+					if (relative[i] == '\\') {
+						relative[i] = '/';
+					}
+				}
+				return true;
+			}
+		}
+	} catch (const NuXFiles::Exception &) {
+		relativeWide.clear();
+	} catch (const std::exception &) {
+		relativeWide.clear();
+	}
+
+	std::wstring rootWide;
+	std::wstring targetWide;
+	try {
+		rootWide = rootDir.getFullPath();
+		targetWide = withoutExtension.getFullPath();
+	} catch (const NuXFiles::Exception &) {
+		return false;
+	} catch (const std::exception &) {
+		return false;
+	}
+
+	if (rootWide.empty() || targetWide.empty()) {
+		return false;
+	}
+
+	std::wstring normalizedRoot;
+	try {
+		normalizedRoot = NuXFiles::Path::appendSeparator(rootWide);
+	} catch (const NuXFiles::Exception &) {
+		normalizedRoot = rootWide;
+	} catch (const std::exception &) {
+		normalizedRoot = rootWide;
+	}
+	if (!normalizedRoot.empty()) {
+		const wchar_t separator = NuXFiles::Path::getSeparator();
+		if (normalizedRoot[normalizedRoot.size() - 1] != separator) {
+			normalizedRoot.push_back(separator);
+		}
+	}
+
+	if (normalizedRoot.empty()) {
+		return false;
+	}
+	if (targetWide.size() <= normalizedRoot.size()) {
+		return false;
+	}
+	if (targetWide.compare(0, normalizedRoot.size(), normalizedRoot) != 0) {
+		return false;
+	}
+
+	const std::wstring remainder = targetWide.substr(normalizedRoot.size());
+	if (remainder.empty()) {
+		return false;
+	}
+
+	try {
+		relative = pathStringFromWide(remainder);
+	} catch (const std::exception &) {
+		return false;
+	}
+	for (size_t i = 0; i < relative.size(); ++i) {
+		if (relative[i] == '\\') {
+			relative[i] = '/';
+		}
+	}
+	return true;
+}
+
+
+
 static std::string buildSnapshotSourceTag(const std::string &ivgPath,
-										const NuXFiles::Path &rootDir) {
+						const NuXFiles::Path &rootDir) {
 	try {
 		const NuXFiles::Path sourcePath = pathFromNativeString(ivgPath);
 		if (!sourcePath.isNull()) {
@@ -377,43 +468,9 @@ static std::string buildSnapshotSourceTag(const std::string &ivgPath,
 				withoutExtension = sourcePath;
 			}
 
-                        std::wstring relativeWide;
-                        bool haveRelative = false;
-                        if (!rootDir.isNull()) {
-                                try {
-                                        if (rootDir.makeRelative(withoutExtension, false, relativeWide)) {
-                                                haveRelative = !relativeWide.empty();
-                                        }
-                                } catch (const NuXFiles::Exception &) {
-                                        relativeWide.clear();
-                                } catch (const std::exception &) {
-                                        relativeWide.clear();
-                                }
-                        }
-                        if (!haveRelative) {
-                                try {
-                                        relativeWide = withoutExtension.getFullPath();
-                                        haveRelative = !relativeWide.empty();
-                                } catch (const NuXFiles::Exception &) {
-                                        relativeWide.clear();
-                                } catch (const std::exception &) {
-                                        relativeWide.clear();
-                                }
-                        }
-
-                        if (haveRelative) {
-                                try {
-                                        std::string relative = pathStringFromWide(relativeWide);
-                                        if (!relative.empty()) {
-                                                for (size_t i = 0; i < relative.size(); ++i) {
-                                                        if (relative[i] == '\\') {
-								relative[i] = '/';
-							}
-						}
-						return sanitizeFileComponent(relative);
-					}
-				} catch (const std::exception &) {
-				}
+			std::string relative;
+			if (tryBuildRelativeSnapshotTag(rootDir, withoutExtension, relative)) {
+				return sanitizeFileComponent(relative);
 			}
 		}
 	} catch (const std::exception &) {
@@ -431,6 +488,8 @@ static std::string buildSnapshotSourceTag(const std::string &ivgPath,
 	}
 	return sanitizeFileComponent(normalized);
 }
+
+
 static std::string buildEntryIdentifier(const std::string &snapshotBase,
 										const SnapshotEntry &entry) {
 	const uint32_t blockIndex =
