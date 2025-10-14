@@ -44,7 +44,6 @@
     <ClCompile Include="IVG2PNG.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\externals\libpng\config.h" />
     <ClInclude Include="..\externals\libpng\png.h" />
     <ClInclude Include="..\externals\libpng\pngconf.h" />
     <ClInclude Include="..\externals\libpng\pngdebug.h" />
