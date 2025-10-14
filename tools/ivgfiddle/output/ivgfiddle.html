@@ -1,6 +1,13 @@
 <html>
 	<head>
 		<script type="text/javascript" src="./ace/ace.js"></script>
+		<script type="text/javascript">
+			// Map Ace IVG mode to the bundled, self-contained mode file.
+			// This module defines ivg_highlight_rules and folding inside itself.
+			if (window.ace && ace.config && ace.config.setModuleUrl) {
+				ace.config.setModuleUrl('ace/mode/ivg', './ace/mode-ivg.js');
+			}
+		</script>
 		<script type="text/javascript" src="./setupModule.js"></script>
 		<script type="text/javascript" src="./rasterizeIVG.js"></script>
 		<title>ivgfiddle</title>

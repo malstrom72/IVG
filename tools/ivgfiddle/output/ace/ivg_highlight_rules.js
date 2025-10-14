@@ -1,4 +1,4 @@
-define(function (require, exports, module) {
+ace.define("ace/mode/ivg_highlight_rules", [], function (require, exports, module) {
 	"use strict";
 
 /* ***** BEGIN LICENSE BLOCK *****
