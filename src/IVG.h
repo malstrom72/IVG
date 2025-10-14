@@ -389,7 +389,7 @@ class IVGExecutor : public IMPD::Executor {
 	public:		virtual ~IVGExecutor();
 	protected:	void executeImage(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args);
 	protected:	void executeDefine(Interpreter& impd, const IMPD::String& instruction, const IMPD::String& arguments
-						, ArgumentsContainer& args);
+						, IMPD::ArgumentsContainer& args);
 	protected:	void buildPath(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args
 						, const IMPD::String& instruction, const IMPD::String& arguments, Path& path);
 	protected:	void parseStroke(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args, Stroke& stroke);
