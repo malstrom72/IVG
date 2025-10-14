@@ -22,6 +22,7 @@
 **/
 #include <math.h>
 #include <algorithm>
+#include <limits.h>
 #include "NuXPixels.h"
 #include "NuXPixelsImpl.h"
 #if (NUXPIXELS_SIMD)
