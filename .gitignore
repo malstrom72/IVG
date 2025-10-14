@@ -4,4 +4,4 @@ vc140.pdb
 /.vscode
 /projects/build
 /tools/ivg-vscode/node_modules
-
+/externals/ace

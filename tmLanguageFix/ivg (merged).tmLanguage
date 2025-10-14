@@ -14,10 +14,67 @@
 	</array>
 	<key>patterns</key>
 	<array>
-		<dict>
-			<key>include</key>
-			<string>source.impd#stringEscape</string>
-		</dict>
+			<dict>
+				<key>include</key>
+				<string>source.impd#stringEscape</string>
+			</dict>
+			<!-- PATH DSL block: PATH [ ... ] with IVG path compounds (moved before generic groups to avoid overshadow) -->
+			<dict>
+				<key>name</key>
+				<string>meta.path.dsl.ivg</string>
+				<key>contentName</key>
+				<string>meta.group.impd</string>
+				<key>begin</key>
+				<string>(?i)\b(PATH)\s*(\[)</string>
+				<key>end</key>
+				<string>(\])</string>
+				<key>beginCaptures</key>
+				<dict>
+					<key>1</key>
+					<dict>
+						<key>name</key>
+						<string>support.function.instruction.ivg</string>
+					</dict>
+					<key>2</key>
+					<dict>
+						<key>name</key>
+						<string>meta.group.impd</string>
+					</dict>
+				</dict>
+				<key>endCaptures</key>
+				<dict>
+					<key>1</key>
+					<dict>
+						<key>name</key>
+						<string>meta.group.impd</string>
+					</dict>
+				</dict>
+				<key>patterns</key>
+				<array>
+					<dict>
+						<key>name</key>
+						<string>support.function.path.ivg</string>
+						<key>match</key>
+						<string>(?i)\b(move-to|move-angle|line-to|line-angle|bezier-to|arc-to|arc-sweep|arc-move|close|rect|polygon|ellipse|text|path|anchor|cursor)\b</string>
+					</dict>
+					<dict>
+						<key>name</key>
+						<string>entity.name.variable.impd, variable.other.impd</string>
+						<key>match</key>
+						<string>(\$[a-zA-Z0-9$_.]+)</string>
+					</dict>
+					<dict>
+						<key>name</key>
+						<string>constant.numeric.impd</string>
+						<key>match</key>
+						<string>[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?(\s*%)?</string>
+					</dict>
+					<dict>
+						<key>include</key>
+						<string>source.impd</string>
+					</dict>
+				</array>
+			</dict>
 		<dict>
 			<key>name</key>
 			<string>meta.group.ivg</string>
@@ -107,7 +164,7 @@
 			<key>name</key>
 			<string>constant.language.arc-values.ivg</string>
 			<key>match</key>
-			<string>(?i)\b(cw|ccw|pie|chord|sweep)\b</string>
+				<string>(?i)(?<!-)\b(cw|ccw|pie|chord|sweep)\b</string>
 		</dict>
 		<dict>
 			<key>name</key>
@@ -119,64 +176,7 @@
 			<key>name</key>
 			<string>support.function.instruction.ivg</string>
 			<key>match</key>
-			<string>(?i)\b(rect|line|ellipse|polygon|path|text|image|star|wipe)\b</string>
-		</dict>
-		<!-- PATH DSL block: PATH [ ... ] with IVG path compounds -->
-		<dict>
-			<key>name</key>
-			<string>meta.path.dsl.ivg</string>
-			<key>contentName</key>
-			<string>meta.group.impd</string>
-			<key>begin</key>
-			<string>(?i)\b(PATH)\s*(\[)</string>
-			<key>end</key>
-			<string>(\])</string>
-			<key>beginCaptures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>support.function.instruction.ivg</string>
-				</dict>
-				<key>2</key>
-				<dict>
-					<key>name</key>
-					<string>meta.group.impd</string>
-				</dict>
-			</dict>
-			<key>endCaptures</key>
-			<dict>
-				<key>1</key>
-				<dict>
-					<key>name</key>
-					<string>meta.group.impd</string>
-				</dict>
-			</dict>
-			<key>patterns</key>
-			<array>
-				<dict>
-					<key>name</key>
-					<string>support.function.path.ivg</string>
-					<key>match</key>
-					<string>(?i)\b(move-to|line-to|bezier-to|arc-to|arc-sweep|close|rect|polygon|ellipse|text|path|anchor)\b</string>
-				</dict>
-				<dict>
-					<key>name</key>
-					<string>entity.name.variable.impd, variable.other.impd</string>
-					<key>match</key>
-					<string>(\$[a-zA-Z0-9$_.]+)</string>
-				</dict>
-				<dict>
-					<key>name</key>
-					<string>constant.numeric.impd</string>
-					<key>match</key>
-					<string>[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?(\s*%)?</string>
-				</dict>
-				<dict>
-					<key>include</key>
-					<string>source.impd</string>
-				</dict>
-			</array>
+				<string>\b(RECT|LINE|ELLIPSE|POLYGON|PATH|TEXT|IMAGE|STAR|WIPE)\b</string>
 		</dict>
 		<!-- PORTED from older: specialized PATH(svg:[ ... ]) block with SVG path command highlighting -->
 		<dict>
@@ -225,7 +225,7 @@
 					<key>name</key>
 					<string>support.function.path.ivg</string>
 					<key>match</key>
-					<string>(?i)\b(move-to|line-to|bezier-to|arc-to|arc-sweep|close|rect|polygon|ellipse|text|path|anchor)\b</string>
+					<string>(?i)\b(move-to|move-angle|line-to|line-angle|bezier-to|arc-to|arc-sweep|arc-move|close|rect|polygon|ellipse|text|path|anchor|cursor)\b</string>
 				</dict>
 				<dict>
 					<key>name</key>
@@ -251,12 +251,12 @@
 				</dict>
 			</array>
 		</dict>
-		<dict>
-			<key>name</key>
-			<string>support.function.instruction.ivg</string>
-			<key>match</key>
-			<string>(?i)\b(bounds|context|options|pen|fill|mask|reset|RECT|ELLIPSE|STAR|PATH|WIPE|LINE|POLYGON)\b</string>
-		</dict>
+			<dict>
+				<key>name</key>
+				<string>support.function.instruction.ivg</string>
+				<key>match</key>
+				<string>(?i)\b(bounds|context|options|pen|fill|mask|reset)\b</string>
+			</dict>
 		<dict>
 			<key>name</key>
 			<string>support.function.transformation.ivg</string>

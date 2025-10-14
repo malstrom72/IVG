@@ -87,6 +87,24 @@ instructions when available.
  - `tools/updateDocumentation.sh` – rebuild HTML documentation using Pandoc and PikaScript
 (Mac / Linux only)
 
+### Update IVGFiddle Syntax (Ace)
+
+If you change the TextMate grammar (`.tmLanguage`) for IVG/ImpD, regenerate the IVGFiddle Ace mode
+using the script under the IVGFiddle folder. This builds a bundled `mode-ivg.js` that IVGFiddle loads.
+
+- macOS/Linux: `ACE_REF=v1.43.3 bash tools/ivgfiddle/updateAceSyntax.sh`
+- Windows: `set ACE_REF=v1.43.3 & tools\ivgfiddle\updateAceSyntax.cmd`
+
+What it does:
+- Clones Ace into `externals/ace` (ignored by git) if missing and checks out `ACE_REF` (defaults to `v1.43.3`).
+- Converts `tools/ivg-vscode/syntaxes/*.tmLanguage` into Ace rules in the local Ace checkout.
+- Runs Ace’s dryice bundler (`-m -nc`) to produce a self‑contained `mode-ivg.js`.
+- Copies the result to `tools/ivgfiddle/src/ace/mode-ivg.js`.
+
+Notes:
+- Normal builds/tests do not require this; it’s only for refreshing IVGFiddle syntax coloring.
+- You can pin Ace version via `ACE_REF` to keep conversions stable.
+
 ## svg2ivg
 
 `svg2ivg` converts a subset of SVG into IVG's ImpD language. The Node.js script
