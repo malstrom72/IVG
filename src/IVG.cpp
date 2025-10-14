@@ -859,8 +859,12 @@ class PathInstructionExecutor : public Executor {
 							return true;
 						}
 						case PATH_PATH_INSTRUCTION: {
+							const String* svgArgument = args.fetchOptional("svg");
+							const String* definitionArgument = (svgArgument != 0 ? 0 : &args.fetchRequired(0, false));
+							const String* transformArgument = args.fetchOptional("transform");
 							Path fragment;
-							ivgExecutor.buildPath(impd, args, String("path"), String(), fragment);
+							ivgExecutor.buildPath(impd, svgArgument, definitionArgument, transformArgument, fragment);
+							args.throwIfAnyUnfetched();
 							appendChecked(fragment);
 							return true;
 						}
@@ -1353,17 +1357,19 @@ void IVGExecutor::executeDefine(Interpreter& impd, const String& instruction, co
 	} else if (typeLower == "path") {
 		versionRequired(impd, IVG_3, instruction, arguments);
 		const WideString name = impd.unescapeToWide(args.fetchRequired(1, true));
-		const String& definition = args.fetchRequired(2, false);
+		const String* svgArgument = args.fetchOptional("svg");
+		const String* definitionArgument = (svgArgument != 0 ? 0 : &args.fetchRequired(2, false));
+		const String* transformArgument = args.fetchOptional("transform");
 		args.throwIfAnyUnfetched();
 
 		if (definedPaths.find(name) != definedPaths.end()) {
 			Interpreter::throwRunTimeError(String("Duplicate path definition \"") + String(name.begin(), name.end()) + "\".");
 		}
 
-        ArgumentsContainer pathArgs(ArgumentsContainer::parse(impd, definition));
 		Path path;
-		buildPath(impd, pathArgs, type, definition, path);
-        definedPaths[name] = path;
+		buildPath(impd, svgArgument, definitionArgument, transformArgument, path);
+		definedPaths[name] = path;
+	
 	} else if (typeLower == "pattern") {
 		versionRequired(impd, IVG_3, instruction, arguments);
 		const WideString name = impd.unescapeToWide(args.fetchRequired(1, true));
@@ -1406,36 +1412,36 @@ static IntRect expandToIntRect(const Rect<double>& floatRect) {
 	return r;
 }
 
-void IVGExecutor::buildPath(Interpreter& impd, ArgumentsContainer& args, const String& instruction, const String& arguments, Path& path) {
-    const double curveQuality = currentContext->calcCurveQuality();
-    const String* svg = args.fetchOptional("svg");
-    if (svg != 0) {
-        const char* errorString;
-        if (!buildPathFromSVG(*svg, curveQuality, path, errorString)) {
-            impd.throwBadSyntax(errorString);
-        }
-    } else {
-        const String& arg0 = args.fetchRequired(0, false);
-        versionRequired(impd, IVG_3, instruction, arguments);
-        if (!Interpreter::isBracketBlock(arg0)) {
-            const WideString name = impd.unescapeToWide(impd.expand(arg0));
-            PathMap::const_iterator it = definedPaths.find(name);
-            if (it == definedPaths.end()) {
-                Interpreter::throwRunTimeError(String("Undefined path \"") + String(name.begin(), name.end()) + "\".");
-            }
-            path = it->second;
-        } else {
-            PathInstructionExecutor pathExecutor(*this, path, curveQuality);
-            Interpreter pathInterpreter(pathExecutor, impd);
-            pathInterpreter.run(arg0);
-        }
-    }
+void IVGExecutor::buildPath(Interpreter& impd, const String* svgArgument, const String* definitionArgument, const String* transformArgument
+			, Path& path) {
+	const double curveQuality = currentContext->calcCurveQuality();
+	if (svgArgument != 0) {
+		const char* errorString;
+		if (!buildPathFromSVG(*svgArgument, curveQuality, path, errorString)) {
+			impd.throwBadSyntax(errorString);
+		}
+	} else {
+		if (definitionArgument == 0) {
+			impd.throwBadSyntax("Missing path definition.");
+		}
+		const String& arg0 = *definitionArgument;
+		if (!Interpreter::isBracketBlock(arg0)) {
+			const WideString name = impd.unescapeToWide(impd.expand(arg0));
+			PathMap::const_iterator it = definedPaths.find(name);
+			if (it == definedPaths.end()) {
+				Interpreter::throwRunTimeError(String("Undefined path \"") + String(name.begin(), name.end()) + "\".");
+			}
+			path = it->second;
+		} else {
+			PathInstructionExecutor pathExecutor(*this, path, curveQuality);
+			Interpreter pathInterpreter(pathExecutor, impd);
+			pathInterpreter.run(arg0);
+		}
+	}
 
-    const String* transform = args.fetchOptional("transform");
-    if (transform != 0) {
-        path.transform(parseTransformationBlock(impd, *transform));
-    }
-    args.throwIfAnyUnfetched();
+	if (transformArgument != 0) {
+		path.transform(parseTransformationBlock(impd, *transformArgument));
+	}
 }
 
 void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
@@ -1847,7 +1853,14 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 
 		case PATH_INSTRUCTION: {
 			Path builtPath;
-			buildPath(impd, args, instruction, arguments, builtPath);
+			const String* svgArgument = args.fetchOptional("svg");
+			const String* definitionArgument = (svgArgument != 0 ? 0 : &args.fetchRequired(0, false));
+			const String* transformArgument = args.fetchOptional("transform");
+			if (definitionArgument != 0) {
+				versionRequired(impd, IVG_3, instruction, arguments);
+			}
+			buildPath(impd, svgArgument, definitionArgument, transformArgument, builtPath);
+			args.throwIfAnyUnfetched();
 			if (builtPath.empty() || builtPath.begin()->first != Path::MOVE) {
 				Interpreter::throwRunTimeError(String("Invalid first path instruction \"") + instruction + "\".");
 			}
