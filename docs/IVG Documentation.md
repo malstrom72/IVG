@@ -136,9 +136,9 @@ and halts rendering.
 
 -   `IVG-1` covers core vector drawing and styling.
 -   `IVG-2` adds text, fonts, and raster image support through `define image` and `IMAGE`.
--   `IVG-3` adds `LINE`, `POLYGON`, and an instruction-list form for `PATH` (including `define path`). It also
-    introduces mask controls: the `mask invert` and `mask reset` instructions. The legacy `mask inverted:yes` option
-    was conceptually broken and replaced with `inverse:yes`.
+-   `IVG-3` adds `LINE`, `POLYGON`, and an instruction-list form for `PATH` (including `define path`). It also adds
+    `define pattern` and introduces mask controls: the `mask invert` and `mask reset` instructions. The legacy
+    `mask inverted:yes` option was conceptually broken and replaced with `inverse:yes`.
 
 The interpreter processes all versions identically, but readers that only understand `IVG-1` or `IVG-2` will reject
 documents marked `IVG-3`.
@@ -800,9 +800,10 @@ Syntax:
 
 Example:
 
-    define path star [svg:[M0,0 L10,0 L5,8 z]]
+    define path star svg:[M0,0 L10,0 L5,8 z]
     fill gold
     PATH star transform:[rotate 45]
+![](images/definePathExample.png)
 
 #### define pattern
 
@@ -810,21 +811,22 @@ You can define a reusable pattern and reference it later in paint specifications
 
 Syntax:
 
-        define pattern <name> <instructions>
+    define pattern <name> <instructions>
 
--       `<name>` is a unique identifier for the pattern. Pattern names are case-sensitive and may only be defined once.
--       `<instructions>` are the drawing commands defining the pattern, enclosed in brackets `[` and `]`. The pattern is
-        rendered using the current [options](#options) pattern resolution and the current transformation.
+-   `<name>` is a unique identifier for the pattern. Pattern names are case-sensitive and may only be defined once.
+-   `<instructions>` are the drawing commands defining the pattern, enclosed in brackets `[` and `]`. The pattern is
+    rendered using the current [options](#options) pattern resolution and the current transformation.
 
 Example:
 
-        define pattern stripes [
-                bounds 0,0,4,4
-                fill black
-                rect 0,0,2,4
-        ]
-        fill pattern:stripes
-        rect 0,0,20,20
+    define pattern stripes [
+        bounds 0,0,4,4
+        fill black
+        rect 0,0,2,4
+    ]
+    fill pattern:stripes
+    rect 0,0,20,20
+![](images/definePatternExample.png)
 
 ### fill
 

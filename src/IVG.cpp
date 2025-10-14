@@ -1311,10 +1311,11 @@ void IVGExecutor::versionRequired(Interpreter& impd, FormatVersion required, con
 	}
 }
 
-void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
+void IVGExecutor::executeDefine(Interpreter& impd, const String& instruction, const String& arguments, ArgumentsContainer& args) {
 	const String& type = args.fetchRequired(0, true);
 	const String& typeLower = impd.toLower(type);
 	if (typeLower == "font") {
+		versionRequired(impd, IVG_2, instruction, arguments);
 		const WideString name = impd.unescapeToWide(args.fetchRequired(1, true));
 		const String& definition = args.fetchRequired(2, false);
 		args.throwIfAnyUnfetched();
@@ -1330,6 +1331,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		lastFontName = WideString();	// must reset cache cause there is no guarantee that STL preserves pointers after insertion
 		lastFontPointers.clear();
 	} else if (typeLower == "image") {
+		versionRequired(impd, IVG_2, instruction, arguments);
 		const WideString name = impd.unescapeToWide(args.fetchRequired(1, true));
 		const String& definition = args.fetchRequired(2, false);
 		const String* s = args.fetchOptional("resolution");
@@ -1351,6 +1353,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		image.yResolution = resolution;
 		image.raster = offscreenCanvas.relinquishRaster();
 	} else if (typeLower == "path") {
+		versionRequired(impd, IVG_3, instruction, arguments);
 		const WideString name = impd.unescapeToWide(args.fetchRequired(1, true));
 		const String& definition = args.fetchRequired(2, false);
 		args.throwIfAnyUnfetched();
@@ -1364,6 +1367,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		buildPath(impd, pathArgs, type, definition, path);
         definedPaths[name] = path;
 	} else if (typeLower == "pattern") {
+		versionRequired(impd, IVG_3, instruction, arguments);
 		const WideString name = impd.unescapeToWide(args.fetchRequired(1, true));
 		const String& definition = args.fetchRequired(2, false);
 		args.throwIfAnyUnfetched();
@@ -2008,8 +2012,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 		}
 
 		case DEFINE_INSTRUCTION: {
-			versionRequired(impd, IVG_2, instruction, arguments);
-			executeDefine(impd, args);
+			executeDefine(impd, instruction, arguments, args);
 			break;
 		}
 		

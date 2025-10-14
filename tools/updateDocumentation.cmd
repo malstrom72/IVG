@@ -1,6 +1,10 @@
 @ECHO OFF
 CD /D "%~dp0"
-CALL "..\externals\PikaCmd\BuildPikaCmd.cmd" || GOTO error
+
+REM Build PikaCmd in its own directory to ensure relative paths work
+PUSHD "..\externals\PikaCmd" || GOTO error
+CALL "BuildPikaCmd.cmd" || GOTO error
+POPD
 where pandoc >NUL 2>&1
 IF ERRORLEVEL 1 (
 	ECHO pandoc not found. Install it first.
