@@ -388,7 +388,7 @@ class IVGExecutor : public IMPD::Executor {
 	public:		void runInNewContext(IMPD::Interpreter& impd, Context& context, const IMPD::String& source);
 	public:		virtual ~IVGExecutor();
 	protected:	void executeImage(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args);
-	protected:	void executeDefine(Interpreter& impd, const IMPD::String& instruction, const IMPD::String& arguments
+	protected:	void executeDefine(IMPD::Interpreter& impd, const IMPD::String& instruction, const IMPD::String& arguments
 						, IMPD::ArgumentsContainer& args);
 	protected:	void buildPath(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args
 						, const IMPD::String& instruction, const IMPD::String& arguments, Path& path);
