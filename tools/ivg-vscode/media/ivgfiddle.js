@@ -23,12 +23,44 @@
 	}
 
 	function emitTrace(message) {
-		if (!vscodeApi || !message || typeof message !== "object") {
+		if (!vscodeApi) {
+			return;
+		}
+		let payload = null;
+		if (typeof message === "string") {
+			if (message.length === 0) {
+				return;
+			}
+			payload = { action: "append", text: message };
+		} else if (message && typeof message === "object") {
+			const action = typeof message.action === "string" ? message.action : "";
+			if (!action) {
+				return;
+			}
+			if (action === "reset") {
+				const lines = Array.isArray(message.lines)
+					? message.lines.filter((entry) => typeof entry === "string")
+					: [];
+				payload = { action: "reset" };
+				if (lines.length > 0) {
+					payload.lines = lines;
+				}
+			} else if (action === "clear") {
+				payload = { action: "clear" };
+			} else {
+				const text = typeof message.text === "string" ? message.text : "";
+				if (!text) {
+					return;
+				}
+				payload = { action: action, text: text };
+			}
+		}
+		if (!payload) {
 			return;
 		}
 		vscodeApi.postMessage({
 			type: "trace",
-			message: message,
+			message: payload,
 		});
 	}
 
@@ -36,15 +68,17 @@
 		if (!window.IVGFiddlePreview || typeof window.IVGFiddlePreview.create !== "function") {
 			return null;
 		}
-		const preview = window.IVGFiddlePreview.create({
+		const hostBridge = {
 			notifyStatus: notifyStatus,
+			// Always supply the trace emitter so preview events reach the VS Code Output channel.
 			emitTrace: emitTrace,
 			onReady: function handleReady() {
 				if (vscodeApi) {
 					vscodeApi.postMessage({ type: "ready" });
 				}
 			},
-		});
+		};
+		const preview = window.IVGFiddlePreview.create(hostBridge);
 		preview.initialize();
 		return preview;
 	}
