@@ -1,0 +1,6 @@
+FORMAT IVG-3 requires:IMPD-1
+BOUNDS 0,0,60,60
+WIPE white
+define path svgStar svg:[M10,50 L30,10 L50,50 z]
+fill teal
+PATH svgStar

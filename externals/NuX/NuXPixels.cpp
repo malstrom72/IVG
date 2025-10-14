@@ -21,6 +21,7 @@
 	OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 **/
 #include <math.h>
+#include <limits.h>
 #include <algorithm>
 #include "NuXPixels.h"
 #include "NuXPixelsImpl.h"
