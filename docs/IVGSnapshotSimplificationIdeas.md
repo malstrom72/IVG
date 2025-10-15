@@ -10,6 +10,10 @@ Before refactoring begins, add the following focused regression tests to protect
 - [x] Scheduler stress test that enqueues more jobs than worker slots and confirms ordering, cancellation, and shutdown semantics remain unchanged.
 - [x] CLI parsing integration test that invokes `IVGSnapshot` with representative flag combinations, asserting exit codes and stderr messages for success, missing values, and unknown switches.
 
+## Status review
+
+The remaining unchecked milestones in this document are the `SnapshotScheduler` slot refactor, the centralized scenario failure logging helper, and the tightened command-line parsing helpers. None of these tasks have been started yet, so `docs/IVGSnapshotSimplificationIdeas.md` still tracks outstanding work before the simplification effort can be considered complete.
+
 This TODO list tracks concrete simplifications for the monolithic `tools/IVGSnapshot/IVGSnapshot.cpp`. Each milestone should conclude by running `timeout 600 ./build.sh` and verifying the `=== ALL BUILDS AND TESTS COMPLETED SUCCESSFULLY ===` footer.
 
 - [x] Collapse filesystem helpers that wrap NuX calls in redundant sentinels, replacing them with a single throwing `ensureDirectoryTree` plus thin path adapters. Estimated reduction: ~45 lines.
