@@ -66,8 +66,8 @@ namespace {
 
 	void TestExplicitScenario()
 	{
-		const char* source =
-		"meta snapshot scenario:one [ set fill red ]\n";
+			const char* source =
+			"meta snapshot scenario:one [ set fill red ]\n";
 		SnapshotPlan plan = CollectPlan("explicit.ivg", source);
 
 		const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
@@ -90,13 +90,13 @@ namespace {
 		ExpectEqual(invocation.blockIndex, 1, "invocation block index");
 		ExpectEqual(invocation.statementOrdinal, 1, "invocation statement ordinal");
 		ExpectEqual(invocation.sourceLine, 1, "invocation source line");
-		ExpectEqual(invocation.statements, " set fill red ", "entry statements preserve whitespace");
+			ExpectEqual(invocation.statements, "[ set fill red ]", "entry statements keep brackets");
 	}
 
 	void TestArrayStatements()
 	{
-		const char* source =
-		"meta snapshot scenario:array [ [ do-alpha ], [ do-beta ], [ do-gamma ] ]\n";
+			const char* source =
+			"meta snapshot scenario:array list:[ [ do-alpha ] [ do-beta ] [ do-gamma ] ]\n";
 		SnapshotPlan plan = CollectPlan("array.ivg", source);
 
 		const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
@@ -117,7 +117,7 @@ namespace {
 			ExpectEqual(invocation.blockIndex, 1, "array block index");
 			ExpectEqual(invocation.statementOrdinal, i + 1, "array statement ordinal");
 			ExpectEqual(invocation.sourceLine, 1, "array source line");
-			const std::string expected = (i == 0 ? " do-alpha " : (i == 1 ? " do-beta " : " do-gamma "));
+			const std::string expected = (i == 0 ? "[ do-alpha ]" : (i == 1 ? "[ do-beta ]" : "[ do-gamma ]"));
 			ExpectEqual(invocation.statements, expected, "array entry statements");
 		}
 	}
@@ -125,8 +125,8 @@ namespace {
 	void TestRepeatedScenario()
 	{
 		const char* source =
-		"meta snapshot scenario:smurf [ [ do-stuff ], [ do-other-stuff ] ]\n\n"
-		"meta snapshot scenario:smurf [ [ do-more-stuff ], [ do-more-other-stuff ] ]\n";
+		"meta snapshot scenario:smurf list:[ [ do-stuff ] [ do-other-stuff ] ]\n\n"
+		"meta snapshot scenario:smurf list:[ [ do-more-stuff ] [ do-more-other-stuff ] ]\n";
 		SnapshotPlan plan = CollectPlan("repeat.ivg", source);
 
 		const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
@@ -153,7 +153,7 @@ namespace {
 void TestDefaultScenarioNames()
 {
 	const char* source =
-		"meta snapshot [ [ first ], [ second ] ]\n"
+		"meta snapshot list:[ [ first ] [ second ] ]\n"
 		"meta snapshot [ third ]\n";
 	SnapshotPlan plan = CollectPlan("implicit.ivg", source);
 
@@ -222,8 +222,8 @@ void TestSnapshotSourceTags()
 void TestValidateMismatch()
 {
 	const char* source =
-		"meta snapshot scenario:toggle validate:no [ [ draft ] ]\n"
-		"meta snapshot scenario:toggle [ [ validate ] ]\n";
+		"meta snapshot scenario:toggle validate:no list:[ [ draft ] ]\n"
+		"meta snapshot scenario:toggle list:[ [ validate ] ]\n";
 
 	String textSource(source);
 	SnapshotPlan plan("mismatch.ivg");

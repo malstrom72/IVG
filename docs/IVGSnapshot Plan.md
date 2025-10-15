@@ -5,8 +5,10 @@
 2. **Custom executor** – `IVGSnapshot` runs its own `IMPD::Interpreter` with a thin `IMPD::Executor` subclass whose only meaningful override is `meta(...)`.
 3. **Argument parsing** – `IMPD::ArgumentsContainer::parse` (see `src/IMPD.h` lines 129-183) processes the raw `meta` arguments. We always call `throwIfAnyUnfetched()` before leaving `meta`.
 4. **Version dispatch** – We match the normalized key `snapshot-1`. `IMPD::Interpreter` already appends the `-1` suffix when users type `meta snapshot` (see `src/IMPD.cpp` lines 478-501), so there is no manual fallback handling in the tool.
-5. **Grammar** – The collector enforces `meta snapshot [validate:(yes|no)=yes] [scenario:<scenario>] [ <statements> ] | [ [ <statements> ], [<statements>], ... ]` exactly. Each `<statements>` block must be enclosed in square brackets, using `Interpreter::isBracketBlock` from `src/IMPD.cpp:779`.
-6. **Extensibility** – No speculative array/map extensions are planned. Only the bracketed or bracket-array forms above are supported.
+5. **Grammar** – The collector enforces `meta snapshot [validate:(yes|no)=yes] [scenario:<scenario>] [ list:[ [ <statements> ] [ <statements> ] ... ] | <statements> ]`.
+   - `list:` provides an explicit list of bracketed statement blocks.
+   - A single `<statements>` body may be bracketed or unbracketed (tokens after labels are concatenated with single spaces).
+6. **Extensibility** – The new `list:` label replaces the previous implicit bracket-array form. The old comma-separated list is no longer accepted by the tool.
 7. **Repeated scenarios & arrays** – Array entries (`[ [ do-stuff ], [ do-more ] ]`) generate numbered entries for a scenario. Repeating the same `scenario:` later merges into the existing scenario while appending new entries, as required by the example in the review comment.
 8. **Default behavior** – There is no legacy fallback. When no `scenario:` label is supplied the collector synthesizes deterministic names (`<ivg-basename>-<block>` or `<ivg-basename>-<block>-<entry>`). The UI selects whichever entry the user asks for.
 9. **Task queue** – Rendering uses NuXThreads (`externals/NuX/NuXThreads.*`). The scheduler allocates a bounded queue sized to a power of two, and a worker pool sized by `--threads` (defaulting to hardware concurrency).
@@ -66,10 +68,9 @@ uint32_t locateMetaLine();
 ```
 
 ### Statement parsing details
-- The collector trims whitespace by walking the `IMPD::StringRange` (matching how `src/IVG.cpp` handles similar constructs around lines 1021 and 1416).
-- Each entry uses `Interpreter::isBracketBlock` (`src/IMPD.cpp:779`) to assert the outer brackets.
-- Array handling delegates to `Interpreter::parseList` so the syntax matches the runtime expression evaluator exactly.
-- After stripping brackets we keep the raw statement body (no further formatting) to replay inside the renderer.
+- We rely on `ArgumentsContainer` to tokenize labels and positional arguments. After consuming `validate:`/`scenario:`/`list:`, any remaining positional tokens are concatenated with single spaces to form a single unbracketed body.
+- For `list:`, we first call `Interpreter::expand()` on the labeled value to remove the outer brackets (while preserving nested blocks), then `Interpreter::parseList()` to extract each inner `[ ... ]` block as an element. Each element must be bracketed; we keep the inner content unchanged to preserve authoring whitespace.
+- For a single bracketed body, we keep the inner content unchanged (no normalization). For an unbracketed body, we keep the concatenated string verbatim.
 
 ### Plan data model
 ```cpp

@@ -229,7 +229,7 @@ class Interpreter {
 	public:		void parseArguments(const StringRange& r, ArgumentVector& arguments) const;
 	public:		int parseList(const StringRange& r, StringVector& elements, bool expandAll 
 						, bool removeEmpty, int minElements, int maxElements) const;
-	public:		String expand(const StringRange& s) const;
+	public:		String expand(const StringRange& s) const;	/// expand([ ... ]) removes the outer brackets, normalizes whitespace, and preserves nested bracket blocks intact; it does not expand inside nested [ ... ].
 	public:		void set(const String& name, const String& value);
 	public:		String get(const String& name) const;
 	public:		void run(const StringRange& r);
