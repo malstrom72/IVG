@@ -12,7 +12,7 @@ Before refactoring begins, add the following focused regression tests to protect
 
 ## Status review
 
-The remaining unchecked milestones in this document are the `SnapshotScheduler` slot refactor, the centralized scenario failure logging helper, and the tightened command-line parsing helpers. None of these tasks have been started yet, so `docs/IVGSnapshotSimplificationIdeas.md` still tracks outstanding work before the simplification effort can be considered complete.
+All milestones in this document are now checked off. The scheduler runs with fixed worker slots, scenario failures are logged through the shared helper, and the CLI ladder uses the new value-extraction utility, so the simplification effort is complete.
 
 This TODO list tracks concrete simplifications for the monolithic `tools/IVGSnapshot/IVGSnapshot.cpp`. Each milestone should conclude by running `timeout 600 ./build.sh` and verifying the `=== ALL BUILDS AND TESTS COMPLETED SUCCESSFULLY ===` footer.
 
@@ -150,7 +150,8 @@ NuXThreads::Lockable<std::map<std::string, CachedImage> > images;
 ```
 - Completion check: Run `timeout 600 ./build.sh`.
 
-- [ ] Slim `SnapshotScheduler` by moving to fixed worker slots guarded by a single mutex instead of custom job/result deques and sentinel tasks. Estimated reduction: ~90 lines.
+- [x] Slim `SnapshotScheduler` by moving to fixed worker slots guarded by a single mutex instead of custom job/result deques and sentinel tasks. Estimated reduction: ~90 lines.
+- Completion note: Worker-local slots now track `hasJob`, `inProgress`, and `hasResult` flags under one mutex while threads wait on per-slot events, removing the old pending/result deques and sentinel jobs.
 - Example snippet:
 ```cpp
 struct WorkerSlot {
@@ -173,7 +174,8 @@ return true;
 ```
 - Completion check: Run `timeout 600 ./build.sh`.
 
-- [ ] Centralize scenario failure logging with a helper so every return site emits the same `path: scenario name: message` pattern. Estimated reduction: ~20 lines.
+- [x] Centralize scenario failure logging with a helper so every return site emits the same `path: scenario name: message` pattern. Estimated reduction: ~20 lines.
+- Completion note: `logScenarioFailure` now formats all scenario errors and fills in default text so `renderEntry` just records the outcome and returns.
 - Example snippet:
 ```cpp
 static void logScenarioFailure(const std::string &ivgPath,
@@ -186,7 +188,8 @@ std::cerr << ivgPath << ": scenario " << result.scenarioName
 ```
 - Completion check: Run `timeout 600 ./build.sh`.
 
-- [ ] Tighten command line parsing with inline helpers for value extraction and unknown-flag reporting while keeping the existing ladder. Estimated reduction: ~25 lines.
+- [x] Tighten command line parsing with inline helpers for value extraction and unknown-flag reporting while keeping the existing ladder. Estimated reduction: ~25 lines.
+- Completion note: `requireOptionValue` performs shared bounds checks for option values, trimming the repeated `i + 1 >= argc` branches while keeping the legacy ladder intact.
 - Example snippet:
 ```cpp
 static const char *requireOptionValue(const std::string &flag, int &i, int argc, char **argv) {

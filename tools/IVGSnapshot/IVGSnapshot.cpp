@@ -33,7 +33,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <deque>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -2326,66 +2325,82 @@ static bool parseUnsigned(const std::string &text, uint32_t &value) {
 	return true;
 }
 
+static const char *requireOptionValue(const char *flag,
+                                                            const char *errorMessage, int &index, int argc,
+                                                            char **argv) {
+        if (index + 1 >= argc) {
+                std::cerr << errorMessage << std::endl;
+                return 0;
+        }
+        ++index;
+        return argv[index];
+}
+
 static bool parseCommandLine(int argc, char **argv,
-							 CommandLineOptions &options) {
-	for (int i = 1; i < argc; ++i) {
-		const std::string arg(argv[i]);
-		if (arg == "--help") {
-			printUsage(argv[0]);
-			return false;
-		} else if (arg == "--include-dir") {
-			if (i + 1 >= argc) {
-				std::cerr << "--include-dir requires a path." << std::endl;
-				return false;
-			}
-			options.includeDirs.push_back(argv[++i]);
-		} else if (arg == "--font-dir") {
-			if (i + 1 >= argc) {
-				std::cerr << "--font-dir requires a path." << std::endl;
-				return false;
-			}
-			options.fontDirs.push_back(argv[++i]);
-		} else if (arg == "--image-dir") {
-			if (i + 1 >= argc) {
-				std::cerr << "--image-dir requires a path." << std::endl;
-				return false;
-			}
-			options.imageDirs.push_back(argv[++i]);
-		} else if (arg == "--snapshot-dir") {
-			if (i + 1 >= argc) {
-				std::cerr << "--snapshot-dir requires a path." << std::endl;
-				return false;
-			}
-			options.snapshotDir = argv[++i];
-		} else if (arg == "--root-dir") {
-			if (i + 1 >= argc) {
-				std::cerr << "--root-dir requires a path." << std::endl;
-				return false;
-			}
-			const std::string rootArgument(argv[++i]);
-			options.rootDir = pathFromNativeString(rootArgument);
-			if (options.rootDir.isNull()) {
-				std::cerr << "failed to parse root directory: " << rootArgument
-						<< std::endl;
-				return false;
-			}
-		} else if (arg == "--force-update") {
-			options.forceUpdate = true;
-		} else if (arg == "--threads") {
-			if (i + 1 >= argc) {
-				std::cerr << "--threads requires a numeric value." << std::endl;
-				return false;
-			}
-			uint32_t threads = 0;
-			if (!parseUnsigned(argv[i + 1], threads)) {
-				std::cerr << "invalid thread count: " << argv[i + 1]
-						  << std::endl;
-				return false;
-			}
-			options.threads = threads;
-			++i;
-		} else if (arg == "--list-only") {
-			options.listOnly = true;
+                                                    CommandLineOptions &options) {
+        for (int i = 1; i < argc; ++i) {
+                const std::string arg(argv[i]);
+                if (arg == "--help") {
+                        printUsage(argv[0]);
+                        return false;
+                } else if (arg == "--include-dir") {
+                        const char *value = requireOptionValue(
+                                "--include-dir", "--include-dir requires a path.", i, argc, argv);
+                        if (value == 0) {
+                                return false;
+                        }
+                        options.includeDirs.push_back(value);
+                } else if (arg == "--font-dir") {
+                        const char *value = requireOptionValue(
+                                "--font-dir", "--font-dir requires a path.", i, argc, argv);
+                        if (value == 0) {
+                                return false;
+                        }
+                        options.fontDirs.push_back(value);
+                } else if (arg == "--image-dir") {
+                        const char *value = requireOptionValue(
+                                "--image-dir", "--image-dir requires a path.", i, argc, argv);
+                        if (value == 0) {
+                                return false;
+                        }
+                        options.imageDirs.push_back(value);
+                } else if (arg == "--snapshot-dir") {
+                        const char *value = requireOptionValue(
+                                "--snapshot-dir", "--snapshot-dir requires a path.", i, argc, argv);
+                        if (value == 0) {
+                                return false;
+                        }
+                        options.snapshotDir = value;
+                } else if (arg == "--root-dir") {
+                        const char *value = requireOptionValue(
+                                "--root-dir", "--root-dir requires a path.", i, argc, argv);
+                        if (value == 0) {
+                                return false;
+                        }
+                        const std::string rootArgument(value);
+                        options.rootDir = pathFromNativeString(rootArgument);
+                        if (options.rootDir.isNull()) {
+                                std::cerr << "failed to parse root directory: " << rootArgument
+                                                << std::endl;
+                                return false;
+                        }
+                } else if (arg == "--force-update") {
+                        options.forceUpdate = true;
+                } else if (arg == "--threads") {
+                        const char *value = requireOptionValue(
+                                "--threads", "--threads requires a numeric value.", i, argc, argv);
+                        if (value == 0) {
+                                return false;
+                        }
+                        uint32_t threads = 0;
+                        if (!parseUnsigned(value, threads)) {
+                                std::cerr << "invalid thread count: " << value
+                                                  << std::endl;
+                                return false;
+                        }
+                        options.threads = threads;
+                } else if (arg == "--list-only") {
+                        options.listOnly = true;
 		} else if (arg == "--verbose") {
 			options.verbose = true;
 		} else if (arg == "--exit-on-first-failure") {
@@ -2466,194 +2481,237 @@ struct SnapshotJob {
 
 class SnapshotScheduler {
   public:
-	SnapshotScheduler(uint32_t threadCount, bool exitOnFirstFailure)
-		: threadCount(threadCount == 0 ? 1 : threadCount),
-		  exitOnFirstFailure(exitOnFirstFailure), started(false),
-		  finalizing(false), stopScheduling(false), activeWorkers(0) {}
+        SnapshotScheduler(uint32_t threadCount, bool exitOnFirstFailure)
+                : threadCount(threadCount == 0 ? 1 : threadCount),
+                  exitOnFirstFailure(exitOnFirstFailure), started(false),
+                  finalizing(false), stopScheduling(false), runningWorkers(0),
+                  nextSlot(0), nextResultSlot(0) {}
 
-	~SnapshotScheduler() { finalize(); }
+        ~SnapshotScheduler() { finalize(); }
 
-	void start() {
-		if (started) {
-			return;
-		}
+        void start() {
+                if (started) {
+                        return;
+                }
 
-		workers.reserve(threadCount);
-		threads.reserve(threadCount);
-		for (uint32_t i = 0; i < threadCount; ++i) {
-			workers.push_back(std::unique_ptr<Worker>(new Worker(*this)));
-			threads.push_back(std::unique_ptr<NuXThreads::Thread>(
-				new NuXThreads::Thread(*workers.back())));
-			threads.back()->start();
-		}
-		started = true;
-	}
+                slots.reserve(threadCount);
+                workers.reserve(threadCount);
+                threads.reserve(threadCount);
+                for (uint32_t i = 0; i < threadCount; ++i) {
+                        slots.push_back(std::unique_ptr<WorkerSlot>(new WorkerSlot()));
+                        workers.push_back(
+                                std::unique_ptr<Worker>(new Worker(*this, static_cast<uint32_t>(i))));
+                        threads.push_back(std::unique_ptr<NuXThreads::Thread>(
+                                new NuXThreads::Thread(*workers.back())));
+                        threads.back()->start();
+                }
+                started = true;
+        }
 
-	bool enqueue(const SnapshotJob &job) {
-		NuXThreads::MutexLock lock(mutex);
-		if (!started || finalizing || (exitOnFirstFailure && stopScheduling)) {
-			return false;
-		}
+        bool enqueue(const SnapshotJob &job) {
+                while (true) {
+                        {
+                                NuXThreads::MutexLock lock(mutex);
+                                if (!started || finalizing ||
+                                                (exitOnFirstFailure && stopScheduling)) {
+                                        return false;
+                                }
+                                for (uint32_t offset = 0; offset < threadCount; ++offset) {
+                                        const uint32_t candidate =
+                                                static_cast<uint32_t>((nextSlot + offset) % threadCount);
+                                        WorkerSlot &slot = *slots[candidate];
+                                        if (!slot.hasJob && !slot.hasResult && !slot.inProgress &&
+                                                        !slot.terminate) {
+                                                slot.job = job;
+                                                slot.hasJob = true;
+                                                slot.inProgress = false;
+                                                ++runningWorkers;
+                                                slot.ready.signal();
+                                                nextSlot = static_cast<uint32_t>((candidate + 1) % threadCount);
+                                                return true;
+                                        }
+                                }
+                        }
+                        slotFreed.wait();
+                }
+        }
 
-		pendingJobs.push_back(job);
-		jobAvailable.signal();
-		return true;
-	}
+        bool fetchResult(SnapshotEntryResult &out, bool wait) {
+                while (true) {
+                        {
+                                NuXThreads::MutexLock lock(mutex);
+                                for (uint32_t offset = 0; offset < threadCount; ++offset) {
+                                        const uint32_t candidate = static_cast<uint32_t>(
+                                                (nextResultSlot + offset) % threadCount);
+                                        WorkerSlot &slot = *slots[candidate];
+                                        if (slot.hasResult) {
+                                                out = slot.result;
+                                                slot.hasResult = false;
+                                                slotFreed.signal();
+                                                nextResultSlot = static_cast<uint32_t>(
+                                                        (candidate + 1) % threadCount);
+                                                return true;
+                                        }
+                                }
+                                if (!wait) {
+                                        return false;
+                                }
+                                if (finalizing && runningWorkers == 0) {
+                                        bool pending = false;
+                                        for (uint32_t i = 0; i < threadCount; ++i) {
+                                                if (slots[i]->hasResult) {
+                                                        pending = true;
+                                                        break;
+                                                }
+                                        }
+                                        if (!pending) {
+                                                return false;
+                                        }
+                                }
+                        }
+                        resultAvailable.wait();
+                }
+        }
 
-	bool fetchResult(SnapshotEntryResult &out, bool wait) {
-		while (true) {
-			{
-				NuXThreads::MutexLock lock(mutex);
-				if (!completedResults.empty()) {
-					out = completedResults.front();
-					completedResults.pop_front();
-					return true;
-				}
-				if (!wait) {
-					return false;
-				}
-				if (finalizing && pendingJobs.empty() && activeWorkers == 0) {
-					return false;
-				}
-			}
-			resultAvailable.wait();
-		}
-	}
+        void finalize() {
+                if (!started) {
+                        return;
+                }
 
-	void finalize() {
-		if (!started) {
-			return;
-		}
+                {
+                        NuXThreads::MutexLock lock(mutex);
+                        if (finalizing) {
+                                return;
+                        }
+                        finalizing = true;
+                        stopScheduling = true;
+                        for (uint32_t i = 0; i < threadCount; ++i) {
+                                slots[i]->terminate = true;
+                                slots[i]->ready.signal();
+                        }
+                }
 
-		uint32_t sentinelCount = 0;
-		{
-			NuXThreads::MutexLock lock(mutex);
-			if (!finalizing) {
-				finalizing = true;
-				stopScheduling = true;
-				sentinelCount = threadCount;
-				for (uint32_t i = 0; i < sentinelCount; ++i) {
-					SnapshotJob sentinelJob;
-					sentinelJob.sentinel = true;
-					pendingJobs.push_back(sentinelJob);
-				}
-			}
-		}
+                resultAvailable.signal();
+                slotFreed.signal();
 
-		for (uint32_t i = 0; i < sentinelCount; ++i) {
-			jobAvailable.signal();
-		}
+                for (size_t i = 0; i < threads.size(); ++i) {
+                        threads[i]->join();
+                }
+                workers.clear();
+                threads.clear();
+                slots.clear();
+                started = false;
+        }
 
-		for (size_t i = 0; i < threads.size(); ++i) {
-			jobAvailable.signal();
-			threads[i]->join();
-		}
-		workers.clear();
-		threads.clear();
-		started = false;
-	}
-
-	bool shouldStopScheduling() {
-		NuXThreads::MutexLock lock(mutex);
-		return stopScheduling;
-	}
+        bool shouldStopScheduling() {
+                NuXThreads::MutexLock lock(mutex);
+                return stopScheduling;
+        }
 
   private:
-	class Worker : public NuXThreads::Runnable {
-	  public:
-		explicit Worker(SnapshotScheduler &scheduler) : scheduler(scheduler) {}
+        class Worker : public NuXThreads::Runnable {
+          public:
+                Worker(SnapshotScheduler &scheduler, uint32_t slotIndex)
+                        : scheduler(scheduler), slotIndex(slotIndex) {}
 
-		void run() override { scheduler.workerLoop(); }
+                void run() override { scheduler.workerLoop(slotIndex); }
 
-	  private:
-		SnapshotScheduler &scheduler;
-	};
+          private:
+                SnapshotScheduler &scheduler;
+                uint32_t slotIndex;
+        };
 
-	void workerLoop() {
-		while (true) {
-			SnapshotJob job;
-			if (!takeJob(job)) {
-				return;
-			}
-			if (job.sentinel) {
-				completeSentinel();
-				return;
-			}
+        struct WorkerSlot {
+                WorkerSlot()
+                        : hasJob(false), hasResult(false), terminate(false), inProgress(false) {}
 
-			SnapshotEntryResult result = renderEntry(
-				*job.options, *job.ivgPath, *job.snapshotBase, *job.document,
-				*job.sharedResources, *job.scenario, *job.entry);
-			result.planOrdinal = job.planOrdinal;
-			submitResult(result);
-		}
-	}
+                SnapshotJob job;
+                SnapshotEntryResult result;
+                bool hasJob;
+                bool hasResult;
+                bool terminate;
+                bool inProgress;
+                NuXThreads::Event ready;
+        };
 
-	bool takeJob(SnapshotJob &job) {
-		while (true) {
-			{
-				NuXThreads::MutexLock lock(mutex);
-				if (!pendingJobs.empty()) {
-					job = pendingJobs.front();
-					pendingJobs.pop_front();
-					++activeWorkers;
-					return true;
-				}
-				if (finalizing) {
-					return false;
-				}
-			}
-			jobAvailable.wait();
-		}
-	}
+        void workerLoop(uint32_t slotIndex) {
+                WorkerSlot &slot = *slots[slotIndex];
+                while (true) {
+                        slot.ready.wait();
+                        SnapshotJob job;
+                        {
+                                NuXThreads::MutexLock lock(mutex);
+                                if (slot.terminate && !slot.hasJob) {
+                                        return;
+                                }
+                                if (!slot.hasJob) {
+                                        continue;
+                                }
+                                job = slot.job;
+                                slot.hasJob = false;
+                                slot.inProgress = true;
+                        }
 
-	void submitResult(SnapshotEntryResult &result) {
-		const bool success = result.success;
-		{
-			NuXThreads::MutexLock lock(mutex);
-			completedResults.push_back(result);
-			if (!success && exitOnFirstFailure) {
-				stopScheduling = true;
-			}
-			if (activeWorkers > 0) {
-				--activeWorkers;
-			}
-		}
-		resultAvailable.signal();
-	}
+                        SnapshotEntryResult result = renderEntry(
+                                *job.options, *job.ivgPath, *job.snapshotBase, *job.document,
+                                *job.sharedResources, *job.scenario, *job.entry);
+                        result.planOrdinal = job.planOrdinal;
 
-	void completeSentinel() {
-		{
-			NuXThreads::MutexLock lock(mutex);
-			if (activeWorkers > 0) {
-				--activeWorkers;
-			}
-		}
-		resultAvailable.signal();
-		jobAvailable.signal();
-	}
+                        const bool success = result.success;
+                        {
+                                NuXThreads::MutexLock lock(mutex);
+                                slot.result = result;
+                                slot.hasResult = true;
+                                slot.inProgress = false;
+                                if (!success && exitOnFirstFailure) {
+                                        stopScheduling = true;
+                                        slotFreed.signal();
+                                }
+                                if (runningWorkers > 0) {
+                                        --runningWorkers;
+                                }
+                                if (slot.terminate) {
+                                        slot.ready.signal();
+                                }
+                        }
+                        resultAvailable.signal();
+                }
+        }
 
-	uint32_t threadCount;
-	bool exitOnFirstFailure;
-	bool started;
-	bool finalizing;
-	bool stopScheduling;
-	NuXThreads::Mutex mutex;
-	NuXThreads::Event jobAvailable;
-	NuXThreads::Event resultAvailable;
-	std::deque<SnapshotJob> pendingJobs;
-	std::deque<SnapshotEntryResult> completedResults;
-	std::vector<std::unique_ptr<Worker>> workers;
-	std::vector<std::unique_ptr<NuXThreads::Thread>> threads;
-	uint32_t activeWorkers;
+        uint32_t threadCount;
+        bool exitOnFirstFailure;
+        bool started;
+        bool finalizing;
+        bool stopScheduling;
+        NuXThreads::Mutex mutex;
+        NuXThreads::Event resultAvailable;
+        NuXThreads::Event slotFreed;
+        std::vector<std::unique_ptr<WorkerSlot>> slots;
+        std::vector<std::unique_ptr<Worker>> workers;
+        std::vector<std::unique_ptr<NuXThreads::Thread>> threads;
+        uint32_t runningWorkers;
+        uint32_t nextSlot;
+        uint32_t nextResultSlot;
 };
+static void logScenarioFailure(const std::string &ivgPath,
+                                                        SnapshotEntryResult &result,
+                                                        const char *defaultMessage) {
+        if (result.message.empty() && defaultMessage != 0) {
+                result.message = defaultMessage;
+        }
+        const std::string &message = result.message;
+        std::cerr << ivgPath << ": scenario " << result.scenarioName << ": " << message
+                                  << std::endl;
+}
+
 static SnapshotEntryResult
 renderEntry(const CommandLineOptions &options, const std::string &path,
-			const std::string &snapshotBase, const CachedDocument &document,
-			SharedResources &sharedResources, const SnapshotScenario &scenario,
-			const SnapshotEntry &entry) {
-	SnapshotEntryResult result;
-	result.ivgPath = path;
-	result.scenarioName = stringFromIMPD(entry.scenarioName);
+                        const std::string &snapshotBase, const CachedDocument &document,
+                        SharedResources &sharedResources, const SnapshotScenario &scenario,
+                        const SnapshotEntry &entry) {
+        SnapshotEntryResult result;
+        result.ivgPath = path;
+        result.scenarioName = stringFromIMPD(entry.scenarioName);
 	result.entryOrdinal = entry.entryOrdinal;
 	result.validate = entry.validate;
 	result.blockIndex =
@@ -2663,64 +2721,53 @@ renderEntry(const CommandLineOptions &options, const std::string &path,
 	IVG::SelfContainedARGB32Canvas canvas;
 	SnapshotPlaybackExecutor executor(canvas, scenario, entry, options, path,
 									  sharedResources);
-	try {
-		document.render(executor);
-		result.rendered = true;
-	} catch (Exception &e) {
-		std::ostringstream message;
-		message << e.getError();
-		if (e.hasStatement()) {
-			message << " near \"" << e.getStatement() << "\"";
-		}
-		result.message = message.str();
-		std::cerr << path << ": scenario " << result.scenarioName << ": "
-				  << result.message << std::endl;
-		return result;
-	} catch (std::exception &e) {
-		result.message = e.what();
-		std::cerr << path << ": scenario " << result.scenarioName << ": "
-				  << result.message << std::endl;
-		return result;
-	}
+        try {
+                document.render(executor);
+                result.rendered = true;
+        } catch (Exception &e) {
+                std::ostringstream message;
+                message << e.getError();
+                if (e.hasStatement()) {
+                        message << " near \"" << e.getStatement() << "\"";
+                }
+                result.message = message.str();
+                logScenarioFailure(path, result, 0);
+                return result;
+        } catch (std::exception &e) {
+                result.message = e.what();
+                logScenarioFailure(path, result, 0);
+                return result;
+        }
 
-	if (!executor.finished()) {
-		result.message = "did not execute all snapshot invocations";
-		std::cerr << path << ": scenario " << result.scenarioName
-				  << " did not execute all snapshot invocations." << std::endl;
-		return result;
-	}
+        if (!executor.finished()) {
+                result.message = "did not execute all snapshot invocations.";
+                logScenarioFailure(path, result,
+                                                   "did not execute all snapshot invocations.");
+                return result;
+        }
 
-	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> *raster =
-		canvas.accessRaster();
-	if (raster == 0) {
-		result.message = "rendered image is empty";
-		std::cerr << path << ": scenario " << result.scenarioName
-				  << " produced no raster output." << std::endl;
-		return result;
-	}
+        NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> *raster =
+                canvas.accessRaster();
+        if (raster == 0) {
+                result.message = "rendered image is empty.";
+                logScenarioFailure(path, result, "rendered image is empty.");
+                return result;
+        }
 
-		SnapshotGolden golden(path, snapshotBase, scenario, entry, options);
-	if (!entry.validate) {
-		if (!golden.writeDraft(*raster, result)) {
-			if (result.message.empty()) {
-				result.message = "failed to write draft";
-			}
-			std::cerr << path << ": scenario " << result.scenarioName << ": "
-					  << result.message << std::endl;
-		}
-		return result;
-	}
+                SnapshotGolden golden(path, snapshotBase, scenario, entry, options);
+        if (!entry.validate) {
+                if (!golden.writeDraft(*raster, result)) {
+                        logScenarioFailure(path, result, "failed to write draft.");
+                }
+                return result;
+        }
 
-	if (!golden.validate(*raster, options.forceUpdate, result)) {
-		if (result.message.empty()) {
-			result.message = "validation failed";
-		}
-		std::cerr << path << ": scenario " << result.scenarioName << ": "
-				  << result.message << std::endl;
-		return result;
-	}
+        if (!golden.validate(*raster, options.forceUpdate, result)) {
+                logScenarioFailure(path, result, "validation failed.");
+                return result;
+        }
 
-	return result;
+        return result;
 }
 
 static void flushSchedulerResults(SnapshotScheduler &scheduler, bool wait,
