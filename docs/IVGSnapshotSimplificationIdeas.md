@@ -200,3 +200,15 @@ return argv[++i];
 }
 ```
 - Completion check: Run `timeout 600 ./build.sh`.
+- [x] Centralize cache lookups for fonts and images so snapshot playback reuses shared helpers instead of inlining double-checked locking sequences. Estimated reduction: ~35 lines.
+- Completion note: `findCachedFont`, `insertFont`, `findCachedImage`, and `insertImage` now hide the `Lockable` plumbing while `singleFontResult` standardizes the return vector creation.
+- Example snippet:
+```cpp
+const CachedImage *findCachedImage(const std::string &path) {
+NuXThreads::Lockable<ImageCache>::Lock lock(sharedResources.images);
+ImageCache &images = lock.access();
+const ImageCache::iterator it = images.find(path);
+return (it == images.end()) ? 0 : &it->second;
+}
+```
+- Completion check: Run `timeout 600 ./build.sh`.

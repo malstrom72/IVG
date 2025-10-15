@@ -2038,37 +2038,24 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		return visitSearchPaths(resolveRelativePath(utf8), includeDirs, utf8, loader);
 	}
 
-	std::vector<const IVG::Font *>
-	lookupFonts(Interpreter &interpreter, const WideString &fontName,
-				const UniString &forString) override {
-		(void)interpreter;
-		(void)forString;
+        std::vector<const IVG::Font *>
+        lookupFonts(Interpreter &interpreter, const WideString &fontName,
+                                const UniString &forString) override {
+                (void)interpreter;
+                (void)forString;
 
-		{
-			NuXThreads::Lockable<std::map<WideString, IVG::Font> >::Lock lock(sharedResources.fonts);
-			std::map<WideString, IVG::Font> &fonts = lock.access();
-			const std::map<WideString, IVG::Font>::iterator cached = fonts.find(fontName);
-			if (cached != fonts.end()) {
-				return std::vector<const IVG::Font *>(1, &cached->second);
-			}
-		}
+                const IVG::Font *cached = findCachedFont(fontName);
+                if (cached != 0) {
+                        return singleFontResult(cached);
+                }
 
-		IVG::Font font;
-		if (!loadExternalFont(fontName, font)) {
-			return std::vector<const IVG::Font *>();
-		}
+                IVG::Font font;
+                if (!loadExternalFont(fontName, font)) {
+                        return std::vector<const IVG::Font *>();
+                }
 
-		NuXThreads::Lockable<std::map<WideString, IVG::Font> >::Lock lock(sharedResources.fonts);
-		std::map<WideString, IVG::Font> &fonts = lock.access();
-		const std::map<WideString, IVG::Font>::iterator cached = fonts.find(fontName);
-		if (cached != fonts.end()) {
-			return std::vector<const IVG::Font *>(1, &cached->second);
-		}
-
-		const std::map<WideString, IVG::Font>::iterator inserted =
-			fonts.insert(std::make_pair(fontName, font)).first;
-		return std::vector<const IVG::Font *>(1, &inserted->second);
-	}
+                return singleFontResult(insertFont(fontName, font));
+        }
 
 	IVG::Image loadImage(Interpreter &interpreter,
 						 const WideString &imageSource,
@@ -2254,34 +2241,70 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		return 0;
 	}
 
-	const CachedImage *loadImageFromPath(const std::string &path) {
-		{
-			NuXThreads::Lockable<std::map<std::string, CachedImage> >::Lock lock(sharedResources.images);
-			std::map<std::string, CachedImage> &images = lock.access();
-			const std::map<std::string, CachedImage>::iterator it = images.find(path);
-			if (it != images.end()) {
-				return &it->second;
-			}
-		}
+        const CachedImage *loadImageFromPath(const std::string &path) {
+                const CachedImage *cached = findCachedImage(path);
+                if (cached != 0) {
+                        return cached;
+                }
 
-		CachedImage cached;
-		if (!loadPngRaster(path, cached.raster)) {
-			return 0;
-		}
-		cached.xResolution = 1.0;
-		cached.yResolution = 1.0;
+                CachedImage loaded;
+                if (!loadPngRaster(path, loaded.raster)) {
+                        return 0;
+                }
+                loaded.xResolution = 1.0;
+                loaded.yResolution = 1.0;
 
-		NuXThreads::Lockable<std::map<std::string, CachedImage> >::Lock lock(sharedResources.images);
-		std::map<std::string, CachedImage> &images = lock.access();
-		const std::map<std::string, CachedImage>::iterator existing = images.find(path);
-		if (existing != images.end()) {
-			return &existing->second;
-		}
+                return insertImage(path, loaded);
+        }
 
-		const std::map<std::string, CachedImage>::iterator inserted =
-			images.insert(std::make_pair(path, cached)).first;
-		return &inserted->second;
-	}
+        const IVG::Font *findCachedFont(const WideString &fontName) {
+                NuXThreads::Lockable<std::map<WideString, IVG::Font> >::Lock lock(sharedResources.fonts);
+                std::map<WideString, IVG::Font> &fonts = lock.access();
+                const std::map<WideString, IVG::Font>::iterator cached = fonts.find(fontName);
+                if (cached == fonts.end()) {
+                        return 0;
+                }
+                return &cached->second;
+        }
+
+        const IVG::Font *insertFont(const WideString &fontName, const IVG::Font &font) {
+                NuXThreads::Lockable<std::map<WideString, IVG::Font> >::Lock lock(sharedResources.fonts);
+                std::map<WideString, IVG::Font> &fonts = lock.access();
+                const std::map<WideString, IVG::Font>::iterator inserted =
+                        fonts.insert(std::make_pair(fontName, font)).first;
+                return &inserted->second;
+        }
+
+        std::vector<const IVG::Font *> singleFontResult(const IVG::Font *font) {
+                if (font == 0) {
+                        return std::vector<const IVG::Font *>();
+                }
+                std::vector<const IVG::Font *> result(1);
+                result[0] = font;
+                return result;
+        }
+
+        const CachedImage *findCachedImage(const std::string &path) {
+                NuXThreads::Lockable<std::map<std::string, CachedImage> >::Lock lock(sharedResources.images);
+                std::map<std::string, CachedImage> &images = lock.access();
+                const std::map<std::string, CachedImage>::iterator it = images.find(path);
+                if (it == images.end()) {
+                        return 0;
+                }
+                return &it->second;
+        }
+
+        const CachedImage *insertImage(const std::string &path, const CachedImage &image) {
+                NuXThreads::Lockable<std::map<std::string, CachedImage> >::Lock lock(sharedResources.images);
+                std::map<std::string, CachedImage> &images = lock.access();
+                const std::map<std::string, CachedImage>::iterator existing = images.find(path);
+                if (existing != images.end()) {
+                        return &existing->second;
+                }
+                const std::map<std::string, CachedImage>::iterator inserted =
+                        images.insert(std::make_pair(path, image)).first;
+                return &inserted->second;
+        }
 };
 
 static void printUsage(const char *program) {
