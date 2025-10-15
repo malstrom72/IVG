@@ -22,6 +22,7 @@
 **/
 #include <climits>
 #include <math.h>
+#include <limits.h>
 #include <algorithm>
 #include <limits.h>
 #include "NuXPixels.h"
