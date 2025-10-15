@@ -1,0 +1,20 @@
+{
+	"fixtures": [
+		{
+			"label": "multi-scenario",
+			"base": "primary",
+			"scenarioCount": 5,
+			"entryCount": 7,
+			"scenarios": [{"name":"primary","entries":2,"invocations":4,"validated":2},{"name":"alternate","entries":2,"invocations":2,"validated":0},{"name":"primary-3-1","entries":1,"invocations":1,"validated":1},{"name":"primary-3-2","entries":1,"invocations":1,"validated":1},{"name":"primary-3-3","entries":1,"invocations":1,"validated":1}],
+			"replayOrder": [{"scenario":"primary","ordinal":1},{"scenario":"primary","ordinal":2},{"scenario":"alternate","ordinal":1},{"scenario":"alternate","ordinal":2},{"scenario":"primary-3-1","ordinal":1},{"scenario":"primary-3-2","ordinal":1},{"scenario":"primary-3-3","ordinal":1}]
+		},
+		{
+			"label": "implicit-only",
+			"base": "implicit",
+			"scenarioCount": 3,
+			"entryCount": 3,
+			"scenarios": [{"name":"implicit-1-1","entries":1,"invocations":1,"validated":1},{"name":"implicit-1-2","entries":1,"invocations":1,"validated":1},{"name":"implicit-2","entries":1,"invocations":1,"validated":1}],
+			"replayOrder": [{"scenario":"implicit-1-1","ordinal":1},{"scenario":"implicit-1-2","ordinal":1},{"scenario":"implicit-2","ordinal":1}]
+		}
+	]
+}

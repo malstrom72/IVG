@@ -4,11 +4,11 @@
 
 Before refactoring begins, add the following focused regression tests to protect current behaviour. Each new test suite should land alongside the production changes it guards, and every milestone ends with a successful `timeout 600 ./build.sh` run.
 
-- [ ] Snapshot plan fixtures that load multi-scenario IVGs and assert the emitted replay order, per-scenario frame counts, and error reporting to exercise `SnapshotPlan` simplifications. Implement as deterministic unit-style tests under `tests/` with golden JSON summaries for comparison.
-- [ ] Filesystem guard tests that simulate missing directories and permission failures, verifying the new `ensureDirectoryTree` helper throws and leaves existing artifacts untouched. Use temporary directories within the test harness.
-- [ ] Libpng IO tests that feed corrupted PNG streams and ensure RAII teardown does not leak handles while surfacing the same exceptions observed today. Cover both load and save paths.
-- [ ] Scheduler stress test that enqueues more jobs than worker slots and confirms ordering, cancellation, and shutdown semantics remain unchanged.
-- [ ] CLI parsing integration test that invokes `IVGSnapshot` with representative flag combinations, asserting exit codes and stderr messages for success, missing values, and unknown switches.
+- [x] Snapshot plan fixtures that load multi-scenario IVGs and assert the emitted replay order, per-scenario frame counts, and error reporting to exercise `SnapshotPlan` simplifications. Implement as deterministic unit-style tests under `tests/` with golden JSON summaries for comparison.
+- [x] Filesystem guard tests that simulate missing directories and permission failures, verifying the new `ensureDirectoryTree` helper throws and leaves existing artifacts untouched. Use temporary directories within the test harness.
+- [x] Libpng IO tests that feed corrupted PNG streams and ensure RAII teardown does not leak handles while surfacing the same exceptions observed today. Cover both load and save paths.
+- [x] Scheduler stress test that enqueues more jobs than worker slots and confirms ordering, cancellation, and shutdown semantics remain unchanged.
+- [x] CLI parsing integration test that invokes `IVGSnapshot` with representative flag combinations, asserting exit codes and stderr messages for success, missing values, and unknown switches.
 
 This TODO list tracks concrete simplifications for the monolithic `tools/IVGSnapshot/IVGSnapshot.cpp`. Each milestone should conclude by running `timeout 600 ./build.sh` and verifying the `=== ALL BUILDS AND TESTS COMPLETED SUCCESSFULLY ===` footer.
 
