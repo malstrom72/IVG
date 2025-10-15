@@ -119,7 +119,6 @@ struct SnapshotInvocation {
 };
 
 struct SnapshotEntry {
-	uint32_t scenarioIndex;
 	uint32_t entryOrdinal;
 	bool validate;
 	String scenarioName;
@@ -130,8 +129,7 @@ struct SnapshotScenario {
 	String name;
 	bool validate;
 	bool explicitScenario;
-	std::vector<uint32_t> entryIndices;
-	std::map<uint32_t, uint32_t> entryLookup;
+	std::vector<SnapshotEntry> entries;
 };
 struct CachedImage {
 	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> raster;
@@ -140,10 +138,8 @@ struct CachedImage {
 };
 
 struct SharedResources {
-	std::map<WideString, IVG::Font> fonts;
-	std::map<std::string, CachedImage> images;
-	NuXThreads::Mutex fontMutex;
-	NuXThreads::Mutex imageMutex;
+	NuXThreads::Lockable<std::map<WideString, IVG::Font> > fonts;
+	NuXThreads::Lockable<std::map<std::string, CachedImage> > images;
 };
 
 struct SnapshotDiffStats {
@@ -264,9 +260,9 @@ static std::string stringFromIMPD(const String &value) {
 }
 
 static std::wstring pathStringToWide(const std::string &path) {
-        if (path.empty()) {
-                return std::wstring();
-        }
+		if (path.empty()) {
+				return std::wstring();
+		}
 #if defined(_WIN32)
 	const int sourceLength = static_cast<int>(path.size());
 	const int wideLength =
@@ -283,7 +279,7 @@ static std::wstring pathStringToWide(const std::string &path) {
 	return wide;
 #else
 	std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-        return converter.from_bytes(path);
+		return converter.from_bytes(path);
 #endif
 }
 
@@ -313,10 +309,10 @@ static std::string pathStringFromWide(const std::wstring &path) {
 #endif
 }
 static NuXFiles::Path pathFromNativeString(const std::string &path) {
-        if (path.empty()) {
-                return NuXFiles::Path();
-        }
-        try {
+		if (path.empty()) {
+				return NuXFiles::Path();
+		}
+		try {
 		return NuXFiles::Path(pathStringToWide(path));
 	} catch (const std::range_error &) {
 		return NuXFiles::Path();
@@ -501,115 +497,72 @@ static std::string buildEntryIdentifier(const std::string &snapshotBase,
 }
 
 static bool fileExists(const std::string &path) {
-	if (path.empty()) {
-		return false;
-	}
-	try {
-		const NuXFiles::Path filePath = pathFromNativeString(path);
-		return (!filePath.isNull() && filePath.isFile());
-	} catch (const NuXFiles::Exception &) {
-		return false;
-	} catch (const std::exception &) {
-		return false;
-	}
+		if (path.empty()) {
+				return false;
+		}
+		try {
+				const NuXFiles::Path filePath = pathFromNativeString(path);
+				return (!filePath.isNull() && filePath.isFile());
+		} catch (const NuXFiles::Exception &) {
+				return false;
+		} catch (const std::exception &) {
+				return false;
+		}
 }
 
-static bool directoryExists(const std::string &path) {
-	if (path.empty()) {
-		return false;
-	}
-	try {
-		const NuXFiles::Path dirPath = pathFromNativeString(path);
-		return (!dirPath.isNull() && dirPath.isDirectory());
-	} catch (const NuXFiles::Exception &) {
-		return false;
-	} catch (const std::exception &) {
-		return false;
-	}
-}
+static void ensureDirectoryTree(const NuXFiles::Path &directory) {
+		if (directory.isNull() || directory.isRoot()) {
+				return;
+		}
 
-static bool ensureDirectoryPath(const NuXFiles::Path &directory) {
-	try {
-		if (directory.isNull()) {
-			return true;
-		}
-		if (directory.exists()) {
-			return directory.isDirectory();
-		}
 		std::vector<NuXFiles::Path> toCreate;
 		NuXFiles::Path current(directory);
 		while (!current.exists()) {
-			toCreate.push_back(current);
-			if (current.isRoot()) {
-				break;
-			}
-			current = current.getParent();
+				toCreate.push_back(current);
+				if (current.isRoot()) {
+						break;
+				}
+				current = current.getParent();
 		}
+
 		if (current.exists() && !current.isDirectory()) {
-			return false;
+				throw NuXFiles::Exception("path is not a directory", current);
 		}
-		for (std::vector<NuXFiles::Path>::reverse_iterator it =
-				toCreate.rbegin();
+
+		for (std::vector<NuXFiles::Path>::reverse_iterator it = toCreate.rbegin();
 			 it != toCreate.rend(); ++it) {
-			if (it->isRoot()) {
-				continue;
-			}
-			try {
-				it->create();
-			} catch (const NuXFiles::Exception &) {
-				try {
-					if (it->exists() && it->isDirectory()) {
+				if (it->isRoot()) {
 						continue;
-					}
-				} catch (const NuXFiles::Exception &) {
-					return false;
-				} catch (const std::exception &) {
-					return false;
 				}
-				return false;
-			} catch (const std::exception &) {
-				try {
-					if (it->exists() && it->isDirectory()) {
-						continue;
-					}
-				} catch (const NuXFiles::Exception &) {
-					return false;
-				} catch (const std::exception &) {
-					return false;
+				if (!it->tryToCreate()) {
+						if (it->exists() && it->isDirectory()) {
+								continue;
+						}
+						throw NuXFiles::Exception("failed to create directory", *it);
 				}
-				return false;
-			}
 		}
-		return directory.exists() && directory.isDirectory();
-	} catch (const NuXFiles::Exception &) {
-		return false;
-	} catch (const std::exception &) {
-		return false;
-	}
+
+		if (!directory.exists() || !directory.isDirectory()) {
+				throw NuXFiles::Exception("failed to create directory", directory);
+		}
 }
 
-static bool ensureDirectory(const std::string &path) {
-	if (path.empty()) {
-		return true;
-	}
-	return ensureDirectoryPath(pathFromNativeString(path));
+static void ensureDirectoryTree(const std::string &path) {
+		if (path.empty()) {
+				return;
+		}
+		ensureDirectoryTree(pathFromNativeString(path));
 }
 
-static bool ensureParentDirectory(const std::string &filePath) {
-	if (filePath.empty()) {
-		return true;
-	}
-	try {
+static void ensureParentDirectory(const std::string &filePath) {
+		if (filePath.empty()) {
+				return;
+		}
 		const NuXFiles::Path target = pathFromNativeString(filePath);
 		if (target.isNull() || target.isRoot()) {
-			return true;
+				return;
 		}
-		return ensureDirectoryPath(target.getParent());
-	} catch (const NuXFiles::Exception &) {
-		return false;
-	} catch (const std::exception &) {
-		return false;
-	}
+		ensureDirectoryTree(target.getParent());
 }
 
 static void removeFileIfExists(const std::string &path) {
@@ -890,38 +843,299 @@ static void logTotalsSummary(const SnapshotTotals &totals) {
 			   << ')';
 	printSummaryLine("Failed", failedLine.str());
 }
+static void PNGAPI snapshotPNGError(png_structp png, png_const_charp message) {
+	throw std::runtime_error(std::string("Error reading PNG image: ") +
+					 message);
+}
+
+static bool isLittleEndian() {
+	static const unsigned char bytes[4] = {0x4A, 0x3B, 0x2C, 0x1D};
+	return (*reinterpret_cast<const unsigned int *>(bytes) == 0x1D2C3B4A);
+}
+
+class ScopedFileHandle {
+  public:
+	ScopedFileHandle(const std::string &path, const char *mode)
+		: file(0) {
+		file = std::fopen(path.c_str(), mode);
+	}
+
+	~ScopedFileHandle() {
+		if (file != 0) {
+			std::fclose(file);
+		}
+	}
+
+	FILE *get() const {
+		return file;
+	}
+
+  private:
+	FILE *file;
+};
+
+class ScopedPngReadStruct {
+  public:
+	ScopedPngReadStruct() : png(0), info(0) {}
+
+	~ScopedPngReadStruct() {
+		reset();
+	}
+
+	void initialize() {
+		reset();
+		png_structp newPng = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0,
+				snapshotPNGError, 0);
+		if (newPng == 0) {
+			throw std::runtime_error("could not initialize PNG reader");
+		}
+		png_infop newInfo = png_create_info_struct(newPng);
+		if (newInfo == 0) {
+			png_destroy_read_struct(&newPng, 0, 0);
+			throw std::runtime_error("could not initialize PNG info struct");
+		}
+		png = newPng;
+		info = newInfo;
+	}
+
+	void reset() {
+		if (png != 0) {
+			png_destroy_read_struct(&png, &info, 0);
+			png = 0;
+			info = 0;
+		}
+	}
+
+	png_structp getPng() const {
+		return png;
+	}
+
+	png_infop getInfo() const {
+		return info;
+	}
+
+  private:
+	png_structp png;
+	png_infop info;
+};
+
+class ScopedPngWriteStruct {
+  public:
+ScopedPngWriteStruct() : png(0), info(0) {}
+
+	~ScopedPngWriteStruct() {
+		reset();
+	}
+
+	void initialize() {
+		reset();
+		png_structp newPng = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0,
+				snapshotPNGError, 0);
+		if (newPng == 0) {
+			throw std::runtime_error("could not initialize PNG writer");
+		}
+		png_infop newInfo = png_create_info_struct(newPng);
+		if (newInfo == 0) {
+			png_destroy_write_struct(&newPng, 0);
+			throw std::runtime_error("could not initialize PNG info struct");
+		}
+		png = newPng;
+		info = newInfo;
+	}
+
+	void reset() {
+		if (png != 0) {
+			png_destroy_write_struct(&png, &info);
+			png = 0;
+			info = 0;
+		}
+	}
+
+	png_structp getPng() const {
+		return png;
+	}
+
+	png_infop getInfo() const {
+		return info;
+	}
+
+  private:
+	png_structp png;
+	png_infop info;
+};
+
+static unsigned int convertPremultipliedChannelToStraight(unsigned int value,
+							 unsigned int alpha) {
+	if (alpha == 0 || value == 0) {
+		return 0;
+	}
+	unsigned int numerator = value * 255u + (alpha / 2u);
+	unsigned int result = numerator / alpha;
+	if (result > 255u) {
+		result = 255u;
+	}
+	return result;
+}
+
+static unsigned int convertStraightChannelToPremultiplied(unsigned int value,
+ unsigned int alpha) {
+if (alpha == 0 || value == 0) {
+return 0;
+}
+return (value * alpha + 127u) / 255u;
+}
+
+static SnapshotEntryResult
+renderEntry(const CommandLineOptions &options, const std::string &path,
+const std::string &snapshotBase, const CachedDocument &document,
+SharedResources &sharedResources, const SnapshotScenario &scenario,
+const SnapshotEntry &entry);
+
 static bool
 loadPngRaster(const std::string &path,
-			  NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &outRaster);
+NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &outRaster) {
+	ScopedFileHandle file(path, "rb");
+	if (file.get() == 0) {
+		return false;
+	}
+
+	ScopedPngReadStruct png;
+	try {
+		png.initialize();
+		png_init_io(png.getPng(), file.get());
+		png_set_add_alpha(png.getPng(), 0xFF, PNG_FILLER_AFTER);
+		if (isLittleEndian()) {
+			png_set_bgr(png.getPng());
+		} else {
+			png_set_swap_alpha(png.getPng());
+		}
+
+		png_read_png(png.getPng(), png.getInfo(), PNG_TRANSFORM_EXPAND, 0);
+		const png_uint_32 width = png_get_image_width(png.getPng(), png.getInfo());
+		const png_uint_32 height = png_get_image_height(png.getPng(), png.getInfo());
+		png_bytep *rows = png_get_rows(png.getPng(), png.getInfo());
+
+		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> tempRaster(
+			NuXPixels::IntRect(0, 0, static_cast<int>(width),
+						static_cast<int>(height)));
+
+		for (png_uint_32 y = 0; y < height; ++y) {
+			NuXPixels::ARGB32::Pixel *dest =
+				tempRaster.getPixelPointer() + y * tempRaster.getStride();
+			png_bytep src = rows[y];
+			for (png_uint_32 x = 0; x < width; ++x) {
+				unsigned int b = src[x * 4 + 0];
+				unsigned int g = src[x * 4 + 1];
+				unsigned int r = src[x * 4 + 2];
+				unsigned int a = src[x * 4 + 3];
+				if (a != 0xFF) {
+					r = convertStraightChannelToPremultiplied(r, a);
+					g = convertStraightChannelToPremultiplied(g, a);
+					b = convertStraightChannelToPremultiplied(b, a);
+				}
+				dest[x] = (a << 24) | (r << 16) | (g << 8) | b;
+			}
+		}
+
+		outRaster = tempRaster;
+		return true;
+	} catch (...) {
+		return false;
+	}
+}
+
 static bool writeRasterToPng(
 	const std::string &path,
 	const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &raster,
-	std::string &error);
-static SnapshotEntryResult
-renderEntry(const CommandLineOptions &options, const std::string &path,
-		const std::string &snapshotBase, const CachedDocument &document,
-		SharedResources &sharedResources, const SnapshotScenario &scenario,
-		const SnapshotEntry &entry);
+	std::string &error) {
+	const NuXPixels::IntRect bounds = raster.calcBounds();
+	if (bounds.width <= 0 || bounds.height <= 0) {
+		error = std::string("raster has no visible pixels: ") + path;
+		return false;
+	}
+
+	const int width = bounds.width;
+	const int height = bounds.height;
+	const int stride = raster.getStride();
+	const NuXPixels::ARGB32::Pixel *base =
+		raster.getPixelPointer() + bounds.top * stride + bounds.left;
+
+	std::vector<png_bytep> rows(static_cast<size_t>(height));
+	std::vector<unsigned char> pixels(static_cast<size_t>(width) *
+		static_cast<size_t>(height) * 4u);
+	for (int y = 0; y < height; ++y) {
+		const NuXPixels::ARGB32::Pixel *src = base + y * stride;
+		unsigned char *dest =
+			&pixels[static_cast<size_t>(y) * static_cast<size_t>(width) * 4u];
+		rows[static_cast<size_t>(y)] = dest;
+		for (int x = 0; x < width; ++x) {
+			const NuXPixels::ARGB32::Pixel pixel = src[x];
+			unsigned int a = (pixel >> 24) & 0xFF;
+			unsigned int r = (pixel >> 16) & 0xFF;
+			unsigned int g = (pixel >> 8) & 0xFF;
+			unsigned int b = pixel & 0xFF;
+			if (a != 0 && a != 0xFF) {
+				r = convertPremultipliedChannelToStraight(r, a);
+				g = convertPremultipliedChannelToStraight(g, a);
+				b = convertPremultipliedChannelToStraight(b, a);
+			}
+			dest[x * 4 + 0] = static_cast<unsigned char>(r);
+			dest[x * 4 + 1] = static_cast<unsigned char>(g);
+			dest[x * 4 + 2] = static_cast<unsigned char>(b);
+			dest[x * 4 + 3] = static_cast<unsigned char>(a);
+		}
+	}
+
+	ScopedFileHandle file(path, "wb");
+	if (file.get() == 0) {
+		error =
+			std::string("failed to open ") + path + ": " + std::strerror(errno);
+		return false;
+	}
+
+	ScopedPngWriteStruct png;
+	try {
+		png.initialize();
+		png_init_io(png.getPng(), file.get());
+		png_set_IHDR(png.getPng(), png.getInfo(), static_cast<png_uint_32>(width),
+			static_cast<png_uint_32>(height), 8,
+			PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
+			PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+		png_set_sRGB_gAMA_and_cHRM(png.getPng(), png.getInfo(),
+			PNG_sRGB_INTENT_ABSOLUTE);
+		png_set_oFFs(png.getPng(), png.getInfo(), static_cast<png_int_32>(bounds.left),
+			static_cast<png_int_32>(bounds.top), PNG_OFFSET_PIXEL);
+		png_set_rows(png.getPng(), png.getInfo(), &rows[0]);
+		png_write_png(png.getPng(), png.getInfo(), PNG_TRANSFORM_IDENTITY, 0);
+		return true;
+	} catch (const std::exception &e) {
+		error = std::string("failed to write PNG: ") + e.what();
+	} catch (...) {
+		error = "failed to write PNG: unknown error";
+	}
+
+	return false;
+}
 
 class SnapshotGolden {
   public:
 	SnapshotGolden(const std::string &ivgPath, const std::string &snapshotBase,
-	                           const SnapshotScenario &scenario, const SnapshotEntry &entry,
-	                           const CommandLineOptions &options) {
-                const std::string root =
-                        (options.snapshotDir.empty() ? extractDirectory(ivgPath)
-                                                                   : options.snapshotDir);
-                std::string scenarioName = stringFromIMPD(entry.scenarioName);
-                if (scenario.entryIndices.size() > 1) {
+			const SnapshotScenario &scenario, const SnapshotEntry &entry,
+			const CommandLineOptions &options) {
+		const std::string root =
+			(options.snapshotDir.empty() ? extractDirectory(ivgPath)
+				: options.snapshotDir);
+		std::string scenarioName = stringFromIMPD(entry.scenarioName);
+if (scenario.entries.size() > 1) {
 			scenarioName += "-";
 			scenarioName +=
 				Interpreter::toString(static_cast<int32_t>(entry.entryOrdinal));
-                }
-                scenarioName = sanitizeFileComponent(scenarioName);
-                std::string fileStem = scenarioName;
-                if (!snapshotBase.empty()) {
-                        fileStem = snapshotBase + "__" + fileStem;
-                }
+		}
+		scenarioName = sanitizeFileComponent(scenarioName);
+		std::string fileStem = scenarioName;
+		if (!snapshotBase.empty()) {
+			fileStem = snapshotBase + "__" + fileStem;
+		}
 		const std::string stem = joinPath(root, fileStem);
 		goldenPath = stem + ".png";
 		oldPath = stem + ".png.old";
@@ -940,7 +1154,7 @@ class SnapshotGolden {
 
 	bool
 	writeDraft(const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &raster,
-			   SnapshotEntryResult &result) const {
+		SnapshotEntryResult &result) const {
 		populateResult(result);
 		result.skipped = true;
 		result.updated = false;
@@ -949,97 +1163,89 @@ class SnapshotGolden {
 		result.success = true;
 
 		const NuXPixels::IntRect bounds = raster.calcBounds();
+		const ArtifactRef goldenRef = makeArtifact("golden", goldenPath);
+		const ArtifactRef oldRef = makeArtifact("old draft", oldPath);
+		const ArtifactRef actualRef = makeArtifact("actual", actualPath);
+		const ArtifactRef diffRef = makeArtifact("diff", diffPath);
+		const ArtifactRef emptyCleanup[] = {oldRef, actualRef, diffRef, goldenRef};
+		const size_t emptyCleanupCount = sizeof(emptyCleanup) / sizeof(emptyCleanup[0]);
 		if (bounds.width <= 0 || bounds.height <= 0) {
-			removeFileIfExists(oldPath);
-			removeFileIfExists(actualPath);
-			removeFileIfExists(diffPath);
-			removeFileIfExists(goldenPath);
+			removeArtifacts(emptyCleanup, emptyCleanupCount);
 			return true;
 		}
 
-		if (!ensureParentDirectory(oldPath)) {
-			result.success = false;
-			result.message = std::string("failed to prepare directory for ") +
-							 oldPath + ": " + std::strerror(errno);
+		if (!ensureParentFor(oldRef, result)) {
 			return false;
 		}
 
-		if (fileExists(goldenPath)) {
-			std::string renameError;
-			if (!renameFile(goldenPath, oldPath, renameError)) {
-				result.success = false;
-				result.message = renameError;
+		if (fileExists(*goldenRef.path)) {
+			if (!renameArtifact(goldenRef, oldRef, result)) {
 				return false;
 			}
 		}
 
-		std::string error;
-		if (!writeRasterToPng(oldPath, raster, error)) {
-			result.success = false;
-			result.message = error;
+		if (!writeRasterToArtifact(oldRef, raster, result)) {
 			return false;
 		}
-		removeFileIfExists(actualPath);
-		removeFileIfExists(diffPath);
-		removeFileIfExists(goldenPath);
+		const ArtifactRef staleRefs[] = {actualRef, diffRef, goldenRef};
+		const size_t staleCount = sizeof(staleRefs) / sizeof(staleRefs[0]);
+		removeArtifacts(staleRefs, staleCount);
 		return true;
 	}
 
 	bool
 	validate(const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &raster,
-			 bool forceUpdate, SnapshotEntryResult &result) const {
+		bool forceUpdate, SnapshotEntryResult &result) const {
 		populateResult(result);
 		result.skipped = false;
 		result.diffed = false;
 		result.updated = false;
 		result.hasDiffStats = false;
 
-		std::string error;
-		if (!ensureParentDirectory(goldenPath)) {
-			result.success = false;
-			result.message = std::string("failed to prepare directory for ") +
-							 goldenPath + ": " + std::strerror(errno);
+		const ArtifactRef goldenRef = makeArtifact("golden", goldenPath);
+		const ArtifactRef oldRef = makeArtifact("old draft", oldPath);
+		const ArtifactRef actualRef = makeArtifact("actual", actualPath);
+		const ArtifactRef diffRef = makeArtifact("diff", diffPath);
+		const ArtifactRef backupRef = makeArtifact("backup", backupPath);
+		const ArtifactRef cleanupRefs[] = {actualRef, diffRef};
+		const size_t cleanupCount = sizeof(cleanupRefs) / sizeof(cleanupRefs[0]);
+
+		if (!ensureParentFor(goldenRef, result)) {
 			return false;
 		}
 
-		const bool goldenExists = fileExists(goldenPath);
-		const bool oldExists = fileExists(oldPath);
+		const bool goldenExists = fileExists(*goldenRef.path);
+		const bool oldExists = fileExists(*oldRef.path);
 
 		if (forceUpdate) {
 			const NuXPixels::IntRect bounds = raster.calcBounds();
 			if (bounds.width <= 0 || bounds.height <= 0) {
-				removeFileIfExists(goldenPath);
-				removeFileIfExists(oldPath);
-				removeFileIfExists(actualPath);
-				removeFileIfExists(diffPath);
-				removeFileIfExists(backupPath);
+				const ArtifactRef purgeRefs[] = {goldenRef, oldRef, actualRef,
+					diffRef, backupRef};
+				const size_t purgeCount = sizeof(purgeRefs) / sizeof(purgeRefs[0]);
+				removeArtifacts(purgeRefs, purgeCount);
 				result.updated = true;
 				result.success = true;
 				return true;
 			}
 
 			if (goldenExists) {
-				if (!renameFile(goldenPath, backupPath, error)) {
-					result.success = false;
-					result.message = error;
+				if (!renameArtifact(goldenRef, backupRef, result)) {
 					return false;
 				}
 			} else if (oldExists) {
-				if (!renameFile(oldPath, backupPath, error)) {
-					result.success = false;
-					result.message = error;
+				if (!renameArtifact(oldRef, backupRef, result)) {
 					return false;
 				}
 			}
 
-			removeFileIfExists(actualPath);
-			removeFileIfExists(diffPath);
-			if (!writeRasterToPng(goldenPath, raster, error)) {
-				result.success = false;
-				result.message = error;
+			removeArtifacts(cleanupRefs, cleanupCount);
+			if (!writeRasterToArtifact(goldenRef, raster, result)) {
 				return false;
 			}
-			removeFileIfExists(oldPath);
+			const ArtifactRef purgeOld[] = {oldRef};
+			const size_t purgeOldCount = sizeof(purgeOld) / sizeof(purgeOld[0]);
+			removeArtifacts(purgeOld, purgeOldCount);
 			result.updated = true;
 			result.success = true;
 			return true;
@@ -1048,45 +1254,43 @@ class SnapshotGolden {
 		if (!goldenExists) {
 			if (!oldExists) {
 				result.success = false;
-				result.message = std::string("missing golden: ") + goldenPath +
-								 " (no .old fallback present)";
+				result.message = std::string("missing golden: ") + *goldenRef.path +
+					" (no .old fallback present)";
 				return false;
 			}
 
 			const NuXPixels::IntRect bounds = raster.calcBounds();
 			if (bounds.width <= 0 || bounds.height <= 0) {
-				removeFileIfExists(goldenPath);
-				removeFileIfExists(oldPath);
-				removeFileIfExists(actualPath);
-				removeFileIfExists(diffPath);
+				const ArtifactRef purgeRefs[] = {goldenRef, oldRef, actualRef, diffRef};
+				const size_t purgeCount = sizeof(purgeRefs) / sizeof(purgeRefs[0]);
+				removeArtifacts(purgeRefs, purgeCount);
 				result.updated = true;
 				result.success = true;
 				result.message =
 					std::string("promoted draft image to golden: ") +
-					goldenPath + '.';
+					*goldenRef.path + '.';
 				return true;
 			}
 
-			if (!writeRasterToPng(goldenPath, raster, error)) {
-				result.success = false;
-				result.message = error;
+			if (!writeRasterToArtifact(goldenRef, raster, result)) {
 				return false;
 			}
-			removeFileIfExists(oldPath);
-			removeFileIfExists(actualPath);
-			removeFileIfExists(diffPath);
+			const ArtifactRef cleanupDraft[] = {oldRef, actualRef, diffRef};
+			const size_t cleanupDraftCount = sizeof(cleanupDraft) /
+					sizeof(cleanupDraft[0]);
+			removeArtifacts(cleanupDraft, cleanupDraftCount);
 			result.updated = true;
 			result.success = true;
 			result.message = std::string("promoted draft image to golden: ") +
-							 goldenPath + '.';
+				*goldenRef.path + '.';
 			return true;
 		}
 
 		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> goldenRaster;
-		if (!loadPngRaster(goldenPath, goldenRaster)) {
+		if (!loadPngRaster(*goldenRef.path, goldenRaster)) {
 			result.success = false;
 			result.message =
-				std::string("failed to read golden PNG: ") + goldenPath;
+				std::string("failed to read golden PNG: ") + *goldenRef.path;
 			return false;
 		}
 
@@ -1096,9 +1300,9 @@ class SnapshotGolden {
 			NuXPixels::minValue(actualBounds.left, goldenBounds.left);
 		const int top = NuXPixels::minValue(actualBounds.top, goldenBounds.top);
 		const int right = NuXPixels::maxValue(actualBounds.calcRight(),
-											  goldenBounds.calcRight());
+			goldenBounds.calcRight());
 		const int bottom = NuXPixels::maxValue(actualBounds.calcBottom(),
-											   goldenBounds.calcBottom());
+			goldenBounds.calcBottom());
 		const int width = (right > left ? right - left : 0);
 		const int height = (bottom > top ? bottom - top : 0);
 
@@ -1108,8 +1312,7 @@ class SnapshotGolden {
 
 		if (width <= 0 || height <= 0) {
 			result.success = true;
-			removeFileIfExists(actualPath);
-			removeFileIfExists(diffPath);
+			removeArtifacts(cleanupRefs, cleanupCount);
 			return true;
 		}
 
@@ -1216,8 +1419,7 @@ class SnapshotGolden {
 
 		if (match) {
 			result.success = true;
-			removeFileIfExists(actualPath);
-			removeFileIfExists(diffPath);
+			removeArtifacts(cleanupRefs, cleanupCount);
 			return true;
 		}
 
@@ -1228,17 +1430,14 @@ class SnapshotGolden {
 
 		std::ostringstream summary;
 		summary << "differs from golden (pixels: " << stats.differingPixels
-				<< "/" << (stats.width * stats.height) << ")";
+			<< "/" << (stats.width * stats.height) << ")";
 		result.message = summary.str();
 
-		removeFileIfExists(actualPath);
-		removeFileIfExists(diffPath);
-		if (!writeRasterToPng(actualPath, raster, error)) {
-			result.message = error;
+		removeArtifacts(cleanupRefs, cleanupCount);
+		if (!writeRasterToArtifact(actualRef, raster, result)) {
 			return false;
 		}
-		if (!writeRasterToPng(diffPath, diffRaster, error)) {
-			result.message = error;
+		if (!writeRasterToArtifact(diffRef, diffRaster, result)) {
 			return false;
 		}
 
@@ -1246,200 +1445,74 @@ class SnapshotGolden {
 	}
 
   private:
+	struct ArtifactRef {
+		const char *role;
+		const std::string *path;
+	};
+
+	static void removeArtifacts(const ArtifactRef *artifacts, size_t count) {
+		for (size_t i = 0; i < count; ++i) {
+			removeFileIfExists(*artifacts[i].path);
+		}
+	}
+
+	ArtifactRef makeArtifact(const char *role, const std::string &path) const {
+		ArtifactRef artifact;
+		artifact.role = role;
+		artifact.path = &path;
+		return artifact;
+	}
+
+	bool ensureParentFor(const ArtifactRef &artifact,
+			SnapshotEntryResult &result) const {
+		try {
+			ensureParentDirectory(*artifact.path);
+			return true;
+		} catch (const std::exception &e) {
+			result.success = false;
+			result.message =
+				std::string("failed to prepare directory for ") +
+					*artifact.path + " (" + artifact.role + "): " +
+					e.what();
+			return false;
+		} catch (...) {
+			result.success = false;
+			result.message =
+				std::string("failed to prepare directory for ") +
+					*artifact.path + " (" + artifact.role + ')';
+			return false;
+		}
+	}
+
+	bool renameArtifact(const ArtifactRef &from, const ArtifactRef &to,
+			SnapshotEntryResult &result) const {
+		std::string error;
+		if (!renameFile(*from.path, *to.path, error)) {
+			result.success = false;
+			result.message = error;
+			return false;
+		}
+		return true;
+	}
+
+	bool writeRasterToArtifact(const ArtifactRef &artifact,
+		const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &raster,
+		SnapshotEntryResult &result) const {
+		std::string error;
+		if (!writeRasterToPng(*artifact.path, raster, error)) {
+			result.success = false;
+			result.message = error;
+			return false;
+		}
+		return true;
+	}
+
 	std::string goldenPath;
 	std::string oldPath;
 	std::string actualPath;
 	std::string diffPath;
 	std::string backupPath;
 };
-
-static void PNGAPI snapshotPNGError(png_structp png, png_const_charp message) {
-	throw std::runtime_error(std::string("Error reading PNG image: ") +
-							 message);
-}
-
-static bool isLittleEndian() {
-	static const unsigned char bytes[4] = {0x4A, 0x3B, 0x2C, 0x1D};
-	return (*reinterpret_cast<const unsigned int *>(bytes) == 0x1D2C3B4A);
-}
-
-static unsigned int convertPremultipliedChannelToStraight(unsigned int value,
-														  unsigned int alpha) {
-	if (alpha == 0 || value == 0) {
-		return 0;
-	}
-	unsigned int numerator = value * 255u + (alpha / 2u);
-	unsigned int result = numerator / alpha;
-	if (result > 255u) {
-		result = 255u;
-	}
-	return result;
-}
-
-static unsigned int convertStraightChannelToPremultiplied(unsigned int value,
-														  unsigned int alpha) {
-	if (alpha == 0 || value == 0) {
-		return 0;
-	}
-	return (value * alpha + 127u) / 255u;
-}
-
-static bool
-loadPngRaster(const std::string &path,
-			  NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &outRaster) {
-	FILE *file = std::fopen(path.c_str(), "rb");
-	if (file == 0) {
-		return false;
-	}
-
-	png_structp png = 0;
-	png_infop info = 0;
-	try {
-		png = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, snapshotPNGError,
-									 0);
-		if (png == 0) {
-			throw std::runtime_error("could not initialize PNG reader");
-		}
-
-		info = png_create_info_struct(png);
-		if (info == 0) {
-			throw std::runtime_error("could not initialize PNG info struct");
-		}
-
-		png_init_io(png, file);
-		png_set_add_alpha(png, 0xFF, PNG_FILLER_AFTER);
-		if (isLittleEndian()) {
-			png_set_bgr(png);
-		} else {
-			png_set_swap_alpha(png);
-		}
-
-		png_read_png(png, info, PNG_TRANSFORM_EXPAND, 0);
-		const png_uint_32 width = png_get_image_width(png, info);
-		const png_uint_32 height = png_get_image_height(png, info);
-		png_bytep *rows = png_get_rows(png, info);
-
-		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> tempRaster(
-			NuXPixels::IntRect(0, 0, static_cast<int>(width),
-							   static_cast<int>(height)));
-
-		for (png_uint_32 y = 0; y < height; ++y) {
-			NuXPixels::ARGB32::Pixel *dest =
-				tempRaster.getPixelPointer() + y * tempRaster.getStride();
-			png_bytep src = rows[y];
-			for (png_uint_32 x = 0; x < width; ++x) {
-				unsigned int b = src[x * 4 + 0];
-				unsigned int g = src[x * 4 + 1];
-				unsigned int r = src[x * 4 + 2];
-				unsigned int a = src[x * 4 + 3];
-				if (a != 0xFF) {
-					r = convertStraightChannelToPremultiplied(r, a);
-					g = convertStraightChannelToPremultiplied(g, a);
-					b = convertStraightChannelToPremultiplied(b, a);
-				}
-				dest[x] = (a << 24) | (r << 16) | (g << 8) | b;
-			}
-		}
-
-		outRaster = tempRaster;
-
-		png_destroy_read_struct(&png, &info, 0);
-		std::fclose(file);
-		return true;
-	} catch (...) {
-		png_destroy_read_struct(&png, &info, 0);
-		std::fclose(file);
-		return false;
-	}
-}
-
-static bool writeRasterToPng(
-	const std::string &path,
-	const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &raster,
-	std::string &error) {
-	const NuXPixels::IntRect bounds = raster.calcBounds();
-	if (bounds.width <= 0 || bounds.height <= 0) {
-		error = std::string("raster has no visible pixels: ") + path;
-		return false;
-	}
-
-	const int width = bounds.width;
-	const int height = bounds.height;
-	const int stride = raster.getStride();
-	const NuXPixels::ARGB32::Pixel *base =
-		raster.getPixelPointer() + bounds.top * stride + bounds.left;
-
-	std::vector<png_bytep> rows(static_cast<size_t>(height));
-	std::vector<unsigned char> pixels(static_cast<size_t>(width) *
-									  static_cast<size_t>(height) * 4u);
-	for (int y = 0; y < height; ++y) {
-		const NuXPixels::ARGB32::Pixel *src = base + y * stride;
-		unsigned char *dest =
-			&pixels[static_cast<size_t>(y) * static_cast<size_t>(width) * 4u];
-		rows[static_cast<size_t>(y)] = dest;
-		for (int x = 0; x < width; ++x) {
-			const NuXPixels::ARGB32::Pixel pixel = src[x];
-			unsigned int a = (pixel >> 24) & 0xFF;
-			unsigned int r = (pixel >> 16) & 0xFF;
-			unsigned int g = (pixel >> 8) & 0xFF;
-			unsigned int b = pixel & 0xFF;
-			if (a != 0 && a != 0xFF) {
-				r = convertPremultipliedChannelToStraight(r, a);
-				g = convertPremultipliedChannelToStraight(g, a);
-				b = convertPremultipliedChannelToStraight(b, a);
-			}
-			dest[x * 4 + 0] = static_cast<unsigned char>(r);
-			dest[x * 4 + 1] = static_cast<unsigned char>(g);
-			dest[x * 4 + 2] = static_cast<unsigned char>(b);
-			dest[x * 4 + 3] = static_cast<unsigned char>(a);
-		}
-	}
-
-	FILE *file = std::fopen(path.c_str(), "wb");
-	if (file == 0) {
-		error =
-			std::string("failed to open ") + path + ": " + std::strerror(errno);
-		return false;
-	}
-
-	png_structp png = 0;
-	png_infop info = 0;
-
-	try {
-		png = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0,
-									  snapshotPNGError, 0);
-		if (png == 0) {
-			throw std::runtime_error("could not initialize PNG writer");
-		}
-
-		info = png_create_info_struct(png);
-		if (info == 0) {
-			throw std::runtime_error("could not initialize PNG info struct");
-		}
-
-		png_init_io(png, file);
-		png_set_IHDR(png, info, static_cast<png_uint_32>(width),
-					 static_cast<png_uint_32>(height), 8,
-					 PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
-					 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
-		png_set_sRGB_gAMA_and_cHRM(png, info, PNG_sRGB_INTENT_ABSOLUTE);
-		png_set_oFFs(png, info, static_cast<png_int_32>(bounds.left),
-					 static_cast<png_int_32>(bounds.top), PNG_OFFSET_PIXEL);
-		png_set_rows(png, info, &rows[0]);
-		png_write_png(png, info, PNG_TRANSFORM_IDENTITY, 0);
-		png_destroy_write_struct(&png, &info);
-		std::fclose(file);
-		return true;
-	} catch (const std::exception &e) {
-		error = std::string("failed to write PNG: ") + e.what();
-	} catch (...) {
-		error = "failed to write PNG: unknown error";
-	}
-
-	png_destroy_write_struct(&png, &info);
-	std::fclose(file);
-	return false;
-}
 
 class SnapshotPlan {
   public:
@@ -1473,17 +1546,16 @@ class SnapshotPlan {
 			SnapshotScenario &scenario = scenarios[scenarioIndex];
 			const uint32_t statementCount =
 				static_cast<uint32_t>(block.statements.size());
-			if (!scenario.entryIndices.empty() &&
-				statementCount != scenario.entryIndices.size()) {
+if (!scenario.entries.empty() &&
+statementCount != scenario.entries.size()) {
 				Interpreter::throwBadSyntax(
 					"scenario entry count does not match previous blocks.");
 			}
 
 			for (uint32_t i = 0; i < statementCount; ++i) {
 				const uint32_t entryOrdinal = i + 1;
-				SnapshotEntry &entry =
-					ensureEntry(scenarioIndex, scenario, entryOrdinal,
-								block.validate, block.scenario);
+SnapshotEntry &entry =
+ensureEntry(scenario, entryOrdinal, block.validate, block.scenario);
 
 				SnapshotInvocation invocation;
 				invocation.blockIndex = blockOrdinal;
@@ -1502,9 +1574,8 @@ class SnapshotPlan {
 				const uint32_t scenarioIndex = resolveScenario(
 					interpreter, scenarioName, block.validate, false);
 				SnapshotScenario &scenario = scenarios[scenarioIndex];
-				SnapshotEntry &entry =
-					ensureEntry(scenarioIndex, scenario, entryOrdinal,
-								block.validate, scenarioName);
+SnapshotEntry &entry =
+ensureEntry(scenario, entryOrdinal, block.validate, scenarioName);
 
 				SnapshotInvocation invocation;
 				invocation.blockIndex = blockOrdinal;
@@ -1522,7 +1593,13 @@ class SnapshotPlan {
 	const std::vector<SnapshotScenario> &getScenarios() const {
 		return scenarios;
 	}
-	const std::vector<SnapshotEntry> &getEntries() const { return entries; }
+	size_t getTotalEntryCount() const {
+		size_t total = 0;
+		for (size_t i = 0; i < scenarios.size(); ++i) {
+			total += scenarios[i].entries.size();
+		}
+		return total;
+	}
 	const String &getBaseName() const { return baseName; }
 
 	void beginCollection() {
@@ -1571,7 +1648,7 @@ class SnapshotPlan {
 
 	uint32_t getActiveEntryOrdinal() const { return activeEntryOrdinal; }
 
-	const SnapshotInvocation *lookupInvocation(uint32_t blockOrdinal,
+		const SnapshotInvocation *lookupInvocation(uint32_t blockOrdinal,
 											   uint32_t scenarioIndex,
 											   uint32_t entryOrdinal) const {
 		if (scenarioIndex >= scenarios.size()) {
@@ -1579,16 +1656,21 @@ class SnapshotPlan {
 		}
 
 		const SnapshotScenario &scenario = scenarios[scenarioIndex];
-		if (entryOrdinal == 0 || entryOrdinal > scenario.entryIndices.size()) {
+		if (entryOrdinal == 0) {
 			return 0;
 		}
 
-		const uint32_t entryIndex = scenario.entryIndices[entryOrdinal - 1];
-		const SnapshotEntry &entry = entries[entryIndex];
-		for (size_t i = 0; i < entry.invocations.size(); ++i) {
-			if (entry.invocations[i].blockIndex == blockOrdinal) {
-				return &entry.invocations[i];
+		for (size_t i = 0; i < scenario.entries.size(); ++i) {
+			const SnapshotEntry &entry = scenario.entries[i];
+			if (entry.entryOrdinal != entryOrdinal) {
+				continue;
 			}
+			for (size_t j = 0; j < entry.invocations.size(); ++j) {
+				if (entry.invocations[j].blockIndex == blockOrdinal) {
+					return &entry.invocations[j];
+				}
+			}
+			return 0;
 		}
 		return 0;
 	}
@@ -1640,42 +1722,33 @@ class SnapshotPlan {
 		return index;
 	}
 
-	SnapshotEntry &ensureEntry(uint32_t scenarioIndex,
-							   SnapshotScenario &scenario,
-							   uint32_t entryOrdinal, bool validate,
-							   const String &scenarioName) {
-		const std::map<uint32_t, uint32_t>::const_iterator existing =
-			scenario.entryLookup.find(entryOrdinal);
-		if (existing != scenario.entryLookup.end()) {
-			return entries[existing->second];
+	SnapshotEntry &ensureEntry(SnapshotScenario &scenario,
+		uint32_t entryOrdinal, bool validate,
+		const String &scenarioName) {
+		for (size_t i = 0; i < scenario.entries.size(); ++i) {
+			SnapshotEntry &existing = scenario.entries[i];
+			if (existing.entryOrdinal == entryOrdinal) {
+				return existing;
+			}
+			if (existing.entryOrdinal > entryOrdinal) {
+				SnapshotEntry entry;
+				entry.entryOrdinal = entryOrdinal;
+				entry.validate = validate;
+				entry.scenarioName = scenarioName;
+				scenario.entries.insert(scenario.entries.begin() + i, entry);
+				return scenario.entries[i];
+			}
 		}
 
 		SnapshotEntry entry;
-		entry.scenarioIndex = scenarioIndex;
 		entry.entryOrdinal = entryOrdinal;
 		entry.validate = validate;
 		entry.scenarioName = scenarioName;
-
-		entries.push_back(entry);
-		const uint32_t entryIndex = static_cast<uint32_t>(entries.size() - 1);
-		scenario.entryLookup.insert(std::make_pair(entryOrdinal, entryIndex));
-
-		size_t insertPosition = scenario.entryIndices.size();
-		for (size_t i = 0; i < scenario.entryIndices.size(); ++i) {
-			const SnapshotEntry &existingEntry =
-				entries[scenario.entryIndices[i]];
-			if (existingEntry.entryOrdinal > entryOrdinal) {
-				insertPosition = i;
-				break;
-			}
-		}
-		scenario.entryIndices.insert(
-			scenario.entryIndices.begin() + insertPosition, entryIndex);
-		return entries.back();
+		scenario.entries.push_back(entry);
+		return scenario.entries.back();
 	}
 
 	String baseName;
-	std::vector<SnapshotEntry> entries;
 	std::vector<SnapshotScenario> scenarios;
 	std::map<String, uint32_t> scenarioLookup;
 	uint32_t nextBlockOrdinal;
@@ -1687,30 +1760,31 @@ class SnapshotPlan {
 
 	struct CollectionRun {
 		uint32_t scenarioIndex;
-		uint32_t entryOrdinal;
+	uint32_t entryOrdinal;
 	};
 
 	std::vector<CollectionRun> collectionRuns;
 	size_t collectionRunCursor;
 	bool collectionRunsBuilt;
 
-	void buildCollectionRuns() {
-		collectionRuns.clear();
-		for (uint32_t scenarioIndex = 0; scenarioIndex < scenarios.size();
-			 ++scenarioIndex) {
-			const SnapshotScenario &scenario = scenarios[scenarioIndex];
-			if (scenario.entryIndices.empty()) {
-				continue;
-			}
+		void buildCollectionRuns() {
+			collectionRuns.clear();
+			for (uint32_t scenarioIndex = 0; scenarioIndex < scenarios.size();
+					 ++scenarioIndex) {
+				const SnapshotScenario &scenario = scenarios[scenarioIndex];
+				if (scenario.entries.empty()) {
+					continue;
+				}
 
-			for (uint32_t entryOrdinal = 1;
-				 entryOrdinal <= scenario.entryIndices.size(); ++entryOrdinal) {
-				CollectionRun run;
-				run.scenarioIndex = scenarioIndex;
-				run.entryOrdinal = entryOrdinal;
-				collectionRuns.push_back(run);
+				for (size_t entryIndex = 0;
+					 entryIndex < scenario.entries.size(); ++entryIndex) {
+					CollectionRun run;
+					run.scenarioIndex = scenarioIndex;
+					run.entryOrdinal =
+						scenario.entries[entryIndex].entryOrdinal;
+					collectionRuns.push_back(run);
+				}
 			}
-		}
 
 		if (!collectionRuns.empty()) {
 			const CollectionRun &first = collectionRuns[0];
@@ -1785,6 +1859,23 @@ static StringVector parseSnapshotStatements(Interpreter &interpreter,
 
 static bool readFile(const std::string &path, String &contents);
 
+template <typename Reader>
+static bool visitSearchPaths(const std::string &localPath,
+				const std::vector<std::string> &directories,
+				const std::string &name,
+				Reader &reader) {
+	if (!localPath.empty() && reader(localPath)) {
+		return true;
+	}
+	for (size_t i = 0; i < directories.size(); ++i) {
+		const std::string candidate = directories[i] + "/" + name;
+		if (reader(candidate)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 class SnapshotCollector : public Executor {
   public:
 	SnapshotCollector(SnapshotPlan &plan, const std::string &sourcePath,
@@ -1818,15 +1909,14 @@ class SnapshotCollector : public Executor {
 			  String &contents) override {
 		(void)interpreter;
 		const std::string utf8(filename.begin(), filename.end());
-		if (readFile(resolveRelativePath(utf8), contents)) {
-			return true;
-		}
-		for (size_t i = 0; i < includeDirs.size(); ++i) {
-			if (readFile(includeDirs[i] + "/" + utf8, contents)) {
-				return true;
+		struct IncludeLoader {
+			String &contents;
+			bool operator()(const std::string &path) {
+				return readFile(path, contents);
 			}
-		}
-		return false;
+		};
+		IncludeLoader loader = { contents };
+		return visitSearchPaths(resolveRelativePath(utf8), includeDirs, utf8, loader);
 	}
 
 	void trace(Interpreter &interpreter, const WideString &s) override {
@@ -1939,15 +2029,14 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 			  String &contents) override {
 		(void)interpreter;
 		const std::string utf8(filename.begin(), filename.end());
-		if (readFile(resolveRelativePath(utf8), contents)) {
-			return true;
-		}
-		for (size_t i = 0; i < includeDirs.size(); ++i) {
-			if (readFile(includeDirs[i] + "/" + utf8, contents)) {
-				return true;
+		struct IncludeLoader {
+			String &contents;
+			bool operator()(const std::string &path) {
+				return readFile(path, contents);
 			}
-		}
-		return false;
+		};
+		IncludeLoader loader = { contents };
+		return visitSearchPaths(resolveRelativePath(utf8), includeDirs, utf8, loader);
 	}
 
 	std::vector<const IVG::Font *>
@@ -1957,10 +2046,10 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		(void)forString;
 
 		{
-			NuXThreads::MutexLock lock(sharedResources.fontMutex);
-			const std::map<WideString, IVG::Font>::iterator cached =
-				sharedResources.fonts.find(fontName);
-			if (cached != sharedResources.fonts.end()) {
+			NuXThreads::Lockable<std::map<WideString, IVG::Font> >::Lock lock(sharedResources.fonts);
+			std::map<WideString, IVG::Font> &fonts = lock.access();
+			const std::map<WideString, IVG::Font>::iterator cached = fonts.find(fontName);
+			if (cached != fonts.end()) {
 				return std::vector<const IVG::Font *>(1, &cached->second);
 			}
 		}
@@ -1970,15 +2059,15 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 			return std::vector<const IVG::Font *>();
 		}
 
-		NuXThreads::MutexLock lock(sharedResources.fontMutex);
-		const std::map<WideString, IVG::Font>::iterator cached =
-			sharedResources.fonts.find(fontName);
-		if (cached != sharedResources.fonts.end()) {
+		NuXThreads::Lockable<std::map<WideString, IVG::Font> >::Lock lock(sharedResources.fonts);
+		std::map<WideString, IVG::Font> &fonts = lock.access();
+		const std::map<WideString, IVG::Font>::iterator cached = fonts.find(fontName);
+		if (cached != fonts.end()) {
 			return std::vector<const IVG::Font *>(1, &cached->second);
 		}
 
 		const std::map<WideString, IVG::Font>::iterator inserted =
-			sharedResources.fonts.insert(std::make_pair(fontName, font)).first;
+			fonts.insert(std::make_pair(fontName, font)).first;
 		return std::vector<const IVG::Font *>(1, &inserted->second);
 	}
 
@@ -2121,21 +2210,17 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		const std::string fileName = fontName8 + ".ivgfont";
 
 		String contents;
-		if (readFile(resolveRelativePath(fileName), contents) ||
-			loadFromDirectories(fontDirs, fileName, contents)) {
-			return parseFont(contents, font);
-		}
-		return false;
-	}
-
-	bool loadFromDirectories(const std::vector<std::string> &dirs,
-							 const std::string &name, String &contents) const {
-		for (size_t i = 0; i < dirs.size(); ++i) {
-			if (readFile(dirs[i] + "/" + name, contents)) {
-				return true;
+		struct FontLoader {
+			String &contents;
+			bool operator()(const std::string &path) {
+				return readFile(path, contents);
 			}
+		};
+		FontLoader loader = { contents };
+		if (!visitSearchPaths(resolveRelativePath(fileName), fontDirs, fileName, loader)) {
+			return false;
 		}
-		return false;
+		return parseFont(contents, font);
 	}
 
 	bool parseFont(const String &source, IVG::Font &font) {
@@ -2153,27 +2238,29 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 	}
 
 	const CachedImage *resolveImage(const std::string &requested) {
-		const std::string local = resolveRelativePath(requested);
-		const CachedImage *cached = loadImageFromPath(local);
-		if (cached != 0) {
-			return cached;
-		}
-
-		for (size_t i = 0; i < imageDirs.size(); ++i) {
-			cached = loadImageFromPath(imageDirs[i] + "/" + requested);
-			if (cached != 0) {
-				return cached;
+		struct ImageLoader {
+			SnapshotPlaybackExecutor &executor;
+			const CachedImage *result;
+			ImageLoader(SnapshotPlaybackExecutor &executor)
+					: executor(executor), result(0) {}
+			bool operator()(const std::string &path) {
+				result = executor.loadImageFromPath(path);
+				return (result != 0);
 			}
+		};
+		ImageLoader loader(*this);
+		if (visitSearchPaths(resolveRelativePath(requested), imageDirs, requested, loader)) {
+			return loader.result;
 		}
 		return 0;
 	}
 
 	const CachedImage *loadImageFromPath(const std::string &path) {
 		{
-			NuXThreads::MutexLock lock(sharedResources.imageMutex);
-			const std::map<std::string, CachedImage>::iterator it =
-				sharedResources.images.find(path);
-			if (it != sharedResources.images.end()) {
+			NuXThreads::Lockable<std::map<std::string, CachedImage> >::Lock lock(sharedResources.images);
+			std::map<std::string, CachedImage> &images = lock.access();
+			const std::map<std::string, CachedImage>::iterator it = images.find(path);
+			if (it != images.end()) {
 				return &it->second;
 			}
 		}
@@ -2185,15 +2272,15 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		cached.xResolution = 1.0;
 		cached.yResolution = 1.0;
 
-		NuXThreads::MutexLock lock(sharedResources.imageMutex);
-		const std::map<std::string, CachedImage>::iterator existing =
-			sharedResources.images.find(path);
-		if (existing != sharedResources.images.end()) {
+		NuXThreads::Lockable<std::map<std::string, CachedImage> >::Lock lock(sharedResources.images);
+		std::map<std::string, CachedImage> &images = lock.access();
+		const std::map<std::string, CachedImage>::iterator existing = images.find(path);
+		if (existing != images.end()) {
 			return &existing->second;
 		}
 
 		const std::map<std::string, CachedImage>::iterator inserted =
-			sharedResources.images.insert(std::make_pair(path, cached)).first;
+			images.insert(std::make_pair(path, cached)).first;
 		return &inserted->second;
 	}
 };
@@ -2336,15 +2423,14 @@ static bool readFile(const std::string &path, String &contents) {
 static void printPlan(const std::string &path, const SnapshotPlan &plan) {
 	std::cout << path << std::endl;
 	const std::vector<SnapshotScenario> &scenarios = plan.getScenarios();
-	const std::vector<SnapshotEntry> &entries = plan.getEntries();
 
 	for (size_t i = 0; i < scenarios.size(); ++i) {
 		const SnapshotScenario &scenario = scenarios[i];
 		std::cout << "	Scenario " << scenario.name
 				  << " (validate: " << (scenario.validate ? "yes" : "no") << ")"
 				  << std::endl;
-		for (size_t j = 0; j < scenario.entryIndices.size(); ++j) {
-			const SnapshotEntry &entry = entries[scenario.entryIndices[j]];
+		for (size_t j = 0; j < scenario.entries.size(); ++j) {
+			const SnapshotEntry &entry = scenario.entries[j];
 			std::cout << "		Entry " << entry.entryOrdinal << std::endl;
 			for (size_t k = 0; k < entry.invocations.size(); ++k) {
 				const SnapshotInvocation &invocation = entry.invocations[k];
@@ -2677,13 +2763,12 @@ static void flushSchedulerResults(SnapshotScheduler &scheduler, bool wait,
 	}
 }
 static SnapshotRunResult renderPlan(const CommandLineOptions &options,
-                                                                        const std::string &path,
-                                                                        const CachedDocument &document,
-                                                                        const SnapshotPlan &plan) {
-        SnapshotRunResult run;
-        const std::vector<SnapshotScenario> &scenarios = plan.getScenarios();
-        const std::vector<SnapshotEntry> &entries = plan.getEntries();
-        const std::string snapshotBase = buildSnapshotSourceTag(path, options.rootDir);
+																		const std::string &path,
+																		const CachedDocument &document,
+																		const SnapshotPlan &plan) {
+		SnapshotRunResult run;
+		const std::vector<SnapshotScenario> &scenarios = plan.getScenarios();
+		const std::string snapshotBase = buildSnapshotSourceTag(path, options.rootDir);
 	SharedResources sharedResources;
 
 	uint32_t threadCount = options.threads;
@@ -2692,7 +2777,7 @@ static SnapshotRunResult renderPlan(const CommandLineOptions &options,
 		threadCount = (hardware > 0 ? hardware : 1);
 	}
 
-	const size_t totalJobs = entries.size();
+	const size_t totalJobs = plan.getTotalEntryCount();
 	if (totalJobs > 0 && threadCount > totalJobs) {
 		threadCount = static_cast<uint32_t>(totalJobs);
 	}
@@ -2713,14 +2798,14 @@ static SnapshotRunResult renderPlan(const CommandLineOptions &options,
 					  << ")" << std::endl;
 		}
 
-		for (size_t j = 0; j < scenario.entryIndices.size(); ++j) {
+		for (size_t j = 0; j < scenario.entries.size(); ++j) {
 			if (options.exitOnFirstFailure &&
 				scheduler.shouldStopScheduling()) {
 				schedulingStopped = true;
 				break;
 			}
 
-			const SnapshotEntry &entry = entries[scenario.entryIndices[j]];
+			const SnapshotEntry &entry = scenario.entries[j];
 			if (options.verbose) {
 				std::cout << path << ":	  entry " << entry.entryOrdinal
 						  << " name:" << entry.scenarioName
@@ -2820,14 +2905,18 @@ static SnapshotRunResult processFile(const CommandLineOptions &options,
 		printPlan(path, plan);
 	}
 
+	const std::vector<SnapshotScenario> &scenarios = plan.getScenarios();
 	if (options.listOnly) {
-		const std::vector<SnapshotEntry> &entries = plan.getEntries();
-		for (size_t i = 0; i < entries.size(); ++i) {
-			++run.totalEntries;
-			if (entries[i].validate) {
-				++run.validatedEntries;
-			} else {
-				++run.draftEntries;
+		for (size_t i = 0; i < scenarios.size(); ++i) {
+			const SnapshotScenario &scenario = scenarios[i];
+			for (size_t j = 0; j < scenario.entries.size(); ++j) {
+				const SnapshotEntry &entry = scenario.entries[j];
+				++run.totalEntries;
+				if (entry.validate) {
+					++run.validatedEntries;
+				} else {
+					++run.draftEntries;
+				}
 			}
 		}
 		run.exitCode = 0;

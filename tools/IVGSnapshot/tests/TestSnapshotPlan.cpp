@@ -20,6 +20,22 @@ namespace {
 		}
 	}
 
+	void EnsureDirectoryForTest(const std::string& path,
+			 const std::string& message)
+	{
+		try {
+			ensureDirectoryTree(path);
+		} catch (const std::exception& e) {
+			std::ostringstream stream;
+			stream << message << ": " << e.what();
+			Fail(stream.str());
+		} catch (...) {
+			std::ostringstream stream;
+			stream << message << ": unknown error";
+			Fail(stream.str());
+		}
+	}
+
 	void ExpectEqual(uint32_t actual, uint32_t expected, const std::string& label)
 	{
 		if (actual != expected) {
@@ -71,17 +87,16 @@ namespace {
 		SnapshotPlan plan = CollectPlan("explicit.ivg", source);
 
 		const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
-		const std::vector<SnapshotEntry>& entries = plan.getEntries();
 
 		ExpectEqual(static_cast<uint32_t>(scenarios.size()), 1, "scenario count");
-		ExpectEqual(static_cast<uint32_t>(entries.size()), 1, "entry count");
+		ExpectEqual(static_cast<uint32_t>(plan.getTotalEntryCount()), 1, "entry count");
 
 		const SnapshotScenario& scenario = scenarios[0];
 		ExpectEqual(scenario.name, "one", "scenario name");
 		Expect(scenario.validate, "scenario validate flag should default to true");
-		ExpectEqual(static_cast<uint32_t>(scenario.entryIndices.size()), 1, "scenario entry count");
+		ExpectEqual(static_cast<uint32_t>(scenario.entries.size()), 1, "scenario entry count");
 
-		const SnapshotEntry& entry = entries[scenario.entryIndices[0]];
+		const SnapshotEntry& entry = scenario.entries[0];
 		ExpectEqual(entry.entryOrdinal, 1, "entry ordinal");
 		Expect(entry.validate, "entry validate flag");
 		ExpectEqual(entry.scenarioName, "one", "entry scenario name");
@@ -100,16 +115,15 @@ namespace {
 		SnapshotPlan plan = CollectPlan("array.ivg", source);
 
 		const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
-		const std::vector<SnapshotEntry>& entries = plan.getEntries();
 
 		ExpectEqual(static_cast<uint32_t>(scenarios.size()), 1, "scenario count");
-		ExpectEqual(static_cast<uint32_t>(entries.size()), 3, "entry count");
+		ExpectEqual(static_cast<uint32_t>(plan.getTotalEntryCount()), 3, "entry count");
 
 		const SnapshotScenario& scenario = scenarios[0];
-		ExpectEqual(static_cast<uint32_t>(scenario.entryIndices.size()), 3, "scenario entry count");
+		ExpectEqual(static_cast<uint32_t>(scenario.entries.size()), 3, "scenario entry count");
 
 		for (uint32_t i = 0; i < 3; ++i) {
-			const SnapshotEntry& entry = entries[scenario.entryIndices[i]];
+			const SnapshotEntry& entry = scenario.entries[i];
 			ExpectEqual(entry.entryOrdinal, i + 1, "array entry ordinal");
 			ExpectEqual(static_cast<uint32_t>(entry.invocations.size()), 1, "array invocation count");
 			ExpectEqual(entry.scenarioName, "array", "array scenario name");
@@ -130,16 +144,15 @@ namespace {
 		SnapshotPlan plan = CollectPlan("repeat.ivg", source);
 
 		const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
-		const std::vector<SnapshotEntry>& entries = plan.getEntries();
 
 		ExpectEqual(static_cast<uint32_t>(scenarios.size()), 1, "scenario count");
-		ExpectEqual(static_cast<uint32_t>(entries.size()), 2, "entry count");
+		ExpectEqual(static_cast<uint32_t>(plan.getTotalEntryCount()), 2, "entry count");
 
 		const SnapshotScenario& scenario = scenarios[0];
-		ExpectEqual(static_cast<uint32_t>(scenario.entryIndices.size()), 2, "scenario entry count");
+		ExpectEqual(static_cast<uint32_t>(scenario.entries.size()), 2, "scenario entry count");
 
-		const SnapshotEntry& entryOne = entries[scenario.entryIndices[0]];
-		const SnapshotEntry& entryTwo = entries[scenario.entryIndices[1]];
+		const SnapshotEntry& entryOne = scenario.entries[0];
+		const SnapshotEntry& entryTwo = scenario.entries[1];
 		ExpectEqual(static_cast<uint32_t>(entryOne.invocations.size()), 2, "entry one invocation count");
 		ExpectEqual(static_cast<uint32_t>(entryTwo.invocations.size()), 2, "entry two invocation count");
 		ExpectEqual(entryOne.invocations[0].blockIndex, 1, "entry one first block index");
@@ -157,19 +170,18 @@ void TestDefaultScenarioNames()
 		"meta snapshot [ third ]\n";
 	SnapshotPlan plan = CollectPlan("implicit.ivg", source);
 
-	const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
-	const std::vector<SnapshotEntry>& entries = plan.getEntries();
+		const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
 
-	ExpectEqual(static_cast<uint32_t>(scenarios.size()), 3, "scenario count");
-	ExpectEqual(static_cast<uint32_t>(entries.size()), 3, "entry count");
+		ExpectEqual(static_cast<uint32_t>(scenarios.size()), 3, "scenario count");
+		ExpectEqual(static_cast<uint32_t>(plan.getTotalEntryCount()), 3, "entry count");
 
 	ExpectEqual(scenarios[0].name, "implicit-1-1", "first implicit scenario name");
 	ExpectEqual(scenarios[1].name, "implicit-1-2", "second implicit scenario name");
 	ExpectEqual(scenarios[2].name, "implicit-2", "third implicit scenario name");
 
-	ExpectEqual(entries[scenarios[0].entryIndices[0]].entryOrdinal, 1, "first implicit entry ordinal");
-	ExpectEqual(entries[scenarios[1].entryIndices[0]].entryOrdinal, 1, "second implicit entry ordinal");
-	ExpectEqual(entries[scenarios[2].entryIndices[0]].entryOrdinal, 1, "third implicit entry ordinal");
+		ExpectEqual(scenarios[0].entries[0].entryOrdinal, 1, "first implicit entry ordinal");
+		ExpectEqual(scenarios[1].entries[0].entryOrdinal, 1, "second implicit entry ordinal");
+		ExpectEqual(scenarios[2].entries[0].entryOrdinal, 1, "third implicit entry ordinal");
 }
 
 
@@ -257,19 +269,20 @@ void TestDraftValidateWorkflow()
 	SnapshotScenario scenario;
 	scenario.name = "workflow";
 	scenario.validate = true;
-	scenario.entryIndices.push_back(0);
 
 	SnapshotEntry entry;
-	entry.scenarioIndex = 0;
 	entry.entryOrdinal = 1;
 	entry.validate = true;
 	entry.scenarioName = "workflow";
+	scenario.entries.push_back(entry);
 
-	SnapshotGolden golden("workflow.ivg", "workflow", scenario, entry, options);
+	SnapshotGolden golden(
+		"workflow.ivg", "workflow", scenario, scenario.entries[0], options);
 
 	SnapshotEntryResult paths;
 	golden.populateResult(paths);
-	Expect(ensureDirectory(extractDirectory(paths.goldenPath)), "create workflow directory");
+		EnsureDirectoryForTest(extractDirectory(paths.goldenPath),
+				  "create workflow directory");
 	removeFileIfExists(paths.goldenPath);
 	removeFileIfExists(paths.oldPath);
 	removeFileIfExists(paths.actualPath);
