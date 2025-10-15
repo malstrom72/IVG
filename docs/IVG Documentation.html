@@ -331,15 +331,11 @@ rendering.</p>
 through <code>define image</code> and <code>IMAGE</code>.</li>
 <li><code>IVG-3</code> adds <code>LINE</code>, <code>POLYGON</code>, and
 an instruction-list form for <code>PATH</code> (including
-<code>define path</code>).</li>
-<li><code>IVG-3</code> also introduces mask controls: the
-<code>mask invert</code> and <code>mask reset</code> instructions.</li>
-<li><code>IVG-3</code> replaces the legacy
-<code>mask inverted:yes</code> option with <code>inverse:yes</code>.
-Documents written for <code>IVG-1</code> or <code>IVG-2</code> (or
-without a declared format) may still use <code>inverted:yes</code>,
-which multiplies the new mask with the current mask and then inverts the
-entire result.</li>
+<code>define path</code>). It also adds <code>define pattern</code> and
+introduces mask controls: the <code>mask invert</code> and
+<code>mask reset</code> instructions. The legacy
+<code>mask inverted:yes</code> option was conceptually broken and
+replaced with <code>inverse:yes</code>.</li>
 </ul>
 <p>The interpreter processes all versions identically, but readers that
 only understand <code>IVG-1</code> or <code>IVG-2</code> will reject
@@ -995,27 +991,43 @@ Path names are case-sensitive and may only be defined once.</p></li>
 data or path instructions inside brackets.</p></li>
 </ul>
 <p>Example:</p>
-<pre><code>define path star [svg:[M0,0 L10,0 L5,8 z]]
-fill gold
-PATH star transform:[rotate 45]</code></pre>
+<pre><code>bounds 0,0,100,100
+define path star svg:[M50 10 L58 42 L94 40 L62 55 L77 85 L48 65 L27 85 L39 55 L10 40 L40 40 Z]
+wipe navy
+fill red opacity:0.7; PATH star transform:[rotate 45 anchor:50,50]
+fill lime; PATH star transform:[rotate 25 anchor:50,50]
+fill yellow; PATH star transform:[rotate -3 anchor:50,50]</code></pre>
+<p><img src="images/definePathExample.png" /></p>
 <h4 id="define-pattern">define pattern</h4>
 <p>You can define a reusable pattern and reference it later in paint
 specifications.</p>
 <p>Syntax:</p>
-<pre><code>    define pattern &lt;name&gt; &lt;instructions&gt;</code></pre>
+<pre><code>define pattern &lt;name&gt; &lt;instructions&gt;</code></pre>
 <ul>
-<li><pre><code>  `&lt;name&gt;` is a unique identifier for the pattern. Pattern names are case-sensitive and may only be defined once.</code></pre></li>
-<li><pre><code>  `&lt;instructions&gt;` are the drawing commands defining the pattern, enclosed in brackets `[` and `]`. The pattern is
-  rendered using the current [options](#options) pattern resolution and the current transformation.</code></pre></li>
+<li><code>&lt;name&gt;</code> is a unique identifier for the pattern.
+Pattern names are case-sensitive and may only be defined once.</li>
+<li><code>&lt;instructions&gt;</code> are the drawing commands defining
+the pattern, enclosed in brackets <code>[</code> and <code>]</code>. The
+pattern is rendered using the current <a href="#options">options</a>
+pattern resolution and the current transformation.</li>
 </ul>
 <p>Example:</p>
-<pre><code>    define pattern stripes [
-            bounds 0,0,4,4
-            fill black
-            rect 0,0,2,4
-    ]
-    fill pattern:stripes
-    rect 0,0,20,20</code></pre>
+<pre><code>bounds 0,0,100,100
+define pattern stripes [
+    bounds 0,0,10,10
+    pen black
+    line 0,8,10,7,9,0
+]
+wipe maroon
+fill gradient:[linear 0,0,1,1 from:black to:gray] relative:yes
+ellipse 40,40,30
+fill pattern:stripes relative:no
+ellipse 40,40,30
+fill gradient:[linear 0,0,1,1 from:black to:gray] relative:yes
+rect 45,45,40,40
+fill pattern:stripes relative:no
+rect 45,45,40,40</code></pre>
+<p><img src="images/definePatternExample.png" /></p>
 <h3 id="fill">fill</h3>
 <p>The fill directive sets the fill style for subsequent drawing
 operations in the current <a href="#context">context</a>.</p>
@@ -1600,8 +1612,8 @@ You define the pattern by enclosing the instructions in brackets
 created with <a href="#define-pattern"><code>define pattern</code></a>.
 The drawing context for the pattern inherits all settings from the
 current context, such as <a href="#pen"><code>pen</code></a>, <a
-href="#fill"><code>fill</code></a>, etc., except for the <a
-href="#mask"><code>mask</code></a> setting. A <a
+href="#fill"><code>fill</code></a>, etc., except for the
+[<code>mask</code>] (#mask) setting. A <a
 href="#bounds"><code>bounds</code></a> directive is required to define
 the pattern’s dimensions. The resolution used for rasterizing the
 pattern can be changed using the <a

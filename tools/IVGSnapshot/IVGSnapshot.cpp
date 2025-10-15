@@ -1735,13 +1735,7 @@ static StringRange trimRange(const StringRange &range) {
 	return StringRange(b, e);
 }
 
-static String stripBrackets(const String &value) {
-	if (!Interpreter::isBracketBlock(value)) {
-		Interpreter::throwBadSyntax(
-			"snapshot statements must be enclosed in [ ].");
-	}
-	return String(value.begin() + 1, value.end() - 1);
-}
+// NOTE: Do not manually trim or strip brackets here; rely on IMPD APIs.
 
 static bool parseValidateFlag(Interpreter &interpreter, const String *value) {
 	if (value == 0) {
@@ -1751,36 +1745,23 @@ static bool parseValidateFlag(Interpreter &interpreter, const String *value) {
 }
 
 static StringVector parseSnapshotStatements(Interpreter &interpreter,
-											const String &raw) {
-	const StringRange trimmed = trimRange(StringRange(raw));
-	if (trimmed.b == trimmed.e) {
-		Interpreter::throwBadSyntax(
-			"snapshot meta requires a bracketed statement list.");
+												ArgumentsContainer &args) {
+	// New grammar:
+	// - Single body as positional arg #0; keep value verbatim (including brackets if present).
+	// - List of bodies via label: list:[ [ ... ] [ ... ] ... ]
+
+	const String *listArg = args.fetchOptional("list", false);
+	if (listArg != 0) {
+		// Parse labeled list; remove the outer list brackets via expand(),
+		// but keep each element exactly as returned by parseList (including brackets).
+		const String expandedOuter = interpreter.expand(StringRange(*listArg));
+		StringVector elements;
+		interpreter.parseList(StringRange(expandedOuter), elements, false, false, 1, INT_MAX);
+		return elements;
 	}
 
-	const String outer(trimmed);
-	if (!Interpreter::isBracketBlock(outer)) {
-		Interpreter::throwBadSyntax(
-			"snapshot statements must start with [ and end with ].");
-	}
-
-	String inner = stripBrackets(outer);
-	const StringRange innerRange(inner);
-	const StringRange innerTrimmed = trimRange(innerRange);
-
-	StringVector result;
-	if (innerTrimmed.b != innerTrimmed.e && *innerTrimmed.b == '[') {
-		StringVector tuple;
-		interpreter.parseList(StringRange(inner), tuple, false, false, 1,
-							  INT_MAX);
-		result.reserve(tuple.size());
-		for (size_t i = 0; i < tuple.size(); ++i) {
-			result.push_back(stripBrackets(tuple[i]));
-		}
-	} else {
-		result.push_back(inner);
-	}
-	return result;
+	// Expect exactly one positional argument (verbatim; may be bracketed or raw)
+	return StringVector(1, args.fetchRequired(0, false));
 }
 
 static bool readFile(const std::string &path, String &contents);
@@ -1852,9 +1833,8 @@ class SnapshotCollector : public Executor {
 			block.scenario = *scenarioLabel;
 		}
 
-		const String &rawStatements = args.fetchRequired(0, false);
 
-		block.statements = parseSnapshotStatements(interpreter, rawStatements);
+		block.statements = parseSnapshotStatements(interpreter, args);
 		block.sourceLine = locateMetaLine();
 
 		args.throwIfAnyUnfetched();
@@ -2022,8 +2002,6 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		const String *validateFlag = args.fetchOptional("validate");
 		const bool blockValidate = parseValidateFlag(interpreter, validateFlag);
 		const String *scenarioLabel = args.fetchOptional("scenario");
-		const String &rawStatements = args.fetchRequired(0, false);
-
 		const bool hasLabel = (scenarioLabel != 0);
 
 		const uint32_t blockOrdinal = ++nextBlockOrdinal;
@@ -2062,8 +2040,7 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 										"between collection and playback.");
 		}
 
-		StringVector statements =
-			parseSnapshotStatements(interpreter, rawStatements);
+		StringVector statements = parseSnapshotStatements(interpreter, args);
 		if (invocation->statementOrdinal == 0 ||
 			invocation->statementOrdinal > statements.size()) {
 			Interpreter::throwBadSyntax(
@@ -2355,8 +2332,7 @@ static void printPlan(const std::string &path, const SnapshotPlan &plan) {
 				std::istringstream snippet(invocation.statements);
 				std::string line;
 				while (std::getline(snippet, line)) {
-					std::cout << "				[ " << line << " ]"
-							  << std::endl;
+					std::cout << "				" << line << std::endl;
 				}
 			}
 		}

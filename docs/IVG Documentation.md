@@ -800,9 +800,12 @@ Syntax:
 
 Example:
 
-    define path star svg:[M0,0 L10,0 L5,8 z]
-    fill gold
-    PATH star transform:[rotate 45]
+    bounds 0,0,100,100
+    define path star svg:[M50 10 L58 42 L94 40 L62 55 L77 85 L48 65 L27 85 L39 55 L10 40 L40 40 Z]
+    wipe navy
+    fill red opacity:0.7; PATH star transform:[rotate 45 anchor:50,50]
+    fill lime; PATH star transform:[rotate 25 anchor:50,50]
+    fill yellow; PATH star transform:[rotate -3 anchor:50,50]
 ![](images/definePathExample.png)
 
 #### define pattern
@@ -819,13 +822,21 @@ Syntax:
 
 Example:
 
+    bounds 0,0,100,100
     define pattern stripes [
-        bounds 0,0,4,4
-        fill black
-        rect 0,0,2,4
+        bounds 0,0,10,10
+        pen black
+        line 0,8,10,7,9,0
     ]
-    fill pattern:stripes
-    rect 0,0,20,20
+    wipe maroon
+    fill gradient:[linear 0,0,1,1 from:black to:gray] relative:yes
+    ellipse 40,40,30
+    fill pattern:stripes relative:no
+    ellipse 40,40,30
+    fill gradient:[linear 0,0,1,1 from:black to:gray] relative:yes
+    rect 45,45,40,40
+    fill pattern:stripes relative:no
+    rect 45,45,40,40
 ![](images/definePatternExample.png)
 
 ### fill

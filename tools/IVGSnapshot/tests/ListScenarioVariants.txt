@@ -2,36 +2,36 @@ tools/IVGSnapshot/tests/ListScenarioVariants.ivg
 	Scenario alpha (validate: yes)
 		Entry 1
 			Block 1 (statement 1), line 2
-				[  set fill red  ]
+				[ set fill red ]
 			Block 2 (statement 1), line 3
-				[  set highlight gold  ]
+				[ set highlight gold ]
 		Entry 2
 			Block 1 (statement 2), line 2
-				[  set stroke blue  ]
+				[ set stroke blue ]
 			Block 2 (statement 2), line 3
-				[  set outline green  ]
+				[ set outline green ]
 	Scenario ListScenarioVariants-3 (validate: no)
 		Entry 1
 			Block 3 (statement 1), line 4
-				[  set dash 4  ]
+				[ set dash 4 ]
 	Scenario ListScenarioVariants-4-1 (validate: yes)
 		Entry 1
 			Block 4 (statement 1), line 5
-				[  set implicit-one  ]
+				[ set implicit-one ]
 	Scenario ListScenarioVariants-4-2 (validate: yes)
 		Entry 1
 			Block 4 (statement 2), line 5
-				[  set implicit-two  ]
+				[ set implicit-two ]
 	Scenario ListScenarioVariants-5 (validate: yes)
 		Entry 1
 			Block 5 (statement 1), line 6
-				[  set implicit-three  ]
+				[ set implicit-three ]
 	Scenario beta (validate: no)
 		Entry 1
 			Block 6 (statement 1), line 7
-				[  set shadow black  ]
+				[ set shadow black ]
 			Block 7 (statement 1), line 8
-				[  set shadow gray  ]
+				[ set shadow gray ]
 # tools/IVGSnapshot/tests/ListScenarioVariants.ivg
 
 Summary
