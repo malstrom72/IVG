@@ -84,6 +84,9 @@ static const char* const SNAPSHOT_SOURCE_PATH = "/ivgfiddle/source.ivg";
 
 size_t computeFreeHeapBytes();
 
+class SnapshotPlan;
+class SnapshotCollector;
+
 static std::vector<std::string> buildCollectorIncludeDirectories()
 {
 	std::vector<std::string> includeDirs;
@@ -93,49 +96,17 @@ static std::vector<std::string> buildCollectorIncludeDirectories()
 }
 
 class SnapshotPlanCache {
-	public: SnapshotPlanCache()
-			: plan(0)
-	{
-	}
+public: SnapshotPlanCache();
 
-	public: ~SnapshotPlanCache()
-	{
-		delete plan;
-	}
+public: ~SnapshotPlanCache();
 
-	public: const SnapshotPlan& ensure(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs)
-	{
-		if (plan == 0 || sourceTextUtf8 != cachedSourceText || includeDirs != cachedIncludeDirs) {
-			rebuild(sourceTextUtf8, sourceText, includeDirs);
-		}
-		return *plan;
-	}
+public: const SnapshotPlan& ensure(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs);
 
-	private: void rebuild(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs)
-	{
-		std::auto_ptr<SnapshotPlan> newPlan(new SnapshotPlan("ivgfiddle"));
-		newPlan->beginCollection();
-		while (true) {
-			SnapshotCollector collector(*newPlan, SNAPSHOT_SOURCE_PATH, sourceText, includeDirs);
-			STLMapVariables variables;
-			FormatInfo formatInfo;
-			Interpreter planInterpreter(collector, variables, formatInfo);
-			planInterpreter.run(StringRange(sourceText));
-			newPlan->completeCollectionPass();
-			if (!newPlan->prepareNextCollectionPass()) {
-				break;
-			}
-		}
+private: void rebuild(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs);
 
-		cachedSourceText = sourceTextUtf8;
-		cachedIncludeDirs = includeDirs;
-		delete plan;
-		plan = newPlan.release();
-	}
-
-	private: SnapshotPlan* plan;
-	private: std::string cachedSourceText;
-	private: std::vector<std::string> cachedIncludeDirs;
+private: SnapshotPlan* plan;
+private: std::string cachedSourceText;
+private: std::vector<std::string> cachedIncludeDirs;
 };
 
 static SnapshotPlanCache snapshotPlanCache;
@@ -755,6 +726,46 @@ private:
 	std::vector<std::string> includeDirs;
 	size_t scanOffset;
 };
+
+SnapshotPlanCache::SnapshotPlanCache()
+	: plan(0)
+{
+}
+
+SnapshotPlanCache::~SnapshotPlanCache()
+{
+	delete plan;
+}
+
+const SnapshotPlan& SnapshotPlanCache::ensure(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs)
+{
+	if (plan == 0 || sourceTextUtf8 != cachedSourceText || includeDirs != cachedIncludeDirs) {
+		rebuild(sourceTextUtf8, sourceText, includeDirs);
+	}
+	return *plan;
+}
+
+void SnapshotPlanCache::rebuild(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs)
+{
+	std::auto_ptr<SnapshotPlan> newPlan(new SnapshotPlan("ivgfiddle"));
+	newPlan->beginCollection();
+	while (true) {
+		SnapshotCollector collector(*newPlan, SNAPSHOT_SOURCE_PATH, sourceText, includeDirs);
+		STLMapVariables variables;
+		FormatInfo formatInfo;
+		Interpreter planInterpreter(collector, variables, formatInfo);
+		planInterpreter.run(StringRange(sourceText));
+		newPlan->completeCollectionPass();
+		if (!newPlan->prepareNextCollectionPass()) {
+			break;
+		}
+	}
+
+	cachedSourceText = sourceTextUtf8;
+	cachedIncludeDirs = includeDirs;
+	delete plan;
+	plan = newPlan.release();
+}
 
 class SnapshotPlaybackExecutor : public IVGExecutorWithExternalFonts {
 public:
