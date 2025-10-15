@@ -167,6 +167,15 @@ const ivgCanvas = document.getElementById("ivgCanvas");
 const ivgContext = ivgCanvas.getContext("2d");
 const MIN_LEFT_PANEL_WIDTH = 250;
 
+const STORAGE_KEYS = Object.freeze({
+	SOURCE: "ivgSource",
+	RUN_ON_STARTUP: "runOnStartup",
+	ZOOM_LEVEL: "ivgZoomLevel",
+	BACKGROUND_COLOR: "ivgBackgroundColor",
+	VECTOR_SCALING: "ivgVectorScaling",
+	SNAPSHOT_SELECTION: "ivgSnapshotSelection",
+});
+
 const SnapshotController = (function createSnapshotController() {
 	let catalog = null;
 	let defaultSelection = null;
@@ -430,7 +439,6 @@ const SnapshotController = (function createSnapshotController() {
 		getSelectionForRender: getSelectionForRender,
 	};
 })();
-})();
 
 if (snapshotScenarioSelect !== null) {
 		snapshotScenarioSelect.addEventListener("change", function handleSnapshotChange() {
@@ -444,15 +452,6 @@ let rasterizeInProgress = false;
 let rerunQueuedWhileBusy = false;
 let rerunQueuedReason = "";
 let lastRasterizedSourceSignature = null;
-
-const STORAGE_KEYS = Object.freeze({
-		SOURCE: "ivgSource",
-		RUN_ON_STARTUP: "runOnStartup",
-		ZOOM_LEVEL: "ivgZoomLevel",
-		BACKGROUND_COLOR: "ivgBackgroundColor",
-		VECTOR_SCALING: "ivgVectorScaling",
-		SNAPSHOT_SELECTION: "ivgSnapshotSelection",
-});
 
 const BACKGROUND_COLORS = Object.freeze([
 	{ value: "black", label: "Black", preview: "#000000" },
