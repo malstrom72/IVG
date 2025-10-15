@@ -430,7 +430,6 @@ const SnapshotController = (function createSnapshotController() {
 		getSelectionForRender: getSelectionForRender,
 	};
 })();
-})();
 
 if (snapshotScenarioSelect !== null) {
 		snapshotScenarioSelect.addEventListener("change", function handleSnapshotChange() {
