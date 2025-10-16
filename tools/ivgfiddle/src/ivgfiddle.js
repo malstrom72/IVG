@@ -397,6 +397,9 @@ const SnapshotController = (function createSnapshotController() {
 		if (activeSourceSignature) {
 			selectionCache.set(activeSourceSignature, activeSelection);
 		}
+		if (snapshotScenarioSelect !== null) {
+			snapshotScenarioSelect.value = persistedKey;
+		}
 		trace(
 			"Snapshot selection changed to scenario " +
 				next.scenarioIndex +
@@ -431,6 +434,8 @@ const SnapshotController = (function createSnapshotController() {
 	function getSelectionForRender() {
 		return activeSelection;
 	}
+
+	updateToolbar([]);
 
 	return {
 		applyRenderResult: applyRenderResult,

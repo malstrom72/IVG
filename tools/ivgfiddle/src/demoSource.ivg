@@ -101,6 +101,8 @@ call $drawDial 180 180 135
 font serif size:12 color:white outline:black transform:[shear -0.2,0] tracking:0.1
 
 // Draw centered text around position (100, 45), store the final x position in the variable "x"
+// Initialize x to ensure downstream expressions have a default width if caret capture fails.
+x=0
 TEXT at:100,45 "Imperative Vector Graphics" anchor:center caret:x
 
 // Set the fill color to none, and the pen color to a pale green with a width of 2

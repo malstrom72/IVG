@@ -42,6 +42,13 @@ using namespace IVG;
 using namespace IMPD;
 using namespace NuXPixels;
 
+static bool isSnapshotMetaKey(const String& key)
+{
+	static const String SNAPSHOT_KEY("snapshot-1");
+	static const String SNAPSHOT_ALIAS("snapshot");
+	return key == SNAPSHOT_KEY || key == SNAPSHOT_ALIAS;
+}
+
 class IVGExecutorWithExternalFonts : public IVGExecutor {
 	public:	IVGExecutorWithExternalFonts(Canvas& canvas, const AffineTransformation& xform)
 					: IVGExecutor(canvas, xform) {
@@ -647,10 +654,9 @@ public:
 public:
 	bool meta(Interpreter& interpreter, const String& key, const String& arguments)
 	{
-		static const String SNAPSHOT_KEY("snapshot-1");
-		if (key != SNAPSHOT_KEY) {
-			return false;
-		}
+			if (!isSnapshotMetaKey(key)) {
+				return false;
+			}
 
 		ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
 
@@ -799,10 +805,9 @@ public:
 public:
 		bool meta(Interpreter& interpreter, const String& key, const String& arguments)
 		{
-		static const String SNAPSHOT_KEY("snapshot-1");
-		if (key != SNAPSHOT_KEY) {
-			return IVGExecutorWithExternalFonts::meta(interpreter, key, arguments);
-		}
+			if (!isSnapshotMetaKey(key)) {
+				return IVGExecutorWithExternalFonts::meta(interpreter, key, arguments);
+			}
 
 		ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
 		const String* validateFlag = args.fetchOptional("validate");
