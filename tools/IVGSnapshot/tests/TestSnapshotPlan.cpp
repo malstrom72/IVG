@@ -106,7 +106,7 @@ void TestListScenarioVariants()
         Expect(io.err.empty(), "ListScenarioVariants run should not print to stderr");
         const std::string expected = ReadFile("tools/IVGSnapshot/tests/ListScenarioVariants.txt");
         ExpectEqual(io.out, expected, "ListScenarioVariants list-only output");
-        ExpectEqual(run.totalEntries, static_cast<uint32_t>(8), "ListScenarioVariants entry count");
+        ExpectEqual(run.totalEntries, static_cast<uint32_t>(7), "ListScenarioVariants entry count");
 }
 
 void TestListVariableExpansion()
@@ -119,7 +119,7 @@ void TestListVariableExpansion()
         Expect(io.err.empty(), "ListVariableExpansion run should not print to stderr");
         const std::string expected = ReadFile("tools/IVGSnapshot/tests/ListVariableExpansion.txt");
         ExpectEqual(io.out, expected, "ListVariableExpansion list-only output");
-        ExpectEqual(run.totalEntries, static_cast<uint32_t>(6), "ListVariableExpansion entry count");
+        ExpectEqual(run.totalEntries, static_cast<uint32_t>(4), "ListVariableExpansion entry count");
 }
 
 std::string WriteTemporaryIVG(const std::string &contents)

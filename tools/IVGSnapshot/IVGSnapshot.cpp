@@ -276,42 +276,44 @@ class SnapshotProgress {
 
 	bool empty() const { return seenScenarios.empty(); }
 
-	bool observeScenarioEntry(SnapshotRoundState &round,
-		const String &scenarioName,
-		bool explicitLabel, bool validate,
-		uint32_t entryOrdinal) {
-		if (entryOrdinal == 0) {
-			throw std::runtime_error("snapshot entry ordinal must be >= 1");
-		}
+        bool observeScenarioEntry(SnapshotRoundState &round,
+                const String &scenarioName,
+                bool explicitLabel, bool validate,
+                uint32_t entryOrdinal) {
+                if (entryOrdinal == 0) {
+                        throw std::runtime_error("snapshot entry ordinal must be >= 1");
+                }
 
-		SeenScenario &scenario = upsertScenarioRecord(scenarioName, explicitLabel,
-				validate);
-		scenario.ensureCapacity(entryOrdinal);
+                const uint32_t normalizedOrdinal = (explicitLabel ? entryOrdinal : 1);
 
-		const bool alreadyProcessed = scenario.isProcessed(entryOrdinal);
+                SeenScenario &scenario = upsertScenarioRecord(scenarioName, explicitLabel,
+                                validate);
+                scenario.ensureCapacity(normalizedOrdinal);
 
-		if (!round.hasPinned) {
-			if (!alreadyProcessed) {
-                                round.pin(scenarioName, entryOrdinal, validate,
+                const bool alreadyProcessed = scenario.isProcessed(normalizedOrdinal);
+
+                if (!round.hasPinned) {
+                        if (!alreadyProcessed) {
+                                round.pin(scenarioName, normalizedOrdinal, validate,
                                                 explicitLabel);
-				return true;
-			}
-			return false;
-		}
+                                return true;
+                        }
+                        return false;
+                }
 
-		if (!round.matchesSelection(scenarioName, entryOrdinal)) {
-			if (!alreadyProcessed) {
-				round.moreRemaining = true;
-			}
-			return false;
-		}
+                if (!round.matchesSelection(scenarioName, normalizedOrdinal)) {
+                        if (!alreadyProcessed) {
+                                round.moreRemaining = true;
+                        }
+                        return false;
+                }
 
-		if (round.validate != validate) {
-			throw std::runtime_error("validate flag mismatch for scenario");
-		}
+                if (round.validate != validate) {
+                        throw std::runtime_error("validate flag mismatch for scenario");
+                }
 
-		return !alreadyProcessed;
-	}
+                return !alreadyProcessed;
+        }
 
 	bool hasNextTarget() const {
 		if (hasPendingTarget) {
@@ -1996,6 +1998,8 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 
                 for (uint32_t i = 0; i < statements.size(); ++i) {
                         const uint32_t entryOrdinal = i + 1;
+                        const uint32_t scenarioOrdinal =
+                                (explicitLabel ? entryOrdinal : 1);
                         const String scenarioName =
                                 (explicitLabel
                                          ? *scenarioLabel
@@ -2006,8 +2010,8 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
                                 *round, scenarioName, explicitLabel, blockValidate,
                                 entryOrdinal);
 
-                        const bool matchesPinned =
-                                round->matchesSelection(scenarioName, entryOrdinal);
+                        const bool matchesPinned = round->matchesSelection(
+                                scenarioName, scenarioOrdinal);
                         if (matchesPinned) {
                                 sawPinnedEntry = true;
                         }
