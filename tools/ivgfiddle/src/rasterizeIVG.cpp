@@ -614,6 +614,19 @@ public:
 public:
 	bool execute(Interpreter& interpreter, const String& instruction, const String& arguments)
 	{
+		static const String TEXT_INSTRUCTION("text");
+		if (instruction == TEXT_INSTRUCTION) {
+			ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
+			const String* caretVariable = args.fetchOptional("caret");
+			if (caretVariable != 0) {
+				String previousValue;
+				if (!interpreter.getVariables().lookup(*caretVariable, previousValue)) {
+					previousValue = Interpreter::toString(0.0);
+				}
+				interpreter.set(*caretVariable, previousValue);
+			}
+			return true;
+		}
 		(void)interpreter;
 		(void)instruction;
 		(void)arguments;
