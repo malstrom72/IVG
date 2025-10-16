@@ -392,15 +392,23 @@ const SnapshotController = (function createSnapshotController() {
 			return false;
 		}
 		activeSelection = next;
-		persistedKey = selectionKey(activeSelection);
+		const key = selectionKey(activeSelection);
+		persistedKey = key;
 		Settings.write(STORAGE_KEYS.SNAPSHOT_SELECTION, persistedKey);
 		if (activeSourceSignature) {
 			selectionCache.set(activeSourceSignature, activeSelection);
 		}
+		if (
+			snapshotScenarioSelect &&
+			key !== "" &&
+			snapshotScenarioSelect.value !== key
+		) {
+			snapshotScenarioSelect.value = key;
+		}
 		trace(
 			"Snapshot selection changed to scenario " +
 				next.scenarioIndex +
-				", entry " +
+			", entry " +
 				next.entryOrdinal,
 		);
 		return true;
@@ -432,6 +440,7 @@ const SnapshotController = (function createSnapshotController() {
 		return activeSelection;
 	}
 
+	updateToolbar([]);
 	return {
 		applyRenderResult: applyRenderResult,
 		handleSelectionChange: handleSelectionChange,
