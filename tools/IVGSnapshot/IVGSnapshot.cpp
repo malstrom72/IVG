@@ -133,10 +133,340 @@ struct SnapshotScenario {
 	std::vector<uint32_t> entryIndices;
 	std::map<uint32_t, uint32_t> entryLookup;
 };
+struct SnapshotRoundState {
+        SnapshotRoundState() { reset(); }
+
+        void reset() {
+                hasPinned = false;
+                scenario.clear();
+                entryOrdinal = 0;
+                validate = false;
+                blockOrdinalCursor = 0;
+                moreRemaining = false;
+                explicitScenario = false;
+                firstSourceLine = 0;
+                invocations.clear();
+        }
+
+        void pin(const String &scenarioName, uint32_t ordinal, bool shouldValidate,
+                          bool explicitLabel) {
+                hasPinned = true;
+                scenario = scenarioName;
+                entryOrdinal = ordinal;
+                validate = shouldValidate;
+                explicitScenario = explicitLabel;
+                firstSourceLine = 0;
+                invocations.clear();
+        }
+
+        void advanceBlockCursor() { ++blockOrdinalCursor; }
+
+        bool matchesSelection(const String &scenarioName, uint32_t ordinal) const {
+                return hasPinned && scenario == scenarioName && entryOrdinal == ordinal;
+        }
+
+        SnapshotInvocation *findInvocation(uint32_t blockIndex,
+                                                                  uint32_t statementOrdinal) {
+                for (size_t i = 0; i < invocations.size(); ++i) {
+                        SnapshotInvocation &invocation = invocations[i];
+                        if (invocation.blockIndex == blockIndex &&
+                                invocation.statementOrdinal == statementOrdinal) {
+                                return &invocation;
+                        }
+                }
+                return 0;
+        }
+
+        void recordInvocation(uint32_t blockIndex, uint32_t sourceLine,
+                                                      uint32_t statementOrdinal,
+                                                      const String &statementBody) {
+                SnapshotInvocation invocation;
+                invocation.blockIndex = blockIndex;
+                invocation.sourceLine = sourceLine;
+                invocation.statementOrdinal = statementOrdinal;
+                invocation.statements = statementBody;
+                invocations.push_back(invocation);
+        }
+
+        bool hasPinned;
+        String scenario;
+        uint32_t entryOrdinal;
+        bool validate;
+        uint32_t blockOrdinalCursor;
+        bool moreRemaining;
+        bool explicitScenario;
+        uint32_t firstSourceLine;
+        std::vector<SnapshotInvocation> invocations;
+};
+
+struct SeenScenario {
+	SeenScenario()
+	        : explicitLabel(false), validate(false), maxOrdinal(0) {}
+
+	void ensureCapacity(uint32_t ordinal) {
+		if (ordinal == 0) {
+			return;
+		}
+
+		if (ordinal > maxOrdinal) {
+			maxOrdinal = ordinal;
+		}
+
+		if (processed.size() < maxOrdinal) {
+			processed.resize(maxOrdinal, false);
+		}
+	}
+
+	bool isProcessed(uint32_t ordinal) const {
+		if (ordinal == 0) {
+			return true;
+		}
+
+		if (ordinal > processed.size()) {
+			return false;
+		}
+
+		return processed[ordinal - 1];
+	}
+
+	void markProcessed(uint32_t ordinal) {
+		ensureCapacity(ordinal);
+		if (ordinal == 0) {
+			return;
+		}
+
+		processed[ordinal - 1] = true;
+	}
+
+	String name;
+	bool explicitLabel;
+	bool validate;
+	uint32_t maxOrdinal;
+	std::vector<bool> processed;
+};
+
+class SnapshotProgress {
+  public:
+	struct Target {
+		Target()
+			: entryOrdinal(0), validate(false), explicitLabel(false) {}
+
+		String scenario;
+		uint32_t entryOrdinal;
+		bool validate;
+		bool explicitLabel;
+	};
+
+	SnapshotProgress() { reset(); }
+
+	void reset() {
+		seenScenarios.clear();
+		scenarioLookup.clear();
+		hasPendingTarget = false;
+		pendingTarget = Target();
+	}
+
+	bool empty() const { return seenScenarios.empty(); }
+
+	bool observeScenarioEntry(SnapshotRoundState &round,
+		const String &scenarioName,
+		bool explicitLabel, bool validate,
+		uint32_t entryOrdinal) {
+		if (entryOrdinal == 0) {
+			throw std::runtime_error("snapshot entry ordinal must be >= 1");
+		}
+
+		SeenScenario &scenario = upsertScenarioRecord(scenarioName, explicitLabel,
+				validate);
+		scenario.ensureCapacity(entryOrdinal);
+
+		const bool alreadyProcessed = scenario.isProcessed(entryOrdinal);
+
+		if (!round.hasPinned) {
+			if (!alreadyProcessed) {
+                                round.pin(scenarioName, entryOrdinal, validate,
+                                                explicitLabel);
+				return true;
+			}
+			return false;
+		}
+
+		if (!round.matchesSelection(scenarioName, entryOrdinal)) {
+			if (!alreadyProcessed) {
+				round.moreRemaining = true;
+			}
+			return false;
+		}
+
+		if (round.validate != validate) {
+			throw std::runtime_error("validate flag mismatch for scenario");
+		}
+
+		return !alreadyProcessed;
+	}
+
+	bool hasNextTarget() const {
+		if (hasPendingTarget) {
+			return true;
+		}
+
+		Target target;
+		return findNextUnprocessedTarget(target);
+	}
+
+	Target makeRound() {
+		if (hasPendingTarget) {
+			hasPendingTarget = false;
+			return pendingTarget;
+		}
+
+		Target target;
+		if (!findNextUnprocessedTarget(target)) {
+			return Target();
+		}
+
+		return target;
+	}
+
+	void setNextTarget(const String &scenarioName, uint32_t entryOrdinal,
+	                  bool validate, bool explicitLabel) {
+		hasPendingTarget = true;
+		pendingTarget.scenario = scenarioName;
+		pendingTarget.entryOrdinal = entryOrdinal;
+		pendingTarget.validate = validate;
+		pendingTarget.explicitLabel = explicitLabel;
+	}
+
+        void markProcessed(const String &scenarioName, uint32_t entryOrdinal) {
+                const auto lookupIterator = scenarioLookup.find(scenarioName);
+                if (lookupIterator == scenarioLookup.end()) {
+                        throw std::runtime_error("unknown scenario while marking processed");
+                }
+
+                SeenScenario &scenario = seenScenarios[lookupIterator->second];
+                scenario.markProcessed(entryOrdinal);
+        }
+
+        const SeenScenario *findScenarioRecord(const String &scenarioName) const {
+                const auto lookupIterator = scenarioLookup.find(scenarioName);
+                if (lookupIterator == scenarioLookup.end()) {
+                        return 0;
+                }
+                return &seenScenarios[lookupIterator->second];
+        }
+
+        bool hasUnprocessedEntries() const {
+                Target target;
+                return findNextUnprocessedTarget(target);
+        }
+
+private:
+	bool findNextUnprocessedTarget(Target &target) const {
+		for (size_t i = 0; i < seenScenarios.size(); ++i) {
+			const SeenScenario &scenario = seenScenarios[i];
+			for (uint32_t ordinal = 1; ordinal <= scenario.maxOrdinal; ++ordinal) {
+				if (!scenario.isProcessed(ordinal)) {
+					target.scenario = scenario.name;
+					target.entryOrdinal = ordinal;
+					target.validate = scenario.validate;
+					target.explicitLabel = scenario.explicitLabel;
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	SeenScenario &upsertScenarioRecord(const String &scenarioName,
+				bool explicitLabel,
+				bool validate) {
+			const auto lookupIterator = scenarioLookup.find(scenarioName);
+			if (lookupIterator == scenarioLookup.end()) {
+				const size_t index = seenScenarios.size();
+				scenarioLookup.insert(std::make_pair(scenarioName, index));
+				seenScenarios.push_back(SeenScenario());
+				SeenScenario &scenario = seenScenarios.back();
+				scenario.name = scenarioName;
+				scenario.explicitLabel = explicitLabel;
+				scenario.validate = validate;
+				return scenario;
+			}
+
+			SeenScenario &scenario = seenScenarios[lookupIterator->second];
+			if (scenario.validate != validate) {
+				throw std::runtime_error("validate flag mismatch for scenario");
+			}
+
+			if (explicitLabel && !scenario.explicitLabel) {
+				scenario.explicitLabel = true;
+			}
+
+			return scenario;
+		}
+
+		std::vector<SeenScenario> seenScenarios;
+		std::map<String, size_t> scenarioLookup;
+		bool hasPendingTarget;
+	Target pendingTarget;
+};
+
+class SnapshotRoundCoordinator {
+  public:
+	SnapshotRoundCoordinator() { reset(); }
+
+	void reset() {
+		progress.reset();
+		hasActiveTarget = false;
+		activeTarget = SnapshotProgress::Target();
+	}
+
+	SnapshotRoundState beginRound() {
+		SnapshotRoundState round;
+		round.reset();
+		activeTarget = progress.makeRound();
+		hasActiveTarget = (activeTarget.entryOrdinal != 0);
+                if (hasActiveTarget) {
+                        round.pin(activeTarget.scenario, activeTarget.entryOrdinal,
+                                activeTarget.validate, activeTarget.explicitLabel);
+                }
+		return round;
+	}
+
+	void completeRound(const SnapshotRoundState &round) {
+		if (!round.hasPinned) {
+			return;
+		}
+
+		progress.markProcessed(round.scenario, round.entryOrdinal);
+		hasActiveTarget = false;
+		activeTarget = SnapshotProgress::Target();
+	}
+
+	bool needsAnotherRound(const SnapshotRoundState &round) const {
+		if (round.moreRemaining) {
+			return true;
+		}
+		return progress.hasNextTarget();
+	}
+
+	SnapshotProgress &accessProgress() { return progress; }
+
+	const SnapshotProgress &accessProgress() const { return progress; }
+
+	const SnapshotProgress::Target *getActiveTarget() const {
+		return (hasActiveTarget ? &activeTarget : 0);
+	}
+
+  private:
+	SnapshotProgress progress;
+	bool hasActiveTarget;
+	SnapshotProgress::Target activeTarget;
+};
 struct CachedImage {
-	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> raster;
-	double xResolution;
-	double yResolution;
+        NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> raster;
+        double xResolution;
+        double yResolution;
 };
 
 struct SharedResources {
@@ -491,13 +821,13 @@ static std::string buildSnapshotSourceTag(const std::string &ivgPath,
 
 
 static std::string buildEntryIdentifier(const std::string &snapshotBase,
-										const SnapshotEntry &entry) {
-	const uint32_t blockIndex =
-		(entry.invocations.empty() ? 0 : entry.invocations[0].blockIndex);
-	std::ostringstream stream;
-	stream << snapshotBase << '#' << stringFromIMPD(entry.scenarioName) << '#'
-			<< blockIndex << '#' << entry.entryOrdinal;
-	return stream.str();
+                                                                                const String &scenarioName,
+                                                                                uint32_t blockIndex,
+                                                                                uint32_t entryOrdinal) {
+        std::ostringstream stream;
+        stream << snapshotBase << '#' << stringFromIMPD(scenarioName) << '#'
+                        << blockIndex << '#' << entryOrdinal;
+        return stream.str();
 }
 
 static bool fileExists(const std::string &path) {
@@ -905,30 +1235,22 @@ renderEntry(const CommandLineOptions &options, const std::string &path,
 
 class SnapshotGolden {
   public:
-	SnapshotGolden(const std::string &ivgPath, const std::string &snapshotBase,
-	                           const SnapshotScenario &scenario, const SnapshotEntry &entry,
-	                           const CommandLineOptions &options) {
-                const std::string root =
-                        (options.snapshotDir.empty() ? extractDirectory(ivgPath)
-                                                                   : options.snapshotDir);
-                std::string scenarioName = stringFromIMPD(entry.scenarioName);
-                if (scenario.entryIndices.size() > 1) {
-			scenarioName += "-";
-			scenarioName +=
-				Interpreter::toString(static_cast<int32_t>(entry.entryOrdinal));
-                }
-                scenarioName = sanitizeFileComponent(scenarioName);
-                std::string fileStem = scenarioName;
-                if (!snapshotBase.empty()) {
-                        fileStem = snapshotBase + "__" + fileStem;
-                }
-		const std::string stem = joinPath(root, fileStem);
-		goldenPath = stem + ".png";
-		oldPath = stem + ".png.old";
-		actualPath = stem + ".actual.png";
-		diffPath = stem + ".diff.png";
-		backupPath = stem + ".png.bak";
-	}
+        SnapshotGolden(const std::string &ivgPath, const std::string &snapshotBase,
+                                   const SnapshotScenario &scenario, const SnapshotEntry &entry,
+                                   const CommandLineOptions &options) {
+                initializePaths(ivgPath, snapshotBase,
+                                stringFromIMPD(entry.scenarioName),
+                                scenario.entryIndices.size() > 1, entry.entryOrdinal,
+                                options);
+        }
+
+        SnapshotGolden(const std::string &ivgPath, const std::string &snapshotBase,
+                                   const String &scenarioName, bool multipleEntries,
+                                   uint32_t entryOrdinal,
+                                   const CommandLineOptions &options) {
+                initializePaths(ivgPath, snapshotBase, stringFromIMPD(scenarioName),
+                                multipleEntries, entryOrdinal, options);
+        }
 
 	void populateResult(SnapshotEntryResult &result) const {
 		result.goldenPath = goldenPath;
@@ -1246,11 +1568,40 @@ class SnapshotGolden {
 	}
 
   private:
-	std::string goldenPath;
-	std::string oldPath;
-	std::string actualPath;
-	std::string diffPath;
-	std::string backupPath;
+        std::string goldenPath;
+        std::string oldPath;
+        std::string actualPath;
+        std::string diffPath;
+        std::string backupPath;
+
+  private:
+        void initializePaths(const std::string &ivgPath,
+                                                 const std::string &snapshotBase,
+                                                 const std::string &scenarioLabel,
+                                                 bool multipleEntries,
+                                                 uint32_t entryOrdinal,
+                                                 const CommandLineOptions &options) {
+                const std::string root =
+                        (options.snapshotDir.empty() ? extractDirectory(ivgPath)
+                                                                   : options.snapshotDir);
+                std::string scenarioName = scenarioLabel;
+                if (multipleEntries) {
+                        scenarioName += "-";
+                        scenarioName +=
+                                Interpreter::toString(static_cast<int32_t>(entryOrdinal));
+                }
+                scenarioName = sanitizeFileComponent(scenarioName);
+                std::string fileStem = scenarioName;
+                if (!snapshotBase.empty()) {
+                        fileStem = snapshotBase + "__" + fileStem;
+                }
+                const std::string stem = joinPath(root, fileStem);
+                goldenPath = stem + ".png";
+                oldPath = stem + ".png.old";
+                actualPath = stem + ".actual.png";
+                diffPath = stem + ".diff.png";
+                backupPath = stem + ".png.bak";
+        }
 };
 
 static void PNGAPI snapshotPNGError(png_structp png, png_const_charp message) {
@@ -1903,17 +2254,31 @@ class SnapshotCollector : public Executor {
 
 class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
   public:
-	SnapshotPlaybackExecutor(IVG::Canvas &canvas,
-							 const SnapshotScenario &scenario,
-							 const SnapshotEntry &entry,
-							 const CommandLineOptions &options,
-							 const std::string &sourcePath,
-							 SharedResources &sharedResources)
-		: IVG::IVGExecutor(canvas), scenario(scenario), entry(entry),
-		  includeDirs(options.includeDirs), fontDirs(options.fontDirs),
-		  imageDirs(options.imageDirs), sourcePath(sourcePath),
-		  verbose(options.verbose), sharedResources(sharedResources),
-		  nextBlockOrdinal(0), invocationCursor(0) {}
+        SnapshotPlaybackExecutor(IVG::Canvas &canvas,
+                                                         const SnapshotScenario &scenario,
+                                                         const SnapshotEntry &entry,
+                                                         const CommandLineOptions &options,
+                                                         const std::string &sourcePath,
+                                                         SharedResources &sharedResources)
+                : SnapshotPlaybackExecutor(canvas, options, sourcePath,
+                                sharedResources) {
+                legacyScenario = &scenario;
+                legacyEntry = &entry;
+        }
+
+        SnapshotPlaybackExecutor(IVG::Canvas &canvas,
+                                                         const CommandLineOptions &options,
+                                                         const std::string &sourcePath,
+                                                         const String &sourceText,
+                                                         SharedResources &sharedResources,
+                                                         SnapshotRoundState &roundState,
+                                                         SnapshotProgress &snapshotProgress)
+                : SnapshotPlaybackExecutor(canvas, options, sourcePath,
+                                sharedResources) {
+                round = &roundState;
+                progress = &snapshotProgress;
+                this->sourceText = sourceText;
+        }
 
 	bool load(Interpreter &interpreter, const WideString &filename,
 			  String &contents) override {
@@ -1989,109 +2354,264 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		return image;
 	}
 
-	bool meta(Interpreter &interpreter, const String &key,
-			  const String &arguments) override {
-		static const String SNAPSHOT_KEY("snapshot-1");
-		if (key != SNAPSHOT_KEY) {
-			return false;
-		}
+        bool meta(Interpreter &interpreter, const String &key,
+                          const String &arguments) override {
+                static const String SNAPSHOT_KEY("snapshot-1");
+                if (key != SNAPSHOT_KEY) {
+                        return false;
+                }
 
-		ArgumentsContainer args(
-			ArgumentsContainer::parse(interpreter, StringRange(arguments)));
+                ArgumentsContainer args(
+                        ArgumentsContainer::parse(interpreter, StringRange(arguments)));
+                if (isRoundMode()) {
+                        return handleRoundMeta(interpreter, args);
+                }
 
-		const String *validateFlag = args.fetchOptional("validate");
-		const bool blockValidate = parseValidateFlag(interpreter, validateFlag);
-		const String *scenarioLabel = args.fetchOptional("scenario");
-		const bool hasLabel = (scenarioLabel != 0);
+                return handleLegacyMeta(interpreter, args);
+        }
 
-		const uint32_t blockOrdinal = ++nextBlockOrdinal;
-
-		const SnapshotInvocation *invocation = 0;
-		if (invocationCursor < entry.invocations.size()) {
-			const SnapshotInvocation &candidate =
-				entry.invocations[invocationCursor];
-			if (candidate.blockIndex == blockOrdinal) {
-				invocation = &candidate;
-				++invocationCursor;
-			}
-		}
-
-		const bool blockTargetsScenario =
-			(scenario.explicitScenario
-				 ? (hasLabel && *scenarioLabel == scenario.name)
-				 : (!hasLabel && invocation != 0));
-
-		if (!blockTargetsScenario) {
-			args.throwIfAnyUnfetched();
-			if (invocation != 0) {
-				Interpreter::throwBadSyntax(
-								"unexpected snapshot invocation for scenario.");
-			}
-			return true;
-		}
-
-		if (invocation == 0) {
-			Interpreter::throwBadSyntax(
-								"missing snapshot invocation for scenario block.");
-		}
-
-		if (blockValidate != entry.validate) {
-			Interpreter::throwBadSyntax("snapshot validate flag changed "
-										"between collection and playback.");
-		}
-
-		StringVector statements = parseSnapshotStatements(interpreter, args);
-		if (invocation->statementOrdinal == 0 ||
-			invocation->statementOrdinal > statements.size()) {
-			Interpreter::throwBadSyntax(
-				"snapshot statement ordinal exceeds available entries.");
-		}
-
-		const String &statementBody =
-			statements[invocation->statementOrdinal - 1];
-		if (statementBody != invocation->statements) {
-			Interpreter::throwBadSyntax(
-				"snapshot statements changed between collection and playback.");
-		}
-
-		args.throwIfAnyUnfetched();
-
-		if (verbose) {
-			std::cout << sourcePath << ": scenario " << entry.scenarioName
-					  << " entry " << entry.entryOrdinal << " block "
-					  << invocation->blockIndex << " (statement "
-					  << invocation->statementOrdinal << ")" << std::endl;
-		}
-
-		IVG::Context invocationContext(currentContext->accessCanvas(),
-									   *currentContext);
-		runInNewContext(interpreter, invocationContext, statementBody);
-		return true;
-	}
-
-	bool finished() const {
-		return (invocationCursor == entry.invocations.size());
-	}
+        bool finished() const {
+                if (legacyEntry == 0) {
+                        return true;
+                }
+                return (invocationCursor == legacyEntry->invocations.size());
+        }
 
   private:
-	std::string resolveRelativePath(const std::string &requested) const {
-		const size_t slash = sourcePath.find_last_of("/\\");
-		if (slash == std::string::npos) {
-			return requested;
-		}
+        SnapshotPlaybackExecutor(IVG::Canvas &canvas,
+                                                         const CommandLineOptions &options,
+                                                         const std::string &sourcePath,
+                                                         SharedResources &sharedResources)
+                : IVG::IVGExecutor(canvas), includeDirs(options.includeDirs),
+                  fontDirs(options.fontDirs), imageDirs(options.imageDirs),
+                  sourcePath(sourcePath), verbose(options.verbose),
+                  sharedResources(sharedResources), legacyScenario(0), legacyEntry(0),
+                  round(0), progress(0), sourceText(), nextBlockOrdinal(0),
+                  invocationCursor(0), scanOffset(0) {}
+
+        bool isRoundMode() const { return (round != 0 && progress != 0); }
+
+        bool handleLegacyMeta(Interpreter &interpreter, ArgumentsContainer &args) {
+                if (legacyScenario == 0 || legacyEntry == 0) {
+                        Interpreter::throwBadSyntax(
+                                "snapshot playback executor missing legacy plan context.");
+                }
+
+                const String *validateFlag = args.fetchOptional("validate");
+                const bool blockValidate =
+                        parseValidateFlag(interpreter, validateFlag);
+                const String *scenarioLabel = args.fetchOptional("scenario");
+                const bool hasLabel = (scenarioLabel != 0);
+
+                const uint32_t blockOrdinal = ++nextBlockOrdinal;
+
+                const SnapshotInvocation *invocation = 0;
+                if (invocationCursor < legacyEntry->invocations.size()) {
+                        const SnapshotInvocation &candidate =
+                                legacyEntry->invocations[invocationCursor];
+                        if (candidate.blockIndex == blockOrdinal) {
+                                invocation = &candidate;
+                                ++invocationCursor;
+                        }
+                }
+
+                const bool blockTargetsScenario =
+                        (legacyScenario->explicitScenario
+                                 ? (hasLabel && *scenarioLabel == legacyScenario->name)
+                                 : (!hasLabel && invocation != 0));
+
+                if (!blockTargetsScenario) {
+                        args.throwIfAnyUnfetched();
+                        if (invocation != 0) {
+                                Interpreter::throwBadSyntax(
+                                        "unexpected snapshot invocation for scenario.");
+                        }
+                        return true;
+                }
+
+                if (invocation == 0) {
+                        Interpreter::throwBadSyntax(
+                                "missing snapshot invocation for scenario block.");
+                }
+
+                if (blockValidate != legacyEntry->validate) {
+                        Interpreter::throwBadSyntax(
+                                "snapshot validate flag changed between collection and playback.");
+                }
+
+                StringVector statements = parseSnapshotStatements(interpreter, args);
+                if (invocation->statementOrdinal == 0 ||
+                        invocation->statementOrdinal > statements.size()) {
+                        Interpreter::throwBadSyntax(
+                                "snapshot statement ordinal exceeds available entries.");
+                }
+
+                const String &statementBody =
+                        statements[invocation->statementOrdinal - 1];
+                if (statementBody != invocation->statements) {
+                        Interpreter::throwBadSyntax(
+                                "snapshot statements changed between collection and playback.");
+                }
+
+                args.throwIfAnyUnfetched();
+
+                if (verbose) {
+                        std::cout << sourcePath << ": scenario "
+                                          << legacyEntry->scenarioName << " entry "
+                                          << legacyEntry->entryOrdinal << " block "
+                                          << invocation->blockIndex << " (statement "
+                                          << invocation->statementOrdinal << ")"
+                                          << std::endl;
+                }
+
+                IVG::Context invocationContext(currentContext->accessCanvas(),
+                                                                           *currentContext);
+                runInNewContext(interpreter, invocationContext, statementBody);
+                return true;
+        }
+
+        bool handleRoundMeta(Interpreter &interpreter, ArgumentsContainer &args) {
+                const String *validateFlag = args.fetchOptional("validate");
+                const bool blockValidate =
+                        parseValidateFlag(interpreter, validateFlag);
+                const String *scenarioLabel = args.fetchOptional("scenario");
+                const bool explicitLabel = (scenarioLabel != 0);
+
+                const uint32_t blockOrdinal = round->blockOrdinalCursor + 1;
+                round->advanceBlockCursor();
+
+                StringVector statements = parseSnapshotStatements(interpreter, args);
+                args.throwIfAnyUnfetched();
+
+                const uint32_t sourceLine = locateRoundMetaLine();
+                const bool multipleEntries = (statements.size() > 1);
+
+                bool sawPinnedEntry = false;
+                bool executedPinnedEntry = false;
+
+                for (uint32_t i = 0; i < statements.size(); ++i) {
+                        const uint32_t entryOrdinal = i + 1;
+                        const String scenarioName =
+                                (explicitLabel
+                                         ? *scenarioLabel
+                                         : buildImplicitScenarioName(blockOrdinal,
+                                                 entryOrdinal, multipleEntries));
+
+                        const bool shouldExecute = progress->observeScenarioEntry(
+                                *round, scenarioName, explicitLabel, blockValidate,
+                                entryOrdinal);
+
+                        const bool matchesPinned =
+                                round->matchesSelection(scenarioName, entryOrdinal);
+                        if (matchesPinned) {
+                                sawPinnedEntry = true;
+                        }
+
+                        if (!shouldExecute) {
+                                continue;
+                        }
+
+                        if (!matchesPinned) {
+                                Interpreter::throwBadSyntax(
+                                        "snapshot round selection changed mid-execution.");
+                        }
+
+                        executedPinnedEntry = true;
+                        if (round->firstSourceLine == 0) {
+                                round->firstSourceLine = sourceLine;
+                        }
+
+                        SnapshotInvocation *existing =
+                                round->findInvocation(blockOrdinal, entryOrdinal);
+                        const String &statementBody = statements[i];
+                        if (existing != 0) {
+                                if (existing->statements != statementBody) {
+                                        Interpreter::throwBadSyntax(
+                                                "snapshot statements changed within iterative round.");
+                                }
+                        } else {
+                                round->recordInvocation(blockOrdinal, sourceLine,
+                                        entryOrdinal, statementBody);
+                        }
+
+                        if (verbose) {
+                                std::cout << sourcePath << ": scenario "
+                                                  << round->scenario << " entry "
+                                                  << round->entryOrdinal << " block "
+                                                  << blockOrdinal << " (statement "
+                                                  << entryOrdinal << ")" << std::endl;
+                        }
+
+                        IVG::Context invocationContext(
+                                currentContext->accessCanvas(), *currentContext);
+                        runInNewContext(interpreter, invocationContext, statementBody);
+                }
+
+                if (sawPinnedEntry && !executedPinnedEntry) {
+                        Interpreter::throwBadSyntax(
+                                "selected snapshot entry missing from scenario block.");
+                }
+
+                return true;
+        }
+
+        String buildImplicitScenarioName(uint32_t blockOrdinal,
+                                                                  uint32_t entryOrdinal,
+                                                                  bool multipleEntries) const {
+                String name("implicit-");
+                name += Interpreter::toString(
+                        static_cast<int32_t>(blockOrdinal));
+                if (multipleEntries) {
+                        name += '-';
+                        name += Interpreter::toString(
+                                static_cast<int32_t>(entryOrdinal));
+                }
+                return name;
+        }
+
+        uint32_t locateRoundMetaLine() {
+                if (sourceText.empty()) {
+                        return 0;
+                }
+
+                static const String TOKEN("meta snapshot");
+                const size_t position = sourceText.find(TOKEN, scanOffset);
+                if (position == String::npos) {
+                        return 0;
+                }
+
+                scanOffset = position + TOKEN.size();
+                uint32_t line = 1;
+                for (size_t i = 0; i < position; ++i) {
+                        if (sourceText[i] == '\n') {
+                                ++line;
+                        }
+                }
+                return line;
+        }
+
+        std::string resolveRelativePath(const std::string &requested) const {
+                const size_t slash = sourcePath.find_last_of("/\\");
+                if (slash == std::string::npos) {
+                        return requested;
+                }
 		return sourcePath.substr(0, slash + 1) + requested;
 	}
 
-	const SnapshotScenario &scenario;
-	const SnapshotEntry &entry;
-	const std::vector<std::string> &includeDirs;
-	const std::vector<std::string> &fontDirs;
-	const std::vector<std::string> &imageDirs;
-	std::string sourcePath;
-	bool verbose;
-	SharedResources &sharedResources;
-	uint32_t nextBlockOrdinal;
-	size_t invocationCursor;
+        const std::vector<std::string> &includeDirs;
+        const std::vector<std::string> &fontDirs;
+        const std::vector<std::string> &imageDirs;
+        std::string sourcePath;
+        bool verbose;
+        SharedResources &sharedResources;
+        const SnapshotScenario *legacyScenario;
+        const SnapshotEntry *legacyEntry;
+        SnapshotRoundState *round;
+        SnapshotProgress *progress;
+        String sourceText;
+        uint32_t nextBlockOrdinal;
+        size_t invocationCursor;
+        size_t scanOffset;
 
 	bool loadExternalFont(const WideString &fontName, IVG::Font &font) {
 		const std::string fontName8(fontName.begin(), fontName.end());
@@ -2546,9 +3066,10 @@ renderEntry(const CommandLineOptions &options, const std::string &path,
 	result.scenarioName = stringFromIMPD(entry.scenarioName);
 	result.entryOrdinal = entry.entryOrdinal;
 	result.validate = entry.validate;
-	result.blockIndex =
-		(entry.invocations.empty() ? 0 : entry.invocations[0].blockIndex);
-		result.identifier = buildEntryIdentifier(snapshotBase, entry);
+        result.blockIndex =
+                (entry.invocations.empty() ? 0 : entry.invocations[0].blockIndex);
+        result.identifier = buildEntryIdentifier(snapshotBase, entry.scenarioName,
+                        result.blockIndex, entry.entryOrdinal);
 
 	IVG::SelfContainedARGB32Canvas canvas;
 	SnapshotPlaybackExecutor executor(canvas, scenario, entry, options, path,
@@ -2743,8 +3264,8 @@ static SnapshotRunResult renderPlan(const CommandLineOptions &options,
 	}
 	return run;
 }
-static SnapshotRunResult processFile(const CommandLineOptions &options,
-									 const std::string &path) {
+static SnapshotRunResult processFileLegacy(const CommandLineOptions &options,
+                                                                         const std::string &path) {
 	SnapshotRunResult run;
 	CachedDocument document;
 	if (!document.loadFromFile(path)) {
@@ -2841,6 +3362,185 @@ static SnapshotRunResult processFile(const CommandLineOptions &options,
 	}
 
 	return renderPlan(options, path, document, plan);
+}
+
+static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
+										const std::string &path) {
+	SnapshotRunResult run;
+	CachedDocument document;
+	if (!document.loadFromFile(path)) {
+		run.fileFailed = true;
+		run.exitCode = 1;
+		run.fileError = "failed to read IVG file";
+		std::cerr << "failed to read IVG file: " << path << std::endl;
+		return run;
+	}
+
+	const String &source = document.getSource();
+	const std::string snapshotBase = buildSnapshotSourceTag(path, options.rootDir);
+	SharedResources sharedResources;
+	SnapshotRoundCoordinator coordinator;
+	SnapshotProgress &progress = coordinator.accessProgress();
+
+	if (options.verbose) {
+		std::cout << path << ": include dirs:";
+		if (options.includeDirs.empty()) {
+			std::cout << " (none)";
+		} else {
+			for (size_t i = 0; i < options.includeDirs.size(); ++i) {
+				std::cout << ' ' << options.includeDirs[i];
+			}
+		}
+		std::cout << std::endl;
+		std::cout << path << ": font dirs:";
+		if (options.fontDirs.empty()) {
+			std::cout << " (none)";
+		} else {
+			for (size_t i = 0; i < options.fontDirs.size(); ++i) {
+				std::cout << ' ' << options.fontDirs[i];
+			}
+		}
+		std::cout << std::endl;
+		std::cout << path << ": image dirs:";
+		if (options.imageDirs.empty()) {
+			std::cout << " (none)";
+		} else {
+			for (size_t i = 0; i < options.imageDirs.size(); ++i) {
+				std::cout << ' ' << options.imageDirs[i];
+			}
+		}
+		std::cout << std::endl;
+	}
+
+	bool stopAfterFailure = false;
+	while (!stopAfterFailure) {
+		SnapshotRoundState round = coordinator.beginRound();
+		IVG::SelfContainedARGB32Canvas canvas;
+		SnapshotPlaybackExecutor executor(canvas, options, path, source,
+										sharedResources, round, progress);
+
+		try {
+			document.render(executor);
+		} catch (Exception &e) {
+			std::ostringstream message;
+			message << e.getError();
+			if (e.hasStatement()) {
+				message << " near \"" << e.getStatement() << "\"";
+			}
+			run.fileFailed = true;
+			run.exitCode = 1;
+			run.fileError = message.str();
+			std::cerr << path << ": " << run.fileError << std::endl;
+			return run;
+		} catch (std::exception &e) {
+			run.fileFailed = true;
+			run.exitCode = 1;
+			run.fileError = e.what();
+			std::cerr << path << ": " << run.fileError << std::endl;
+			return run;
+		}
+
+		if (!round.hasPinned) {
+			coordinator.completeRound(round);
+			break;
+		}
+
+		SnapshotEntryResult result;
+		result.ivgPath = path;
+		result.scenarioName = stringFromIMPD(round.scenario);
+		result.entryOrdinal = round.entryOrdinal;
+		result.validate = round.validate;
+		result.planOrdinal = static_cast<uint32_t>(run.entries.size());
+		result.blockIndex =
+			(round.invocations.empty() ? 0 : round.invocations[0].blockIndex);
+		result.identifier = buildEntryIdentifier(snapshotBase, round.scenario,
+				result.blockIndex, round.entryOrdinal);
+
+		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> *raster =
+			canvas.accessRaster();
+		if (!executor.finished()) {
+			result.message = "did not execute all snapshot invocations";
+			result.success = false;
+			std::cerr << path << ": scenario " << result.scenarioName
+					  << " did not execute all snapshot invocations."
+					  << std::endl;
+		} else if (raster == 0) {
+			result.message = "rendered image is empty";
+			result.success = false;
+			std::cerr << path << ": scenario " << result.scenarioName
+					  << " produced no raster output." << std::endl;
+		} else if (options.listOnly) {
+			result.rendered = false;
+			result.skipped = true;
+			result.success = true;
+		} else {
+			result.rendered = true;
+			const SeenScenario *scenarioRecord =
+				progress.findScenarioRecord(round.scenario);
+			const bool multipleEntries =
+				(scenarioRecord != 0 && scenarioRecord->maxOrdinal > 1);
+			SnapshotGolden golden(path, snapshotBase, round.scenario,
+				multipleEntries, round.entryOrdinal, options);
+			if (!round.validate) {
+				if (!golden.writeDraft(*raster, result)) {
+					if (result.message.empty()) {
+						result.message = "failed to write draft";
+					}
+					std::cerr << path << ": scenario "
+							  << result.scenarioName << ": "
+							  << result.message << std::endl;
+				}
+			} else if (!golden.validate(*raster, options.forceUpdate, result)) {
+				if (result.message.empty()) {
+					result.message = "validation failed";
+				}
+				std::cerr << path << ": scenario " << result.scenarioName
+						  << ": " << result.message << std::endl;
+			}
+		}
+
+		if (!result.success) {
+			run.failedEntries++;
+			if (result.diffed) {
+				run.diffFailures++;
+			}
+			run.exitCode = 1;
+			if (options.exitOnFirstFailure) {
+				stopAfterFailure = true;
+			}
+		}
+
+		if (result.validate) {
+			++run.validatedEntries;
+		} else {
+			++run.draftEntries;
+		}
+		if (result.updated) {
+			++run.updatedEntries;
+		}
+		++run.totalEntries;
+
+		run.entries.push_back(result);
+
+		coordinator.completeRound(round);
+		if (!stopAfterFailure && !coordinator.needsAnotherRound(round)) {
+			break;
+		}
+	}
+
+	return run;
+}
+
+static SnapshotRunResult processFile(const CommandLineOptions &options,
+                                                                         const std::string &path) {
+        if (options.listOnly) {
+                return processFileLegacy(options, path);
+        }
+        SnapshotRunResult run = processFileIterative(options, path);
+        if (run.exitCode == 0 && run.failedEntries > 0) {
+                run.exitCode = 1;
+        }
+        return run;
 }
 
 #if !defined(IVG_SNAPSHOT_TESTING)
