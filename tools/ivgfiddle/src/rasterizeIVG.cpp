@@ -87,6 +87,12 @@ size_t computeFreeHeapBytes();
 class SnapshotPlan;
 class SnapshotCollector;
 
+static const String& defaultSnapshotMetaKey()
+{
+	static const String SNAPSHOT_KEY("snapshot-1");
+	return SNAPSHOT_KEY;
+}
+
 static std::vector<std::string> buildCollectorIncludeDirectories()
 {
 	std::vector<std::string> includeDirs;
@@ -588,43 +594,40 @@ static bool readFile(const std::string& path, String& contents);
 class SnapshotCollector : public Executor {
 public:
 	SnapshotCollector(SnapshotPlan& plan, const std::string& sourcePath, const String& sourceText, const std::vector<std::string>& includeDirs)
-			: plan(plan)
-			, sourcePath(sourcePath)
-			, sourceText(sourceText)
-			, includeDirs(includeDirs)
-			, scanOffset(0)
+				: plan(plan)
+				, canvas(1.0, MAX_RASTER_PIXELS, VECTOR_HEAP_RESERVE_BYTES)
+				, executor(canvas, AffineTransformation())
+				, sourcePath(sourcePath)
+				, sourceText(sourceText)
+				, includeDirs(includeDirs)
+				, scanOffset(0)
 	{
 	}
 
 public:
 	bool format(Interpreter& interpreter, const FormatInfo& formatInfo)
 	{
-		(void)interpreter;
-		(void)formatInfo;
+		if (!executor.format(interpreter, formatInfo)) {
+			return false;
+		}
 		return true;
 	}
 
 public:
 	bool execute(Interpreter& interpreter, const String& instruction, const String& arguments)
 	{
-		(void)interpreter;
-		(void)instruction;
-		(void)arguments;
-		return true;
+		return executor.execute(interpreter, instruction, arguments);
 	}
 
 public:
 	bool progress(Interpreter& interpreter, int maxStatementsLeft)
 	{
-		(void)interpreter;
-		(void)maxStatementsLeft;
-		return true;
+		return executor.progress(interpreter, maxStatementsLeft);
 	}
 
 public:
 	bool load(Interpreter& interpreter, const WideString& filename, String& contents)
 	{
-		(void)interpreter;
 		const std::string utf8(filename.begin(), filename.end());
 		if (readFile(resolveRelativePath(utf8), contents)) {
 			return true;
@@ -634,21 +637,19 @@ public:
 				return true;
 			}
 		}
-		return false;
+		return executor.load(interpreter, filename, contents);
 	}
 
 public:
 	void trace(Interpreter& interpreter, const WideString& s)
 	{
-		(void)interpreter;
-		(void)s;
+		executor.trace(interpreter, s);
 	}
 
 public:
 	bool meta(Interpreter& interpreter, const String& key, const String& arguments)
 	{
-		static const String SNAPSHOT_KEY("snapshot-1");
-		if (key != SNAPSHOT_KEY) {
+		if (key != defaultSnapshotMetaKey()) {
 			return false;
 		}
 
@@ -721,11 +722,14 @@ private:
 
 private:
 	SnapshotPlan& plan;
+	GuardedSelfContainedARGB32Canvas canvas;
+	IVGExecutorWithExternalFonts executor;
 	std::string sourcePath;
 	String sourceText;
 	std::vector<std::string> includeDirs;
 	size_t scanOffset;
 };
+
 
 SnapshotPlanCache::SnapshotPlanCache()
 	: plan(0)
@@ -778,6 +782,15 @@ public:
 						, nextBlockOrdinal(0)
 						, invocationCursor(0)
 		{
+}
+
+public:
+		bool format(Interpreter& interpreter, const FormatInfo& formatInfo)
+		{
+				if (!IVGExecutorWithExternalFonts::format(interpreter, formatInfo)) {
+						return false;
+				}
+				return true;
 		}
 
 public:
@@ -799,10 +812,10 @@ public:
 public:
 		bool meta(Interpreter& interpreter, const String& key, const String& arguments)
 		{
-		static const String SNAPSHOT_KEY("snapshot-1");
-		if (key != SNAPSHOT_KEY) {
-			return IVGExecutorWithExternalFonts::meta(interpreter, key, arguments);
-		}
+			if (key != defaultSnapshotMetaKey()) {
+				return IVGExecutorWithExternalFonts::meta(interpreter, key, arguments);
+			}
+
 
 		ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
 		const String* validateFlag = args.fetchOptional("validate");

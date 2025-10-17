@@ -71,7 +71,7 @@ test("WebAssembly rasterization smoke test", async () => {
 test("WebAssembly snapshot catalog playback honors selections", async () => {
 	const Module = await createModule();
 	const source = [
-		"FORMAT IVG-2 requires:IMPD-1",
+		"FORMAT IVG-2 requires:IMPD-1 uses:snapshot-1",
 		"bounds 0,0,1,1",
 		"meta snapshot scenario:Colors list:[",
 		"\t[",
