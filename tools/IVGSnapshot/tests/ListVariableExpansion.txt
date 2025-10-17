@@ -1,0 +1,46 @@
+tools/IVGSnapshot/tests/ListVariableExpansion.ivg
+  Scenario implicit-1-1 (validate: yes)
+          Entry 1
+                  Block 1 (statement 1), line 4
+                          [ fill $color ]
+  Scenario implicit-1-2 (validate: yes)
+          Entry 1
+                  Block 1 (statement 2), line 4
+                          [ pen $color width:2 ]
+  Scenario implicit-2-1 (validate: yes)
+          Entry 1
+                  Block 2 (statement 1), line 6
+                          [ fill $color ]
+  Scenario implicit-2-2 (validate: yes)
+          Entry 1
+                  Block 2 (statement 2), line 6
+                          [ pen $color width:2 ]
+# tools/IVGSnapshot/tests/ListVariableExpansion.ivg
+
+Scenario: implicit-1-1
+	Entry 1 (block 1) - SKIPPED
+	Snapshot ID  : tools_IVGSnapshot_tests_ListVariableExpansion#implicit-1-1#1#1
+
+Scenario: implicit-1-2
+	Entry 1 (block 1) - SKIPPED
+	Snapshot ID  : tools_IVGSnapshot_tests_ListVariableExpansion#implicit-1-2#1#1
+
+Scenario: implicit-2-1
+	Entry 1 (block 2) - SKIPPED
+	Snapshot ID  : tools_IVGSnapshot_tests_ListVariableExpansion#implicit-2-1#2#1
+
+Scenario: implicit-2-2
+	Entry 1 (block 2) - SKIPPED
+	Snapshot ID  : tools_IVGSnapshot_tests_ListVariableExpansion#implicit-2-2#2#1
+
+Summary
+  Snapshots       : 4 total (4 validated)
+  Updated         : 0
+  Failed          : 0 (diff failures: 0)
+
+# Overall Summary
+
+  Processed files : 1 (0 failed)
+  Snapshots       : 4 total (4 validated)
+  Updated         : 0
+  Failed          : 0 (diff failures: 0)

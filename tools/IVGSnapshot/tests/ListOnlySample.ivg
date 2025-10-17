@@ -1,3 +1,4 @@
-format snapshot uses:[snapshot-1]
-meta snapshot scenario:smurf list:[ [ set fill red ] [ set stroke blue ] ]
-meta snapshot [ set dash 4 ]
+format ivg-3 uses:snapshot-1
+bounds 0,0,16,16
+meta snapshot scenario:smurf list:[ [ fill red ] [ pen blue width:2 ] ]
+meta snapshot [ pen red dash:4 width:2 ]

@@ -1,16 +1,27 @@
 tools/IVGSnapshot/tests/ListOnlySample.ivg
-	Scenario smurf (validate: yes)
-		Entry 1
-			Block 1 (statement 1), line 2
-				[ set fill red ]
-		Entry 2
-			Block 1 (statement 2), line 2
-				[ set stroke blue ]
-	Scenario ListOnlySample-2 (validate: yes)
-		Entry 1
-			Block 2 (statement 1), line 3
-				[ set dash 4 ]
+  Scenario smurf (validate: yes)
+          Entry 1
+                  Block 1 (statement 1), line 3
+                          [ fill red ]
+          Entry 2
+                  Block 1 (statement 2), line 3
+                          [ pen blue width:2 ]
+  Scenario implicit-2 (validate: yes)
+          Entry 1
+                  Block 2 (statement 1), line 4
+                          [ pen red dash:4 width:2 ]
 # tools/IVGSnapshot/tests/ListOnlySample.ivg
+
+Scenario: smurf
+	Entry 1 (block 1) - SKIPPED
+	Snapshot ID  : tools_IVGSnapshot_tests_ListOnlySample#smurf#1#1
+
+	Entry 2 (block 1) - SKIPPED
+	Snapshot ID  : tools_IVGSnapshot_tests_ListOnlySample#smurf#1#2
+
+Scenario: implicit-2
+	Entry 1 (block 2) - SKIPPED
+	Snapshot ID  : tools_IVGSnapshot_tests_ListOnlySample#implicit-2#2#1
 
 Summary
   Snapshots       : 3 total (3 validated)
