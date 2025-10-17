@@ -2431,6 +2431,9 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 		SnapshotPlaybackExecutor executor(canvas, options, path, source,
 										sharedResources, round, progress);
 
+		bool executionFailed = false;
+		std::string executionError;
+
 		try {
 			document.render(executor);
 		} catch (Exception &e) {
@@ -2439,20 +2442,18 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 			if (e.hasStatement()) {
 				message << " near \"" << e.getStatement() << "\"";
 			}
-			run.fileFailed = true;
-			run.exitCode = 1;
-			run.fileError = message.str();
-			std::cerr << path << ": " << run.fileError << std::endl;
-			return run;
+			executionFailed = true;
+			executionError = message.str();
 		} catch (std::exception &e) {
-			run.fileFailed = true;
-			run.exitCode = 1;
-			run.fileError = e.what();
-			std::cerr << path << ": " << run.fileError << std::endl;
-			return run;
+			executionFailed = true;
+			executionError = e.what();
 		}
 
 		if (!round.hasPinned) {
+			if (executionFailed) {
+				std::cerr << path << ": " << executionError
+				          << " (ignored: no snapshots executed)." << std::endl;
+			}
 			coordinator.completeRound(round);
 			break;
 		}
@@ -2466,48 +2467,58 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 		result.blockIndex =
 			(round.invocations.empty() ? 0 : round.invocations[0].blockIndex);
 		result.identifier = buildEntryIdentifier(snapshotBase, round.scenario,
-				result.blockIndex, round.entryOrdinal);
+						result.blockIndex, round.entryOrdinal);
 
-		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> *raster =
-			canvas.accessRaster();
-		if (!executor.finished()) {
-			result.message = "did not execute all snapshot invocations";
+		if (executionFailed) {
+			result.message = executionError;
 			result.success = false;
+			run.fileFailed = true;
+			run.exitCode = 1;
+			run.fileError = executionError;
 			std::cerr << path << ": scenario " << result.scenarioName
-					  << " did not execute all snapshot invocations."
-					  << std::endl;
-		} else if (raster == 0) {
-			result.message = "rendered image is empty";
-			result.success = false;
-			std::cerr << path << ": scenario " << result.scenarioName
-					  << " produced no raster output." << std::endl;
-		} else if (options.listOnly) {
-			result.rendered = false;
-			result.skipped = true;
-			result.success = true;
+			                  << ": " << result.message << std::endl;
 		} else {
-			result.rendered = true;
-			const SeenScenario *scenarioRecord =
-				progress.findScenarioRecord(round.scenario);
-			const bool multipleEntries =
-				(scenarioRecord != 0 && scenarioRecord->maxOrdinal > 1);
-			SnapshotGolden golden(path, snapshotBase, round.scenario,
-				multipleEntries, round.entryOrdinal, options);
-			if (!round.validate) {
-				if (!golden.writeDraft(*raster, result)) {
-					if (result.message.empty()) {
-						result.message = "failed to write draft";
-					}
-					std::cerr << path << ": scenario "
-							  << result.scenarioName << ": "
-							  << result.message << std::endl;
-				}
-			} else if (!golden.validate(*raster, options.forceUpdate, result)) {
-				if (result.message.empty()) {
-					result.message = "validation failed";
-				}
+			NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> *raster =
+					canvas.accessRaster();
+			if (!executor.finished()) {
+				result.message = "did not execute all snapshot invocations";
+				result.success = false;
 				std::cerr << path << ": scenario " << result.scenarioName
-						  << ": " << result.message << std::endl;
+				                  << " did not execute all snapshot invocations."
+				                  << std::endl;
+			} else if (raster == 0) {
+				result.message = "rendered image is empty";
+				result.success = false;
+				std::cerr << path << ": scenario " << result.scenarioName
+				                  << " produced no raster output." << std::endl;
+			} else if (options.listOnly) {
+				result.rendered = false;
+				result.skipped = true;
+				result.success = true;
+			} else {
+				result.rendered = true;
+				const SeenScenario *scenarioRecord =
+						progress.findScenarioRecord(round.scenario);
+				const bool multipleEntries =
+						(scenarioRecord != 0 && scenarioRecord->maxOrdinal > 1);
+				SnapshotGolden golden(path, snapshotBase, round.scenario,
+						multipleEntries, round.entryOrdinal, options);
+				if (!round.validate) {
+					if (!golden.writeDraft(*raster, result)) {
+						if (result.message.empty()) {
+							result.message = "failed to write draft";
+						}
+						std::cerr << path << ": scenario "
+						                  << result.scenarioName << ": "
+						                  << result.message << std::endl;
+					}
+				} else if (!golden.validate(*raster, options.forceUpdate, result)) {
+					if (result.message.empty()) {
+						result.message = "validation failed";
+					}
+					std::cerr << path << ": scenario " << result.scenarioName
+					                  << ": " << result.message << std::endl;
+				}
 			}
 		}
 

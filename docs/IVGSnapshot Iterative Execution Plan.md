@@ -62,8 +62,8 @@ IVGSnapshot: Iterative Single-Pass Execution Plan
 - [ ] Keep semantics for `--force-update`, `--threads`, `--verbose`, and `--exit-on-first-failure`, allowing per-file serial rounds but multi-file concurrency.
 
 ## TODO Error Handling
-- [ ] If no snapshots are pinned in a round but the script throws, treat it as non-fatal: discard the image and continue to the next file.
-- [ ] If a snapshot is pinned and rendering fails, record a failure for that specific entry.
+- [x] If no snapshots are pinned in a round but the script throws, treat it as non-fatal: discard the image and continue to the next file.
+- [x] If a snapshot is pinned and rendering fails, record a failure for that specific entry.
 
 ## TODO Data Structures (New or Changed)
 - [x] Define `SnapshotRoundState` (per round):
