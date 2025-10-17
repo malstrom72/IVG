@@ -87,11 +87,7 @@ size_t computeFreeHeapBytes();
 class SnapshotPlan;
 class SnapshotCollector;
 
-static const String& defaultSnapshotMetaKey()
-{
-	static const String SNAPSHOT_KEY("snapshot-1");
-	return SNAPSHOT_KEY;
-}
+static const String SNAPSHOT_META_KEY("snapshot-1");
 
 static std::vector<std::string> buildCollectorIncludeDirectories()
 {
@@ -649,7 +645,7 @@ public:
 public:
 	bool meta(Interpreter& interpreter, const String& key, const String& arguments)
 	{
-		if (key != defaultSnapshotMetaKey()) {
+		if (key != SNAPSHOT_META_KEY) {
 			return false;
 		}
 
@@ -812,9 +808,9 @@ public:
 public:
 		bool meta(Interpreter& interpreter, const String& key, const String& arguments)
 		{
-			if (key != defaultSnapshotMetaKey()) {
-				return IVGExecutorWithExternalFonts::meta(interpreter, key, arguments);
-			}
+		if (key != SNAPSHOT_META_KEY) {
+			return IVGExecutorWithExternalFonts::meta(interpreter, key, arguments);
+		}
 
 
 		ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
