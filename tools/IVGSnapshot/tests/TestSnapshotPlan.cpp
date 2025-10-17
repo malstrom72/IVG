@@ -1,324 +1,291 @@
 #define IVG_SNAPSHOT_TESTING 1
 #include "../IVGSnapshot.cpp"
 
+#include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <sstream>
 
 namespace {
 
-	void Fail(const std::string& message)
-	{
-		std::cerr << "TestSnapshotPlan: " << message << std::endl;
-		std::exit(1);
-	}
-
-	void Expect(bool condition, const std::string& message)
-	{
-		if (!condition) {
-			Fail(message);
-		}
-	}
-
-	void ExpectEqual(uint32_t actual, uint32_t expected, const std::string& label)
-	{
-		if (actual != expected) {
-			std::ostringstream stream;
-			stream << label << " expected " << expected << " but got " << actual;
-			Fail(stream.str());
-		}
-	}
-
-	void ExpectEqual(const String& actual, const std::string& expected, const std::string& label)
-	{
-		if (actual != expected) {
-			std::ostringstream stream;
-			stream << label << " expected '" << expected << "' but got '" << actual << "'";
-			Fail(stream.str());
-		}
-	}
-
-	SnapshotPlan CollectPlan(const std::string& path, const char* source)
-	{
-		String text(source);
-		SnapshotPlan plan(path);
-		std::vector<std::string> includeDirs;
-		SnapshotCollector collector(plan, path, text, includeDirs);
-		STLMapVariables variables;
-		FormatInfo formatInfo;
-		formatInfo.formatId = "meta";
-		formatInfo.uses.insert("snapshot-1");
-		Interpreter interpreter(collector, variables, formatInfo);
-
-		try {
-			interpreter.run(StringRange(text));
-		} catch (Exception& e) {
-			std::ostringstream stream;
-			stream << "unexpected exception: " << e.getError();
-			if (e.hasStatement()) {
-				stream << " near '" << e.getStatement() << "'";
-			}
-			Fail(stream.str());
-		}
-
-		return plan;
-	}
-
-	void TestExplicitScenario()
-	{
-			const char* source =
-			"meta snapshot scenario:one [ set fill red ]\n";
-		SnapshotPlan plan = CollectPlan("explicit.ivg", source);
-
-		const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
-		const std::vector<SnapshotEntry>& entries = plan.getEntries();
-
-		ExpectEqual(static_cast<uint32_t>(scenarios.size()), 1, "scenario count");
-		ExpectEqual(static_cast<uint32_t>(entries.size()), 1, "entry count");
-
-		const SnapshotScenario& scenario = scenarios[0];
-		ExpectEqual(scenario.name, "one", "scenario name");
-		Expect(scenario.validate, "scenario validate flag should default to true");
-		ExpectEqual(static_cast<uint32_t>(scenario.entryIndices.size()), 1, "scenario entry count");
-
-		const SnapshotEntry& entry = entries[scenario.entryIndices[0]];
-		ExpectEqual(entry.entryOrdinal, 1, "entry ordinal");
-		Expect(entry.validate, "entry validate flag");
-		ExpectEqual(entry.scenarioName, "one", "entry scenario name");
-		ExpectEqual(static_cast<uint32_t>(entry.invocations.size()), 1, "entry invocation count");
-		const SnapshotInvocation& invocation = entry.invocations[0];
-		ExpectEqual(invocation.blockIndex, 1, "invocation block index");
-		ExpectEqual(invocation.statementOrdinal, 1, "invocation statement ordinal");
-		ExpectEqual(invocation.sourceLine, 1, "invocation source line");
-			ExpectEqual(invocation.statements, "[ set fill red ]", "entry statements keep brackets");
-	}
-
-	void TestArrayStatements()
-	{
-			const char* source =
-			"meta snapshot scenario:array list:[ [ do-alpha ] [ do-beta ] [ do-gamma ] ]\n";
-		SnapshotPlan plan = CollectPlan("array.ivg", source);
-
-		const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
-		const std::vector<SnapshotEntry>& entries = plan.getEntries();
-
-		ExpectEqual(static_cast<uint32_t>(scenarios.size()), 1, "scenario count");
-		ExpectEqual(static_cast<uint32_t>(entries.size()), 3, "entry count");
-
-		const SnapshotScenario& scenario = scenarios[0];
-		ExpectEqual(static_cast<uint32_t>(scenario.entryIndices.size()), 3, "scenario entry count");
-
-		for (uint32_t i = 0; i < 3; ++i) {
-			const SnapshotEntry& entry = entries[scenario.entryIndices[i]];
-			ExpectEqual(entry.entryOrdinal, i + 1, "array entry ordinal");
-			ExpectEqual(static_cast<uint32_t>(entry.invocations.size()), 1, "array invocation count");
-			ExpectEqual(entry.scenarioName, "array", "array scenario name");
-			const SnapshotInvocation& invocation = entry.invocations[0];
-			ExpectEqual(invocation.blockIndex, 1, "array block index");
-			ExpectEqual(invocation.statementOrdinal, i + 1, "array statement ordinal");
-			ExpectEqual(invocation.sourceLine, 1, "array source line");
-			const std::string expected = (i == 0 ? "[ do-alpha ]" : (i == 1 ? "[ do-beta ]" : "[ do-gamma ]"));
-			ExpectEqual(invocation.statements, expected, "array entry statements");
-		}
-	}
-
-	void TestRepeatedScenario()
-	{
-		const char* source =
-		"meta snapshot scenario:smurf list:[ [ do-stuff ] [ do-other-stuff ] ]\n\n"
-		"meta snapshot scenario:smurf list:[ [ do-more-stuff ] [ do-more-other-stuff ] ]\n";
-		SnapshotPlan plan = CollectPlan("repeat.ivg", source);
-
-		const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
-		const std::vector<SnapshotEntry>& entries = plan.getEntries();
-
-		ExpectEqual(static_cast<uint32_t>(scenarios.size()), 1, "scenario count");
-		ExpectEqual(static_cast<uint32_t>(entries.size()), 2, "entry count");
-
-		const SnapshotScenario& scenario = scenarios[0];
-		ExpectEqual(static_cast<uint32_t>(scenario.entryIndices.size()), 2, "scenario entry count");
-
-		const SnapshotEntry& entryOne = entries[scenario.entryIndices[0]];
-		const SnapshotEntry& entryTwo = entries[scenario.entryIndices[1]];
-		ExpectEqual(static_cast<uint32_t>(entryOne.invocations.size()), 2, "entry one invocation count");
-		ExpectEqual(static_cast<uint32_t>(entryTwo.invocations.size()), 2, "entry two invocation count");
-		ExpectEqual(entryOne.invocations[0].blockIndex, 1, "entry one first block index");
-		ExpectEqual(entryOne.invocations[0].sourceLine, 1, "entry one first block line");
-		ExpectEqual(entryOne.invocations[1].blockIndex, 2, "entry one second block index");
-		ExpectEqual(entryOne.invocations[1].sourceLine, 3, "entry one second block line");
-		ExpectEqual(entryTwo.invocations[0].blockIndex, 1, "entry two first block index");
-		ExpectEqual(entryTwo.invocations[1].blockIndex, 2, "entry two second block index");
-	}
-
-void TestDefaultScenarioNames()
+void Fail(const std::string &message)
 {
-	const char* source =
-		"meta snapshot list:[ [ first ] [ second ] ]\n"
-		"meta snapshot [ third ]\n";
-	SnapshotPlan plan = CollectPlan("implicit.ivg", source);
-
-	const std::vector<SnapshotScenario>& scenarios = plan.getScenarios();
-	const std::vector<SnapshotEntry>& entries = plan.getEntries();
-
-	ExpectEqual(static_cast<uint32_t>(scenarios.size()), 3, "scenario count");
-	ExpectEqual(static_cast<uint32_t>(entries.size()), 3, "entry count");
-
-	ExpectEqual(scenarios[0].name, "implicit-1-1", "first implicit scenario name");
-	ExpectEqual(scenarios[1].name, "implicit-1-2", "second implicit scenario name");
-	ExpectEqual(scenarios[2].name, "implicit-2", "third implicit scenario name");
-
-	ExpectEqual(entries[scenarios[0].entryIndices[0]].entryOrdinal, 1, "first implicit entry ordinal");
-	ExpectEqual(entries[scenarios[1].entryIndices[0]].entryOrdinal, 1, "second implicit entry ordinal");
-	ExpectEqual(entries[scenarios[2].entryIndices[0]].entryOrdinal, 1, "third implicit entry ordinal");
+        std::cerr << "TestSnapshotPlan: " << message << std::endl;
+        std::exit(1);
 }
 
-
-
-void TestSnapshotSourceTags()
+void Expect(bool condition, const std::string &message)
 {
-	const NuXFiles::Path root = NuXFiles::Path::getCurrentDirectoryPath();
-	std::wstring rootWide;
-	try {
-		rootWide = root.getFullPath();
-	} catch (const std::exception&) {
-		Fail("failed to read current directory path");
-	}
-	std::wstring ivgWide = NuXFiles::Path::appendSeparator(rootWide);
-	ivgWide += L"alpha_beta";
-	ivgWide = NuXFiles::Path::appendSeparator(ivgWide);
-	ivgWide += L"gamma_delta.ivg";
-	const std::string ivgPath = pathStringFromWide(ivgWide);
-	const std::string relativeTag = buildSnapshotSourceTag(ivgPath, root);
-	Expect(relativeTag == "alpha__beta_gamma__delta", "root relative snapshot tag should escape underscores");
-
-	NuXFiles::Path parent;
-	if (root.isRoot()) {
-		Fail("cannot run absolute tag test from filesystem root");
-	}
-	try {
-		parent = root.getParent();
-	} catch (const std::exception&) {
-		Fail("failed to resolve parent directory for absolute tag test");
-	}
-	std::wstring outsideWide = NuXFiles::Path::appendSeparator(parent.getFullPath());
-	outsideWide += L"absolute_example.ivg";
-	const std::string outsidePath = pathStringFromWide(outsideWide);
-	const std::string absoluteTag = buildSnapshotSourceTag(outsidePath, root);
-	std::string normalized = outsidePath;
-	for (size_t i = 0; i < normalized.size(); ++i) {
-		if (normalized[i] == '\\') {
-			normalized[i] = '/';
-		}
-	}
-	const size_t dot = normalized.find_last_of('.');
-	if (dot != std::string::npos) {
-		normalized.resize(dot);
-	}
-	Expect(absoluteTag == sanitizeFileComponent(normalized), "outside root should sanitize absolute path");
+        if (!condition) {
+                Fail(message);
+        }
 }
 
+void ExpectEqual(uint32_t actual, uint32_t expected, const std::string &label)
+{
+        if (actual != expected) {
+                std::ostringstream stream;
+                stream << label << " expected " << expected << " but got " << actual;
+                Fail(stream.str());
+        }
+}
 
+void ExpectEqual(const std::string &actual, const std::string &expected, const std::string &label)
+{
+        if (actual != expected) {
+                std::ostringstream stream;
+                stream << label << " expected:\n" << expected << "\nbut got:\n" << actual;
+                Fail(stream.str());
+        }
+}
+
+std::string ReadFile(const std::string &path)
+{
+        std::ifstream input(path.c_str(), std::ios::binary);
+        if (!input.good()) {
+                Fail(std::string("failed to read file: ") + path);
+        }
+        std::ostringstream buffer;
+        buffer << input.rdbuf();
+        return buffer.str();
+}
+
+struct CapturedIO {
+        std::string out;
+        std::string err;
+};
+
+CapturedIO RunListOnlyTool(const std::string &path, SnapshotRunResult &outRun)
+{
+        CommandLineOptions options;
+        options.listOnly = true;
+
+        SnapshotTotals totals;
+        std::ostringstream outBuffer;
+        std::ostringstream errBuffer;
+
+        std::streambuf *oldOut = std::cout.rdbuf(outBuffer.rdbuf());
+        std::streambuf *oldErr = std::cerr.rdbuf(errBuffer.rdbuf());
+
+        outRun = processFile(options, path);
+        totals.accumulate(outRun);
+        logFileReport(path, outRun);
+        logTotalsSummary(totals);
+
+        std::cout.rdbuf(oldOut);
+        std::cerr.rdbuf(oldErr);
+
+        CapturedIO captured;
+        captured.out = outBuffer.str();
+        captured.err = errBuffer.str();
+        return captured;
+}
+
+void TestListOnlySample()
+{
+        const std::string ivgPath = "tools/IVGSnapshot/tests/ListOnlySample.ivg";
+        SnapshotRunResult run;
+        CapturedIO io = RunListOnlyTool(ivgPath, run);
+
+        Expect(run.exitCode == 0, "ListOnlySample run should succeed");
+        Expect(io.err.empty(), "ListOnlySample run should not print to stderr");
+        const std::string expected = ReadFile("tools/IVGSnapshot/tests/ListOnlySample.txt");
+        ExpectEqual(io.out, expected, "ListOnlySample list-only output");
+        ExpectEqual(run.totalEntries, static_cast<uint32_t>(3), "ListOnlySample entry count");
+        ExpectEqual(run.validatedEntries, static_cast<uint32_t>(3), "ListOnlySample validated count");
+}
+
+void TestListScenarioVariants()
+{
+        const std::string ivgPath = "tools/IVGSnapshot/tests/ListScenarioVariants.ivg";
+        SnapshotRunResult run;
+        CapturedIO io = RunListOnlyTool(ivgPath, run);
+
+        Expect(run.exitCode == 0, "ListScenarioVariants run should succeed");
+        Expect(io.err.empty(), "ListScenarioVariants run should not print to stderr");
+        const std::string expected = ReadFile("tools/IVGSnapshot/tests/ListScenarioVariants.txt");
+        ExpectEqual(io.out, expected, "ListScenarioVariants list-only output");
+        ExpectEqual(run.totalEntries, static_cast<uint32_t>(7), "ListScenarioVariants entry count");
+}
+
+void TestListVariableExpansion()
+{
+        const std::string ivgPath = "tools/IVGSnapshot/tests/ListVariableExpansion.ivg";
+        SnapshotRunResult run;
+        CapturedIO io = RunListOnlyTool(ivgPath, run);
+
+        Expect(run.exitCode == 0, "ListVariableExpansion run should succeed");
+        Expect(io.err.empty(), "ListVariableExpansion run should not print to stderr");
+        const std::string expected = ReadFile("tools/IVGSnapshot/tests/ListVariableExpansion.txt");
+        ExpectEqual(io.out, expected, "ListVariableExpansion list-only output");
+        ExpectEqual(run.totalEntries, static_cast<uint32_t>(4), "ListVariableExpansion entry count");
+}
+
+std::string WriteTemporaryIVG(const std::string &contents)
+{
+        char tempName[L_tmpnam];
+        if (std::tmpnam(tempName) == 0) {
+                Fail("failed to allocate temporary name");
+        }
+        std::string path(tempName);
+        path += ".ivg";
+        std::ofstream file(path.c_str(), std::ios::binary);
+        if (!file.good()) {
+                Fail(std::string("failed to open temporary file: ") + path);
+        }
+        file << contents;
+        file.close();
+        return path;
+}
 
 void TestValidateMismatch()
 {
-	const char* source =
-		"meta snapshot scenario:toggle validate:no list:[ [ draft ] ]\n"
-		"meta snapshot scenario:toggle list:[ [ validate ] ]\n";
+        const char *source =
+                "format ivg-3 uses:snapshot-1\n"
+                "bounds 0,0,16,16\n"
+                "meta snapshot scenario:toggle validate:no [ fill red ]\n"
+                "meta snapshot scenario:toggle validate:yes [ fill blue ]\n";
 
-	String textSource(source);
-	SnapshotPlan plan("mismatch.ivg");
-	std::vector<std::string> includeDirs;
-	SnapshotCollector collector(plan, "mismatch.ivg", textSource, includeDirs);
-	STLMapVariables variables;
-	FormatInfo formatInfo;
-	formatInfo.formatId = "meta";
-	formatInfo.uses.insert("snapshot-1");
-	Interpreter interpreter(collector, variables, formatInfo);
+        const std::string path = WriteTemporaryIVG(source);
 
-	bool caught = false;
-	try {
-		interpreter.run(StringRange(textSource));
-	} catch (Exception& e) {
-		caught = true;
-		Expect(e.getError() == "scenario switches between validate yes/no.", "validate mismatch error message");
-	}
-	Expect(caught, "validate mismatch should throw");
+        CommandLineOptions options;
+        options.listOnly = true;
+
+        std::ostringstream outBuffer;
+        std::ostringstream errBuffer;
+        std::streambuf *oldOut = std::cout.rdbuf(outBuffer.rdbuf());
+        std::streambuf *oldErr = std::cerr.rdbuf(errBuffer.rdbuf());
+        SnapshotRunResult run = processFile(options, path);
+        std::cout.rdbuf(oldOut);
+        std::cerr.rdbuf(oldErr);
+
+        std::remove(path.c_str());
+
+        Expect(run.fileFailed, "validate mismatch should mark file as failed");
+        Expect(run.exitCode == 1, "validate mismatch should set exit code");
+        Expect(run.fileError == "validate flag mismatch for scenario",
+                "validate mismatch should report correct error");
+        Expect(errBuffer.str().find("validate flag mismatch for scenario") != std::string::npos,
+                "validate mismatch should log error to stderr");
+}
+
+void TestSnapshotSourceTags()
+{
+        const NuXFiles::Path root = NuXFiles::Path::getCurrentDirectoryPath();
+        std::wstring rootWide;
+        try {
+                rootWide = root.getFullPath();
+        } catch (const std::exception &) {
+                Fail("failed to read current directory path");
+        }
+        std::wstring ivgWide = NuXFiles::Path::appendSeparator(rootWide);
+        ivgWide += L"alpha_beta";
+        ivgWide = NuXFiles::Path::appendSeparator(ivgWide);
+        ivgWide += L"gamma_delta.ivg";
+        const std::string ivgPath = pathStringFromWide(ivgWide);
+        const std::string relativeTag = buildSnapshotSourceTag(ivgPath, root);
+        Expect(relativeTag == "alpha__beta_gamma__delta",
+                "root relative snapshot tag should escape underscores");
+
+        NuXFiles::Path parent;
+        if (root.isRoot()) {
+                Fail("cannot run absolute tag test from filesystem root");
+        }
+        try {
+                parent = root.getParent();
+        } catch (const std::exception &) {
+                Fail("failed to resolve parent directory for absolute tag test");
+        }
+        std::wstring outsideWide = NuXFiles::Path::appendSeparator(parent.getFullPath());
+        outsideWide += L"absolute_example.ivg";
+        const std::string outsidePath = pathStringFromWide(outsideWide);
+        const std::string absoluteTag = buildSnapshotSourceTag(outsidePath, root);
+        std::string normalized = outsidePath;
+        for (size_t i = 0; i < normalized.size(); ++i) {
+                if (normalized[i] == '\\') {
+                        normalized[i] = '/';
+                }
+        }
+        const size_t dot = normalized.find_last_of('.');
+        if (dot != std::string::npos) {
+                normalized.resize(dot);
+        }
+        Expect(absoluteTag == sanitizeFileComponent(normalized),
+                "outside root should sanitize absolute path");
 }
 
 void TestDraftValidateWorkflow()
 {
-	const char* tempEnv = std::getenv("TMPDIR");
-	const std::string tempRoot = (tempEnv != 0 && tempEnv[0] != '\0') ? std::string(tempEnv) : std::string("/tmp");
+        const char *tempEnv = std::getenv("TMPDIR");
+        const std::string tempRoot =
+                (tempEnv != 0 && tempEnv[0] != '\0') ? std::string(tempEnv) : std::string("/tmp");
 
-	CommandLineOptions options;
-	options.snapshotDir = joinPath(tempRoot, "IVGSnapshotWorkflowTest");
-	options.forceUpdate = false;
+        CommandLineOptions options;
+        options.snapshotDir = joinPath(tempRoot, "IVGSnapshotWorkflowTest");
+        options.forceUpdate = false;
 
-	SnapshotScenario scenario;
-	scenario.name = "workflow";
-	scenario.validate = true;
-	scenario.entryIndices.push_back(0);
+        const String scenarioName("workflow");
+        SnapshotGolden golden("workflow.ivg", "workflow", scenarioName, false, 1, options);
 
-	SnapshotEntry entry;
-	entry.scenarioIndex = 0;
-	entry.entryOrdinal = 1;
-	entry.validate = true;
-	entry.scenarioName = "workflow";
+        SnapshotEntryResult paths;
+        golden.populateResult(paths);
+        Expect(ensureDirectory(extractDirectory(paths.goldenPath)),
+                "create workflow directory");
+        removeFileIfExists(paths.goldenPath);
+        removeFileIfExists(paths.oldPath);
+        removeFileIfExists(paths.actualPath);
+        removeFileIfExists(paths.diffPath);
+        removeFileIfExists(paths.backupPath);
 
-	SnapshotGolden golden("workflow.ivg", "workflow", scenario, entry, options);
+        NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> raster(NuXPixels::IntRect(0, 0, 1, 1));
+        raster.getPixelPointer()[0] = 0xFFFFFFFFu;
 
-	SnapshotEntryResult paths;
-	golden.populateResult(paths);
-	Expect(ensureDirectory(extractDirectory(paths.goldenPath)), "create workflow directory");
-	removeFileIfExists(paths.goldenPath);
-	removeFileIfExists(paths.oldPath);
-	removeFileIfExists(paths.actualPath);
-	removeFileIfExists(paths.diffPath);
-	removeFileIfExists(paths.backupPath);
+        SnapshotEntryResult draftResult;
+        Expect(golden.writeDraft(raster, draftResult), "draft write should succeed");
+        Expect(draftResult.success, "draft result success flag");
+        Expect(draftResult.skipped, "draft result skipped flag");
+        Expect(fileExists(draftResult.oldPath), "old draft file should exist");
+        Expect(!fileExists(draftResult.goldenPath),
+                "golden should not exist after draft");
 
-	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> raster(NuXPixels::IntRect(0, 0, 1, 1));
-	raster.getPixelPointer()[0] = 0xFFFFFFFFu;
+        SnapshotEntryResult validateResult;
+        Expect(golden.validate(raster, false, validateResult),
+                "validate should promote draft");
+        Expect(validateResult.success, "validate result success flag");
+        Expect(validateResult.updated, "validate should mark updated");
+        Expect(!validateResult.skipped, "validate should not be skipped");
+        Expect(fileExists(validateResult.goldenPath),
+                "golden should exist after validate");
+        Expect(!fileExists(validateResult.oldPath),
+                "old draft file should be removed");
+        Expect(validateResult.message.find("promoted draft image") != std::string::npos,
+                "validate should report promotion");
 
-	SnapshotEntryResult draftResult;
-	Expect(golden.writeDraft(raster, draftResult), "draft write should succeed");
-	Expect(draftResult.success, "draft result success flag");
-	Expect(draftResult.skipped, "draft result skipped flag");
-	Expect(fileExists(draftResult.oldPath), "old draft file should exist");
-	Expect(!fileExists(draftResult.goldenPath), "golden should not exist after draft");
+        SnapshotEntryResult secondResult;
+        Expect(golden.validate(raster, false, secondResult),
+                "second validate should compare against golden");
+        Expect(secondResult.success, "second validate success flag");
+        Expect(!secondResult.updated, "second validate should not mark updated");
+        Expect(!secondResult.diffed, "second validate should not diff");
+        Expect(secondResult.message.empty(), "second validate should not report message");
 
-	SnapshotEntryResult validateResult;
-	Expect(golden.validate(raster, false, validateResult), "validate should promote draft");
-	Expect(validateResult.success, "validate result success flag");
-	Expect(validateResult.updated, "validate should mark updated");
-	Expect(!validateResult.skipped, "validate should not be skipped");
-	Expect(fileExists(validateResult.goldenPath), "golden should exist after validate");
-	Expect(!fileExists(validateResult.oldPath), "old draft file should be removed");
-	Expect(validateResult.message.find("promoted draft image") != std::string::npos, "validate should report promotion");
-
-	SnapshotEntryResult secondResult;
-	Expect(golden.validate(raster, false, secondResult), "second validate should compare against golden");
-	Expect(secondResult.success, "second validate success flag");
-	Expect(!secondResult.updated, "second validate should not mark updated");
-	Expect(!secondResult.diffed, "second validate should not diff");
-	Expect(secondResult.message.empty(), "second validate should not report message");
-
-	removeFileIfExists(secondResult.goldenPath);
-	removeFileIfExists(secondResult.actualPath);
-	removeFileIfExists(secondResult.diffPath);
-	removeFileIfExists(secondResult.backupPath);
-	removeFileIfExists(paths.oldPath);
+        removeFileIfExists(secondResult.goldenPath);
+        removeFileIfExists(secondResult.actualPath);
+        removeFileIfExists(secondResult.diffPath);
+        removeFileIfExists(secondResult.backupPath);
+        removeFileIfExists(paths.oldPath);
 }
 
 } // namespace
 
 int main()
-	{
-	TestExplicitScenario();
-	TestArrayStatements();
-	TestRepeatedScenario();
-	TestDefaultScenarioNames();
-	TestSnapshotSourceTags();
-	TestValidateMismatch();
-	TestDraftValidateWorkflow();
-	return 0;
+{
+        TestListOnlySample();
+        TestListScenarioVariants();
+        TestListVariableExpansion();
+        TestValidateMismatch();
+        TestSnapshotSourceTags();
+        TestDraftValidateWorkflow();
+        return 0;
 }
