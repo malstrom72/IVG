@@ -10,7 +10,7 @@ IVGSnapshot: Iterative Single-Pass Execution Plan
         - [x] Single body via one positional argument
         - [x] Multiple bodies only via `list:[ [ ... ] [ ... ] ... ]`
 - [x] Maintain `--list-only` output as a stable, deterministic list identical to previous semantics.
-- [ ] Allow reduced per-file parallelism while keeping multi-file concurrency.
+- [x] Allow reduced per-file parallelism while keeping multi-file concurrency.
 
 ## TODO Terminology
 - [x] Confirm scenario definitions via `scenario:<name>` or implicit generation.
@@ -59,7 +59,7 @@ IVGSnapshot: Iterative Single-Pass Execution Plan
 
 ## TODO CLI Behavior
 - [x] Execute rounds without writing/validating images for `--list-only`. After the final round, print a merged listing of scenarios and entries in deterministic order with first-seen line numbers.
-- [ ] Keep semantics for `--force-update`, `--threads`, `--verbose`, and `--exit-on-first-failure`, allowing per-file serial rounds but multi-file concurrency.
+- [x] Keep semantics for `--force-update`, `--threads`, `--verbose`, and `--exit-on-first-failure`, allowing per-file serial rounds but multi-file concurrency.
 
 ## TODO Error Handling
 - [x] If no snapshots are pinned in a round but the script throws, treat it as non-fatal: discard the image and continue to the next file.

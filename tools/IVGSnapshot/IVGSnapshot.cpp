@@ -26,6 +26,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 **/
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <climits>
 #include <codecvt>
@@ -41,6 +42,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <locale>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -2568,6 +2570,33 @@ static SnapshotRunResult processFile(const CommandLineOptions &options,
         return run;
 }
 
+static uint32_t determineThreadCount(const CommandLineOptions &options,
+                                                                        size_t jobCount) {
+        if (jobCount == 0) {
+                return 1;
+        }
+
+        if (options.exitOnFirstFailure) {
+                return 1;
+        }
+
+        uint32_t threads = options.threads;
+        if (threads == 0) {
+                const unsigned int hardware = std::thread::hardware_concurrency();
+                threads = (hardware > 0 ? hardware : 1);
+        }
+
+        if (threads == 0) {
+                threads = 1;
+        }
+
+        if (threads > jobCount) {
+                threads = static_cast<uint32_t>(jobCount);
+        }
+
+        return (threads == 0 ? 1 : threads);
+}
+
 #if !defined(IVG_SNAPSHOT_TESTING)
 
 int main(int argc, char **argv) {
@@ -2576,24 +2605,95 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	SnapshotTotals totals;
-	int exitCode = 0;
-	for (size_t i = 0; i < options.ivgPaths.size(); ++i) {
-		const std::string &path = options.ivgPaths[i];
-		SnapshotRunResult run = processFile(options, path);
-		totals.accumulate(run);
-		logFileReport(path, run);
-		if (run.exitCode != 0 || run.fileFailed) {
-			if (exitCode == 0) {
-				exitCode = (run.exitCode != 0 ? run.exitCode : 1);
-			}
-			if (options.exitOnFirstFailure) {
-				break;
-			}
-		}
-	}
-	logTotalsSummary(totals);
-	return exitCode;
+        SnapshotTotals totals;
+        int exitCode = 0;
+        const size_t fileCount = options.ivgPaths.size();
+        const uint32_t threadCount = determineThreadCount(options, fileCount);
+
+        if (threadCount <= 1) {
+                for (size_t i = 0; i < fileCount; ++i) {
+                        const std::string &path = options.ivgPaths[i];
+                        SnapshotRunResult run = processFile(options, path);
+                        totals.accumulate(run);
+                        logFileReport(path, run);
+                        if (run.exitCode != 0 || run.fileFailed) {
+                                if (exitCode == 0) {
+                                        exitCode = (run.exitCode != 0 ? run.exitCode : 1);
+                                }
+                                if (options.exitOnFirstFailure) {
+                                        break;
+                                }
+                        }
+                }
+        } else {
+                std::vector<SnapshotRunResult> runs(fileCount);
+                std::vector<uint8_t> processed(fileCount, 0);
+                std::deque<size_t> pending;
+                for (size_t i = 0; i < fileCount; ++i) {
+                        pending.push_back(i);
+                }
+
+                std::mutex queueMutex;
+                std::atomic<bool> stop(false);
+                std::vector<std::thread> workers;
+                workers.reserve(threadCount);
+
+                for (uint32_t t = 0; t < threadCount; ++t) {
+                        workers.push_back(std::thread([&options, &pending, &queueMutex, &stop,
+                                                                                 &runs, &processed]() {
+                                while (true) {
+                                        if (stop.load()) {
+                                                break;
+                                        }
+
+                                        size_t index = static_cast<size_t>(-1);
+                                        {
+                                                std::lock_guard<std::mutex> lock(queueMutex);
+                                                if (stop.load() || pending.empty()) {
+                                                        break;
+                                                }
+                                                index = pending.front();
+                                                pending.pop_front();
+                                        }
+
+                                        const std::string &path = options.ivgPaths[index];
+                                        SnapshotRunResult run = processFile(options, path);
+                                        runs[index] = run;
+                                        processed[index] = 1;
+
+                                        if (options.exitOnFirstFailure &&
+                                                (run.exitCode != 0 || run.fileFailed)) {
+                                                stop.store(true);
+                                        }
+                                }
+                        }));
+                }
+
+                for (size_t i = 0; i < workers.size(); ++i) {
+                        workers[i].join();
+                }
+
+                for (size_t i = 0; i < fileCount; ++i) {
+                        if (!processed[i]) {
+                                continue;
+                        }
+
+                        const std::string &path = options.ivgPaths[i];
+                        SnapshotRunResult &run = runs[i];
+                        totals.accumulate(run);
+                        logFileReport(path, run);
+                        if (run.exitCode != 0 || run.fileFailed) {
+                                if (exitCode == 0) {
+                                        exitCode = (run.exitCode != 0 ? run.exitCode : 1);
+                                }
+                                if (options.exitOnFirstFailure) {
+                                        break;
+                                }
+                        }
+                }
+        }
+        logTotalsSummary(totals);
+        return exitCode;
 }
 
 #endif // !defined(IVG_SNAPSHOT_TESTING)
