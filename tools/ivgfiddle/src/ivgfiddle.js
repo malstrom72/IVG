@@ -181,7 +181,14 @@ function readUtf8FromHeap(offset, byteLength) {
 	const heap = Module.HEAPU8;
 	const end = offset + byteLength;
 	if (heapTextDecoder && typeof heap.subarray === "function") {
-		return heapTextDecoder.decode(heap.subarray(offset, end));
+		let decodeEnd = end;
+		for (let index = offset; index < end; ++index) {
+			if (heap[index] === 0) {
+				decodeEnd = index;
+				break;
+			}
+		}
+		return heapTextDecoder.decode(heap.subarray(offset, decodeEnd));
 	}
 	let result = "";
 	let index = offset;
