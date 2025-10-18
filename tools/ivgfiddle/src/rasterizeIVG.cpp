@@ -227,6 +227,13 @@ static bool parseValidateFlag(Interpreter& interpreter, const String* value)
 	return interpreter.toBool(*value);
 }
 
+struct ParsedSnapshotMeta {
+	bool validate;
+	bool hasScenario;
+	String scenario;
+	StringVector statements;
+};
+
 static StringVector parseSnapshotStatements(Interpreter& interpreter, ArgumentsContainer& args)
 {
 	const String* listArg = args.fetchOptional("list", false);
@@ -236,8 +243,29 @@ static StringVector parseSnapshotStatements(Interpreter& interpreter, ArgumentsC
 		interpreter.parseList(StringRange(expandedOuter), elements, false, false, 1, INT_MAX);
 		return elements;
 	}
+
 	return StringVector(1, args.fetchRequired(0, false));
 }
+
+static ParsedSnapshotMeta parseSnapshotMetaArguments(Interpreter& interpreter, const String& arguments)
+{
+	ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
+	ParsedSnapshotMeta result;
+	result.validate = parseValidateFlag(interpreter, args.fetchOptional("validate"));
+	const String* scenarioLabel = args.fetchOptional("scenario");
+	if (scenarioLabel != 0) {
+		result.hasScenario = true;
+		result.scenario = *scenarioLabel;
+	} else {
+		result.hasScenario = false;
+		result.scenario.clear();
+	}
+
+	result.statements = parseSnapshotStatements(interpreter, args);
+	args.throwIfAnyUnfetched();
+	return result;
+}
+
 
 struct SnapshotBlock {
 	bool validate;
@@ -649,18 +677,15 @@ public:
 			return false;
 		}
 
-		ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
+		ParsedSnapshotMeta parsed = parseSnapshotMetaArguments(interpreter, arguments);
 
 		SnapshotBlock block;
-		block.validate = parseValidateFlag(interpreter, args.fetchOptional("validate"));
-		const String* scenarioLabel = args.fetchOptional("scenario");
-		if (scenarioLabel != 0) {
-			block.scenario = *scenarioLabel;
+		block.validate = parsed.validate;
+		if (parsed.hasScenario) {
+			block.scenario = parsed.scenario;
 		}
-		block.statements = parseSnapshotStatements(interpreter, args);
+		block.statements = parsed.statements;
 		block.sourceLine = locateMetaLine();
-
-		args.throwIfAnyUnfetched();
 
 		const uint32_t blockOrdinal = plan.addBlock(interpreter, block);
 		executeCollectionInvocation(interpreter, blockOrdinal);
@@ -808,62 +833,57 @@ public:
 public:
 		bool meta(Interpreter& interpreter, const String& key, const String& arguments)
 		{
-		if (key != SNAPSHOT_META_KEY) {
-			return IVGExecutorWithExternalFonts::meta(interpreter, key, arguments);
-		}
-
-
-		ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
-		const String* validateFlag = args.fetchOptional("validate");
-		const bool blockValidate = parseValidateFlag(interpreter, validateFlag);
-		const String* scenarioLabel = args.fetchOptional("scenario");
-		const bool hasLabel = (scenarioLabel != 0);
-
-		const uint32_t blockOrdinal = ++nextBlockOrdinal;
-
-		const SnapshotInvocation* invocation = 0;
-		if (invocationCursor < entry.invocations.size()) {
-			const SnapshotInvocation& candidate = entry.invocations[invocationCursor];
-			if (candidate.blockIndex == blockOrdinal) {
-				invocation = &candidate;
-				++invocationCursor;
+			if (key != SNAPSHOT_META_KEY) {
+				return IVGExecutorWithExternalFonts::meta(interpreter, key, arguments);
 			}
-		}
 
-		const bool blockTargetsScenario = (scenario.explicitScenario ? (hasLabel && *scenarioLabel == scenario.name) : (!hasLabel && invocation != 0));
-		if (!blockTargetsScenario) {
-			args.throwIfAnyUnfetched();
-			if (invocation != 0) {
-				Interpreter::throwBadSyntax("unexpected snapshot invocation for scenario.");
+			ParsedSnapshotMeta parsed = parseSnapshotMetaArguments(interpreter, arguments);
+			const bool hasLabel = parsed.hasScenario;
+
+			const uint32_t blockOrdinal = ++nextBlockOrdinal;
+
+			const SnapshotInvocation* invocation = 0;
+			if (invocationCursor < entry.invocations.size()) {
+				const SnapshotInvocation& candidate = entry.invocations[invocationCursor];
+				if (candidate.blockIndex == blockOrdinal) {
+					invocation = &candidate;
+					++invocationCursor;
+				}
+			}
+
+			const bool blockTargetsScenario = (scenario.explicitScenario ? (hasLabel && parsed.scenario == scenario.name) : (!hasLabel && invocation != 0));
+			if (!blockTargetsScenario) {
+				if (invocation != 0) {
+					Interpreter::throwBadSyntax("unexpected snapshot invocation for scenario.");
+				}
+				return true;
+			}
+
+			if (invocation == 0) {
+				Interpreter::throwBadSyntax("missing snapshot invocation for scenario block.");
+			}
+
+			if (parsed.validate != entry.validate) {
+				Interpreter::throwBadSyntax("snapshot validate flag changed between collection and playback.");
+			}
+
+			StringVector statements = parsed.statements;
+			if (invocation->statementOrdinal == 0 || invocation->statementOrdinal > statements.size()) {
+				Interpreter::throwBadSyntax("snapshot statement ordinal exceeds available entries.");
+			}
+
+			const String& statementBody = statements[invocation->statementOrdinal - 1];
+			if (statementBody != invocation->statements) {
+				Interpreter::throwBadSyntax("snapshot statements changed between collection and playback.");
+			}
+
+			const StringRange trimmed = trimRange(StringRange(statementBody));
+			if (trimmed.b != trimmed.e) {
+				interpreter.run(trimmed);
 			}
 			return true;
 		}
 
-		if (invocation == 0) {
-			Interpreter::throwBadSyntax("missing snapshot invocation for scenario block.");
-		}
-
-		if (blockValidate != entry.validate) {
-			Interpreter::throwBadSyntax("snapshot validate flag changed between collection and playback.");
-		}
-
-		StringVector statements = parseSnapshotStatements(interpreter, args);
-		if (invocation->statementOrdinal == 0 || invocation->statementOrdinal > statements.size()) {
-			Interpreter::throwBadSyntax("snapshot statement ordinal exceeds available entries.");
-		}
-
-		const String& statementBody = statements[invocation->statementOrdinal - 1];
-		if (statementBody != invocation->statements) {
-			Interpreter::throwBadSyntax("snapshot statements changed between collection and playback.");
-		}
-
-		args.throwIfAnyUnfetched();
-		const StringRange trimmed = trimRange(StringRange(statementBody));
-		if (trimmed.b != trimmed.e) {
-			interpreter.run(trimmed);
-		}
-		return true;
-	}
 
 public:
 	bool finished() const
