@@ -166,6 +166,63 @@ const snapshotScenarioSelect = document.getElementById("snapshotScenarioSelect")
 const ivgCanvas = document.getElementById("ivgCanvas");
 const ivgContext = ivgCanvas.getContext("2d");
 const MIN_LEFT_PANEL_WIDTH = 250;
+const heapTextDecoder = typeof TextDecoder !== "undefined" ? new TextDecoder("utf-8") : null;
+
+function readUtf8FromHeap(offset, byteLength) {
+	if (!Module || !Module.HEAPU8 || !Number.isInteger(offset) || !Number.isInteger(byteLength) || byteLength <= 0) {
+		return "";
+	}
+	if (typeof Module.UTF8ArrayToString === "function") {
+		return Module.UTF8ArrayToString(Module.HEAPU8, offset, byteLength);
+	}
+	if (typeof UTF8ArrayToString === "function") {
+		return UTF8ArrayToString(Module.HEAPU8, offset, byteLength);
+	}
+	const heap = Module.HEAPU8;
+	const end = offset + byteLength;
+	if (heapTextDecoder && typeof heap.subarray === "function") {
+		let decodeEnd = end;
+		for (let index = offset; index < end; ++index) {
+			if (heap[index] === 0) {
+				decodeEnd = index;
+				break;
+			}
+		}
+		return heapTextDecoder.decode(heap.subarray(offset, decodeEnd));
+	}
+	let result = "";
+	let index = offset;
+	while (index < end) {
+		let u0 = heap[index++];
+		if (u0 === 0) {
+			break;
+		}
+		if ((u0 & 0x80) === 0) {
+			result += String.fromCharCode(u0);
+			continue;
+		}
+		if ((u0 & 0xe0) === 0xc0 && index < end) {
+			const u1 = heap[index++] & 0x3f;
+			result += String.fromCharCode(((u0 & 0x1f) << 6) | u1);
+			continue;
+		}
+		if ((u0 & 0xf0) === 0xe0 && index + 1 < end) {
+			const u1 = heap[index++] & 0x3f;
+			const u2 = heap[index++] & 0x3f;
+			result += String.fromCharCode(((u0 & 0x0f) << 12) | (u1 << 6) | u2);
+			continue;
+		}
+		if (index + 2 < end) {
+			const u1 = heap[index++] & 0x3f;
+			const u2 = heap[index++] & 0x3f;
+			const u3 = heap[index++] & 0x3f;
+			let codePoint = ((u0 & 0x07) << 18) | (u1 << 12) | (u2 << 6) | u3;
+			codePoint -= 0x10000;
+			result += String.fromCharCode(0xd800 | (codePoint >> 10), 0xdc00 | (codePoint & 0x3ff));
+		}
+	}
+	return result;
+}
 
 const STORAGE_KEYS = Object.freeze({
 	SOURCE: "ivgSource",
@@ -1763,7 +1820,7 @@ function runIVG(reason) {
 						const pixelOffset = rasterPointer + 8 * 4;
 						const catalogOffset = pixelOffset + pixelBytes;
 						const pixelData = new Uint8Array(heapBuffer, pixelOffset, pixelBytes);
-						const snapshotCatalogJson = catalogBytes > 0 ? Module.UTF8ArrayToString(Module.HEAPU8, catalogOffset, catalogBytes) : "";
+						const snapshotCatalogJson = catalogBytes > 0 ? readUtf8FromHeap(catalogOffset, catalogBytes) : "";
 						const DEFAULT_SELECTION_SENTINEL = 0xffffffff;
 						const normalizedScenarioIndex = defaultScenarioIndex === DEFAULT_SELECTION_SENTINEL ? -1 : defaultScenarioIndex;
 						const normalizedEntryOrdinal = defaultEntryOrdinal === DEFAULT_SELECTION_SENTINEL ? -1 : defaultEntryOrdinal;
