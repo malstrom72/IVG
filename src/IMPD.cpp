@@ -57,7 +57,7 @@ static size_t convertUTF32ToUTF16(size_t utf32Size, const UniChar* utf32Chars, u
 	for (size_t i = 0; i < utf32Size; ++i) {
 		const UniChar c = utf32Chars[i];
 		if ((c >> 16) == 0) {
-			utf16Chars[outIndex] = c;
+			utf16Chars[outIndex] = static_cast<uint16_t>(c);
 			++outIndex;
 		} else {
 			utf16Chars[outIndex] = static_cast<uint16_t>(((c - 0x10000) >> 10) + 0xD800);
