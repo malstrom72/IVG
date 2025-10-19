@@ -837,8 +837,11 @@ public:
 				return IVGExecutorWithExternalFonts::meta(interpreter, key, arguments);
 			}
 
-			ParsedSnapshotMeta parsed = parseSnapshotMetaArguments(interpreter, arguments);
-			const bool hasLabel = parsed.hasScenario;
+			ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
+			const String* validateFlag = args.fetchOptional("validate");
+			const bool blockValidate = parseValidateFlag(interpreter, validateFlag);
+			const String* scenarioLabel = args.fetchOptional("scenario");
+			const bool hasLabel = (scenarioLabel != 0);
 
 			const uint32_t blockOrdinal = ++nextBlockOrdinal;
 
@@ -851,8 +854,9 @@ public:
 				}
 			}
 
-			const bool blockTargetsScenario = (scenario.explicitScenario ? (hasLabel && parsed.scenario == scenario.name) : (!hasLabel && invocation != 0));
+			const bool blockTargetsScenario = (scenario.explicitScenario ? (hasLabel && *scenarioLabel == scenario.name) : (!hasLabel && invocation != 0));
 			if (!blockTargetsScenario) {
+				args.throwIfAnyUnfetched();
 				if (invocation != 0) {
 					Interpreter::throwBadSyntax("unexpected snapshot invocation for scenario.");
 				}
@@ -863,11 +867,11 @@ public:
 				Interpreter::throwBadSyntax("missing snapshot invocation for scenario block.");
 			}
 
-			if (parsed.validate != entry.validate) {
+			if (blockValidate != entry.validate) {
 				Interpreter::throwBadSyntax("snapshot validate flag changed between collection and playback.");
 			}
 
-			StringVector statements = parsed.statements;
+			StringVector statements = parseSnapshotStatements(interpreter, args);
 			if (invocation->statementOrdinal == 0 || invocation->statementOrdinal > statements.size()) {
 				Interpreter::throwBadSyntax("snapshot statement ordinal exceeds available entries.");
 			}
@@ -876,6 +880,8 @@ public:
 			if (statementBody != invocation->statements) {
 				Interpreter::throwBadSyntax("snapshot statements changed between collection and playback.");
 			}
+
+			args.throwIfAnyUnfetched();
 
 			const StringRange trimmed = trimRange(StringRange(statementBody));
 			if (trimmed.b != trimmed.e) {
