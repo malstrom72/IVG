@@ -117,10 +117,10 @@ function toggleClass(element, className, shouldHave) {
 }
 
 const Settings = (function createSettingsAdapter() {
-	function read(key, fallback) {
-		try {
-			const value = localStorage.getItem(key);
-			return value === null ? fallback : value;
+		function read(key, fallback) {
+				try {
+						const value = localStorage.getItem(key);
+						return value === null ? fallback : value;
 		} catch (error) {
 			return fallback;
 		}
@@ -138,10 +138,10 @@ const Settings = (function createSettingsAdapter() {
 		}
 	}
 
-	return {
-		read: read,
-		write: write,
-	};
+		return {
+				read: read,
+				write: write,
+		};
 })();
 
 const leftPanelElement = document.getElementById("leftPanel");
@@ -161,14 +161,68 @@ const backgroundOverlay = document.getElementById("backgroundOverlay");
 const backgroundDialog = document.getElementById("backgroundDialog");
 const backgroundCloseButton = document.getElementById("backgroundCloseButton");
 const backgroundSwatchContainer = document.getElementById("backgroundSwatchContainer");
+const snapshotToolbarGroup = document.getElementById("snapshotToolbarGroup");
+const snapshotScenarioSelect = document.getElementById("snapshotScenarioSelect");
 const ivgCanvas = document.getElementById("ivgCanvas");
 const ivgContext = ivgCanvas.getContext("2d");
 const MIN_LEFT_PANEL_WIDTH = 250;
+const heapTextDecoder = typeof TextDecoder !== "undefined" ? new TextDecoder("utf-8") : null;
 
-let rasterizeInProgress = false;
-let rerunQueuedWhileBusy = false;
-let rerunQueuedReason = "";
-let lastRasterizedSourceSignature = null;
+function readUtf8FromHeap(offset, byteLength) {
+	if (!Module || !Module.HEAPU8 || !Number.isInteger(offset) || !Number.isInteger(byteLength) || byteLength <= 0) {
+		return "";
+	}
+	if (typeof Module.UTF8ArrayToString === "function") {
+		return Module.UTF8ArrayToString(Module.HEAPU8, offset, byteLength);
+	}
+	if (typeof UTF8ArrayToString === "function") {
+		return UTF8ArrayToString(Module.HEAPU8, offset, byteLength);
+	}
+	const heap = Module.HEAPU8;
+	const end = offset + byteLength;
+	if (heapTextDecoder && typeof heap.subarray === "function") {
+		let decodeEnd = end;
+		for (let index = offset; index < end; ++index) {
+			if (heap[index] === 0) {
+				decodeEnd = index;
+				break;
+			}
+		}
+		return heapTextDecoder.decode(heap.subarray(offset, decodeEnd));
+	}
+	let result = "";
+	let index = offset;
+	while (index < end) {
+		let u0 = heap[index++];
+		if (u0 === 0) {
+			break;
+		}
+		if ((u0 & 0x80) === 0) {
+			result += String.fromCharCode(u0);
+			continue;
+		}
+		if ((u0 & 0xe0) === 0xc0 && index < end) {
+			const u1 = heap[index++] & 0x3f;
+			result += String.fromCharCode(((u0 & 0x1f) << 6) | u1);
+			continue;
+		}
+		if ((u0 & 0xf0) === 0xe0 && index + 1 < end) {
+			const u1 = heap[index++] & 0x3f;
+			const u2 = heap[index++] & 0x3f;
+			result += String.fromCharCode(((u0 & 0x0f) << 12) | (u1 << 6) | u2);
+			continue;
+		}
+		if (index + 2 < end) {
+			const u1 = heap[index++] & 0x3f;
+			const u2 = heap[index++] & 0x3f;
+			const u3 = heap[index++] & 0x3f;
+			let codePoint = ((u0 & 0x07) << 18) | (u1 << 12) | (u2 << 6) | u3;
+			codePoint -= 0x10000;
+			result += String.fromCharCode(0xd800 | (codePoint >> 10), 0xdc00 | (codePoint & 0x3ff));
+		}
+	}
+	return result;
+}
 
 const STORAGE_KEYS = Object.freeze({
 	SOURCE: "ivgSource",
@@ -176,7 +230,294 @@ const STORAGE_KEYS = Object.freeze({
 	ZOOM_LEVEL: "ivgZoomLevel",
 	BACKGROUND_COLOR: "ivgBackgroundColor",
 	VECTOR_SCALING: "ivgVectorScaling",
+	SNAPSHOT_SELECTION: "ivgSnapshotSelection",
 });
+
+const SnapshotController = (function createSnapshotController() {
+	let catalog = null;
+	let defaultSelection = null;
+	let activeSelection = null;
+	let activeSourceSignature = "";
+	const catalogCache = new Map();
+	const selectionCache = new Map();
+	let persistedKey = Settings.read(STORAGE_KEYS.SNAPSHOT_SELECTION, "");
+
+	function selectionKey(selection) {
+		if (!selection) {
+			return "";
+		}
+		return String(selection.scenarioIndex) + ":" + String(selection.entryOrdinal);
+	}
+
+	function selectionFromKey(key) {
+		if (typeof key !== "string" || key.length === 0) {
+			return null;
+		}
+		const parts = key.split(":");
+		if (parts.length !== 2) {
+			return null;
+		}
+		const scenarioIndex = parseInt(parts[0], 10);
+		const entryOrdinal = parseInt(parts[1], 10);
+		if (!Number.isInteger(scenarioIndex) || !Number.isInteger(entryOrdinal)) {
+			return null;
+		}
+		return { scenarioIndex: scenarioIndex, entryOrdinal: entryOrdinal };
+	}
+
+	function parseCatalog(jsonText) {
+		if (typeof jsonText !== "string" || jsonText.length === 0) {
+			return null;
+		}
+		try {
+			const parsed = JSON.parse(jsonText);
+			if (!parsed || typeof parsed !== "object") {
+				return null;
+			}
+			return parsed;
+		} catch (error) {
+			return null;
+		}
+	}
+
+	function buildOptionLabel(scenario, entry) {
+		const scenarioName = typeof scenario.name === "string" && scenario.name.length > 0 ? scenario.name : "Scenario " + scenario.index;
+		if (scenario.explicit === false && (!scenario.entries || scenario.entries.length <= 1)) {
+			return scenarioName;
+		}
+		const listIndex = Number.isInteger(entry.listIndex) ? entry.listIndex : entry.entryOrdinal - 1;
+		return scenarioName + " #" + String(listIndex);
+	}
+
+	function selectionsEqual(a, b) {
+		if (!a || !b) {
+			return false;
+		}
+		return a.scenarioIndex === b.scenarioIndex && a.entryOrdinal === b.entryOrdinal;
+	}
+
+	function buildOptions(parsedCatalog) {
+		const options = [];
+		if (!parsedCatalog || !Array.isArray(parsedCatalog.scenarios)) {
+			return options;
+		}
+		for (let i = 0; i < parsedCatalog.scenarios.length; ++i) {
+			const scenario = parsedCatalog.scenarios[i];
+			if (!scenario || !Array.isArray(scenario.entries)) {
+				continue;
+			}
+			for (let j = 0; j < scenario.entries.length; ++j) {
+				const entry = scenario.entries[j];
+				if (!entry) {
+					continue;
+				}
+				options.push({
+					value: String(scenario.index) + ":" + String(entry.entryOrdinal),
+					label: buildOptionLabel(scenario, entry),
+					scenarioIndex: scenario.index,
+					entryOrdinal: entry.entryOrdinal,
+				});
+			}
+		}
+		return options;
+	}
+
+	function selectionExists(options, selection) {
+		if (!selection || !options) {
+			return false;
+		}
+		for (let i = 0; i < options.length; ++i) {
+			if (options[i].scenarioIndex === selection.scenarioIndex && options[i].entryOrdinal === selection.entryOrdinal) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	function applyPersistedSelection(options) {
+		if (!persistedKey || options.length === 0) {
+			return null;
+		}
+		const persisted = selectionFromKey(persistedKey);
+		if (persisted === null) {
+			return null;
+		}
+		for (let i = 0; i < options.length; ++i) {
+			if (options[i].scenarioIndex === persisted.scenarioIndex && options[i].entryOrdinal === persisted.entryOrdinal) {
+				return persisted;
+			}
+		}
+		return null;
+	}
+
+	function updateToolbar(options) {
+		if (!snapshotToolbarGroup || !snapshotScenarioSelect) {
+			return;
+		}
+		if (!options || options.length === 0) {
+			snapshotToolbarGroup.classList.add("is-hidden");
+			snapshotScenarioSelect.disabled = true;
+			snapshotScenarioSelect.innerHTML = "";
+			return;
+		}
+		snapshotToolbarGroup.classList.remove("is-hidden");
+		snapshotScenarioSelect.disabled = false;
+		snapshotScenarioSelect.innerHTML = "";
+		for (let i = 0; i < options.length; ++i) {
+			const option = document.createElement("option");
+			option.value = options[i].value;
+			option.textContent = options[i].label;
+			snapshotScenarioSelect.appendChild(option);
+		}
+		const key = selectionKey(activeSelection);
+		if (key !== "") {
+			snapshotScenarioSelect.value = key;
+		} else if (options.length > 0) {
+			snapshotScenarioSelect.value = options[0].value;
+		}
+	}
+
+	function applyRenderResult(params) {
+		const parsed = parseCatalog(params.catalogJson);
+		catalog = parsed;
+		if (activeSourceSignature) {
+			catalogCache.set(activeSourceSignature, parsed);
+		}
+		const executedSelection = Number.isInteger(params.defaultScenarioIndex) && Number.isInteger(params.defaultEntryOrdinal) && params.defaultScenarioIndex >= 0 && params.defaultEntryOrdinal >= 0
+			? {
+				scenarioIndex: params.defaultScenarioIndex >>> 0,
+				entryOrdinal: params.defaultEntryOrdinal >>> 0,
+			}
+			: null;
+		const catalogDefault = parsed && Number.isInteger(parsed.defaultScenarioIndex) && Number.isInteger(parsed.defaultEntryOrdinal) && parsed.defaultScenarioIndex >= 0 && parsed.defaultEntryOrdinal >= 0
+			? {
+				scenarioIndex: parsed.defaultScenarioIndex >>> 0,
+				entryOrdinal: parsed.defaultEntryOrdinal >>> 0,
+			}
+			: null;
+		defaultSelection = executedSelection;
+
+		const options = buildOptions(parsed);
+		if (!selectionExists(options, activeSelection)) {
+			activeSelection = null;
+		}
+
+		let nextSelection = activeSelection;
+		if (!nextSelection && options.length > 0) {
+			const persisted = applyPersistedSelection(options);
+			if (persisted) {
+				nextSelection = persisted;
+			} else if (executedSelection && selectionExists(options, executedSelection)) {
+				nextSelection = executedSelection;
+			} else if (catalogDefault && selectionExists(options, catalogDefault)) {
+				nextSelection = catalogDefault;
+			}
+		}
+		activeSelection = nextSelection;
+		if (!activeSelection && activeSourceSignature) {
+			const cachedSelection = selectionCache.get(activeSourceSignature) || null;
+			if (cachedSelection && selectionExists(options, cachedSelection)) {
+				activeSelection = cachedSelection;
+			}
+		}
+		persistedKey = selectionKey(activeSelection);
+		Settings.write(STORAGE_KEYS.SNAPSHOT_SELECTION, persistedKey);
+		if (activeSourceSignature) {
+			selectionCache.set(activeSourceSignature, activeSelection);
+		}
+		const scenarioCount = parsed && Array.isArray(parsed.scenarios) ? parsed.scenarios.length : 0;
+		const entriesCount = options.length;
+		trace(
+			"Snapshot catalog: " +
+				scenarioCount +
+				" scenario" +
+				(scenarioCount === 1 ? "" : "s") +
+				", " +
+				entriesCount +
+				" entr" +
+				(entriesCount === 1 ? "y" : "ies"),
+		);
+		updateToolbar(options);
+	}
+
+	function handleSelectionChange(value) {
+		const next = selectionFromKey(value);
+		if (next === null) {
+			return false;
+		}
+		if (activeSelection && selectionsEqual(activeSelection, next)) {
+			return false;
+		}
+		activeSelection = next;
+		const key = selectionKey(activeSelection);
+		persistedKey = key;
+		Settings.write(STORAGE_KEYS.SNAPSHOT_SELECTION, persistedKey);
+		if (activeSourceSignature) {
+			selectionCache.set(activeSourceSignature, activeSelection);
+		}
+		if (
+			snapshotScenarioSelect &&
+			key !== "" &&
+			snapshotScenarioSelect.value !== key
+		) {
+			snapshotScenarioSelect.value = key;
+		}
+		trace(
+			"Snapshot selection changed to scenario " +
+				next.scenarioIndex +
+			", entry " +
+				next.entryOrdinal,
+		);
+		return true;
+	}
+
+	function prepareForRender(signature, changed) {
+		const normalizedSignature = typeof signature === "string" ? signature : "";
+		const effectiveChange = changed || activeSourceSignature !== normalizedSignature;
+		if (!effectiveChange) {
+			return;
+		}
+		activeSourceSignature = normalizedSignature;
+		catalog = catalogCache.get(activeSourceSignature) || null;
+		defaultSelection = null;
+		activeSelection = selectionCache.get(activeSourceSignature) || null;
+		if (activeSelection) {
+			trace(
+				"Snapshot source updated; reusing cached selection scenario " +
+					activeSelection.scenarioIndex +
+					", entry " +
+					activeSelection.entryOrdinal,
+			);
+		} else if (activeSourceSignature) {
+			trace("Snapshot source updated; awaiting catalog for signature " + activeSourceSignature + ".");
+		}
+	}
+
+	function getSelectionForRender() {
+		return activeSelection;
+	}
+
+	updateToolbar([]);
+	return {
+		applyRenderResult: applyRenderResult,
+		handleSelectionChange: handleSelectionChange,
+		prepareForRender: prepareForRender,
+		getSelectionForRender: getSelectionForRender,
+	};
+})();
+
+if (snapshotScenarioSelect !== null) {
+		snapshotScenarioSelect.addEventListener("change", function handleSnapshotChange() {
+				if (SnapshotController.handleSelectionChange(snapshotScenarioSelect.value)) {
+						runIVG("snapshot selection changed");
+				}
+		});
+}
+
+let rasterizeInProgress = false;
+let rerunQueuedWhileBusy = false;
+let rerunQueuedReason = "";
+let lastRasterizedSourceSignature = null;
 
 const BACKGROUND_COLORS = Object.freeze([
 	{ value: "black", label: "Black", preview: "#000000" },
@@ -1210,23 +1551,18 @@ function trace(message) {
 }
 
 // Can't use cwrap to pass very long strings, as they are placed on the stackm and not the heap.
-const rasterizeIVG = function (source, scaling) {
-	const size = Module.lengthBytesUTF8(source) + 1;
-	const stringPointer = Module._malloc(size);
-	Module.stringToUTF8(source, stringPointer, size);
-	const result = Module._rasterizeIVG(stringPointer, scaling);
-	Module._free(stringPointer);
-	return result;
+const rasterizeIVG = function (source, scaling, scenarioIndex, entryOrdinal) {
+		const size = Module.lengthBytesUTF8(source) + 1;
+		const stringPointer = Module._malloc(size);
+		Module.stringToUTF8(source, stringPointer, size);
+		const selectedScenarioIndex = Number.isInteger(scenarioIndex) ? scenarioIndex : -1;
+		const selectedEntryOrdinal = Number.isInteger(entryOrdinal) ? entryOrdinal : -1;
+		const result = Module._rasterizeIVG(stringPointer, scaling, selectedScenarioIndex, selectedEntryOrdinal);
+		Module._free(stringPointer);
+		return result;
 };
 function deallocatePixels(pixelsPointer) {
 	Module._deallocatePixels(pixelsPointer);
-}
-
-function heapU32(Module) {
-	if (Module.HEAPU32) return Module.HEAPU32;
-	const mem = Module.wasmMemory || (Module.asm && Module.asm.memory) || Module.memory;
-	if (!mem) throw new Error("No wasm memory found on Module");
-	return new Uint32Array(mem.buffer);
 }
 
 /**
@@ -1271,6 +1607,7 @@ function runIVG(reason) {
 	let ok = false;
 	const zoomLevel = ZoomController.getZoom();
 	const vectorRescaleEnabled = ZoomController.isVectorScalingEnabled();
+	SnapshotController.prepareForRender(sourceSignature, sourceChanged);
 	if (sourceChanged) {
 		ZoomController.invalidateBaseMetrics();
 	}
@@ -1461,38 +1798,55 @@ function runIVG(reason) {
 		}
 		let rasterPointer = 0;
 		let end = Date.now();
-		if (!skipVectorRaster) {
-			rasterPointer = rasterizeIVG(sourceCode, rasterScale);
-			end = Date.now();
-		}
-		if (!skipVectorRaster && rasterPointer !== 0) {
-			const heap = heapU32(Module).buffer;
-			let dimensions = new Int32Array(heap, rasterPointer, 4);
-			const left = dimensions[0];
-			const top = dimensions[1];
-			const width = dimensions[2];
-			const height = dimensions[3];
-			dimensions = null;
-			let pixelData = new Uint8Array(heap, rasterPointer + 4 * 4, width * height * 4);
-			deallocatePixels(rasterPointer);
-			ivgCanvas.width = width;
-			ivgCanvas.height = height;
-			const imageData = ivgContext.createImageData(width, height);
-			imageData.data.set(pixelData);
-			pixelData = null;
-			const cssWidth = width / pixelRatio;
-			const cssHeight = height / pixelRatio;
-			const translateX = left / pixelRatio;
-			const translateY = top / pixelRatio;
-			ZoomController.setCanvasMetrics({
-				width: cssWidth,
-				height: cssHeight,
-				translateX: translateX,
-				translateY: translateY,
-				zoomApplied: renderZoom,
-				vectorRenderLimit: vectorRenderLimit,
-			});
-			ivgContext.putImageData(imageData, 0, 0);
+				if (!skipVectorRaster) {
+						const snapshotSelection = SnapshotController.getSelectionForRender();
+						const selectionScenarioIndex = snapshotSelection && Number.isInteger(snapshotSelection.scenarioIndex) ? snapshotSelection.scenarioIndex : -1;
+						const selectionEntryOrdinal = snapshotSelection && Number.isInteger(snapshotSelection.entryOrdinal) ? snapshotSelection.entryOrdinal : -1;
+						rasterPointer = rasterizeIVG(sourceCode, rasterScale, selectionScenarioIndex, selectionEntryOrdinal);
+						end = Date.now();
+				}
+				if (!skipVectorRaster && rasterPointer !== 0) {
+						const heapBuffer = Module.HEAPU8.buffer;
+						const headerSigned = new Int32Array(heapBuffer, rasterPointer, 4);
+						const left = headerSigned[0];
+						const top = headerSigned[1];
+						const width = headerSigned[2];
+						const height = headerSigned[3];
+						const header = new Uint32Array(heapBuffer, rasterPointer, 8);
+						const pixelBytes = header[4];
+						const catalogBytes = header[5];
+						const defaultScenarioIndex = header[6];
+						const defaultEntryOrdinal = header[7];
+						const pixelOffset = rasterPointer + 8 * 4;
+						const catalogOffset = pixelOffset + pixelBytes;
+						const pixelData = new Uint8Array(heapBuffer, pixelOffset, pixelBytes);
+						const snapshotCatalogJson = catalogBytes > 0 ? readUtf8FromHeap(catalogOffset, catalogBytes) : "";
+						const DEFAULT_SELECTION_SENTINEL = 0xffffffff;
+						const normalizedScenarioIndex = defaultScenarioIndex === DEFAULT_SELECTION_SENTINEL ? -1 : defaultScenarioIndex;
+						const normalizedEntryOrdinal = defaultEntryOrdinal === DEFAULT_SELECTION_SENTINEL ? -1 : defaultEntryOrdinal;
+						ivgCanvas.width = width;
+						ivgCanvas.height = height;
+						const imageData = ivgContext.createImageData(width, height);
+						imageData.data.set(pixelData);
+						deallocatePixels(rasterPointer);
+						const cssWidth = width / pixelRatio;
+						const cssHeight = height / pixelRatio;
+						const translateX = left / pixelRatio;
+						const translateY = top / pixelRatio;
+						ZoomController.setCanvasMetrics({
+								width: cssWidth,
+								height: cssHeight,
+								translateX: translateX,
+								translateY: translateY,
+								zoomApplied: renderZoom,
+								vectorRenderLimit: vectorRenderLimit,
+						});
+						SnapshotController.applyRenderResult({
+								catalogJson: snapshotCatalogJson,
+								defaultScenarioIndex: normalizedScenarioIndex,
+								defaultEntryOrdinal: normalizedEntryOrdinal,
+						});
+						ivgContext.putImageData(imageData, 0, 0);
 			trace("Completed IVG");
 			trace("Time spent: " + (end - start) + "ms");
 			ok = true;
