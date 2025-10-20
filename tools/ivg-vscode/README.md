@@ -103,7 +103,8 @@ On Windows, use the companion script:
 scripts\sync-assets.cmd --build
 ```
 
-Both scripts rebuild IVGFiddle when `--build` is supplied and perform a clean copy into `media/`.
+Both scripts rebuild IVGFiddle when `--build` is supplied and copy the generated rasterizer into `media/`. The extension-specific
+`setupModule.js` loader remains untouched so the VS Code preview handshake stays intact.
 
 ## Capturing Screenshots or GIFs
 

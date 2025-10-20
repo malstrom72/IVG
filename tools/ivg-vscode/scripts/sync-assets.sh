@@ -31,7 +31,6 @@ fi
 mkdir -p "${ext_dir}/media"
 
 cp "${output_dir}/rasterizeIVG.js" "${ext_dir}/media/rasterizeIVG.js"
-cp "${output_dir}/setupModule.js" "${ext_dir}/media/setupModule.js"
 
 docs_source="${output_dir}/docs"
 docs_target="${ext_dir}/media/docs"
