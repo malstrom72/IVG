@@ -854,34 +854,34 @@ public:
 				}
 			}
 
-			const bool blockTargetsScenario = (scenario.explicitScenario ? (hasLabel && *scenarioLabel == scenario.name) : (!hasLabel && invocation != 0));
-			if (!blockTargetsScenario) {
-				args.throwIfAnyUnfetched();
-				if (invocation != 0) {
-					Interpreter::throwBadSyntax("unexpected snapshot invocation for scenario.");
-				}
-				return true;
-			}
-
-			if (invocation == 0) {
-				Interpreter::throwBadSyntax("missing snapshot invocation for scenario block.");
-			}
-
-			if (blockValidate != entry.validate) {
-				Interpreter::throwBadSyntax("snapshot validate flag changed between collection and playback.");
-			}
-
-			StringVector statements = parseSnapshotStatements(interpreter, args);
-			if (invocation->statementOrdinal == 0 || invocation->statementOrdinal > statements.size()) {
-				Interpreter::throwBadSyntax("snapshot statement ordinal exceeds available entries.");
-			}
-
-			const String& statementBody = statements[invocation->statementOrdinal - 1];
-			if (statementBody != invocation->statements) {
-				Interpreter::throwBadSyntax("snapshot statements changed between collection and playback.");
-			}
-
+		const bool blockTargetsScenario = (scenario.explicitScenario ? (hasLabel && *scenarioLabel == scenario.name) : (!hasLabel && invocation != 0));
+		StringVector statements = parseSnapshotStatements(interpreter, args);
+		if (!blockTargetsScenario) {
 			args.throwIfAnyUnfetched();
+			if (invocation != 0) {
+				Interpreter::throwBadSyntax("unexpected snapshot invocation for scenario.");
+			}
+			return true;
+		}
+
+		if (invocation == 0) {
+			Interpreter::throwBadSyntax("missing snapshot invocation for scenario block.");
+		}
+
+		if (blockValidate != entry.validate) {
+			Interpreter::throwBadSyntax("snapshot validate flag changed between collection and playback.");
+		}
+
+		if (invocation->statementOrdinal == 0 || invocation->statementOrdinal > statements.size()) {
+			Interpreter::throwBadSyntax("snapshot statement ordinal exceeds available entries.");
+		}
+
+		const String& statementBody = statements[invocation->statementOrdinal - 1];
+		if (statementBody != invocation->statements) {
+			Interpreter::throwBadSyntax("snapshot statements changed between collection and playback.");
+		}
+
+		args.throwIfAnyUnfetched();
 
 			const StringRange trimmed = trimRange(StringRange(statementBody));
 			if (trimmed.b != trimmed.e) {
