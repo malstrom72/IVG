@@ -34,28 +34,29 @@ tools/IVGSnapshot/tests/ListScenarioVariants.ivg
                           [ fill gray ]
 # tools/IVGSnapshot/tests/ListScenarioVariants.ivg
 
-Scenario: alpha
+Scenario: alpha #0
 	Entry 1 (block 1) - SKIPPED
-	Snapshot ID  : tools_IVGSnapshot_tests_ListScenarioVariants#alpha#1#1
+	Snapshot ID  : tools_IVGSnapshot_tests_ListScenarioVariants#alpha #0#1#1
 
+Scenario: alpha #1
 	Entry 2 (block 1) - SKIPPED
-	Snapshot ID  : tools_IVGSnapshot_tests_ListScenarioVariants#alpha#1#2
+	Snapshot ID  : tools_IVGSnapshot_tests_ListScenarioVariants#alpha #1#1#2
 
-Scenario: implicit-3
+Scenario: unlabeled-1
 	Entry 1 (block 3) - SKIPPED
-	Snapshot ID  : tools_IVGSnapshot_tests_ListScenarioVariants#implicit-3#3#1
+	Snapshot ID  : tools_IVGSnapshot_tests_ListScenarioVariants#unlabeled-1#3#1
 
-Scenario: implicit-4-1
+Scenario: unlabeled-2 #0
 	Entry 1 (block 4) - SKIPPED
-	Snapshot ID  : tools_IVGSnapshot_tests_ListScenarioVariants#implicit-4-1#4#1
+	Snapshot ID  : tools_IVGSnapshot_tests_ListScenarioVariants#unlabeled-2 #0#4#1
 
-Scenario: implicit-4-2
+Scenario: unlabeled-2 #1
 	Entry 1 (block 4) - SKIPPED
-	Snapshot ID  : tools_IVGSnapshot_tests_ListScenarioVariants#implicit-4-2#4#1
+	Snapshot ID  : tools_IVGSnapshot_tests_ListScenarioVariants#unlabeled-2 #1#4#1
 
-Scenario: implicit-5
+Scenario: unlabeled-3
 	Entry 1 (block 5) - SKIPPED
-	Snapshot ID  : tools_IVGSnapshot_tests_ListScenarioVariants#implicit-5#5#1
+	Snapshot ID  : tools_IVGSnapshot_tests_ListScenarioVariants#unlabeled-3#5#1
 
 Scenario: beta
 	Entry 1 (block 6) - SKIPPED

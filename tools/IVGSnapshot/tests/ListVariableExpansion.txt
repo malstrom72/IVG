@@ -17,21 +17,21 @@ tools/IVGSnapshot/tests/ListVariableExpansion.ivg
                           [ pen $color width:2 ]
 # tools/IVGSnapshot/tests/ListVariableExpansion.ivg
 
-Scenario: implicit-1-1
+Scenario: unlabeled-1 #0
 	Entry 1 (block 1) - SKIPPED
-	Snapshot ID  : tools_IVGSnapshot_tests_ListVariableExpansion#implicit-1-1#1#1
+	Snapshot ID  : tools_IVGSnapshot_tests_ListVariableExpansion#unlabeled-1 #0#1#1
 
-Scenario: implicit-1-2
+Scenario: unlabeled-1 #1
 	Entry 1 (block 1) - SKIPPED
-	Snapshot ID  : tools_IVGSnapshot_tests_ListVariableExpansion#implicit-1-2#1#1
+	Snapshot ID  : tools_IVGSnapshot_tests_ListVariableExpansion#unlabeled-1 #1#1#1
 
-Scenario: implicit-2-1
+Scenario: unlabeled-2 #0
 	Entry 1 (block 2) - SKIPPED
-	Snapshot ID  : tools_IVGSnapshot_tests_ListVariableExpansion#implicit-2-1#2#1
+	Snapshot ID  : tools_IVGSnapshot_tests_ListVariableExpansion#unlabeled-2 #0#2#1
 
-Scenario: implicit-2-2
+Scenario: unlabeled-2 #1
 	Entry 1 (block 2) - SKIPPED
-	Snapshot ID  : tools_IVGSnapshot_tests_ListVariableExpansion#implicit-2-2#2#1
+	Snapshot ID  : tools_IVGSnapshot_tests_ListVariableExpansion#unlabeled-2 #1#2#1
 
 Summary
   Snapshots       : 4 total (4 validated)

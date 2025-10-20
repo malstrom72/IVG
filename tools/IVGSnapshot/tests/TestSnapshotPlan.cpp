@@ -226,7 +226,8 @@ void TestDraftValidateWorkflow()
         options.forceUpdate = false;
 
         const String scenarioName("workflow");
-        SnapshotGolden golden("workflow.ivg", "workflow", scenarioName, false, 1, options);
+        SnapshotGolden golden("workflow.ivg", "workflow",
+                stringFromIMPD(scenarioName), options);
 
         SnapshotEntryResult paths;
         golden.populateResult(paths);

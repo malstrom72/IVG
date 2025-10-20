@@ -186,6 +186,10 @@ struct ScenarioEntryMetadata {
         std::vector<SnapshotInvocation> invocations;
 };
 
+static bool parseUnsigned(const std::string &text, uint32_t &value);
+static std::string stringFromIMPD(const String &value);
+static bool isDigit(char ch) { return (ch >= '0' && ch <= '9'); }
+
 struct SeenScenario {
         SeenScenario()
                 : explicitLabel(false), validate(false), maxOrdinal(0) {}
@@ -255,6 +259,72 @@ struct SeenScenario {
         std::vector<ScenarioEntryMetadata> entryDetails;
 };
 
+struct ImplicitLabelGroup {
+        ImplicitLabelGroup()
+                : ordinal(0), totalEntries(0), processedEntries(0), preferredIndex(-1) {}
+
+        uint32_t ordinal;
+        uint32_t totalEntries;
+        uint32_t processedEntries;
+        int32_t preferredIndex;
+};
+
+struct ImplicitGroupKey {
+        ImplicitGroupKey() : key(), preferredIndex(-1) {}
+
+        std::string key;
+        int32_t preferredIndex;
+};
+
+static ImplicitGroupKey deriveImplicitGroupKey(const std::string &scenarioName,
+                                                                                 uint32_t fallbackIndex) {
+        ImplicitGroupKey info;
+        if (!scenarioName.empty()) {
+                const size_t lastHyphen = scenarioName.find_last_of('-');
+                if (lastHyphen != std::string::npos && lastHyphen + 1 < scenarioName.size()) {
+                        bool trailingDigits = true;
+                        for (size_t i = lastHyphen + 1; i < scenarioName.size(); ++i) {
+                                if (!isDigit(scenarioName[i])) {
+                                        trailingDigits = false;
+                                        break;
+                                }
+                        }
+                        if (trailingDigits) {
+                                const std::string prefix = scenarioName.substr(0, lastHyphen);
+                                const size_t prefixHyphen = prefix.find_last_of('-');
+                                if (prefixHyphen != std::string::npos && prefixHyphen + 1 < prefix.size()) {
+                                        bool prefixDigits = true;
+                                        for (size_t i = prefixHyphen + 1; i < prefix.size(); ++i) {
+                                                if (!isDigit(prefix[i])) {
+                                                        prefixDigits = false;
+                                                        break;
+                                                }
+                                        }
+                                        if (prefixDigits) {
+                                                uint32_t parsed = 0;
+                                                if (parseUnsigned(scenarioName.substr(lastHyphen + 1), parsed)) {
+                                                        info.preferredIndex =
+                                                                (parsed > 0 ? static_cast<int32_t>(parsed - 1) : 0);
+                                                }
+                                                info.key = prefix;
+                                                if (!info.key.empty()) {
+                                                        return info;
+                                                }
+                                        }
+                                }
+                        }
+                }
+
+                info.key = scenarioName;
+                return info;
+        }
+
+        std::ostringstream fallback;
+        fallback << "implicit-" << fallbackIndex;
+        info.key = fallback.str();
+        return info;
+}
+
 class SnapshotProgress {
   public:
 	struct Target {
@@ -272,9 +342,12 @@ class SnapshotProgress {
 	void reset() {
 		seenScenarios.clear();
 		scenarioLookup.clear();
+		displayLabels.clear();
+		implicitGroups.clear();
+		nextImplicitOrdinal = 1;
 		hasPendingTarget = false;
 		pendingTarget = Target();
-	}
+}
 
 	bool empty() const { return seenScenarios.empty(); }
 
@@ -341,7 +414,7 @@ class SnapshotProgress {
 	}
 
 	void setNextTarget(const String &scenarioName, uint32_t entryOrdinal,
-	                  bool validate, bool explicitLabel) {
+		          bool validate, bool explicitLabel) {
 		hasPendingTarget = true;
 		pendingTarget.scenario = scenarioName;
 		pendingTarget.entryOrdinal = entryOrdinal;
@@ -395,6 +468,46 @@ class SnapshotProgress {
                 return seenScenarios;
         }
 
+	std::string ensureDisplayLabel(const String &scenarioName, bool explicitLabel,
+		const String *explicitScenarioLabel, uint32_t blockOrdinal,
+		uint32_t catalogOrdinal, uint32_t normalizedOrdinal,
+		uint32_t entryCount, bool firstEntryOfScenario)
+	{
+		const LabelKey key(stringFromIMPD(scenarioName), normalizedOrdinal);
+		const auto existing = displayLabels.find(key);
+		if (existing != displayLabels.end()) {
+			return existing->second;
+		}
+
+		std::string label;
+		if (explicitLabel && explicitScenarioLabel != 0 && !explicitScenarioLabel->empty()) {
+			label = stringFromIMPD(*explicitScenarioLabel);
+			if (entryCount > 1) {
+				std::ostringstream stream;
+				stream << label << " #" << static_cast<int32_t>(catalogOrdinal - 1);
+				label = stream.str();
+			}
+		} else {
+			label = buildImplicitLabel(stringFromIMPD(scenarioName), blockOrdinal,
+				catalogOrdinal, entryCount, firstEntryOfScenario);
+		}
+
+		displayLabels.insert(std::make_pair(key, label));
+		return label;
+	}
+
+	const std::string &lookupDisplayLabel(const String &scenarioName,
+		uint32_t normalizedOrdinal) const
+	{
+		static const std::string EMPTY;
+		const LabelKey key(stringFromIMPD(scenarioName), normalizedOrdinal);
+		const auto it = displayLabels.find(key);
+		if (it != displayLabels.end()) {
+			return it->second;
+		}
+		return EMPTY;
+	}
+
 private:
 	bool findNextUnprocessedTarget(Target &target) const {
 		for (size_t i = 0; i < seenScenarios.size(); ++i) {
@@ -414,35 +527,103 @@ private:
 	}
 
 	SeenScenario &upsertScenarioRecord(const String &scenarioName,
-				bool explicitLabel,
-				bool validate) {
-			const auto lookupIterator = scenarioLookup.find(scenarioName);
-			if (lookupIterator == scenarioLookup.end()) {
-				const size_t index = seenScenarios.size();
-				scenarioLookup.insert(std::make_pair(scenarioName, index));
-				seenScenarios.push_back(SeenScenario());
-				SeenScenario &scenario = seenScenarios.back();
-				scenario.name = scenarioName;
-				scenario.explicitLabel = explicitLabel;
-				scenario.validate = validate;
-				return scenario;
-			}
-
-			SeenScenario &scenario = seenScenarios[lookupIterator->second];
-			if (scenario.validate != validate) {
-				throw std::runtime_error("validate flag mismatch for scenario");
-			}
-
-			if (explicitLabel && !scenario.explicitLabel) {
-				scenario.explicitLabel = true;
-			}
-
+			bool explicitLabel,
+			bool validate) {
+		const auto lookupIterator = scenarioLookup.find(scenarioName);
+		if (lookupIterator == scenarioLookup.end()) {
+			const size_t index = seenScenarios.size();
+			scenarioLookup.insert(std::make_pair(scenarioName, index));
+			seenScenarios.push_back(SeenScenario());
+			SeenScenario &scenario = seenScenarios.back();
+			scenario.name = scenarioName;
+			scenario.explicitLabel = explicitLabel;
+			scenario.validate = validate;
 			return scenario;
 		}
 
-		std::vector<SeenScenario> seenScenarios;
-		std::map<String, size_t> scenarioLookup;
-		bool hasPendingTarget;
+		SeenScenario &scenario = seenScenarios[lookupIterator->second];
+		if (scenario.validate != validate) {
+			throw std::runtime_error("validate flag mismatch for scenario");
+		}
+
+		if (explicitLabel && !scenario.explicitLabel) {
+			scenario.explicitLabel = true;
+		}
+
+		return scenario;
+	}
+
+	struct LabelKey {
+		LabelKey(const std::string &nameValue, uint32_t ordinalValue)
+			: name(nameValue), ordinal(ordinalValue) {}
+
+		std::string name;
+		uint32_t ordinal;
+
+		bool operator<(const LabelKey &other) const
+		{
+			if (name < other.name) {
+				return true;
+			}
+			if (name > other.name) {
+				return false;
+			}
+			return ordinal < other.ordinal;
+		}
+	};
+
+	std::string buildImplicitLabel(const std::string &scenarioKey,
+		uint32_t blockOrdinal, uint32_t catalogOrdinal,
+		uint32_t entryCount, bool firstEntryOfScenario)
+	{
+		const ImplicitGroupKey keyInfo =
+			deriveImplicitGroupKey(scenarioKey, blockOrdinal);
+
+		ImplicitLabelGroup &group = implicitGroups[keyInfo.key];
+		if (group.ordinal == 0) {
+			group.ordinal = nextImplicitOrdinal++;
+			group.totalEntries = 0;
+			group.processedEntries = 0;
+			group.preferredIndex = keyInfo.preferredIndex;
+		}
+
+		if (firstEntryOfScenario) {
+			group.totalEntries += entryCount;
+		}
+
+		const uint32_t totalEntries =
+			(group.totalEntries > 0 ? group.totalEntries : entryCount);
+
+		int32_t listIndex = -1;
+		if (totalEntries > 1) {
+			if (entryCount == 1 && keyInfo.preferredIndex >= 0) {
+				listIndex = keyInfo.preferredIndex;
+			} else if (catalogOrdinal > 0) {
+				listIndex = static_cast<int32_t>(catalogOrdinal - 1);
+			} else {
+				listIndex = static_cast<int32_t>(group.processedEntries);
+			}
+		}
+
+		std::ostringstream stream;
+		stream << "unlabeled-" << group.ordinal;
+		if (totalEntries > 1) {
+			const int32_t normalizedIndex =
+				(listIndex >= 0 ? listIndex
+				       : static_cast<int32_t>(group.processedEntries));
+			stream << " #" << normalizedIndex;
+		}
+
+		group.processedEntries += 1;
+		return stream.str();
+	}
+
+	std::vector<SeenScenario> seenScenarios;
+	std::map<String, size_t> scenarioLookup;
+	std::map<LabelKey, std::string> displayLabels;
+	std::map<std::string, ImplicitLabelGroup> implicitGroups;
+	uint32_t nextImplicitOrdinal;
+	bool hasPendingTarget;
 	Target pendingTarget;
 };
 
@@ -856,13 +1037,13 @@ static std::string buildSnapshotSourceTag(const std::string &ivgPath,
 
 
 static std::string buildEntryIdentifier(const std::string &snapshotBase,
-                                                                                const String &scenarioName,
-                                                                                uint32_t blockIndex,
-                                                                                uint32_t entryOrdinal) {
-        std::ostringstream stream;
-        stream << snapshotBase << '#' << stringFromIMPD(scenarioName) << '#'
-                        << blockIndex << '#' << entryOrdinal;
-        return stream.str();
+const std::string &scenarioLabel,
+uint32_t blockIndex,
+uint32_t entryOrdinal) {
+std::ostringstream stream;
+stream << snapshotBase << '#' << scenarioLabel << '#'
+<< blockIndex << '#' << entryOrdinal;
+return stream.str();
 }
 
 static bool fileExists(const std::string &path) {
@@ -1265,11 +1446,9 @@ static bool writeRasterToPng(
 class SnapshotGolden {
   public:
         SnapshotGolden(const std::string &ivgPath, const std::string &snapshotBase,
-                                   const String &scenarioName, bool multipleEntries,
-                                   uint32_t entryOrdinal,
+                                   const std::string &scenarioLabel,
                                    const CommandLineOptions &options) {
-                initializePaths(ivgPath, snapshotBase, stringFromIMPD(scenarioName),
-                                multipleEntries, entryOrdinal, options);
+                initializePaths(ivgPath, snapshotBase, scenarioLabel, options);
         }
 
 	void populateResult(SnapshotEntryResult &result) const {
@@ -1598,19 +1777,11 @@ class SnapshotGolden {
         void initializePaths(const std::string &ivgPath,
                                                  const std::string &snapshotBase,
                                                  const std::string &scenarioLabel,
-                                                 bool multipleEntries,
-                                                 uint32_t entryOrdinal,
                                                  const CommandLineOptions &options) {
                 const std::string root =
                         (options.snapshotDir.empty() ? extractDirectory(ivgPath)
                                                                    : options.snapshotDir);
-                std::string scenarioName = scenarioLabel;
-                if (multipleEntries) {
-                        scenarioName += "-";
-                        scenarioName +=
-                                Interpreter::toString(static_cast<int32_t>(entryOrdinal));
-                }
-                scenarioName = sanitizeFileComponent(scenarioName);
+                const std::string scenarioName = sanitizeFileComponent(scenarioLabel);
                 std::string fileStem = scenarioName;
                 if (!snapshotBase.empty()) {
                         fileStem = snapshotBase + "__" + fileStem;
@@ -1994,6 +2165,7 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 
                 const uint32_t sourceLine = locateRoundMetaLine();
                 const bool multipleEntries = (statements.size() > 1);
+                const uint32_t entryCount = static_cast<uint32_t>(statements.size());
 
                 bool sawPinnedEntry = false;
                 bool executedPinnedEntry = false;
@@ -2007,6 +2179,10 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
                                          ? *scenarioLabel
                                          : buildImplicitScenarioName(blockOrdinal,
                                                  entryOrdinal, multipleEntries));
+
+			progress->ensureDisplayLabel(scenarioName, explicitLabel,
+scenarioLabel, blockOrdinal, entryOrdinal, scenarioOrdinal,
+			entryCount, (i == 0));
 
                         const bool shouldExecute = progress->observeScenarioEntry(
                                 *round, scenarioName, explicitLabel, blockValidate,
@@ -2340,21 +2516,21 @@ static bool readFile(const std::string &path, String &contents) {
 static void printScenarioListing(const std::string &path,
                                                             const SnapshotProgress &progress) {
         std::cout << path << std::endl;
-        const std::vector<SeenScenario> &scenarios = progress.getSeenScenarios();
-        for (size_t i = 0; i < scenarios.size(); ++i) {
-                const SeenScenario &scenario = scenarios[i];
-                std::cout << "  Scenario " << stringFromIMPD(scenario.name)
-                                  << " (validate: " << (scenario.validate ? "yes" : "no")
-                                  << ")" << std::endl;
-                for (uint32_t ordinal = 1; ordinal <= scenario.maxOrdinal; ++ordinal) {
-                        if (!scenario.isProcessed(ordinal)) {
-                                continue;
-                        }
+	const std::vector<SeenScenario> &scenarios = progress.getSeenScenarios();
+	for (size_t i = 0; i < scenarios.size(); ++i) {
+		const SeenScenario &scenario = scenarios[i];
+		std::cout << "  Scenario " << stringFromIMPD(scenario.name)
+		          << " (validate: " << (scenario.validate ? "yes" : "no")
+		          << ")" << std::endl;
+		for (uint32_t ordinal = 1; ordinal <= scenario.maxOrdinal; ++ordinal) {
+			if (!scenario.isProcessed(ordinal)) {
+				continue;
+			}
 
-                        std::cout << "          Entry " << ordinal << std::endl;
-                        const ScenarioEntryMetadata *metadata =
-                                scenario.getEntryMetadata(ordinal);
-                        if (metadata == 0) {
+			std::cout << "          Entry " << ordinal << std::endl;
+			const ScenarioEntryMetadata *metadata =
+			        scenario.getEntryMetadata(ordinal);
+			if (metadata == 0) {
                                 continue;
                         }
 
@@ -2462,14 +2638,20 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 
 		SnapshotEntryResult result;
 		result.ivgPath = path;
-		result.scenarioName = stringFromIMPD(round.scenario);
+		const std::string &registeredLabel =
+		        progress.lookupDisplayLabel(round.scenario, round.entryOrdinal);
+		const std::string effectiveLabel =
+		        (registeredLabel.empty() ? stringFromIMPD(round.scenario)
+		                               : registeredLabel);
+
+		result.scenarioName = effectiveLabel;
 		result.entryOrdinal = round.entryOrdinal;
 		result.validate = round.validate;
 		result.planOrdinal = static_cast<uint32_t>(run.entries.size());
 		result.blockIndex =
-			(round.invocations.empty() ? 0 : round.invocations[0].blockIndex);
-		result.identifier = buildEntryIdentifier(snapshotBase, round.scenario,
-						result.blockIndex, round.entryOrdinal);
+		        (round.invocations.empty() ? 0 : round.invocations[0].blockIndex);
+		result.identifier = buildEntryIdentifier(snapshotBase, effectiveLabel,
+		        result.blockIndex, round.entryOrdinal);
 
 		if (executionFailed) {
 			result.message = executionError;
@@ -2497,14 +2679,10 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 				result.rendered = false;
 				result.skipped = true;
 				result.success = true;
-			} else {
-				result.rendered = true;
-				const SeenScenario *scenarioRecord =
-						progress.findScenarioRecord(round.scenario);
-				const bool multipleEntries =
-						(scenarioRecord != 0 && scenarioRecord->maxOrdinal > 1);
-				SnapshotGolden golden(path, snapshotBase, round.scenario,
-						multipleEntries, round.entryOrdinal, options);
+} else {
+result.rendered = true;
+SnapshotGolden golden(path, snapshotBase, effectiveLabel,
+options);
 				if (!round.validate) {
 					if (!golden.writeDraft(*raster, result)) {
 						if (result.message.empty()) {

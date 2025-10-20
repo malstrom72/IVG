@@ -265,29 +265,80 @@ const SnapshotController = (function createSnapshotController() {
 		return { scenarioIndex: scenarioIndex, entryOrdinal: entryOrdinal };
 	}
 
-	function parseCatalog(jsonText) {
-		if (typeof jsonText !== "string" || jsonText.length === 0) {
-			return null;
-		}
-		try {
-			const parsed = JSON.parse(jsonText);
-			if (!parsed || typeof parsed !== "object") {
-				return null;
-			}
-			return parsed;
-		} catch (error) {
-			return null;
-		}
-	}
+       function parseCatalog(jsonText) {
+               if (typeof jsonText !== "string" || jsonText.length === 0) {
+                       return null;
+               }
+               try {
+                       const parsed = JSON.parse(jsonText);
+                       if (!parsed || typeof parsed !== "object") {
+                               return null;
+                       }
+                       return parsed;
+               } catch (error) {
+                       return null;
+               }
+       }
 
-	function buildOptionLabel(scenario, entry) {
-		const scenarioName = typeof scenario.name === "string" && scenario.name.length > 0 ? scenario.name : "Scenario " + scenario.index;
-		if (scenario.explicit === false && (!scenario.entries || scenario.entries.length <= 1)) {
-			return scenarioName;
-		}
-		const listIndex = Number.isInteger(entry.listIndex) ? entry.listIndex : entry.entryOrdinal - 1;
-		return scenarioName + " #" + String(listIndex);
-	}
+       function deriveImplicitGroupInfo(scenario, fallbackIndex) {
+               const name = typeof scenario.name === "string" ? scenario.name : "";
+               const patternMatch = name.match(/^(.*-\d+)-(\d+)$/);
+               if (patternMatch) {
+                       const parsedIndex = parseInt(patternMatch[2], 10);
+                       return {
+                               key: patternMatch[1],
+                               listIndex: Number.isFinite(parsedIndex) ? parsedIndex - 1 : null,
+                       };
+               }
+               if (name.length > 0) {
+                       return { key: name, listIndex: null };
+               }
+               return { key: "implicit-" + String(fallbackIndex), listIndex: null };
+       }
+
+       function prepareImplicitGroups(parsedCatalog) {
+               const groups = new Map();
+               if (!parsedCatalog || !Array.isArray(parsedCatalog.scenarios)) {
+                       return groups;
+               }
+               for (let i = 0; i < parsedCatalog.scenarios.length; ++i) {
+                       const scenario = parsedCatalog.scenarios[i];
+                       if (!scenario || !Array.isArray(scenario.entries) || scenario.entries.length === 0) {
+                               continue;
+                       }
+                       const hasScenarioName = typeof scenario.name === "string" && scenario.name.length > 0;
+                       const scenarioIsExplicit = scenario.explicit === true;
+                       if (scenarioIsExplicit && hasScenarioName) {
+                               continue;
+                       }
+                       const fallbackIndex = Number.isInteger(scenario.index) ? scenario.index : i;
+                       const info = deriveImplicitGroupInfo(scenario, fallbackIndex);
+                       let group = groups.get(info.key);
+                       if (!group) {
+                               group = { totalEntries: 0, firstPosition: i, ordinal: 0, processedEntries: 0 };
+                               groups.set(info.key, group);
+                       }
+                       group.totalEntries += scenario.entries.length;
+                       if (i < group.firstPosition) {
+                               group.firstPosition = i;
+                       }
+               }
+               const orderedGroups = Array.from(groups.values());
+               orderedGroups.sort((a, b) => a.firstPosition - b.firstPosition);
+               for (let index = 0; index < orderedGroups.length; ++index) {
+                       orderedGroups[index].ordinal = index + 1;
+                       orderedGroups[index].processedEntries = 0;
+               }
+               return groups;
+       }
+
+       function buildOptionLabel(baseLabel, entryCount, listIndex) {
+               if (!Number.isInteger(entryCount) || entryCount <= 1) {
+                       return baseLabel;
+               }
+               const normalizedIndex = Number.isInteger(listIndex) ? listIndex : 0;
+               return baseLabel + " #" + String(normalizedIndex);
+       }
 
 	function selectionsEqual(a, b) {
 		if (!a || !b) {
@@ -296,31 +347,75 @@ const SnapshotController = (function createSnapshotController() {
 		return a.scenarioIndex === b.scenarioIndex && a.entryOrdinal === b.entryOrdinal;
 	}
 
-	function buildOptions(parsedCatalog) {
-		const options = [];
-		if (!parsedCatalog || !Array.isArray(parsedCatalog.scenarios)) {
-			return options;
-		}
-		for (let i = 0; i < parsedCatalog.scenarios.length; ++i) {
-			const scenario = parsedCatalog.scenarios[i];
-			if (!scenario || !Array.isArray(scenario.entries)) {
-				continue;
-			}
-			for (let j = 0; j < scenario.entries.length; ++j) {
-				const entry = scenario.entries[j];
-				if (!entry) {
-					continue;
-				}
-				options.push({
-					value: String(scenario.index) + ":" + String(entry.entryOrdinal),
-					label: buildOptionLabel(scenario, entry),
-					scenarioIndex: scenario.index,
-					entryOrdinal: entry.entryOrdinal,
-				});
-			}
-		}
-		return options;
-	}
+       function buildOptions(parsedCatalog) {
+               const options = [];
+               if (!parsedCatalog || !Array.isArray(parsedCatalog.scenarios)) {
+                       return options;
+               }
+               const implicitGroups = prepareImplicitGroups(parsedCatalog);
+               for (let i = 0; i < parsedCatalog.scenarios.length; ++i) {
+                       const scenario = parsedCatalog.scenarios[i];
+                       if (!scenario || !Array.isArray(scenario.entries) || scenario.entries.length === 0) {
+                               continue;
+                       }
+                       const entries = scenario.entries;
+                       const hasScenarioName = typeof scenario.name === "string" && scenario.name.length > 0;
+                       const scenarioIsExplicit = scenario.explicit === true;
+                       if (scenarioIsExplicit && hasScenarioName) {
+                               for (let j = 0; j < entries.length; ++j) {
+                                       const entry = entries[j];
+                                       if (!entry) {
+                                               continue;
+                                       }
+                                       const explicitListIndex = Number.isInteger(entry.listIndex)
+                                               ? entry.listIndex
+                                               : Number.isInteger(entry.entryOrdinal)
+                                                       ? entry.entryOrdinal - 1
+                                                       : null;
+                                       options.push({
+                                               value: String(scenario.index) + ":" + String(entry.entryOrdinal),
+                                               label: buildOptionLabel(scenario.name, entries.length, explicitListIndex),
+                                               scenarioIndex: scenario.index,
+                                               entryOrdinal: entry.entryOrdinal,
+                                       });
+                               }
+                               continue;
+                       }
+                       const fallbackIndex = Number.isInteger(scenario.index) ? scenario.index : i;
+                       const info = deriveImplicitGroupInfo(scenario, fallbackIndex);
+                       const group = implicitGroups.get(info.key);
+                       const entryCount = group && group.totalEntries > 0 ? group.totalEntries : entries.length;
+                       const baseLabel = group && group.ordinal > 0 ? "unlabeled-" + String(group.ordinal) : "unlabeled";
+                       for (let j = 0; j < entries.length; ++j) {
+                               const entry = entries[j];
+                               if (!entry) {
+                                       continue;
+                               }
+                               let listIndex = null;
+                               if (entryCount > 1) {
+                                       if (entries.length === 1 && Number.isInteger(info.listIndex)) {
+                                               listIndex = info.listIndex;
+                                       } else if (Number.isInteger(entry.listIndex)) {
+                                               listIndex = entry.listIndex;
+                                       } else if (Number.isInteger(entry.entryOrdinal)) {
+                                               listIndex = entry.entryOrdinal - 1;
+                                       } else if (group && group.totalEntries > 1) {
+                                               listIndex = group.processedEntries;
+                                       }
+                               }
+                               options.push({
+                                       value: String(scenario.index) + ":" + String(entry.entryOrdinal),
+                                       label: buildOptionLabel(baseLabel, entryCount, listIndex),
+                                       scenarioIndex: scenario.index,
+                                       entryOrdinal: entry.entryOrdinal,
+                               });
+                               if (group) {
+                                       group.processedEntries += 1;
+                               }
+                       }
+               }
+               return options;
+       }
 
 	function selectionExists(options, selection) {
 		if (!selection || !options) {
