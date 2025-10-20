@@ -280,17 +280,19 @@ const SnapshotController = (function createSnapshotController() {
 		}
 	}
 
-	function buildOptionLabel(scenario, entry) {
-		const entries = Array.isArray(scenario.entries) ? scenario.entries : [];
-		const scenarioIndex = Number.isInteger(scenario.index) ? scenario.index : 0;
-		const scenarioName = typeof scenario.name === "string" && scenario.name.length > 0 ? scenario.name : "unlabeled-" + String(scenarioIndex);
-		if (entries.length <= 1) {
-			return scenarioName;
+		function buildOptionLabel(scenario, entry) {
+			const entries = Array.isArray(scenario.entries) ? scenario.entries : [];
+			const scenarioIndex = Number.isInteger(scenario.index) ? scenario.index : 0;
+			const hasScenarioName = typeof scenario.name === "string" && scenario.name.length > 0;
+			const scenarioIsExplicit = scenario.explicit === true;
+			const scenarioName = scenarioIsExplicit && hasScenarioName ? scenario.name : "unlabeled-" + String(scenarioIndex);
+			if (entries.length <= 1) {
+				return scenarioName;
+			}
+			const fallbackListIndex = Number.isInteger(entry.entryOrdinal) ? entry.entryOrdinal - 1 : 0;
+			const listIndex = Number.isInteger(entry.listIndex) ? entry.listIndex : fallbackListIndex;
+			return scenarioName + " #" + String(listIndex);
 		}
-		const fallbackListIndex = Number.isInteger(entry.entryOrdinal) ? entry.entryOrdinal - 1 : 0;
-		const listIndex = Number.isInteger(entry.listIndex) ? entry.listIndex : fallbackListIndex;
-		return scenarioName + " #" + String(listIndex);
-	}
 
 	function selectionsEqual(a, b) {
 		if (!a || !b) {
