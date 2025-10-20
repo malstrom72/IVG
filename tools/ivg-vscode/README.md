@@ -66,7 +66,7 @@ A reusable snippet named **IVG Canvas Skeleton** is available under the `ivg` la
 
 ## Packaging
 
-Use the portable packaging helper to generate a `.vsix` without requiring a global `vsce` installation:
+Use the portable packaging helper to generate a `.vsix` without a global `vsce` install. It rebuilds IVGFiddle and syncs the assets first:
 
 ```bash
 bash scripts/package.sh
