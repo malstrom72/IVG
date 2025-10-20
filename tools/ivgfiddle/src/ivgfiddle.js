@@ -281,11 +281,14 @@ const SnapshotController = (function createSnapshotController() {
 	}
 
 	function buildOptionLabel(scenario, entry) {
-		const scenarioName = typeof scenario.name === "string" && scenario.name.length > 0 ? scenario.name : "Scenario " + scenario.index;
-		if (scenario.explicit === false && (!scenario.entries || scenario.entries.length <= 1)) {
+		const entries = Array.isArray(scenario.entries) ? scenario.entries : [];
+		const scenarioIndex = Number.isInteger(scenario.index) ? scenario.index : 0;
+		const scenarioName = typeof scenario.name === "string" && scenario.name.length > 0 ? scenario.name : "unlabeled-" + String(scenarioIndex);
+		if (entries.length <= 1) {
 			return scenarioName;
 		}
-		const listIndex = Number.isInteger(entry.listIndex) ? entry.listIndex : entry.entryOrdinal - 1;
+		const fallbackListIndex = Number.isInteger(entry.entryOrdinal) ? entry.entryOrdinal - 1 : 0;
+		const listIndex = Number.isInteger(entry.listIndex) ? entry.listIndex : fallbackListIndex;
 		return scenarioName + " #" + String(listIndex);
 	}
 
