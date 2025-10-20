@@ -29,4 +29,50 @@ When a grouped implicit scenario contributes more than one entry across the cata
    - The running count of processed entries inside the group as a final fallback.
 3. `buildOptionLabel` appends `#<n>` when `entryCount > 1`; single-entry groups emit just `unlabeled-<ordinal>`.
 
+## Examples
+### Explicit scenario with list entries
+```
+meta snapshot scenario:hero validate:yes list:[
+[ size=19 ]
+[ size=21 ]
+]
+```
+The selector renders:
+```
+hero #0
+hero #1
+```
+
+### Mixed explicit and implicit scenarios
+```
+format ivg-3 uses:snapshot-1
+bounds 0,0,53,49
+size=10
+color=#808080
+meta snapshot scenario:test validate:yes list:[
+[ size=19 ], [ size=21 ]
+]
+meta snapshot scenario:test2 validate:yes [
+color=#E74C3C
+]
+meta snapshot validate:yes list:[
+[ color=#E74C3C ] [ size=44 ]
+]
+meta snapshot validate:yes list:[
+[ color=#E74C3C ] [ size=44 ]
+]
+meta snapshot validate:yes [ size=66 ]
+```
+The selector renders:
+```
+test #0
+test #1
+test2
+unlabeled-1 #0
+unlabeled-1 #1
+unlabeled-2 #0
+unlabeled-2 #1
+unlabeled-3
+```
+
 These rules mirror the behavior of the generated bundle in `tools/ivgfiddle/output/ivgfiddle.js`, keeping the snapshot picker consistent across development and published builds.
