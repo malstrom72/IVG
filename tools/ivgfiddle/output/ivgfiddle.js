@@ -280,18 +280,13 @@ const SnapshotController = (function createSnapshotController() {
 		}
 	}
 
-		function buildOptionLabel(scenario, entry) {
-			const entries = Array.isArray(scenario.entries) ? scenario.entries : [];
-			const scenarioIndex = Number.isInteger(scenario.index) ? scenario.index : 0;
-			const hasScenarioName = typeof scenario.name === "string" && scenario.name.length > 0;
-			const scenarioIsExplicit = scenario.explicit === true;
-			const scenarioName = scenarioIsExplicit && hasScenarioName ? scenario.name : "unlabeled-" + String(scenarioIndex);
-			if (entries.length <= 1) {
-				return scenarioName;
+		function buildOptionLabel(baseLabel, entries, entry) {
+			if (!Array.isArray(entries) || entries.length <= 1) {
+				return baseLabel;
 			}
 			const fallbackListIndex = Number.isInteger(entry.entryOrdinal) ? entry.entryOrdinal - 1 : 0;
 			const listIndex = Number.isInteger(entry.listIndex) ? entry.listIndex : fallbackListIndex;
-			return scenarioName + " #" + String(listIndex);
+			return baseLabel + " #" + String(listIndex);
 		}
 
 	function selectionsEqual(a, b) {
@@ -306,10 +301,20 @@ const SnapshotController = (function createSnapshotController() {
 		if (!parsedCatalog || !Array.isArray(parsedCatalog.scenarios)) {
 			return options;
 		}
+		let unlabeledOrdinal = 0;
 		for (let i = 0; i < parsedCatalog.scenarios.length; ++i) {
 			const scenario = parsedCatalog.scenarios[i];
-			if (!scenario || !Array.isArray(scenario.entries)) {
+			if (!scenario || !Array.isArray(scenario.entries) || scenario.entries.length === 0) {
 				continue;
+			}
+			const hasScenarioName = typeof scenario.name === "string" && scenario.name.length > 0;
+			const scenarioIsExplicit = scenario.explicit === true;
+			let baseLabel;
+			if (scenarioIsExplicit && hasScenarioName) {
+				baseLabel = scenario.name;
+			} else {
+				unlabeledOrdinal += 1;
+				baseLabel = "unlabeled-" + String(unlabeledOrdinal);
 			}
 			for (let j = 0; j < scenario.entries.length; ++j) {
 				const entry = scenario.entries[j];
@@ -318,7 +323,7 @@ const SnapshotController = (function createSnapshotController() {
 				}
 				options.push({
 					value: String(scenario.index) + ":" + String(entry.entryOrdinal),
-					label: buildOptionLabel(scenario, entry),
+					label: buildOptionLabel(baseLabel, scenario.entries, entry),
 					scenarioIndex: scenario.index,
 					entryOrdinal: entry.entryOrdinal,
 				});
