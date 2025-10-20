@@ -38,15 +38,15 @@ namespace NuXThreads {
 
 template<typename T, typename U> T lossless_cast(U x) { assert(static_cast<T>(x) == x); return static_cast<T>(x); }
 
-void ThreadMemoryFence() {
+void threadMemoryFence() {
 	MemoryBarrier();
 }
 	
 static std::string convertToUTF8String(const std::wstring& w) {
-	const int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, w.data(), lossless_cast<int>(w.size()), NULL, 0, NULL, NULL);
+	const int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), lossless_cast<int>(w.size()), NULL, 0, NULL, NULL);
 	assert(sizeNeeded > 0);
 	std::string utf8(sizeNeeded, 0);
-	const int result = WideCharToMultiByte(CP_UTF8, 0, w.data(), lossless_cast<int>(w.size()), &utf8[0], sizeNeeded, NULL, NULL);
+	const int result = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), lossless_cast<int>(w.size()), &utf8[0], sizeNeeded, NULL, NULL);
 	assert(result == sizeNeeded);
 	return utf8;
 }
@@ -57,15 +57,15 @@ static void throwWin32Exception(const std::string& errorStringUTF8, ::DWORD erro
 		std::vector<wchar_t> messageBuffer(4096);
 		::DWORD formatMessageReturn = ::FormatMessageW
 		( FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, errorCode
-			, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), messageBuffer.data()
+			, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), &messageBuffer[0]
 			, sizeof (messageBuffer) - 1, NULL);
 		if (formatMessageReturn != 0) {
-			size_t length = wcslen(messageBuffer.data());
+			size_t length = wcslen(&messageBuffer[0]);
 			while (length > 0 && (messageBuffer[length - 1] == '\r' || messageBuffer[length - 1] == '\n')) {
 				--length;
 			}
 			messageBuffer[length] = '\0';
-			message << " : " << messageBuffer.data();
+			message << " : " << &messageBuffer[0];
 		}
 		message << " [" << errorCode << ']';
 	}
@@ -333,6 +333,13 @@ Thread::~Thread()
 	if (--impl->keepCounter == 0) {
 		delete impl;
 	}
+}
+
+int queryCPUCount()
+{
+	::SYSTEM_INFO systemInfo;
+	::GetSystemInfo(&systemInfo);
+	return systemInfo.dwNumberOfProcessors;
 }
 
 }

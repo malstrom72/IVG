@@ -24,13 +24,6 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-/*
- *  NuXThreadsPosix.h
- *
- *  Created by Magnus Lidström on 1/9/06.
- *  Copyright 2005-2025 NuEdge Development. All rights reserved.
- *
- */
 
 #ifndef NuXThreadsPosix_h
 #define NuXThreadsPosix_h

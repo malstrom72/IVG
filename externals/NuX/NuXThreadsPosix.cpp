@@ -24,10 +24,6 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
-/*
- *  NuXThreadsPosix.cpp
- *  Copyright 2005-2025 NuEdge Development. All rights reserved.
- */
 
 // Posix threads do not include functions for atomic swaps so we need platform specific solutions there.
 
@@ -35,11 +31,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sys/time.h>
 #include <unistd.h>
 #include <sched.h>
+#include <stdint.h>
 #include "NuXThreadsPosix.h"
 #ifdef __APPLE__
+#include <sys/sysctl.h>
 #include <libkern/OSAtomic.h>
-#else
-#include <atomic>
 #endif
 
 #ifdef __APPLE__
@@ -69,7 +65,7 @@ static void throwPThreadException(const std::string& errorString, int error)
 	throw Exception(buffer, error);
 }
 
-void ThreadMemoryFence() {
+void threadMemoryFence() {
 	__sync_synchronize();
 }
 
@@ -524,6 +520,20 @@ Thread::~Thread()
 	if (--impl->keepCounter == 0) {
 		delete impl;
 	}
+
+}
+
+int queryCPUCount()
+{
+#ifdef __APPLE__
+	uint32_t cpuCount = 0;
+	size_t length = sizeof (cpuCount);
+	const int error = sysctlbyname("hw.logicalcpu", &cpuCount, &length, 0, 0);
+	return (error == 0 && length == sizeof (cpuCount) ? cpuCount : 0);
+#else
+	long cpuCount = ::sysconf(_SC_NPROCESSORS_ONLN);
+	return (cpuCount > 0 ? static_cast<int>(cpuCount) : 0);
+#endif
 }
 
 } /* namespace NuX */

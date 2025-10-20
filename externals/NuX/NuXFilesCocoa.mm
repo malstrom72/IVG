@@ -44,8 +44,8 @@ static bool isDirPath(const std::wstring& path) {
 
 static NSString* toNSString(const std::wstring& s) {
 	assert(sizeof (wchar_t) == 4);
-	return [[[NSString alloc]
-			initWithBytes:s.data()
+	const wchar_t* bytes = (s.empty() ? 0 : &s[0]);
+	return [[[NSString alloc] initWithBytes:bytes
 			length:s.size() * sizeof (wchar_t) encoding:NSUTF32LittleEndianStringEncoding] autorelease];
 }
 
@@ -97,23 +97,6 @@ static bool hasDirectoryPath(NSURL* url) {
 	} else {
 		return ([[url absoluteString] hasSuffix:@"/"] != NO);
 	}
-}
-
-static NSURL* fixedStandardizePath(NSURL* url) {
-	if (url != nil) {
-		url = [url filePathURL];
-		assert(url != nil); // url must be a file path url
-		url = [url URLByStandardizingPath];
-		assert(url != nil); // this should never happen
-		if ([[url path] isEqual:@"/."]) {		// URLByStandardizingPath has a "bug" where /./ doesn't resolve into /
-			url = [NSURL fileURLWithPath:@"/" isDirectory:YES];
-		} else {
-			NSString* nfcPath = [[url path] precomposedStringWithCanonicalMapping];
-			url = [NSURL fileURLWithPath:nfcPath isDirectory:hasDirectoryPath(url)];
-			assert(url != nil); // this should never happen
-		}
-	}
-	return url;
 }
 
 /* --- PathTime --- */
@@ -171,10 +154,23 @@ PathAttributes::PathAttributes()
 
 /* --- Path::Impl --- */
 
-Path::Impl::Impl(NSURL* url) : url(url) {
-	assert(url != nil);
-	assert(![url isFileReferenceURL]);
-	[url retain];
+Path::Impl::Impl(NSURL* input) : url(nil) {
+	assert(input != nil);
+	NSURL* normalized = [input filePathURL];
+	if (normalized == nil) {
+		const std::string utf8PathString = [[input path] UTF8String];
+		throw Exception(std::string("Error resolving file reference URL : ") + utf8PathString);
+	}
+	normalized = [normalized URLByStandardizingPath];
+	assert(normalized != nil); // this should never happen
+	if ([[normalized path] isEqual:@"/."]) {		// URLByStandardizingPath has a "bug" where /./ doesn't resolve into /
+		normalized = [NSURL fileURLWithPath:@"/" isDirectory:YES];
+	} else {
+		NSString* nfcPath = [[normalized path] precomposedStringWithCanonicalMapping];
+		normalized = [NSURL fileURLWithPath:nfcPath isDirectory:hasDirectoryPath(normalized)];
+		assert(normalized != nil); // this should never happen
+	}
+	url = [normalized retain];
 }
 
 Path::Impl::Impl(const Impl& that) : url(that.url) {
@@ -246,7 +242,7 @@ Path::Path(const std::wstring& pathString) : impl(0) {
 			const std::string utf8PathString = [pathStringNS UTF8String];
 			throw Exception(std::string("Error creating file path for : ") + utf8PathString);
 		}
-		impl = new Impl(fixedStandardizePath(url));
+		impl = new Impl(url);
 	}
 }
 
@@ -332,7 +328,7 @@ Path Path::getRelative(const std::wstring& pathString) const {
 				const std::string utf8PathString = [pathStringNS UTF8String];
 				throw Exception(std::string("Error creating file path for : ") + utf8PathString);
 			}
-			return Path(new Impl(fixedStandardizePath(url)));
+			return Path(new Impl(url));
 		}
 	}
 }

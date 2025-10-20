@@ -34,10 +34,11 @@ namespace NuXFiles {
 template<typename T, typename U> T lossless_cast(U x) { assert(static_cast<T>(x) == x); return static_cast<T>(x); }
 
 static std::string convertToUTF8String(const std::wstring& w) {
-	const int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, w.data(), lossless_cast<int>(w.size()), NULL, 0, NULL, NULL);
+	const wchar_t* source = (w.empty() ? L"" : &w[0]);
+	const int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, source, lossless_cast<int>(w.size()), NULL, 0, NULL, NULL);
 	assert(sizeNeeded > 0);
 	std::string utf8(sizeNeeded, 0);
-	const int result = WideCharToMultiByte(CP_UTF8, 0, w.data(), lossless_cast<int>(w.size()), &utf8[0], sizeNeeded, NULL, NULL);
+	const int result = WideCharToMultiByte(CP_UTF8, 0, source, lossless_cast<int>(w.size()), &utf8[0], sizeNeeded, NULL, NULL);
 	assert(result == sizeNeeded);
 	return utf8;
 }
@@ -60,11 +61,11 @@ static std::wstring addTrailingBackslash(const std::wstring& source)
 
 static bool extensionMatches(const std::wstring& nameWithExtension, const std::wstring& extension)
 {
-	const wchar_t* s = nameWithExtension.data();
+	const wchar_t* s = nameWithExtension.c_str();
 	const wchar_t* e = s + nameWithExtension.size();
 	const wchar_t* p = e;
 	while (p > s && *(p - 1) != L'.') --p;
-	return (::CompareStringW(LOCALE_USER_DEFAULT, NORM_IGNORECASE, p, lossless_cast<int>(e - p), extension.data()
+	return (::CompareStringW(LOCALE_USER_DEFAULT, NORM_IGNORECASE, p, lossless_cast<int>(e - p), extension.c_str()
 			, lossless_cast<int>(extension.size())) == CSTR_EQUAL);
 }
 
@@ -82,8 +83,8 @@ bool Path::matchesFilter(const PathListFilter& filter) const {
 		}
 		const std::wstring myExtension = getExtension();
 		if (::CompareStringW(LOCALE_USER_DEFAULT, NORM_IGNORECASE
-				, myExtension.data(), lossless_cast<int>(myExtension.size())
-				, filter.includeExtension.data(), lossless_cast<int>(filter.includeExtension.size()))
+				, myExtension.c_str(), lossless_cast<int>(myExtension.size())
+				, filter.includeExtension.c_str(), lossless_cast<int>(filter.includeExtension.size()))
 				== CSTR_EQUAL) {
 			return true;
 		}
@@ -201,15 +202,15 @@ std::string Exception::describe() const
 			std::vector<wchar_t> messageBuffer(4096);
 			::DWORD formatMessageReturn = ::FormatMessageW
 					( FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, errorCode
-					, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), messageBuffer.data()
+					, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), &messageBuffer[0]
 					, sizeof (messageBuffer) - 1, NULL);
 			if (formatMessageReturn != 0) {
-				size_t length = wcslen(messageBuffer.data());
+				size_t length = wcslen(&messageBuffer[0]);
 				while (length > 0 && (messageBuffer[length - 1] == '\r' || messageBuffer[length - 1] == '\n')) {
 					--length;
 				}
 				messageBuffer[length] = '\0';
-				message << " : " << messageBuffer.data();
+				message << " : " << &messageBuffer[0];
 			}
 			message << " [" << errorCode << ']';
 		}
@@ -332,15 +333,15 @@ int Path::compare(const Path& other) const {
 			#else
 				NORM_IGNORECASE | 8
 			#endif
-				, impl->path.data(), lossless_cast<int>(impl->path.size())
-				, other.impl->path.data(), lossless_cast<int>(other.impl->path.size())
+				, impl->path.c_str(), lossless_cast<int>(impl->path.size())
+				, other.impl->path.c_str(), lossless_cast<int>(other.impl->path.size())
 				)) {
 			case CSTR_LESS_THAN: return -1;
 			case CSTR_GREATER_THAN: return 1;
 			case CSTR_EQUAL: {
 				switch (compareStringsLocale(0
-						, impl->path.data(), lossless_cast<int>(impl->path.size())
-						, other.impl->path.data(), lossless_cast<int>(other.impl->path.size()))) {
+						, impl->path.c_str(), lossless_cast<int>(impl->path.size())
+						, other.impl->path.c_str(), lossless_cast<int>(other.impl->path.size()))) {
 					case CSTR_LESS_THAN: return -1;
 					case CSTR_GREATER_THAN: return 1;
 					case CSTR_EQUAL: {
@@ -364,8 +365,8 @@ bool Path::equals(const Path& other) const {
 		return (impl == 0 && other.impl == 0);
 	} else {
 		return compareStringsLocale(NORM_IGNORECASE
-				, impl->path.data(), lossless_cast<int>(impl->path.size())
-				, other.impl->path.data(), lossless_cast<int>(other.impl->path.size())
+				, impl->path.c_str(), lossless_cast<int>(impl->path.size())
+				, other.impl->path.c_str(), lossless_cast<int>(other.impl->path.size())
 				) == CSTR_EQUAL;
 	}
 }
@@ -548,7 +549,7 @@ Path Path::withExtension(const std::wstring& extensionString) const
 void Path::findPaths(std::vector<Path>& paths, const std::wstring& wildcardPattern, const PathListFilter& filter)
 {
 	std::wstring pattern = stripTrailingBackslash(wildcardPattern);
-	const wchar_t* s = pattern.data();
+	const wchar_t* s = pattern.c_str();
 	const wchar_t* p = s + pattern.size();
 	while (--p >= s && *p != L'/' && *p != L'\\' && *p != L':') {
 		;

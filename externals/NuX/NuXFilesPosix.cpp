@@ -426,12 +426,12 @@ Path Path::createTempFile() const {
 	std::string tmpl = utf8dir + "tmpXXXXXX";
 	std::vector<char> buf(tmpl.begin(), tmpl.end());
 	buf.push_back('\0');
-	int fd = ::mkstemp(buf.data());
+	int fd = ::mkstemp(&buf[0]);
 	if (fd < 0) {
 		throw Exception("Error creating temp", *this, errno);
 	}
 	::close(fd);
-	return Path(fromUTF8(buf.data()));
+	return Path(fromUTF8(&buf[0]));
 }
 
 bool Path::matchesFilter(const PathListFilter& filter) const {

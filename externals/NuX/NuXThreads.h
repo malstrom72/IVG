@@ -56,7 +56,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <vector>
 #include <exception>
 #include <algorithm>
-#include <utility>
+
+#if defined(__cplusplus) && ((__cplusplus >= 201103L) || (defined(_MSC_VER) && _MSC_VER >= 1900))
+	#define NUXTHREADS_HAS_CPP11 1
+#else
+	#define NUXTHREADS_HAS_CPP11 0
+#endif
+
+#if NUXTHREADS_HAS_CPP11
+	#include <utility>
+	#define NUXTHREADS_MOVE(x) std::move(x)
+#else
+	#define NUXTHREADS_MOVE(x) (x)
+#endif
 #include "assert.h"
 
 namespace NuXThreads {
@@ -173,7 +185,46 @@ template<typename T> class AtomicPointer : public AtomicPointerBaseClass { // FI
 	protected:	T* volatile p;
 };
 
-void ThreadMemoryFence(); ///< Provides a full memory barrier to enforce ordering of reads and writes across threads. Guarantees both compiler and CPU reordering protection.
+void threadMemoryFence(); ///< Provides a full memory barrier to enforce ordering of reads and writes across threads. Guarantees both compiler and CPU reordering protection.
+
+int queryCPUCount();
+
+class ParallelLoopBody {
+	public:		virtual bool run(int index, int iterationCount, int threadIndex) = 0;
+	protected:	virtual ~ParallelLoopBody() { }
+};
+
+typedef bool (*ParallelLoopFunction)(int index, int iterationCount, int threadIndex, void* context);
+
+void runLoopInParallel(int count, ParallelLoopBody& body, int threadCount = 0);
+void runLoopInParallel(int count, ParallelLoopFunction function, void* context, int threadCount = 0);
+
+template<typename Functor> class FunctorParallelLoopBody : public ParallelLoopBody {
+	public:		FunctorParallelLoopBody(Functor& functor) : functor(functor) { }
+	public:		virtual bool run(int index, int iterationCount, int threadIndex) {
+					return functor(index, iterationCount, threadIndex);
+				}
+	protected:	Functor& functor;
+};
+
+template<typename Functor> class ConstFunctorParallelLoopBody : public ParallelLoopBody {
+	public:		ConstFunctorParallelLoopBody(const Functor& functor) : functor(functor) { }
+	public:		virtual bool run(int index, int iterationCount, int threadIndex) {
+					return functor(index, iterationCount, threadIndex);
+				}
+	protected:	const Functor& functor;
+};
+
+template<typename Functor> void runLoopInParallel(int count, Functor& functor, int threadCount = 0) {
+	FunctorParallelLoopBody<Functor> adapter(functor);
+	runLoopInParallel(count, static_cast<ParallelLoopBody&>(adapter), threadCount);
+}
+
+template<typename Functor> void runLoopInParallel(int count, const Functor& functor, int threadCount = 0) {
+	ConstFunctorParallelLoopBody<Functor> adapter(functor);
+	runLoopInParallel(count, static_cast<ParallelLoopBody&>(adapter), threadCount);
+}
+
 
 // FIX : use InitializeCriticalSectionAndSpinCount or SetCriticalSectionSpinCount under Windows?
 
@@ -219,7 +270,9 @@ template<typename T> class Lockable {
 					public:		Lock(const Lockable& l) : m(l.mutex), r(l.resource) { }
 					public:		T& access() const { return r; }
 					public:		T& operator=(const T& copy) const { if (&r != &copy) { r = copy; }; return r; }
+#if NUXTHREADS_HAS_CPP11
 					public:		T& operator=(T&& move) const { if (&r != &move) { r = std::move(move); } return r; }
+#endif
 					public:		T* operator->() const { return &r; }
 					public:		operator T&() const { return r; }
 					protected:	MutexLock m;
@@ -227,7 +280,10 @@ template<typename T> class Lockable {
 				};
 	public:		Lockable() { }
 	public:		Lockable(const T& copy) : resource(copy) { }
-    public:		Lockable(Lockable&& other) : resource(moveResource(std::move(other))) { }
+	public:		Lockable(const Lockable& other) : resource(copyResource(other)) { }
+#if NUXTHREADS_HAS_CPP11
+	public:		Lockable(Lockable&& other) : resource(moveResource(std::move(other))) { }
+#endif
 	public:		Lockable& operator=(const T& copy) {
 					if (&resource != &copy) {
 						MutexLock lock(mutex);
@@ -235,6 +291,7 @@ template<typename T> class Lockable {
 					}
 					return *this;
 				}
+#if NUXTHREADS_HAS_CPP11
 	public:		Lockable& operator=(T&& move) {
 					if (&resource != &move) {
 						MutexLock lock(mutex);
@@ -242,6 +299,7 @@ template<typename T> class Lockable {
 					}
 					return *this;
 				}
+#endif
 	public:		Lockable& operator=(const Lockable& copy) {
 					if (this != &copy) {
 						MutexLock lockThis(mutex);
@@ -250,6 +308,7 @@ template<typename T> class Lockable {
 					}
 					return *this;
 				}
+#if NUXTHREADS_HAS_CPP11
 	public:		Lockable& operator=(Lockable&& other) {
 					if (this != &other) {
 						MutexLock lockThis(mutex);
@@ -258,13 +317,20 @@ template<typename T> class Lockable {
 					}
 					return *this;
 				}
+#endif
 	public:		Lock lock() const { return Lock(*this); }
 	public:		Lock operator->() const { return Lock(*this); }
 	public:		T get() const { return Lock(*this).access(); }
+	private:	static T copyResource(const Lockable& other) {
+					MutexLock lock(other.mutex);
+					return other.resource;
+				}
+#if NUXTHREADS_HAS_CPP11
 	private:	static T moveResource(Lockable&& other) {
 					MutexLock lock(other.mutex);
 					return std::move(other.resource);
 				}
+#endif
 	private:	mutable Mutex mutex;
 	private:	mutable T resource;
 };
@@ -380,14 +446,20 @@ class Thread : public Runnable {
 
 	int main() {
 		// Create a snapshot with initial data
-		Snapshot<MyData> data({10, 3.14f});
+		MyData initial;
+		initial.a = 10;
+		initial.b = 3.14f;
+		Snapshot<MyData> data(initial);
 
 		// Overwrite the entire struct "atomically"
-		data = {20, 2.71f};
+		MyData replacement;
+		replacement.a = 20;
+		replacement.b = 2.71f;
+		data = replacement;
 
 		// Acquire a Guard to modify the active slot
 		{
-			auto guard = data.guard();
+			Snapshot<MyData>::Guard guard(data);
 			guard->a = 30;
 			guard->b = 1.23f;
 			// Another thread also guarding() at the same time would see and share these changes
@@ -399,7 +471,10 @@ class Thread : public Runnable {
 		std::cout << copyOfActive.a << ", " << copyOfActive.b << std::endl;
 
 		// If you want control over where MyData is destroyed, call setWaitAndDestroy
-		data.setWaitAndDestroy({40, 9.99f});
+		MyData destroy;
+		destroy.a = 40;
+		destroy.b = 9.99f;
+		data.setWaitAndDestroy(destroy);
 
 		return 0;
 	}
@@ -609,17 +684,20 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 	public:		Queue(const Queue& copy) : elements(0) { assign(copy, copy.capacity); }
 
 	public:		Queue(const Queue& copy, int newCapacity) : elements(0) { assign(copy, newCapacity); }
+#if NUXTHREADS_HAS_CPP11
 	public:		Queue(Queue&& other) throw() : capacity(0), elements(0) { // Not thread-safe.
 					swap(other);
 					other.readBegin = other.readEnd = other.writeBegin = other.writeEnd = 0;
 					other.elements = 0;
 					other.capacity = 0;
 				}
+#endif
 
 	public:		Queue& operator=(const Queue& copy) { // Not thread-safe.
 					assign(copy, copy.capacity);
 					return (*this);
 				}
+#if NUXTHREADS_HAS_CPP11
 	public:		Queue& operator=(Queue&& other) throw() { // Not thread-safe.
 					swap(other);
 					other.readBegin = other.readEnd = other.writeBegin = other.writeEnd = 0;
@@ -627,6 +705,7 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 					other.capacity = 0;
 					return (*this);
 				}
+#endif
 
 	public:		void setCapacity(int capacity) { // Not thread-safe.
 					assert(capacity > 0 && (capacity & (capacity - 1)) == 0); // Capacity must be power of 2.
@@ -674,7 +753,11 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 						if (readBegin.swapIfEqual(b, b + c)) {
 							if (x != 0) {
 								for (int i = 0; i < c; ++i) {
-									x[i] = std::move(const_cast<T&>(elements[(b + i) & (capacity - 1)]));
+#if NUXTHREADS_HAS_CPP11
+									x[i] = NUXTHREADS_MOVE(const_cast<T&>(elements[(b + i) & (capacity - 1)]));
+#else
+									x[i] = const_cast<T&>(elements[(b + i) & (capacity - 1)]);
+#endif
 								}
 							}
 							for (int i = 0; i < c; ++i) {
@@ -701,6 +784,7 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 	public:		int getCapacity() const { return capacity; }
 	public:		bool isEmpty() const { return getSize() == 0; }
 	public:		bool push(const T& x) { return (push(1, &x) == 1); }
+#if NUXTHREADS_HAS_CPP11
 	public:		bool push(T&& x) {
 					int e;
 					while (true) {
@@ -719,6 +803,7 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 						Thread::yield();
 					}
 				}
+#endif
 				
 	public:		bool pop(T& x) { return (pop(1, &x) == 1); }
 	public:		int skip(int count)	{ return pop(count, 0); }
