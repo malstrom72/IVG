@@ -12,16 +12,17 @@ tools/IVGSnapshot/tests/ListOnlySample.ivg
                           [ pen red dash:4 width:2 ]
 # tools/IVGSnapshot/tests/ListOnlySample.ivg
 
-Scenario: smurf
+Scenario: smurf #0
 	Entry 1 (block 1) - SKIPPED
-	Snapshot ID  : tools_IVGSnapshot_tests_ListOnlySample#smurf#1#1
+	Snapshot ID  : tools_IVGSnapshot_tests_ListOnlySample#smurf #0#1#1
 
+Scenario: smurf #1
 	Entry 2 (block 1) - SKIPPED
-	Snapshot ID  : tools_IVGSnapshot_tests_ListOnlySample#smurf#1#2
+	Snapshot ID  : tools_IVGSnapshot_tests_ListOnlySample#smurf #1#1#2
 
-Scenario: implicit-2
+Scenario: unlabeled-1
 	Entry 1 (block 2) - SKIPPED
-	Snapshot ID  : tools_IVGSnapshot_tests_ListOnlySample#implicit-2#2#1
+	Snapshot ID  : tools_IVGSnapshot_tests_ListOnlySample#unlabeled-1#2#1
 
 Summary
   Snapshots       : 3 total (3 validated)
