@@ -855,12 +855,25 @@ public:
 			}
 
 			const bool blockTargetsScenario = (scenario.explicitScenario ? (hasLabel && *scenarioLabel == scenario.name) : (!hasLabel && invocation != 0));
+			const String* listArg = args.fetchOptional("list", false);
+			const String* singleStatement = 0;
+			if (listArg == 0) {
+				singleStatement = &args.fetchRequired(0, false);
+			}
 			if (!blockTargetsScenario) {
 				args.throwIfAnyUnfetched();
 				if (invocation != 0) {
 					Interpreter::throwBadSyntax("unexpected snapshot invocation for scenario.");
 				}
 				return true;
+			}
+
+			StringVector statements;
+			if (listArg != 0) {
+				const String expandedOuter = interpreter.expand(StringRange(*listArg));
+				interpreter.parseList(StringRange(expandedOuter), statements, false, false, 1, INT_MAX);
+			} else {
+				statements.push_back(*singleStatement);
 			}
 
 			if (invocation == 0) {
@@ -871,7 +884,6 @@ public:
 				Interpreter::throwBadSyntax("snapshot validate flag changed between collection and playback.");
 			}
 
-			StringVector statements = parseSnapshotStatements(interpreter, args);
 			if (invocation->statementOrdinal == 0 || invocation->statementOrdinal > statements.size()) {
 				Interpreter::throwBadSyntax("snapshot statement ordinal exceeds available entries.");
 			}
