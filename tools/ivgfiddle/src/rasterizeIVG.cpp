@@ -43,37 +43,40 @@ using namespace IMPD;
 using namespace NuXPixels;
 
 class IVGExecutorWithExternalFonts : public IVGExecutor {
-	public:	IVGExecutorWithExternalFonts(Canvas& canvas, const AffineTransformation& xform)
-					: IVGExecutor(canvas, xform) {
-			}
-			virtual std::vector<const Font*> lookupFonts(Interpreter& interpreter, const WideString& fontName
-					, const UniString& forString) {
-				(void)interpreter;
-				(void)forString;
-				std::pair< FontMap::iterator, bool > insertResult = loadedFonts.insert(std::make_pair(fontName, Font()));
-				if (insertResult.second) {
-					const std::string fontName8Bit(fontName.begin(), fontName.end());
-					String fontCode;
-					{
-						std::ifstream fileStream((fontName8Bit + ".ivgfont").c_str());
-						if (!fileStream.good()) {
-							return std::vector<const Font*>();
-						}
-						fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-						const std::istreambuf_iterator<Char> it(fileStream);
-						const std::istreambuf_iterator<Char> end;
-						fontCode = std::string(it, end);
+	public:
+		IVGExecutorWithExternalFonts(Canvas& canvas, const AffineTransformation& xform)
+			: IVGExecutor(canvas, xform) {
+		}
+		virtual std::vector<const Font*> lookupFonts(Interpreter& interpreter, const WideString& fontName
+				, const UniString& forString) {
+			(void)interpreter;
+			(void)forString;
+			std::pair< FontMap::iterator, bool > insertResult = loadedFonts.insert(std::make_pair(fontName, Font()));
+			if (insertResult.second) {
+				const std::string fontName8Bit(fontName.begin(), fontName.end());
+				String fontCode;
+				{
+					std::ifstream fileStream((fontName8Bit + ".ivgfont").c_str());
+					if (!fileStream.good()) {
+						return std::vector<const Font*>();
 					}
-					FontParser fontParser;
-					STLMapVariables vars;
-					FormatInfo formatInfo;
-					Interpreter impd(fontParser, vars, formatInfo);
-					impd.run(fontCode);
-					insertResult.first->second = fontParser.finalizeFont();
+					fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+					const std::istreambuf_iterator<Char> it(fileStream);
+					const std::istreambuf_iterator<Char> end;
+					fontCode = std::string(it, end);
 				}
-				return std::vector<const Font*>(1, &insertResult.first->second);
+				FontParser fontParser;
+				STLMapVariables vars;
+				FormatInfo formatInfo;
+				Interpreter impd(fontParser, vars, formatInfo);
+				impd.run(fontCode);
+				insertResult.first->second = fontParser.finalizeFont();
 			}
-	protected:	FontMap loadedFonts;
+			return std::vector<const Font*>(1, &insertResult.first->second);
+		}
+		
+	protected:
+		FontMap loadedFonts;
 };
 
 namespace {
@@ -115,89 +118,88 @@ static SnapshotPlanCache snapshotPlanCache;
 
 IntRect computeScaledBounds(const IntRect& bounds, double rescale)
 {
-		if (rescale == 1.0) {
-				return bounds;
-		}
-		const double scaledLeft = static_cast<double>(bounds.left) * rescale;
-		const double scaledTop = static_cast<double>(bounds.top) * rescale;
-		const double scaledRight = static_cast<double>(bounds.left + bounds.width) * rescale;
-		const double scaledBottom = static_cast<double>(bounds.top + bounds.height) * rescale;
-		IntRect result;
-		result.left = static_cast<int>(std::floor(scaledLeft));
-		result.top = static_cast<int>(std::floor(scaledTop));
-		result.width = static_cast<int>(std::ceil(scaledRight) - result.left);
-		result.height = static_cast<int>(std::ceil(scaledBottom) - result.top);
-		return result;
+	if (rescale == 1.0) {
+		return bounds;
+	}
+	const double scaledLeft = static_cast<double>(bounds.left) * rescale;
+	const double scaledTop = static_cast<double>(bounds.top) * rescale;
+	const double scaledRight = static_cast<double>(bounds.left + bounds.width) * rescale;
+	const double scaledBottom = static_cast<double>(bounds.top + bounds.height) * rescale;
+	IntRect result;
+	result.left = static_cast<int>(std::floor(scaledLeft));
+	result.top = static_cast<int>(std::floor(scaledTop));
+	result.width = static_cast<int>(std::ceil(scaledRight) - result.left);
+	result.height = static_cast<int>(std::ceil(scaledBottom) - result.top);
+	return result;
 }
 
 class GuardedSelfContainedARGB32Canvas : public SelfContainedARGB32Canvas {
-		public: GuardedSelfContainedARGB32Canvas(double rescaleBounds, long long pixelBudget,
-								size_t heapReserveBytes)
-										: SelfContainedARGB32Canvas(rescaleBounds)
-										, maxRasterPixels(pixelBudget)
-										, heapReserve(heapReserveBytes) {
-						}
+	public:
+		GuardedSelfContainedARGB32Canvas(double rescaleBounds, long long pixelBudget, size_t heapReserveBytes)
+				: SelfContainedARGB32Canvas(rescaleBounds)
+				, maxRasterPixels(pixelBudget)
+				, heapReserve(heapReserveBytes) {
+		}
 
-		public: virtual void defineBounds(const IntRect& newBounds) {
-						const IntRect scaledBounds = computeScaledBounds(newBounds, rescaleBounds);
-						preflightBounds(scaledBounds);
-						SelfContainedARGB32Canvas::defineBounds(newBounds);
-				}
+		virtual void defineBounds(const IntRect& newBounds) {
+			const IntRect scaledBounds = computeScaledBounds(newBounds, rescaleBounds);
+			preflightBounds(scaledBounds);
+			SelfContainedARGB32Canvas::defineBounds(newBounds);
+		}
 
-		private: void preflightBounds(const IntRect& scaledBounds) const {
-						if (scaledBounds.width <= 0 || scaledBounds.height <= 0) {
-								return;
-						}
-						const long long pixelCount = static_cast<long long>(scaledBounds.width)
-								* static_cast<long long>(scaledBounds.height);
-						if (scaledBounds.width > MAX_RASTER_DIMENSION || scaledBounds.height > MAX_RASTER_DIMENSION) {
-								std::ostringstream message;
-								message << "Rasterization aborted: scaled bounds " << scaledBounds.width << "x"
-										<< scaledBounds.height << " exceed the " << MAX_RASTER_DIMENSION
-										<< "px dimension cap.";
-								throw runtime_error(message.str());
-						}
-						if (maxRasterPixels > 0 && pixelCount > maxRasterPixels) {
-								std::ostringstream message;
-								message << "Rasterization aborted: " << scaledBounds.width << "x" << scaledBounds.height
-										<< " = " << pixelCount << " pixels exceeds the " << maxRasterPixels
-										<< " pixel budget.";
-								throw runtime_error(message.str());
-						}
-						const size_t requiredPixelBytes = static_cast<size_t>(scaledBounds.width)
-								* static_cast<size_t>(scaledBounds.height) * 4u;
-						const size_t requiredBytes = 4u * 4u + requiredPixelBytes;
+	private:
+		void preflightBounds(const IntRect& scaledBounds) const {
+			if (scaledBounds.width <= 0 || scaledBounds.height <= 0) {
+				return;
+			}
+			const long long pixelCount = static_cast<long long>(scaledBounds.width) * static_cast<long long>(scaledBounds.height);
+			if (scaledBounds.width > MAX_RASTER_DIMENSION || scaledBounds.height > MAX_RASTER_DIMENSION) {
+				std::ostringstream message;
+				message << "Rasterization aborted: scaled bounds " << scaledBounds.width << "x"
+						<< scaledBounds.height << " exceed the " << MAX_RASTER_DIMENSION
+						<< "px dimension cap.";
+				throw runtime_error(message.str());
+			}
+			if (maxRasterPixels > 0 && pixelCount > maxRasterPixels) {
+				std::ostringstream message;
+				message << "Rasterization aborted: " << scaledBounds.width << "x" << scaledBounds.height
+						<< " = " << pixelCount << " pixels exceeds the " << maxRasterPixels
+						<< " pixel budget.";
+				throw runtime_error(message.str());
+			}
+			const size_t requiredPixelBytes = static_cast<size_t>(scaledBounds.width) * static_cast<size_t>(scaledBounds.height) * 4u;
+			const size_t requiredBytes = 4u * 4u + requiredPixelBytes;
 #ifdef __EMSCRIPTEN__
-						const size_t freeHeapBytes = computeFreeHeapBytes();
-						if (freeHeapBytes > 0 && requiredBytes + heapReserve > freeHeapBytes) {
-								std::ostringstream message;
-								message << "Rasterization aborted: " << requiredBytes << " bytes required but only "
-										<< freeHeapBytes << " bytes free in the WebAssembly heap.";
-								throw runtime_error(message.str());
-						}
+			const size_t freeHeapBytes = computeFreeHeapBytes();
+			if (freeHeapBytes > 0 && requiredBytes + heapReserve > freeHeapBytes) {
+				std::ostringstream message;
+				message << "Rasterization aborted: " << requiredBytes << " bytes required but only "
+						<< freeHeapBytes << " bytes free in the WebAssembly heap.";
+				throw runtime_error(message.str());
+			}
 #else
-						(void)requiredBytes;
+			(void)requiredBytes;
 #endif
-				}
+		}
 
-		private: const long long maxRasterPixels;
-		private: const size_t heapReserve;
+	private: const long long maxRasterPixels;
+	private: const size_t heapReserve;
 };
 
 size_t computeFreeHeapBytes()
 {
 #ifdef __EMSCRIPTEN__
-		uintptr_t* sbrkPointer = emscripten_get_sbrk_ptr();
-		if (sbrkPointer != 0) {
-				const uintptr_t currentBrk = *sbrkPointer;
-				const size_t heapBytes = emscripten_get_heap_size();
-				if (heapBytes > currentBrk) {
-						return heapBytes - static_cast<size_t>(currentBrk);
-				}
+	uintptr_t* sbrkPointer = emscripten_get_sbrk_ptr();
+	if (sbrkPointer != 0) {
+		const uintptr_t currentBrk = *sbrkPointer;
+		const size_t heapBytes = emscripten_get_heap_size();
+		if (heapBytes > currentBrk) {
+			return heapBytes - static_cast<size_t>(currentBrk);
 		}
-		return 0;
+	}
+	return 0;
 #else
-		return 0;
+	return 0;
 #endif
 }
 
@@ -309,315 +311,300 @@ struct SnapshotScenario {
 };
 
 class SnapshotPlan {
-public:
-	explicit SnapshotPlan(const std::string& ivgPath)
-			: baseName(extractBaseName(ivgPath))
-			, nextBlockOrdinal(1)
-			, collectingPlan(false)
-			, activeScenarioIndex(0)
-			, activeEntryOrdinal(1)
-			, collectionRunCursor(0)
-			, collectionRunsBuilt(false)
-			, recordedBlockCursor(0)
-	{
-	}
-
-public:
-	uint32_t addBlock(Interpreter& interpreter, const SnapshotBlock& block)
-	{
-		if (block.statements.empty()) {
-			Interpreter::throwBadSyntax("snapshot meta requires at least one statement block.");
+	public:
+		explicit SnapshotPlan(const std::string& ivgPath)
+				: baseName(extractBaseName(ivgPath))
+				, nextBlockOrdinal(1)
+				, collectingPlan(false)
+				, activeScenarioIndex(0)
+				, activeEntryOrdinal(1)
+				, collectionRunCursor(0)
+				, collectionRunsBuilt(false)
+				, recordedBlockCursor(0)
+		{
 		}
 
-		uint32_t blockOrdinal = nextBlockOrdinal;
-		if (collectionRunsBuilt) {
-			if (recordedBlockCursor >= recordedBlockOrdinals.size()) {
-				Interpreter::throwBadSyntax("snapshot replay encountered an unexpected block.");
+		uint32_t addBlock(Interpreter& interpreter, const SnapshotBlock& block)
+		{
+			if (block.statements.empty()) {
+				Interpreter::throwBadSyntax("snapshot meta requires at least one statement block.");
 			}
-			blockOrdinal = recordedBlockOrdinals[recordedBlockCursor++];
+
+			uint32_t blockOrdinal = nextBlockOrdinal;
+			if (collectionRunsBuilt) {
+				if (recordedBlockCursor >= recordedBlockOrdinals.size()) {
+					Interpreter::throwBadSyntax("snapshot replay encountered an unexpected block.");
+				}
+				blockOrdinal = recordedBlockOrdinals[recordedBlockCursor++];
+				return blockOrdinal;
+			}
+
+			recordedBlockOrdinals.push_back(blockOrdinal);
+			const bool hasExplicitScenario = !block.scenario.empty();
+			if (hasExplicitScenario) {
+				const uint32_t scenarioIndex = resolveScenario(interpreter, block.scenario, block.validate, true);
+				SnapshotScenario& scenario = scenarios[scenarioIndex];
+				const uint32_t statementCount = static_cast<uint32_t>(block.statements.size());
+				if (!scenario.entryIndices.empty() && statementCount != scenario.entryIndices.size()) {
+					Interpreter::throwBadSyntax("scenario entry count does not match previous blocks.");
+				}
+
+				for (uint32_t i = 0; i < statementCount; ++i) {
+					const uint32_t entryOrdinal = i + 1;
+					uint32_t entryIndex = 0;
+					SnapshotEntry& entry = ensureEntry(scenarioIndex, scenario, entryOrdinal, block.validate, block.scenario, i, entryIndex);
+
+					SnapshotInvocation invocation;
+					invocation.blockIndex = blockOrdinal;
+					invocation.sourceLine = block.sourceLine;
+					invocation.statementOrdinal = entryOrdinal;
+					invocation.statements = block.statements[i];
+					entry.invocations.push_back(invocation);
+				}
+			} else {
+				const uint32_t statementCount = static_cast<uint32_t>(block.statements.size());
+				for (uint32_t i = 0; i < statementCount; ++i) {
+					const uint32_t entryOrdinal = 1;
+					const String scenarioName = synthesizeScenarioName(blockOrdinal, statementCount, i + 1);
+					const uint32_t scenarioIndex = resolveScenario(interpreter, scenarioName, block.validate, false);
+					SnapshotScenario& scenario = scenarios[scenarioIndex];
+					uint32_t entryIndex = 0;
+					SnapshotEntry& entry = ensureEntry(scenarioIndex, scenario, entryOrdinal, block.validate, scenarioName, i, entryIndex);
+
+					SnapshotInvocation invocation;
+					invocation.blockIndex = blockOrdinal;
+					invocation.sourceLine = block.sourceLine;
+					invocation.statementOrdinal = i + 1;
+					invocation.statements = block.statements[i];
+					entry.invocations.push_back(invocation);
+				}
+			}
+
+			++nextBlockOrdinal;
 			return blockOrdinal;
 		}
 
-		recordedBlockOrdinals.push_back(blockOrdinal);
-		const bool hasExplicitScenario = !block.scenario.empty();
-		if (hasExplicitScenario) {
-			const uint32_t scenarioIndex = resolveScenario(interpreter, block.scenario, block.validate, true);
-			SnapshotScenario& scenario = scenarios[scenarioIndex];
-			const uint32_t statementCount = static_cast<uint32_t>(block.statements.size());
-			if (!scenario.entryIndices.empty() && statementCount != scenario.entryIndices.size()) {
-				Interpreter::throwBadSyntax("scenario entry count does not match previous blocks.");
-			}
-
-			for (uint32_t i = 0; i < statementCount; ++i) {
-				const uint32_t entryOrdinal = i + 1;
-				uint32_t entryIndex = 0;
-				SnapshotEntry& entry = ensureEntry(scenarioIndex, scenario, entryOrdinal, block.validate, block.scenario, i, entryIndex);
-
-				SnapshotInvocation invocation;
-				invocation.blockIndex = blockOrdinal;
-				invocation.sourceLine = block.sourceLine;
-				invocation.statementOrdinal = entryOrdinal;
-				invocation.statements = block.statements[i];
-				entry.invocations.push_back(invocation);
-			}
-		} else {
-			const uint32_t statementCount = static_cast<uint32_t>(block.statements.size());
-			for (uint32_t i = 0; i < statementCount; ++i) {
-				const uint32_t entryOrdinal = 1;
-				const String scenarioName = synthesizeScenarioName(blockOrdinal, statementCount, i + 1);
-				const uint32_t scenarioIndex = resolveScenario(interpreter, scenarioName, block.validate, false);
-				SnapshotScenario& scenario = scenarios[scenarioIndex];
-				uint32_t entryIndex = 0;
-				SnapshotEntry& entry = ensureEntry(scenarioIndex, scenario, entryOrdinal, block.validate, scenarioName, i, entryIndex);
-
-				SnapshotInvocation invocation;
-				invocation.blockIndex = blockOrdinal;
-				invocation.sourceLine = block.sourceLine;
-				invocation.statementOrdinal = i + 1;
-				invocation.statements = block.statements[i];
-				entry.invocations.push_back(invocation);
-			}
+		const std::vector<SnapshotScenario>& getScenarios() const
+		{
+			return scenarios;
 		}
 
-		++nextBlockOrdinal;
-		return blockOrdinal;
-	}
+		const std::vector<SnapshotEntry>& getEntries() const
+		{
+			return entries;
+		}
 
-public:
-	const std::vector<SnapshotScenario>& getScenarios() const
-	{
-		return scenarios;
-	}
-
-public:
-	const std::vector<SnapshotEntry>& getEntries() const
-	{
-		return entries;
-	}
-
-public:
-	void beginCollection()
-	{
-		collectingPlan = true;
-		activeScenarioIndex = 0;
-		activeEntryOrdinal = 1;
-		collectionRuns.clear();
-		collectionRunCursor = 0;
-		collectionRunsBuilt = false;
-		recordedBlockOrdinals.clear();
-		recordedBlockCursor = 0;
-	}
-
-public:
-	void completeCollectionPass()
-	{
-		collectingPlan = false;
-	}
-
-public:
-	bool prepareNextCollectionPass()
-	{
-		if (!collectionRunsBuilt) {
-			buildCollectionRuns();
-			collectionRunsBuilt = true;
-			if (collectionRuns.empty()) {
-				return false;
-			}
+		void beginCollection()
+		{
+			collectingPlan = true;
+			activeScenarioIndex = 0;
+			activeEntryOrdinal = 1;
+			collectionRuns.clear();
 			collectionRunCursor = 0;
+			collectionRunsBuilt = false;
+			recordedBlockOrdinals.clear();
 			recordedBlockCursor = 0;
 		}
 
-		if (collectionRuns.empty()) {
-			return false;
-		}
-		if (collectionRunCursor + 1 >= collectionRuns.size()) {
-			return false;
+		void completeCollectionPass()
+		{
+			collectingPlan = false;
 		}
 
-		++collectionRunCursor;
-		const CollectionRun& run = collectionRuns[collectionRunCursor];
-		activeScenarioIndex = run.scenarioIndex;
-		activeEntryOrdinal = run.entryOrdinal;
-		collectingPlan = true;
-		recordedBlockCursor = 0;
-		return true;
-	}
-
-public:
-	bool isCollectingPlan() const
-	{
-		return collectingPlan;
-	}
-
-public:
-	uint32_t getActiveScenarioIndex() const
-	{
-		return activeScenarioIndex;
-	}
-
-public:
-	uint32_t getActiveEntryOrdinal() const
-	{
-		return activeEntryOrdinal;
-	}
-
-public:
-	const SnapshotInvocation* lookupInvocation(uint32_t blockOrdinal, uint32_t scenarioIndex, uint32_t entryOrdinal) const
-	{
-		if (scenarioIndex >= scenarios.size()) {
-			return 0;
-		}
-
-		const SnapshotScenario& scenario = scenarios[scenarioIndex];
-		if (entryOrdinal == 0 || entryOrdinal > scenario.entryIndices.size()) {
-			return 0;
-		}
-
-		const uint32_t entryIndex = scenario.entryIndices[entryOrdinal - 1];
-		const SnapshotEntry& entry = entries[entryIndex];
-		for (size_t i = 0; i < entry.invocations.size(); ++i) {
-			if (entry.invocations[i].blockIndex == blockOrdinal) {
-				return &entry.invocations[i];
+		bool prepareNextCollectionPass()
+		{
+			if (!collectionRunsBuilt) {
+				buildCollectionRuns();
+				collectionRunsBuilt = true;
+				if (collectionRuns.empty()) {
+					return false;
+				}
+				collectionRunCursor = 0;
+				recordedBlockCursor = 0;
 			}
-		}
-		return 0;
-	}
 
-private:
-	String extractBaseName(const std::string& path) const
-	{
-		const size_t slash = path.find_last_of("/\\");
-		const size_t baseOffset = (slash == std::string::npos ? 0 : slash + 1);
-		size_t dot = path.find_last_of('.');
-		if (dot == std::string::npos || dot < baseOffset) {
-			dot = path.size();
-		}
-		return String(path.c_str() + baseOffset, path.c_str() + dot);
-	}
-
-private:
-	String synthesizeScenarioName(uint32_t blockOrdinal, uint32_t blockCount, uint32_t entryOrdinal) const
-	{
-		String name = baseName;
-		name += '-';
-		name += Interpreter::toString(static_cast<int32_t>(blockOrdinal));
-		if (blockCount > 1) {
-			name += '-';
-			name += Interpreter::toString(static_cast<int32_t>(entryOrdinal));
-		}
-		return name;
-	}
-
-private:
-	uint32_t resolveScenario(Interpreter& interpreter, const String& name, bool validate, bool explicitScenario)
-	{
-		const std::map<String, uint32_t>::const_iterator it = scenarioLookup.find(name);
-		if (it != scenarioLookup.end()) {
-			SnapshotScenario& existing = scenarios[it->second];
-			if (existing.validate != validate) {
-				Interpreter::throwBadSyntax("scenario switches between validate yes/no.");
+			if (collectionRuns.empty()) {
+				return false;
 			}
-			return it->second;
-		}
-
-		SnapshotScenario scenario;
-		scenario.name = name;
-		scenario.validate = validate;
-		scenario.explicitScenario = explicitScenario;
-		scenarios.push_back(scenario);
-		const uint32_t index = static_cast<uint32_t>(scenarios.size() - 1);
-		scenarioLookup.insert(std::make_pair(name, index));
-		return index;
-	}
-
-private:
-	SnapshotEntry& ensureEntry(uint32_t scenarioIndex, SnapshotScenario& scenario, uint32_t entryOrdinal, bool validate, const String& scenarioName, uint32_t listIndex, uint32_t& entryIndex)
-	{
-		const std::map<uint32_t, uint32_t>::const_iterator existing = scenario.entryLookup.find(entryOrdinal);
-		if (existing != scenario.entryLookup.end()) {
-			entryIndex = existing->second;
-			SnapshotEntry& entry = entries[entryIndex];
-			if (entry.validate != validate) {
-				Interpreter::throwBadSyntax("scenario switches between validate yes/no.");
+			if (collectionRunCursor + 1 >= collectionRuns.size()) {
+				return false;
 			}
-			return entry;
+
+			++collectionRunCursor;
+			const CollectionRun& run = collectionRuns[collectionRunCursor];
+			activeScenarioIndex = run.scenarioIndex;
+			activeEntryOrdinal = run.entryOrdinal;
+			collectingPlan = true;
+			recordedBlockCursor = 0;
+			return true;
 		}
 
-		SnapshotEntry entry;
-		entry.scenarioIndex = scenarioIndex;
-		entry.entryOrdinal = entryOrdinal;
-		entry.validate = validate;
-		entry.scenarioName = scenarioName;
-		entry.listIndex = listIndex;
-		entry.nextInvocationCursor = 0;
-		entries.push_back(entry);
-		entryIndex = static_cast<uint32_t>(entries.size() - 1);
-		scenario.entryLookup.insert(std::make_pair(entryOrdinal, entryIndex));
+		bool isCollectingPlan() const
+		{
+			return collectingPlan;
+		}
 
-		size_t insertPosition = scenario.entryIndices.size();
-		for (size_t i = 0; i < scenario.entryIndices.size(); ++i) {
-			const SnapshotEntry& existingEntry = entries[scenario.entryIndices[i]];
-			if (existingEntry.entryOrdinal > entryOrdinal) {
-				insertPosition = i;
-				break;
+		uint32_t getActiveScenarioIndex() const
+		{
+			return activeScenarioIndex;
+		}
+
+		uint32_t getActiveEntryOrdinal() const
+		{
+			return activeEntryOrdinal;
+		}
+
+		const SnapshotInvocation* lookupInvocation(uint32_t blockOrdinal, uint32_t scenarioIndex, uint32_t entryOrdinal) const
+		{
+			if (scenarioIndex >= scenarios.size()) {
+				return 0;
 			}
-		}
-		scenario.entryIndices.insert(scenario.entryIndices.begin() + insertPosition, entryIndex);
-		return entries.back();
-	}
 
-private:
-	void buildCollectionRuns()
-	{
-		collectionRuns.clear();
-		for (uint32_t scenarioIndex = 0; scenarioIndex < scenarios.size(); ++scenarioIndex) {
 			const SnapshotScenario& scenario = scenarios[scenarioIndex];
-			if (scenario.entryIndices.empty()) {
-				continue;
+			if (entryOrdinal == 0 || entryOrdinal > scenario.entryIndices.size()) {
+				return 0;
 			}
 
-			for (uint32_t entryOrdinal = 1; entryOrdinal <= scenario.entryIndices.size(); ++entryOrdinal) {
-				CollectionRun run;
-				run.scenarioIndex = scenarioIndex;
-				run.entryOrdinal = entryOrdinal;
-				collectionRuns.push_back(run);
+			const uint32_t entryIndex = scenario.entryIndices[entryOrdinal - 1];
+			const SnapshotEntry& entry = entries[entryIndex];
+			for (size_t i = 0; i < entry.invocations.size(); ++i) {
+				if (entry.invocations[i].blockIndex == blockOrdinal) {
+					return &entry.invocations[i];
+				}
+			}
+			return 0;
+		}
+
+	private:
+		String extractBaseName(const std::string& path) const
+		{
+			const size_t slash = path.find_last_of("/\\");
+			const size_t baseOffset = (slash == std::string::npos ? 0 : slash + 1);
+			size_t dot = path.find_last_of('.');
+			if (dot == std::string::npos || dot < baseOffset) {
+				dot = path.size();
+			}
+			return String(path.c_str() + baseOffset, path.c_str() + dot);
+		}
+
+		String synthesizeScenarioName(uint32_t blockOrdinal, uint32_t blockCount, uint32_t entryOrdinal) const
+		{
+			String name = baseName;
+			name += '-';
+			name += Interpreter::toString(static_cast<int32_t>(blockOrdinal));
+			if (blockCount > 1) {
+				name += '-';
+				name += Interpreter::toString(static_cast<int32_t>(entryOrdinal));
+			}
+			return name;
+		}
+
+		uint32_t resolveScenario(Interpreter& interpreter, const String& name, bool validate, bool explicitScenario)
+		{
+			const std::map<String, uint32_t>::const_iterator it = scenarioLookup.find(name);
+			if (it != scenarioLookup.end()) {
+				SnapshotScenario& existing = scenarios[it->second];
+				if (existing.validate != validate) {
+					Interpreter::throwBadSyntax("scenario switches between validate yes/no.");
+				}
+				return it->second;
+			}
+
+			SnapshotScenario scenario;
+			scenario.name = name;
+			scenario.validate = validate;
+			scenario.explicitScenario = explicitScenario;
+			scenarios.push_back(scenario);
+			const uint32_t index = static_cast<uint32_t>(scenarios.size() - 1);
+			scenarioLookup.insert(std::make_pair(name, index));
+			return index;
+		}
+
+		SnapshotEntry& ensureEntry(uint32_t scenarioIndex, SnapshotScenario& scenario, uint32_t entryOrdinal, bool validate, const String& scenarioName, uint32_t listIndex, uint32_t& entryIndex)
+		{
+			const std::map<uint32_t, uint32_t>::const_iterator existing = scenario.entryLookup.find(entryOrdinal);
+			if (existing != scenario.entryLookup.end()) {
+				entryIndex = existing->second;
+				SnapshotEntry& entry = entries[entryIndex];
+				if (entry.validate != validate) {
+					Interpreter::throwBadSyntax("scenario switches between validate yes/no.");
+				}
+				return entry;
+			}
+
+			SnapshotEntry entry;
+			entry.scenarioIndex = scenarioIndex;
+			entry.entryOrdinal = entryOrdinal;
+			entry.validate = validate;
+			entry.scenarioName = scenarioName;
+			entry.listIndex = listIndex;
+			entry.nextInvocationCursor = 0;
+			entries.push_back(entry);
+			entryIndex = static_cast<uint32_t>(entries.size() - 1);
+			scenario.entryLookup.insert(std::make_pair(entryOrdinal, entryIndex));
+
+			size_t insertPosition = scenario.entryIndices.size();
+			for (size_t i = 0; i < scenario.entryIndices.size(); ++i) {
+				const SnapshotEntry& existingEntry = entries[scenario.entryIndices[i]];
+				if (existingEntry.entryOrdinal > entryOrdinal) {
+					insertPosition = i;
+					break;
+				}
+			}
+			scenario.entryIndices.insert(scenario.entryIndices.begin() + insertPosition, entryIndex);
+			return entries.back();
+		}
+
+		void buildCollectionRuns()
+		{
+			collectionRuns.clear();
+			for (uint32_t scenarioIndex = 0; scenarioIndex < scenarios.size(); ++scenarioIndex) {
+				const SnapshotScenario& scenario = scenarios[scenarioIndex];
+				if (scenario.entryIndices.empty()) {
+					continue;
+				}
+
+				for (uint32_t entryOrdinal = 1; entryOrdinal <= scenario.entryIndices.size(); ++entryOrdinal) {
+					CollectionRun run;
+					run.scenarioIndex = scenarioIndex;
+					run.entryOrdinal = entryOrdinal;
+					collectionRuns.push_back(run);
+				}
+			}
+
+			if (!collectionRuns.empty()) {
+				const CollectionRun& first = collectionRuns[0];
+				activeScenarioIndex = first.scenarioIndex;
+				activeEntryOrdinal = first.entryOrdinal;
 			}
 		}
 
-		if (!collectionRuns.empty()) {
-			const CollectionRun& first = collectionRuns[0];
-			activeScenarioIndex = first.scenarioIndex;
-			activeEntryOrdinal = first.entryOrdinal;
-		}
-	}
+		String baseName;
+		std::vector<SnapshotEntry> entries;
+		std::vector<SnapshotScenario> scenarios;
+		std::map<String, uint32_t> scenarioLookup;
+		uint32_t nextBlockOrdinal;
+		bool collectingPlan;
+		uint32_t activeScenarioIndex;
+		uint32_t activeEntryOrdinal;
+		std::vector<uint32_t> recordedBlockOrdinals;
+		size_t recordedBlockCursor;
 
-private:
-	String baseName;
-	std::vector<SnapshotEntry> entries;
-	std::vector<SnapshotScenario> scenarios;
-	std::map<String, uint32_t> scenarioLookup;
-	uint32_t nextBlockOrdinal;
-	bool collectingPlan;
-	uint32_t activeScenarioIndex;
-	uint32_t activeEntryOrdinal;
-	std::vector<uint32_t> recordedBlockOrdinals;
-	size_t recordedBlockCursor;
+		struct CollectionRun {
+			uint32_t scenarioIndex;
+			uint32_t entryOrdinal;
+		};
 
-	struct CollectionRun {
-		uint32_t scenarioIndex;
-		uint32_t entryOrdinal;
-	};
-
-	std::vector<CollectionRun> collectionRuns;
-	size_t collectionRunCursor;
-	bool collectionRunsBuilt;
+		std::vector<CollectionRun> collectionRuns;
+		size_t collectionRunCursor;
+		bool collectionRunsBuilt;
 };
 
 static bool readFile(const std::string& path, String& contents);
 
 class SnapshotCollector : public Executor {
-public:
-	SnapshotCollector(SnapshotPlan& plan, const std::string& sourcePath, const String& sourceText, const std::vector<std::string>& includeDirs)
+	public:
+		SnapshotCollector(SnapshotPlan& plan, const std::string& sourcePath, const String& sourceText, const std::vector<std::string>& includeDirs)
 				: plan(plan)
 				, canvas(1.0, MAX_RASTER_PIXELS, VECTOR_HEAP_RESERVE_BYTES)
 				, executor(canvas, AffineTransformation())
@@ -625,130 +612,121 @@ public:
 				, sourceText(sourceText)
 				, includeDirs(includeDirs)
 				, scanOffset(0)
-	{
-	}
-
-public:
-	bool format(Interpreter& interpreter, const FormatInfo& formatInfo)
-	{
-		if (!executor.format(interpreter, formatInfo)) {
-			return false;
+		{
 		}
-		return true;
-	}
 
-public:
-	bool execute(Interpreter& interpreter, const String& instruction, const String& arguments)
-	{
-		return executor.execute(interpreter, instruction, arguments);
-	}
-
-public:
-	bool progress(Interpreter& interpreter, int maxStatementsLeft)
-	{
-		return executor.progress(interpreter, maxStatementsLeft);
-	}
-
-public:
-	bool load(Interpreter& interpreter, const WideString& filename, String& contents)
-	{
-		const std::string utf8(filename.begin(), filename.end());
-		if (readFile(resolveRelativePath(utf8), contents)) {
+		bool format(Interpreter& interpreter, const FormatInfo& formatInfo)
+		{
+			if (!executor.format(interpreter, formatInfo)) {
+				return false;
+			}
 			return true;
 		}
-		for (size_t i = 0; i < includeDirs.size(); ++i) {
-			if (readFile(includeDirs[i] + "/" + utf8, contents)) {
+
+		bool execute(Interpreter& interpreter, const String& instruction, const String& arguments)
+		{
+			return executor.execute(interpreter, instruction, arguments);
+		}
+
+		bool progress(Interpreter& interpreter, int maxStatementsLeft)
+		{
+			return executor.progress(interpreter, maxStatementsLeft);
+		}
+
+		bool load(Interpreter& interpreter, const WideString& filename, String& contents)
+		{
+			const std::string utf8(filename.begin(), filename.end());
+			if (readFile(resolveRelativePath(utf8), contents)) {
 				return true;
 			}
-		}
-		return executor.load(interpreter, filename, contents);
-	}
-
-public:
-	void trace(Interpreter& interpreter, const WideString& s)
-	{
-		executor.trace(interpreter, s);
-	}
-
-public:
-	bool meta(Interpreter& interpreter, const String& key, const String& arguments)
-	{
-		if (key != SNAPSHOT_META_KEY) {
-			return false;
-		}
-
-		ParsedSnapshotMeta parsed = parseSnapshotMetaArguments(interpreter, arguments);
-
-		SnapshotBlock block;
-		block.validate = parsed.validate;
-		if (parsed.hasScenario) {
-			block.scenario = parsed.scenario;
-		}
-		block.statements = parsed.statements;
-		block.sourceLine = locateMetaLine();
-
-		const uint32_t blockOrdinal = plan.addBlock(interpreter, block);
-		executeCollectionInvocation(interpreter, blockOrdinal);
-		return true;
-	}
-
-private:
-	void executeCollectionInvocation(Interpreter& interpreter, uint32_t blockOrdinal)
-	{
-		if (!plan.isCollectingPlan()) {
-			return;
-		}
-
-		const SnapshotInvocation* invocation = plan.lookupInvocation(blockOrdinal, plan.getActiveScenarioIndex(), plan.getActiveEntryOrdinal());
-		if (invocation == 0) {
-			return;
-		}
-
-		const StringRange trimmed = trimRange(StringRange(invocation->statements));
-		if (trimmed.b == trimmed.e) {
-			return;
-		}
-
-		interpreter.run(StringRange(invocation->statements));
-	}
-
-private:
-	std::string resolveRelativePath(const std::string& requested) const
-	{
-		const size_t slash = sourcePath.find_last_of("/\\");
-		if (slash == std::string::npos) {
-			return requested;
-		}
-		return sourcePath.substr(0, slash + 1) + requested;
-	}
-
-private:
-	uint32_t locateMetaLine()
-	{
-		static const String TOKEN("meta snapshot");
-		const size_t position = sourceText.find(TOKEN, scanOffset);
-		if (position == String::npos) {
-			return 0;
-		}
-
-		scanOffset = position + TOKEN.size();
-		uint32_t line = 1;
-		for (size_t i = 0; i < position; ++i) {
-			if (sourceText[i] == '\n') {
-				++line;
+			for (size_t i = 0; i < includeDirs.size(); ++i) {
+				if (readFile(includeDirs[i] + "/" + utf8, contents)) {
+					return true;
+				}
 			}
+			return executor.load(interpreter, filename, contents);
 		}
-		return line;
-	}
 
-private:
-	SnapshotPlan& plan;
-	GuardedSelfContainedARGB32Canvas canvas;
-	IVGExecutorWithExternalFonts executor;
-	std::string sourcePath;
-	String sourceText;
-	std::vector<std::string> includeDirs;
-	size_t scanOffset;
+		void trace(Interpreter& interpreter, const WideString& s)
+		{
+			executor.trace(interpreter, s);
+		}
+
+		bool meta(Interpreter& interpreter, const String& key, const String& arguments)
+		{
+			if (key != SNAPSHOT_META_KEY) {
+				return false;
+			}
+
+			ParsedSnapshotMeta parsed = parseSnapshotMetaArguments(interpreter, arguments);
+
+			SnapshotBlock block;
+			block.validate = parsed.validate;
+			if (parsed.hasScenario) {
+				block.scenario = parsed.scenario;
+			}
+			block.statements = parsed.statements;
+			block.sourceLine = locateMetaLine();
+
+			const uint32_t blockOrdinal = plan.addBlock(interpreter, block);
+			executeCollectionInvocation(interpreter, blockOrdinal);
+			return true;
+		}
+
+	private:
+		void executeCollectionInvocation(Interpreter& interpreter, uint32_t blockOrdinal)
+		{
+			if (!plan.isCollectingPlan()) {
+				return;
+			}
+
+			const SnapshotInvocation* invocation = plan.lookupInvocation(blockOrdinal, plan.getActiveScenarioIndex(), plan.getActiveEntryOrdinal());
+			if (invocation == 0) {
+				return;
+			}
+
+			const StringRange trimmed = trimRange(StringRange(invocation->statements));
+			if (trimmed.b == trimmed.e) {
+				return;
+			}
+
+			interpreter.run(StringRange(invocation->statements));
+		}
+
+		std::string resolveRelativePath(const std::string& requested) const
+		{
+			const size_t slash = sourcePath.find_last_of("/\\");
+			if (slash == std::string::npos) {
+				return requested;
+			}
+			return sourcePath.substr(0, slash + 1) + requested;
+		}
+
+		uint32_t locateMetaLine()
+		{
+			static const String TOKEN("meta snapshot");
+			const size_t position = sourceText.find(TOKEN, scanOffset);
+			if (position == String::npos) {
+				return 0;
+			}
+
+			scanOffset = position + TOKEN.size();
+			uint32_t line = 1;
+			for (size_t i = 0; i < position; ++i) {
+				if (sourceText[i] == '\n') {
+					++line;
+				}
+			}
+			return line;
+		}
+
+		SnapshotPlan& plan;
+		GuardedSelfContainedARGB32Canvas canvas;
+		IVGExecutorWithExternalFonts executor;
+		std::string sourcePath;
+		String sourceText;
+		std::vector<std::string> includeDirs;
+		size_t scanOffset;
 };
 
 
@@ -793,44 +771,41 @@ void SnapshotPlanCache::rebuild(const std::string& sourceTextUtf8, const String&
 }
 
 class SnapshotPlaybackExecutor : public IVGExecutorWithExternalFonts {
-public:
+	public:
 		SnapshotPlaybackExecutor(Canvas& canvas, const AffineTransformation& xform, const SnapshotScenario& scenario, const SnapshotEntry& entry, const std::vector<std::string>& includeDirs, const std::string& sourcePath)
-						: IVGExecutorWithExternalFonts(canvas, xform)
-						, scenario(scenario)
-						, entry(entry)
-						, includeDirs(includeDirs)
-						, sourcePath(sourcePath)
-						, nextBlockOrdinal(0)
-						, invocationCursor(0)
+				: IVGExecutorWithExternalFonts(canvas, xform)
+				, scenario(scenario)
+				, entry(entry)
+				, includeDirs(includeDirs)
+				, sourcePath(sourcePath)
+				, nextBlockOrdinal(0)
+				, invocationCursor(0)
 		{
-}
+		}
 
-public:
 		bool format(Interpreter& interpreter, const FormatInfo& formatInfo)
 		{
-				if (!IVGExecutorWithExternalFonts::format(interpreter, formatInfo)) {
-						return false;
-				}
-				return true;
+			if (!IVGExecutorWithExternalFonts::format(interpreter, formatInfo)) {
+				return false;
+			}
+			return true;
 		}
 
-public:
 		bool load(Interpreter& interpreter, const WideString& filename, String& contents)
 		{
-				(void)interpreter;
-				const std::string utf8(filename.begin(), filename.end());
-				if (readFile(resolveRelativePath(utf8), contents)) {
-						return true;
+			(void)interpreter;
+			const std::string utf8(filename.begin(), filename.end());
+			if (readFile(resolveRelativePath(utf8), contents)) {
+				return true;
+			}
+			for (size_t i = 0; i < includeDirs.size(); ++i) {
+				if (readFile(includeDirs[i] + "/" + utf8, contents)) {
+					return true;
 				}
-				for (size_t i = 0; i < includeDirs.size(); ++i) {
-						if (readFile(includeDirs[i] + "/" + utf8, contents)) {
-								return true;
-						}
-				}
-				return false;
+			}
+			return false;
 		}
 
-public:
 		bool meta(Interpreter& interpreter, const String& key, const String& arguments)
 		{
 			if (key != SNAPSHOT_META_KEY) {
@@ -902,24 +877,21 @@ public:
 			return true;
 		}
 
-
-public:
-	bool finished() const
-	{
-		return invocationCursor >= entry.invocations.size();
-	}
-
-private:
-		std::string resolveRelativePath(const std::string& requested) const
+		bool finished() const
 		{
-				const size_t slash = sourcePath.find_last_of("/\\");
-				if (slash == std::string::npos) {
-						return requested;
-				}
-				return sourcePath.substr(0, slash + 1) + requested;
+			return invocationCursor >= entry.invocations.size();
 		}
 
-private:
+	private:
+		std::string resolveRelativePath(const std::string& requested) const
+		{
+			const size_t slash = sourcePath.find_last_of("/\\");
+			if (slash == std::string::npos) {
+				return requested;
+			}
+			return sourcePath.substr(0, slash + 1) + requested;
+		}
+
 		const SnapshotScenario& scenario;
 		const SnapshotEntry& entry;
 		std::vector<std::string> includeDirs;
@@ -1044,156 +1016,156 @@ extern "C" {
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t* rasterizeIVG(const char* ivgSource, double scaling, int scenarioIndex, int entryOrdinal) {
-		uint8_t* pixelsArray = 0;
-		try {
-				const uint32_t sentinel = std::numeric_limits<uint32_t>::max();
-				const std::string sourceText = (ivgSource != 0 ? std::string(ivgSource) : std::string());
-				String sourceString;
-				sourceString.assign(sourceText.begin(), sourceText.end());
+	uint8_t* pixelsArray = 0;
+	try {
+		const uint32_t sentinel = std::numeric_limits<uint32_t>::max();
+		const std::string sourceText = (ivgSource != 0 ? std::string(ivgSource) : std::string());
+		String sourceString;
+		sourceString.assign(sourceText.begin(), sourceText.end());
 
-								const std::vector<std::string> includeDirs = buildCollectorIncludeDirectories();
-								const SnapshotPlan& snapshotPlan = snapshotPlanCache.ensure(sourceText, sourceString, includeDirs);
+		const std::vector<std::string> includeDirs = buildCollectorIncludeDirectories();
+		const SnapshotPlan& snapshotPlan = snapshotPlanCache.ensure(sourceText, sourceString, includeDirs);
 
-								const std::vector<SnapshotScenario>& scenarios = snapshotPlan.getScenarios();
-								const std::vector<SnapshotEntry>& entries = snapshotPlan.getEntries();
+		const std::vector<SnapshotScenario>& scenarios = snapshotPlan.getScenarios();
+		const std::vector<SnapshotEntry>& entries = snapshotPlan.getEntries();
 
-				uint32_t defaultScenarioIndex = sentinel;
-				uint32_t defaultEntryOrdinal = sentinel;
-				for (size_t i = 0; i < scenarios.size(); ++i) {
-						if (scenarios[i].entryIndices.empty()) {
-								continue;
-						}
-						defaultScenarioIndex = static_cast<uint32_t>(i);
-						const uint32_t entryIndex = scenarios[i].entryIndices[0];
-						if (entryIndex < entries.size()) {
-								defaultEntryOrdinal = entries[entryIndex].entryOrdinal;
-						}
-						break;
-				}
-
-				uint32_t selectedScenarioIndex = defaultScenarioIndex;
-				uint32_t selectedEntryOrdinal = defaultEntryOrdinal;
-				if (defaultScenarioIndex == sentinel || defaultEntryOrdinal == sentinel) {
-						selectedScenarioIndex = sentinel;
-						selectedEntryOrdinal = sentinel;
-				}
-
-				if (selectedScenarioIndex != sentinel && selectedEntryOrdinal != sentinel && scenarioIndex >= 0 && entryOrdinal >= 1) {
-						const uint32_t requestedScenarioIndex = static_cast<uint32_t>(scenarioIndex);
-						const uint32_t requestedEntryOrdinal = static_cast<uint32_t>(entryOrdinal);
-						if (requestedScenarioIndex < scenarios.size()) {
-								const SnapshotScenario& scenario = scenarios[requestedScenarioIndex];
-								if (requestedEntryOrdinal >= 1 && requestedEntryOrdinal <= scenario.entryIndices.size()) {
-										selectedScenarioIndex = requestedScenarioIndex;
-										selectedEntryOrdinal = requestedEntryOrdinal;
-								}
-						}
-				}
-
-				const std::string catalogJson = buildSnapshotCatalogJson(snapshotPlan, defaultScenarioIndex, defaultEntryOrdinal);
-
-				GuardedSelfContainedARGB32Canvas canvas(scaling, MAX_RASTER_PIXELS, VECTOR_HEAP_RESERVE_BYTES);
-				{
-						STLMapVariables topVars;
-						FormatInfo formatInfo;
-						if (selectedScenarioIndex != sentinel && selectedEntryOrdinal != sentinel) {
-								const SnapshotScenario& scenario = scenarios[selectedScenarioIndex];
-								if (selectedEntryOrdinal - 1 < scenario.entryIndices.size()) {
-										const uint32_t entryIndex = scenario.entryIndices[selectedEntryOrdinal - 1];
-										if (entryIndex < entries.size()) {
-												const SnapshotEntry& entry = entries[entryIndex];
-																								SnapshotPlaybackExecutor executor(canvas, AffineTransformation().scale(scaling), scenario, entry, includeDirs, SNAPSHOT_SOURCE_PATH);
-												Interpreter impd(executor, topVars, formatInfo);
-												impd.run(StringRange(sourceString));
-												if (!executor.finished()) {
-														throw runtime_error("Snapshot playback did not execute all invocations.");
-												}
-										}
-								}
-						} else {
-								IVGExecutorWithExternalFonts ivgExecutor(canvas, AffineTransformation().scale(scaling));
-								Interpreter impd(ivgExecutor, topVars, formatInfo);
-								impd.run(StringRange(sourceString));
-						}
-				}
-
-				SelfContainedRaster<ARGB32>* raster = canvas.accessRaster();
-				if (raster == 0) {
-						throw runtime_error("IVG image is empty");
-				}
-				const IntRect bounds = raster->calcBounds();
-				if (bounds.width <= 0 || bounds.height <= 0) {
-						throw runtime_error("IVG image is empty");
-				}
-				if (bounds.width > MAX_RASTER_DIMENSION || bounds.height > MAX_RASTER_DIMENSION) {
-						std::ostringstream message;
-						message << "Rasterization aborted: scaled bounds " << bounds.width << "x" << bounds.height
-								<< " exceed the " << MAX_RASTER_DIMENSION << "px dimension cap.";
-						throw runtime_error(message.str());
-				}
-				const long long pixelCount = static_cast<long long>(bounds.width) * static_cast<long long>(bounds.height);
-				if (pixelCount > MAX_RASTER_PIXELS) {
-						std::ostringstream message;
-						message << "Rasterization aborted: " << bounds.width << "x" << bounds.height
-								<< " = " << pixelCount << " pixels exceeds the " << MAX_RASTER_PIXELS << " pixel budget.";
-						throw runtime_error(message.str());
-				}
-				const int imageStride = raster->getStride();
-				const ARGB32::Pixel* sourcePixels = raster->getPixelPointer() + bounds.top * imageStride + bounds.left;
-				const size_t requiredPixelBytes = static_cast<size_t>(bounds.width) * static_cast<size_t>(bounds.height) * 4u;
-				const size_t headerUint32Count = 8;
-				const size_t headerBytes = headerUint32Count * sizeof(uint32_t);
-				const size_t catalogBytes = catalogJson.size() + 1;
-				const size_t requiredBytes = headerBytes + requiredPixelBytes + catalogBytes;
-#ifdef __EMSCRIPTEN__
-				const size_t freeHeapBytes = computeFreeHeapBytes();
-				if (freeHeapBytes > 0 && requiredBytes + VECTOR_HEAP_RESERVE_BYTES > freeHeapBytes) {
-						std::ostringstream message;
-						message << "Rasterization aborted: " << requiredBytes << " bytes required but only "
-								<< freeHeapBytes << " bytes free in the WebAssembly heap.";
-						throw runtime_error(message.str());
-				}
-#endif
-				pixelsArray = new uint8_t[requiredBytes];
-				uint32_t* header = reinterpret_cast<uint32_t*>(pixelsArray);
-				header[0] = static_cast<uint32_t>(bounds.left);
-				header[1] = static_cast<uint32_t>(bounds.top);
-				header[2] = static_cast<uint32_t>(bounds.width);
-				header[3] = static_cast<uint32_t>(bounds.height);
-				header[4] = static_cast<uint32_t>(requiredPixelBytes);
-				header[5] = static_cast<uint32_t>(catalogBytes);
-				header[6] = selectedScenarioIndex;
-				header[7] = selectedEntryOrdinal;
-				uint8_t* dp = pixelsArray + headerBytes;
-				for (int y = 0; y < bounds.height; ++y) {
-						const ARGB32::Pixel* sp = sourcePixels + y * imageStride;
-						for (int x = 0; x < bounds.width; ++x) {
-								const uint32_t p = *sp;
-								++sp;
-								const int a = (p >> 24) & 0xFF;
-								int r = (p >> 16) & 0xFF;
-								int g = (p >> 8) & 0xFF;
-								int b = p & 0xFF;
-								if (a != 0xFF && a != 0x00) {
-										const int m = 0xFFFF / a;
-										const int r = (r * m) >> 8;
-										const int g = (g * m) >> 8;
-										const int b = (b * m) >> 8;
-										assert(0 <= r && r < 0x100);
-										assert(0 <= g && g < 0x100);
-										assert(0 <= b && b < 0x100);
-								}
-								dp[0] = r;
-								dp[1] = g;
-								dp[2] = b;
-								dp[3] = a;
-								dp += 4;
-						}
-				}
-				assert(dp == pixelsArray + headerBytes + bounds.width * bounds.height * 4);
-				std::memcpy(pixelsArray + headerBytes + requiredPixelBytes, catalogJson.c_str(), catalogBytes);
+		uint32_t defaultScenarioIndex = sentinel;
+		uint32_t defaultEntryOrdinal = sentinel;
+		for (size_t i = 0; i < scenarios.size(); ++i) {
+			if (scenarios[i].entryIndices.empty()) {
+				continue;
+			}
+			defaultScenarioIndex = static_cast<uint32_t>(i);
+			const uint32_t entryIndex = scenarios[i].entryIndices[0];
+			if (entryIndex < entries.size()) {
+					defaultEntryOrdinal = entries[entryIndex].entryOrdinal;
+			}
+			break;
 		}
-catch (const IMPD::Exception& x) {
+
+		uint32_t selectedScenarioIndex = defaultScenarioIndex;
+		uint32_t selectedEntryOrdinal = defaultEntryOrdinal;
+		if (defaultScenarioIndex == sentinel || defaultEntryOrdinal == sentinel) {
+			selectedScenarioIndex = sentinel;
+			selectedEntryOrdinal = sentinel;
+		}
+
+		if (selectedScenarioIndex != sentinel && selectedEntryOrdinal != sentinel && scenarioIndex >= 0 && entryOrdinal >= 1) {
+			const uint32_t requestedScenarioIndex = static_cast<uint32_t>(scenarioIndex);
+			const uint32_t requestedEntryOrdinal = static_cast<uint32_t>(entryOrdinal);
+			if (requestedScenarioIndex < scenarios.size()) {
+				const SnapshotScenario& scenario = scenarios[requestedScenarioIndex];
+				if (requestedEntryOrdinal >= 1 && requestedEntryOrdinal <= scenario.entryIndices.size()) {
+					selectedScenarioIndex = requestedScenarioIndex;
+					selectedEntryOrdinal = requestedEntryOrdinal;
+				}
+			}
+		}
+
+		const std::string catalogJson = buildSnapshotCatalogJson(snapshotPlan, defaultScenarioIndex, defaultEntryOrdinal);
+
+		GuardedSelfContainedARGB32Canvas canvas(scaling, MAX_RASTER_PIXELS, VECTOR_HEAP_RESERVE_BYTES);
+		{
+			STLMapVariables topVars;
+			FormatInfo formatInfo;
+			if (selectedScenarioIndex != sentinel && selectedEntryOrdinal != sentinel) {
+				const SnapshotScenario& scenario = scenarios[selectedScenarioIndex];
+				if (selectedEntryOrdinal - 1 < scenario.entryIndices.size()) {
+					const uint32_t entryIndex = scenario.entryIndices[selectedEntryOrdinal - 1];
+					if (entryIndex < entries.size()) {
+						const SnapshotEntry& entry = entries[entryIndex];
+						SnapshotPlaybackExecutor executor(canvas, AffineTransformation().scale(scaling), scenario, entry, includeDirs, SNAPSHOT_SOURCE_PATH);
+						Interpreter impd(executor, topVars, formatInfo);
+						impd.run(StringRange(sourceString));
+						if (!executor.finished()) {
+							throw runtime_error("Snapshot playback did not execute all invocations.");
+						}
+					}
+				}
+			} else {
+				IVGExecutorWithExternalFonts ivgExecutor(canvas, AffineTransformation().scale(scaling));
+				Interpreter impd(ivgExecutor, topVars, formatInfo);
+				impd.run(StringRange(sourceString));
+			}
+		}
+
+		SelfContainedRaster<ARGB32>* raster = canvas.accessRaster();
+		if (raster == 0) {
+				throw runtime_error("IVG image is empty");
+		}
+		const IntRect bounds = raster->calcBounds();
+		if (bounds.width <= 0 || bounds.height <= 0) {
+				throw runtime_error("IVG image is empty");
+		}
+		if (bounds.width > MAX_RASTER_DIMENSION || bounds.height > MAX_RASTER_DIMENSION) {
+				std::ostringstream message;
+				message << "Rasterization aborted: scaled bounds " << bounds.width << "x" << bounds.height
+						<< " exceed the " << MAX_RASTER_DIMENSION << "px dimension cap.";
+				throw runtime_error(message.str());
+		}
+		const long long pixelCount = static_cast<long long>(bounds.width) * static_cast<long long>(bounds.height);
+		if (pixelCount > MAX_RASTER_PIXELS) {
+				std::ostringstream message;
+				message << "Rasterization aborted: " << bounds.width << "x" << bounds.height
+						<< " = " << pixelCount << " pixels exceeds the " << MAX_RASTER_PIXELS << " pixel budget.";
+				throw runtime_error(message.str());
+		}
+		const int imageStride = raster->getStride();
+		const ARGB32::Pixel* sourcePixels = raster->getPixelPointer() + bounds.top * imageStride + bounds.left;
+		const size_t requiredPixelBytes = static_cast<size_t>(bounds.width) * static_cast<size_t>(bounds.height) * 4u;
+		const size_t headerUint32Count = 8;
+		const size_t headerBytes = headerUint32Count * sizeof(uint32_t);
+		const size_t catalogBytes = catalogJson.size() + 1;
+		const size_t requiredBytes = headerBytes + requiredPixelBytes + catalogBytes;
+#ifdef __EMSCRIPTEN__
+		const size_t freeHeapBytes = computeFreeHeapBytes();
+		if (freeHeapBytes > 0 && requiredBytes + VECTOR_HEAP_RESERVE_BYTES > freeHeapBytes) {
+				std::ostringstream message;
+				message << "Rasterization aborted: " << requiredBytes << " bytes required but only "
+						<< freeHeapBytes << " bytes free in the WebAssembly heap.";
+				throw runtime_error(message.str());
+		}
+#endif
+		pixelsArray = new uint8_t[requiredBytes];
+		uint32_t* header = reinterpret_cast<uint32_t*>(pixelsArray);
+		header[0] = static_cast<uint32_t>(bounds.left);
+		header[1] = static_cast<uint32_t>(bounds.top);
+		header[2] = static_cast<uint32_t>(bounds.width);
+		header[3] = static_cast<uint32_t>(bounds.height);
+		header[4] = static_cast<uint32_t>(requiredPixelBytes);
+		header[5] = static_cast<uint32_t>(catalogBytes);
+		header[6] = selectedScenarioIndex;
+		header[7] = selectedEntryOrdinal;
+		uint8_t* dp = pixelsArray + headerBytes;
+		for (int y = 0; y < bounds.height; ++y) {
+			const ARGB32::Pixel* sp = sourcePixels + y * imageStride;
+			for (int x = 0; x < bounds.width; ++x) {
+				const uint32_t p = *sp;
+				++sp;
+				const int a = (p >> 24) & 0xFF;
+				int r = (p >> 16) & 0xFF;
+				int g = (p >> 8) & 0xFF;
+				int b = p & 0xFF;
+				if (a != 0xFF && a != 0x00) {
+					const int m = 0xFFFF / a;
+					r = (r * m) >> 8;
+					g = (g * m) >> 8;
+					b = (b * m) >> 8;
+					assert(0 <= r && r < 0x100);
+					assert(0 <= g && g < 0x100);
+					assert(0 <= b && b < 0x100);
+				}
+				dp[0] = r;
+				dp[1] = g;
+				dp[2] = b;
+				dp[3] = a;
+				dp += 4;
+			}
+		}
+		assert(dp == pixelsArray + headerBytes + bounds.width * bounds.height * 4);
+		std::memcpy(pixelsArray + headerBytes + requiredPixelBytes, catalogJson.c_str(), catalogBytes);
+	}
+	catch (const IMPD::Exception& x) {
 		delete [] pixelsArray;
 		cout << x.what() << endl;
 		if (x.hasStatement()) {
@@ -1217,7 +1189,7 @@ catch (const IMPD::Exception& x) {
 
 EMSCRIPTEN_KEEPALIVE
 void deallocatePixels(uint8_t* pixelsArray) {
-		delete [] pixelsArray;
+	delete [] pixelsArray;
 }
 
 EMSCRIPTEN_KEEPALIVE
