@@ -9,23 +9,23 @@ IVGSnapshot scans IVG sources for `meta snapshot` directives, replays the captur
 The documentation targets contributors who maintain IVG sources, reviewers who inspect golden diffs, and tool developers integrating snapshot-aware previews.
 
 ## Source Layout and Build Artifacts
-The executable lives in `tools/IVGSnapshot/IVGSnapshot.cpp`, a single translation unit that contains the collector, renderer, scheduler, and PNG diff helpers. It depends on the core IVG runtime (`src/IVG.cpp`), ImpD interpreter (`src/IMPD.cpp`), and NuX utilities for filesystem and threading support (`externals/NuX`). Building the repository with `./build.sh` or the platform-specific wrappers emits `output/IVGSnapshot` (or `output/IVGSnapshot.exe` on Windows). Regression coverage for the tool resides under `tools/IVGSnapshot/tests/`, which includes plan-parsing unit tests (`TestSnapshotPlan.cpp`), list-only fixtures, and a shell workflow that exercises draft and validation promotion.
+The executable lives in `tools/IVGSnapshot/IVGSnapshot.cpp`, a single translation unit that contains the entire runtime. Core pieces include the document cache (`CachedDocument`) that avoids reparsing source text between rounds, `SnapshotRoundCoordinator`/`SnapshotProgress` which pick snapshot entries to execute, the single `SnapshotPlaybackExecutor` subclass of `IVG::IVGExecutor`, resource caches for fonts and images, and the PNG diff helpers (`SnapshotGolden`). The tool depends on the core IVG runtime (`src/IVG.cpp`), the ImpD interpreter (`src/IMPD.cpp`), and NuX filesystem/threading utilities (`externals/NuX`). Building the repository with `./build.sh` or the platform-specific wrappers emits `output/IVGSnapshot` (or `output/IVGSnapshot.exe` on Windows). Regression coverage for the tool resides under `tools/IVGSnapshot/tests/`, which includes list-only fixtures, a shell workflow that exercises draft/validation promotion, and unit tests for the metadata grammar (`TestSnapshotPlan.cpp`).
 
 ## Snapshot Metadata Grammar
 ### `meta snapshot` directive
-`SnapshotCollector::meta` reacts to the normalized key `snapshot-1`. Each directive accepts the optional keywords `validate:(yes|no)` and `scenario:<label>`, plus either a single statement body or `list:[ ... ]`:
+The playback executor intercepts the normalized meta key `snapshot-1` while the ImpD interpreter runs. Each directive accepts the optional keywords `validate:(yes|no)` and `scenario:<label>`, plus either a single statement body or `list:[ ... ]`:
 
 - `validate:` defaults to `yes`. Draft entries (`validate:no`) render images without comparing against existing goldens. When you later flip the flag to `yes`, the validator requires a `.png.old` placeholder from the draft run, writes the freshly rendered image to `<stem>.png`, and reports that the draft was promoted. If no draft file exists the run fails with `missing golden` so authors know to regenerate the snapshot plan first.
 - `scenario:` clusters entries by name. Repeating the same scenario later in the document appends additional entries while enforcing a consistent validation mode.
-- Omitted `scenario:` labels cause the collector to synthesize a deterministic name from the IVG basename, block index, and entry ordinal so previews and CI runs can present distinct entries even when the author did not provide a custom name.
+- Omitted `scenario:` labels cause the executor to synthesize a deterministic name from the IVG basename, block index, and entry ordinal so previews and CI runs can present distinct entries even when the author did not provide a custom name.
 
-The collector throws syntax errors when directives omit statement payloads, mix validation settings for the same scenario, or leave unused arguments in the metadata.
+The executor throws syntax errors when directives omit statement payloads, mix validation settings for the same scenario, or leave unused arguments in the metadata. Validation flags must remain consistent for a named scenario across the entire document; any mismatch is treated as a fatal syntax error.
 
 ### Statement Bodies and Lists
-Authors can record either a single ImpD block (`meta snapshot [ set fill red ]`) or an explicit list (`meta snapshot list:[ [ set fill red ] [ set fill blue ] ]`). Each list element becomes its own entry while sharing the surrounding IVG setup. Statements are stored verbatim—including whitespace—so playback can inject the exact code that was captured during collection. During validation, the playback executor re-parses the source and ensures the targeted statement ordinal still matches the recorded body, throwing a syntax error if the IVG changed out from under the plan.
+Authors can record either a single ImpD block (`meta snapshot [ set fill red ]`) or an explicit list (`meta snapshot list:[ [ set fill red ] [ set fill blue ] ]`). Each list element becomes its own entry while sharing the surrounding IVG setup. Statements are stored verbatim—including whitespace—so playback can inject the exact code that was captured during collection. During validation, the iterative playback process reuses the cached source, confirms that the pinned scenario still contains the recorded statement body, and throws a syntax error if an entry mutates between rounds.
 
 ### Scenario Grouping and Entry Ordinals
-Snapshot plans organize data as scenarios containing ordered entries. Every directive receives a monotonically increasing `blockIndex`, and each entry inside a scenario carries its own `entryOrdinal`. Implicit scenarios increment ordinals sequentially to preserve discovery order; explicit scenarios reuse their ordinals when additional directives append invocations to an existing entry. When jobs are scheduled, the tool composes stable identifiers using the sanitized snapshot base, scenario name, block index, and entry ordinal (for example `controls#dark-mode#2#1`).
+Snapshot plans organize data as scenarios containing ordered entries. Every directive receives a monotonically increasing `blockIndex`, and each entry inside a scenario carries its own `entryOrdinal`. Implicit scenarios increment ordinals sequentially to preserve discovery order; explicit scenarios reuse their ordinals when additional directives append invocations to an existing entry. `SnapshotProgress` normalizes names and ordinals so that unlabeled lists surface as `unlabeled-<n>` variants while preserving the original block sequencing. When jobs are scheduled, the tool composes stable identifiers using the sanitized snapshot base, scenario name, block index, and entry ordinal (for example `controls#dark-mode#2#1`).
 
 ## Naming and Output Paths
 IVGSnapshot derives the output stem by normalizing the IVG path relative to `--root-dir` (default: the current working directory). Path separators collapse to single underscores while existing underscores are doubled to avoid collisions. For each entry the tool produces:
@@ -63,10 +63,10 @@ For each file, IVGSnapshot prints the discovered scenarios, renders every entry,
 | `--help` | Prints the usage text. | Shows the same option table as above and exits. |
 
 ## Execution Flow
-1. **Collection** – `SnapshotCollector` runs the IVG through the ImpD interpreter, intercepting `meta snapshot` directives to build a `SnapshotPlan`. This stage records source line numbers, statement ordinals, and scenario metadata.
-2. **Scheduling** – The plan is fed into `SnapshotScheduler`, which prepares worker threads according to `--threads`. Jobs enqueue per entry, and the scheduler can stop early when `--exit-on-first-failure` is set.
-3. **Rendering and comparison** – Each job replays the captured statements with `SnapshotPlaybackExecutor`, renders the IVG via the core runtime, and saves the PNG. Validation entries compare against existing goldens, computing per-channel diff statistics to drive the final report.
-4. **Reporting** – After all jobs finish, the tool prints a summary that includes counters for total entries, validated entries, drafts, updates, and failures. The exit code mirrors the summary (`0` on success, non-zero on parse, render, or diff errors).
+1. **Document load and bookkeeping** – `CachedDocument` reads the IVG source once while `SnapshotRoundCoordinator` and `SnapshotProgress` initialize empty state. No separate collection pass is required.
+2. **Round selection** – At the start of each pass, the coordinator picks the next unprocessed scenario/entry and pins it inside a new `SnapshotRoundState`. The process keeps track of validation flags, implicit labels, and the first source line for reporting.
+3. **Playback and rendering** – The same `SnapshotPlaybackExecutor` drives the ImpD interpreter. As metas fire, it records invocation metadata for every entry, but it only executes the pinned scenario. Draft entries write `.png.old` placeholders, validated entries compare against goldens, and `--force-update` promotes new baselines while retaining backups. Resource caches for fonts and images are shared between rounds.
+4. **Reporting** – After each pass completes, the coordinator records the captured metadata and advances to the next entry until none remain. Once all files finish, the tool prints per-file reports, optional `--list-only` plans derived from the recorded invocations, and a totals summary. The exit code mirrors the summary (`0` on success, non-zero on parse, render, or diff errors).
 
 ## Typical Workflows
 ### Draft → Validate Loop
@@ -80,7 +80,7 @@ When intentional visual changes occur, rerun IVGSnapshot with `--force-update`. 
 
 ## Integration and Supporting Assets
 - **Interactive tooling** – IVGFiddle and the VS Code IVG extension read snapshot metadata to populate a scenario chooser in their previews. Each scenario corresponds to a plan entry, so switching options in the UI mirrors what CI will validate.
-- **Test suite** – `tools/IVGSnapshot/tests/TestSnapshotPlan.cpp` provides focused coverage for metadata parsing, ensuring the collector handles lists, implicit naming, validation enforcement, and repeated scenarios. Workflow scripts exercise end-to-end rendering behavior.
+- **Test suite** – `tools/IVGSnapshot/tests/TestSnapshotPlan.cpp` provides focused coverage for metadata parsing, ensuring the executor handles lists, implicit naming, validation enforcement, and repeated scenarios. Workflow scripts exercise end-to-end rendering behavior.
 - **Design references** – The implementation background in `docs/IVGSnapshot Plan.md` and the metadata overview in `docs/IVG Snippet Test Concepts.md` describe the architectural decisions behind the current behavior and are useful when extending the tool.
 
 ## Troubleshooting
