@@ -34,7 +34,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <deque>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -42,7 +41,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <locale>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -2803,73 +2801,93 @@ int main(int argc, char **argv) {
                                 }
                         }
                 }
-        } else {
-                std::vector<SnapshotRunResult> runs(fileCount);
-                std::vector<uint8_t> processed(fileCount, 0);
-                std::deque<size_t> pending;
-                for (size_t i = 0; i < fileCount; ++i) {
-                        pending.push_back(i);
-                }
+	} else {
+		std::vector<SnapshotRunResult> runs(fileCount);
+		std::vector<uint8_t> processed(fileCount, 0);
+		std::atomic<bool> stop(false);
 
-                std::mutex queueMutex;
-                std::atomic<bool> stop(false);
-                std::vector<std::thread> workers;
-                workers.reserve(threadCount);
+		auto loop = [&options, &runs, &processed, &stop](int index,
+				int iterationCount, int threadIndex) -> bool {
+			(void)iterationCount;
+			(void)threadIndex;
 
-                for (uint32_t t = 0; t < threadCount; ++t) {
-                        workers.push_back(std::thread([&options, &pending, &queueMutex, &stop,
-                                                                                 &runs, &processed]() {
-                                while (true) {
-                                        if (stop.load()) {
-                                                break;
-                                        }
+			if (stop.load()) {
+				return false;
+			}
 
-                                        size_t index = static_cast<size_t>(-1);
-                                        {
-                                                std::lock_guard<std::mutex> lock(queueMutex);
-                                                if (stop.load() || pending.empty()) {
-                                                        break;
-                                                }
-                                                index = pending.front();
-                                                pending.pop_front();
-                                        }
+			const size_t fileIndex = static_cast<size_t>(index);
+			if (fileIndex >= options.ivgPaths.size()) {
+				return false;
+			}
 
-                                        const std::string &path = options.ivgPaths[index];
-                                        SnapshotRunResult run = processFile(options, path);
-                                        runs[index] = run;
-                                        processed[index] = 1;
+			const std::string &path = options.ivgPaths[fileIndex];
+			SnapshotRunResult run;
+			bool shouldStop = false;
 
-                                        if (options.exitOnFirstFailure &&
-                                                (run.exitCode != 0 || run.fileFailed)) {
-                                                stop.store(true);
-                                        }
-                                }
-                        }));
-                }
+			try {
+				run = processFile(options, path);
+				if (options.exitOnFirstFailure &&
+					(run.exitCode != 0 || run.fileFailed)) {
+					shouldStop = true;
+				}
+			} catch (Exception &e) {
+				std::ostringstream message;
+				message << path << ": " << e.getError();
+				if (e.hasStatement()) {
+					message << " near \"" << e.getStatement() << "\"";
+				}
+				run.fileFailed = true;
+				run.exitCode = 1;
+				run.fileError = message.str();
+				std::cerr << message.str() << std::endl;
+				shouldStop = options.exitOnFirstFailure;
+			} catch (std::exception &e) {
+				run.fileFailed = true;
+				run.exitCode = 1;
+				run.fileError = e.what();
+				std::cerr << path << ": " << e.what() << std::endl;
+				shouldStop = options.exitOnFirstFailure;
+			} catch (...) {
+				run.fileFailed = true;
+				run.exitCode = 1;
+				run.fileError = "unknown exception";
+				std::cerr << path << ": unknown exception" << std::endl;
+				shouldStop = options.exitOnFirstFailure;
+			}
 
-                for (size_t i = 0; i < workers.size(); ++i) {
-                        workers[i].join();
-                }
+			runs[fileIndex] = run;
+			processed[fileIndex] = 1;
 
-                for (size_t i = 0; i < fileCount; ++i) {
-                        if (!processed[i]) {
-                                continue;
-                        }
+			if (shouldStop) {
+				stop.store(true);
+				return false;
+			}
 
-                        const std::string &path = options.ivgPaths[i];
-                        SnapshotRunResult &run = runs[i];
-                        totals.accumulate(run);
-                        logFileReport(path, run);
-                        if (run.exitCode != 0 || run.fileFailed) {
-                                if (exitCode == 0) {
-                                        exitCode = (run.exitCode != 0 ? run.exitCode : 1);
-                                }
-                                if (options.exitOnFirstFailure) {
-                                        break;
-                                }
-                        }
-                }
-        }
+			return true;
+		};
+
+		NuXThreads::runLoopInParallel(static_cast<int>(fileCount), loop,
+			static_cast<int>(threadCount));
+
+		for (size_t i = 0; i < fileCount; ++i) {
+			if (!processed[i]) {
+				continue;
+			}
+
+			const std::string &path = options.ivgPaths[i];
+			SnapshotRunResult &run = runs[i];
+			totals.accumulate(run);
+			logFileReport(path, run);
+			if (run.exitCode != 0 || run.fileFailed) {
+				if (exitCode == 0) {
+					exitCode = (run.exitCode != 0 ? run.exitCode : 1);
+				}
+				if (options.exitOnFirstFailure) {
+					break;
+				}
+			}
+		}
+	}
         logTotalsSummary(totals);
         return exitCode;
 }
