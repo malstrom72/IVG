@@ -34,7 +34,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <deque>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -42,7 +41,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <locale>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -2783,93 +2781,85 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-        SnapshotTotals totals;
-        int exitCode = 0;
-        const size_t fileCount = options.ivgPaths.size();
-        const uint32_t threadCount = determineThreadCount(options, fileCount);
+	SnapshotTotals totals;
+	int exitCode = 0;
+	const size_t fileCount = options.ivgPaths.size();
+	const uint32_t threadCount = determineThreadCount(options, fileCount);
 
-        if (threadCount <= 1) {
-                for (size_t i = 0; i < fileCount; ++i) {
-                        const std::string &path = options.ivgPaths[i];
-                        SnapshotRunResult run = processFile(options, path);
-                        totals.accumulate(run);
-                        logFileReport(path, run);
-                        if (run.exitCode != 0 || run.fileFailed) {
-                                if (exitCode == 0) {
-                                        exitCode = (run.exitCode != 0 ? run.exitCode : 1);
-                                }
-                                if (options.exitOnFirstFailure) {
-                                        break;
-                                }
-                        }
-                }
-        } else {
-                std::vector<SnapshotRunResult> runs(fileCount);
-                std::vector<uint8_t> processed(fileCount, 0);
-                std::deque<size_t> pending;
-                for (size_t i = 0; i < fileCount; ++i) {
-                        pending.push_back(i);
-                }
+	if (threadCount <= 1) {
+		for (size_t i = 0; i < fileCount; ++i) {
+			const std::string &path = options.ivgPaths[i];
+			SnapshotRunResult run = processFile(options, path);
+			totals.accumulate(run);
+			logFileReport(path, run);
+			if (run.exitCode != 0 || run.fileFailed) {
+				if (exitCode == 0) {
+					exitCode = (run.exitCode != 0 ? run.exitCode : 1);
+				}
+				if (options.exitOnFirstFailure) {
+					break;
+				}
+			}
+		}
+	} else {
+		std::vector<SnapshotRunResult> runs(fileCount);
+		std::vector<uint8_t> processed(fileCount, 0);
+		std::atomic<bool> stop(false);
 
-                std::mutex queueMutex;
-                std::atomic<bool> stop(false);
-                std::vector<std::thread> workers;
-                workers.reserve(threadCount);
+		struct ParallelContext {
+			const CommandLineOptions *options;
+			std::vector<SnapshotRunResult> *runs;
+			std::vector<uint8_t> *processed;
+			std::atomic<bool> *stop;
+		} context = { &options, &runs, &processed, &stop };
 
-                for (uint32_t t = 0; t < threadCount; ++t) {
-                        workers.push_back(std::thread([&options, &pending, &queueMutex, &stop,
-                                                                                 &runs, &processed]() {
-                                while (true) {
-                                        if (stop.load()) {
-                                                break;
-                                        }
+		NuXThreads::runLoopInParallel(static_cast<int>(fileCount),
+			[&context](int index, int iterationCount, int threadIndex) {
+				(void)iterationCount;
+				(void)threadIndex;
 
-                                        size_t index = static_cast<size_t>(-1);
-                                        {
-                                                std::lock_guard<std::mutex> lock(queueMutex);
-                                                if (stop.load() || pending.empty()) {
-                                                        break;
-                                                }
-                                                index = pending.front();
-                                                pending.pop_front();
-                                        }
+				if (context.stop->load()) {
+					return false;
+				}
 
-                                        const std::string &path = options.ivgPaths[index];
-                                        SnapshotRunResult run = processFile(options, path);
-                                        runs[index] = run;
-                                        processed[index] = 1;
+				const size_t jobIndex = static_cast<size_t>(index);
+				const std::string &path = context.options->ivgPaths[jobIndex];
+				SnapshotRunResult run = processFile(*context.options, path);
+				(*context.runs)[jobIndex] = run;
+				(*context.processed)[jobIndex] = 1;
 
-                                        if (options.exitOnFirstFailure &&
-                                                (run.exitCode != 0 || run.fileFailed)) {
-                                                stop.store(true);
-                                        }
-                                }
-                        }));
-                }
+				if (context.options->exitOnFirstFailure && (run.exitCode != 0 || run.fileFailed)) {
+					context.stop->store(true);
+					return false;
+				}
 
-                for (size_t i = 0; i < workers.size(); ++i) {
-                        workers[i].join();
-                }
+				if (context.stop->load()) {
+					return false;
+				}
 
-                for (size_t i = 0; i < fileCount; ++i) {
-                        if (!processed[i]) {
-                                continue;
-                        }
+				return true;
+			},
+			static_cast<int>(threadCount));
 
-                        const std::string &path = options.ivgPaths[i];
-                        SnapshotRunResult &run = runs[i];
-                        totals.accumulate(run);
-                        logFileReport(path, run);
-                        if (run.exitCode != 0 || run.fileFailed) {
-                                if (exitCode == 0) {
-                                        exitCode = (run.exitCode != 0 ? run.exitCode : 1);
-                                }
-                                if (options.exitOnFirstFailure) {
-                                        break;
-                                }
-                        }
-                }
-        }
+		for (size_t i = 0; i < fileCount; ++i) {
+			if (!processed[i]) {
+				continue;
+			}
+
+			const std::string &path = options.ivgPaths[i];
+			SnapshotRunResult &run = runs[i];
+			totals.accumulate(run);
+			logFileReport(path, run);
+			if (run.exitCode != 0 || run.fileFailed) {
+				if (exitCode == 0) {
+					exitCode = (run.exitCode != 0 ? run.exitCode : 1);
+				}
+				if (options.exitOnFirstFailure) {
+					break;
+				}
+			}
+		}
+	}
         logTotalsSummary(totals);
         return exitCode;
 }
