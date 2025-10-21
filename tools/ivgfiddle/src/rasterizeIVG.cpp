@@ -88,7 +88,6 @@ static const char* const SNAPSHOT_SOURCE_PATH = "/ivgfiddle/source.ivg";
 size_t computeFreeHeapBytes();
 
 class SnapshotPlan;
-class SnapshotCollector;
 
 static const String SNAPSHOT_META_KEY("snapshot-1");
 
@@ -602,136 +601,220 @@ class SnapshotPlan {
 
 static bool readFile(const std::string& path, String& contents);
 
-class SnapshotCollector : public Executor {
-	public:
-		SnapshotCollector(SnapshotPlan& plan, const std::string& sourcePath, const String& sourceText, const std::vector<std::string>& includeDirs)
-				: plan(plan)
-				, canvas(1.0, MAX_RASTER_PIXELS, VECTOR_HEAP_RESERVE_BYTES)
-				, executor(canvas, AffineTransformation())
-				, sourcePath(sourcePath)
-				, sourceText(sourceText)
-				, includeDirs(includeDirs)
-				, scanOffset(0)
-		{
-		}
-
-		bool format(Interpreter& interpreter, const FormatInfo& formatInfo)
-		{
-			if (!executor.format(interpreter, formatInfo)) {
-				return false;
-			}
-			return true;
-		}
-
-		bool execute(Interpreter& interpreter, const String& instruction, const String& arguments)
-		{
-			return executor.execute(interpreter, instruction, arguments);
-		}
-
-		bool progress(Interpreter& interpreter, int maxStatementsLeft)
-		{
-			return executor.progress(interpreter, maxStatementsLeft);
-		}
-
-		bool load(Interpreter& interpreter, const WideString& filename, String& contents)
-		{
-			const std::string utf8(filename.begin(), filename.end());
-			if (readFile(resolveRelativePath(utf8), contents)) {
-				return true;
-			}
-			for (size_t i = 0; i < includeDirs.size(); ++i) {
-				if (readFile(includeDirs[i] + "/" + utf8, contents)) {
-					return true;
-				}
-			}
-			return executor.load(interpreter, filename, contents);
-		}
-
-		void trace(Interpreter& interpreter, const WideString& s)
-		{
-			executor.trace(interpreter, s);
-		}
-
-		bool meta(Interpreter& interpreter, const String& key, const String& arguments)
-		{
-			if (key != SNAPSHOT_META_KEY) {
-				return false;
-			}
-
-			ParsedSnapshotMeta parsed = parseSnapshotMetaArguments(interpreter, arguments);
-
-			SnapshotBlock block;
-			block.validate = parsed.validate;
-			if (parsed.hasScenario) {
-				block.scenario = parsed.scenario;
-			}
-			block.statements = parsed.statements;
-			block.sourceLine = locateMetaLine();
-
-			const uint32_t blockOrdinal = plan.addBlock(interpreter, block);
-			executeCollectionInvocation(interpreter, blockOrdinal);
-			return true;
-		}
-
-	private:
-		void executeCollectionInvocation(Interpreter& interpreter, uint32_t blockOrdinal)
-		{
-			if (!plan.isCollectingPlan()) {
-				return;
-			}
-
-			const SnapshotInvocation* invocation = plan.lookupInvocation(blockOrdinal, plan.getActiveScenarioIndex(), plan.getActiveEntryOrdinal());
-			if (invocation == 0) {
-				return;
-			}
-
-			const StringRange trimmed = trimRange(StringRange(invocation->statements));
-			if (trimmed.b == trimmed.e) {
-				return;
-			}
-
-			interpreter.run(StringRange(invocation->statements));
-		}
-
-		std::string resolveRelativePath(const std::string& requested) const
-		{
-			const size_t slash = sourcePath.find_last_of("/\\");
-			if (slash == std::string::npos) {
-				return requested;
-			}
-			return sourcePath.substr(0, slash + 1) + requested;
-		}
-
-		uint32_t locateMetaLine()
-		{
-			static const String TOKEN("meta snapshot");
-			const size_t position = sourceText.find(TOKEN, scanOffset);
-			if (position == String::npos) {
-				return 0;
-			}
-
-			scanOffset = position + TOKEN.size();
-			uint32_t line = 1;
-			for (size_t i = 0; i < position; ++i) {
-				if (sourceText[i] == '\n') {
-					++line;
-				}
-			}
-			return line;
-		}
-
-		SnapshotPlan& plan;
-		GuardedSelfContainedARGB32Canvas canvas;
-		IVGExecutorWithExternalFonts executor;
-		std::string sourcePath;
-		String sourceText;
-		std::vector<std::string> includeDirs;
-		size_t scanOffset;
+enum SnapshotExecutorMode {
+        SnapshotExecutorModeCollect,
+        SnapshotExecutorModePlayback
 };
 
+class SnapshotExecutor : public IVGExecutorWithExternalFonts {
+        public:
+                SnapshotExecutor(GuardedSelfContainedARGB32Canvas& canvas, const AffineTransformation& xform, const std::vector<std::string>& includeDirs, const std::string& sourcePath, SnapshotPlan& plan, const String& sourceText)
+                                : IVGExecutorWithExternalFonts(canvas, xform)
+                                , mode(SnapshotExecutorModeCollect)
+                                , plan(&plan)
+                                , sourceText(&sourceText)
+                                , scenario(0)
+                                , entry(0)
+                                , includeDirs(includeDirs)
+                                , sourcePath(sourcePath)
+                                , scanOffset(0)
+                                , nextBlockOrdinal(0)
+                                , invocationCursor(0)
+                {
+                }
+
+                SnapshotExecutor(GuardedSelfContainedARGB32Canvas& canvas, const AffineTransformation& xform, const std::vector<std::string>& includeDirs, const std::string& sourcePath, const SnapshotScenario& scenario, const SnapshotEntry& entry)
+                                : IVGExecutorWithExternalFonts(canvas, xform)
+                                , mode(SnapshotExecutorModePlayback)
+                                , plan(0)
+                                , sourceText(0)
+                                , scenario(&scenario)
+                                , entry(&entry)
+                                , includeDirs(includeDirs)
+                                , sourcePath(sourcePath)
+                                , scanOffset(0)
+                                , nextBlockOrdinal(0)
+                                , invocationCursor(0)
+                {
+                }
+
+                bool load(Interpreter& interpreter, const WideString& filename, String& contents)
+                {
+                        const std::string utf8(filename.begin(), filename.end());
+                        if (readFile(resolveRelativePath(utf8), contents)) {
+                                return true;
+                        }
+                        for (size_t i = 0; i < includeDirs.size(); ++i) {
+                                if (readFile(includeDirs[i] + "/" + utf8, contents)) {
+                                        return true;
+                                }
+                        }
+                        if (mode == SnapshotExecutorModeCollect) {
+                                return IVGExecutorWithExternalFonts::load(interpreter, filename, contents);
+                        }
+                        return false;
+                }
+
+                bool meta(Interpreter& interpreter, const String& key, const String& arguments)
+                {
+                        if (key != SNAPSHOT_META_KEY) {
+                                return IVGExecutorWithExternalFonts::meta(interpreter, key, arguments);
+                        }
+
+                        if (mode == SnapshotExecutorModeCollect) {
+                                ParsedSnapshotMeta parsed = parseSnapshotMetaArguments(interpreter, arguments);
+
+                                SnapshotBlock block;
+                                block.validate = parsed.validate;
+                                if (parsed.hasScenario) {
+                                        block.scenario = parsed.scenario;
+                                }
+                                block.statements = parsed.statements;
+                                block.sourceLine = locateMetaLine();
+
+                                const uint32_t blockOrdinal = plan->addBlock(interpreter, block);
+                                executeCollectionInvocation(interpreter, blockOrdinal);
+                                return true;
+                        }
+
+                        ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
+                        const String* validateFlag = args.fetchOptional("validate");
+                        const bool blockValidate = parseValidateFlag(interpreter, validateFlag);
+                        const String* scenarioLabel = args.fetchOptional("scenario");
+                        const bool hasLabel = (scenarioLabel != 0);
+
+                        const uint32_t blockOrdinal = ++nextBlockOrdinal;
+
+                        const SnapshotInvocation* invocation = 0;
+                        if (invocationCursor < entry->invocations.size()) {
+                                const SnapshotInvocation& candidate = entry->invocations[invocationCursor];
+                                if (candidate.blockIndex == blockOrdinal) {
+                                        invocation = &candidate;
+                                        ++invocationCursor;
+                                }
+                        }
+
+                        const bool blockTargetsScenario = (scenario->explicitScenario ? (hasLabel && *scenarioLabel == scenario->name) : (!hasLabel && invocation != 0));
+                        const String* listArg = args.fetchOptional("list", false);
+                        const String* singleStatement = 0;
+                        if (listArg == 0) {
+                                singleStatement = &args.fetchRequired(0, false);
+                        }
+                        if (!blockTargetsScenario) {
+                                args.throwIfAnyUnfetched();
+                                if (invocation != 0) {
+                                        Interpreter::throwBadSyntax("unexpected snapshot invocation for scenario.");
+                                }
+                                return true;
+                        }
+
+                        StringVector statements;
+                        if (listArg != 0) {
+                                const String expandedOuter = interpreter.expand(StringRange(*listArg));
+                                interpreter.parseList(StringRange(expandedOuter), statements, false, false, 1, INT_MAX);
+                        } else {
+                                statements.push_back(*singleStatement);
+                        }
+
+                        if (invocation == 0) {
+                                Interpreter::throwBadSyntax("missing snapshot invocation for scenario block.");
+                        }
+
+                        if (blockValidate != entry->validate) {
+                                Interpreter::throwBadSyntax("snapshot validate flag changed between collection and playback.");
+                        }
+
+                        if (invocation->statementOrdinal == 0 || invocation->statementOrdinal > statements.size()) {
+                                Interpreter::throwBadSyntax("snapshot statement ordinal exceeds available entries.");
+                        }
+
+                        const String& statementBody = statements[invocation->statementOrdinal - 1];
+                        if (statementBody != invocation->statements) {
+                                Interpreter::throwBadSyntax("snapshot statements changed between collection and playback.");
+                        }
+
+                        args.throwIfAnyUnfetched();
+
+                        const StringRange trimmed = trimRange(StringRange(statementBody));
+                        if (trimmed.b != trimmed.e) {
+                                interpreter.run(trimmed);
+                        }
+                        return true;
+                }
+
+                bool finished() const
+                {
+                        if (mode != SnapshotExecutorModePlayback || entry == 0) {
+                                return true;
+                        }
+                        return invocationCursor >= entry->invocations.size();
+                }
+
+        private:
+                void executeCollectionInvocation(Interpreter& interpreter, uint32_t blockOrdinal)
+                {
+                        if (mode != SnapshotExecutorModeCollect || plan == 0 || !plan->isCollectingPlan()) {
+                                return;
+                        }
+
+                        const SnapshotInvocation* invocation = plan->lookupInvocation(blockOrdinal, plan->getActiveScenarioIndex(), plan->getActiveEntryOrdinal());
+                        if (invocation == 0) {
+                                return;
+                        }
+
+                        const StringRange trimmed = trimRange(StringRange(invocation->statements));
+                        if (trimmed.b == trimmed.e) {
+                                return;
+                        }
+
+                        interpreter.run(StringRange(invocation->statements));
+                }
+
+                std::string resolveRelativePath(const std::string& requested) const
+                {
+                        const size_t slash = sourcePath.find_last_of("/\\");
+                        if (slash == std::string::npos) {
+                                return requested;
+                        }
+                        return sourcePath.substr(0, slash + 1) + requested;
+                }
+
+                uint32_t locateMetaLine()
+                {
+                        if (sourceText == 0) {
+                                return 0;
+                        }
+
+                        static const String TOKEN("meta snapshot");
+                        const size_t position = sourceText->find(TOKEN, scanOffset);
+                        if (position == String::npos) {
+                                return 0;
+                        }
+
+                        scanOffset = position + TOKEN.size();
+                        uint32_t line = 1;
+                        for (size_t i = 0; i < position; ++i) {
+                                if ((*sourceText)[i] == '\n') {
+                                        ++line;
+                                }
+                        }
+                        return line;
+                }
+
+                SnapshotExecutorMode mode;
+                SnapshotPlan* plan;
+                const String* sourceText;
+                const SnapshotScenario* scenario;
+                const SnapshotEntry* entry;
+                std::vector<std::string> includeDirs;
+                std::string sourcePath;
+                size_t scanOffset;
+                uint32_t nextBlockOrdinal;
+                size_t invocationCursor;
+};
 
 SnapshotPlanCache::SnapshotPlanCache()
-	: plan(0)
+        : plan(0)
 {
 }
 
@@ -750,15 +833,16 @@ const SnapshotPlan& SnapshotPlanCache::ensure(const std::string& sourceTextUtf8,
 
 void SnapshotPlanCache::rebuild(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs)
 {
-	std::auto_ptr<SnapshotPlan> newPlan(new SnapshotPlan("ivgfiddle"));
-	newPlan->beginCollection();
-	while (true) {
-		SnapshotCollector collector(*newPlan, SNAPSHOT_SOURCE_PATH, sourceText, includeDirs);
-		STLMapVariables variables;
-		FormatInfo formatInfo;
-		Interpreter planInterpreter(collector, variables, formatInfo);
-		planInterpreter.run(StringRange(sourceText));
-		newPlan->completeCollectionPass();
+        std::auto_ptr<SnapshotPlan> newPlan(new SnapshotPlan("ivgfiddle"));
+        newPlan->beginCollection();
+        while (true) {
+                GuardedSelfContainedARGB32Canvas canvas(1.0, MAX_RASTER_PIXELS, VECTOR_HEAP_RESERVE_BYTES);
+                SnapshotExecutor collector(canvas, AffineTransformation(), includeDirs, SNAPSHOT_SOURCE_PATH, *newPlan, sourceText);
+                STLMapVariables variables;
+                FormatInfo formatInfo;
+                Interpreter planInterpreter(collector, variables, formatInfo);
+                planInterpreter.run(StringRange(sourceText));
+                newPlan->completeCollectionPass();
 		if (!newPlan->prepareNextCollectionPass()) {
 			break;
 		}
@@ -770,135 +854,6 @@ void SnapshotPlanCache::rebuild(const std::string& sourceTextUtf8, const String&
 	plan = newPlan.release();
 }
 
-class SnapshotPlaybackExecutor : public IVGExecutorWithExternalFonts {
-	public:
-		SnapshotPlaybackExecutor(Canvas& canvas, const AffineTransformation& xform, const SnapshotScenario& scenario, const SnapshotEntry& entry, const std::vector<std::string>& includeDirs, const std::string& sourcePath)
-				: IVGExecutorWithExternalFonts(canvas, xform)
-				, scenario(scenario)
-				, entry(entry)
-				, includeDirs(includeDirs)
-				, sourcePath(sourcePath)
-				, nextBlockOrdinal(0)
-				, invocationCursor(0)
-		{
-		}
-
-		bool format(Interpreter& interpreter, const FormatInfo& formatInfo)
-		{
-			if (!IVGExecutorWithExternalFonts::format(interpreter, formatInfo)) {
-				return false;
-			}
-			return true;
-		}
-
-		bool load(Interpreter& interpreter, const WideString& filename, String& contents)
-		{
-			(void)interpreter;
-			const std::string utf8(filename.begin(), filename.end());
-			if (readFile(resolveRelativePath(utf8), contents)) {
-				return true;
-			}
-			for (size_t i = 0; i < includeDirs.size(); ++i) {
-				if (readFile(includeDirs[i] + "/" + utf8, contents)) {
-					return true;
-				}
-			}
-			return false;
-		}
-
-		bool meta(Interpreter& interpreter, const String& key, const String& arguments)
-		{
-			if (key != SNAPSHOT_META_KEY) {
-				return IVGExecutorWithExternalFonts::meta(interpreter, key, arguments);
-			}
-
-			ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
-			const String* validateFlag = args.fetchOptional("validate");
-			const bool blockValidate = parseValidateFlag(interpreter, validateFlag);
-			const String* scenarioLabel = args.fetchOptional("scenario");
-			const bool hasLabel = (scenarioLabel != 0);
-
-			const uint32_t blockOrdinal = ++nextBlockOrdinal;
-
-			const SnapshotInvocation* invocation = 0;
-			if (invocationCursor < entry.invocations.size()) {
-				const SnapshotInvocation& candidate = entry.invocations[invocationCursor];
-				if (candidate.blockIndex == blockOrdinal) {
-					invocation = &candidate;
-					++invocationCursor;
-				}
-			}
-
-			const bool blockTargetsScenario = (scenario.explicitScenario ? (hasLabel && *scenarioLabel == scenario.name) : (!hasLabel && invocation != 0));
-			const String* listArg = args.fetchOptional("list", false);
-			const String* singleStatement = 0;
-			if (listArg == 0) {
-				singleStatement = &args.fetchRequired(0, false);
-			}
-			if (!blockTargetsScenario) {
-				args.throwIfAnyUnfetched();
-				if (invocation != 0) {
-					Interpreter::throwBadSyntax("unexpected snapshot invocation for scenario.");
-				}
-				return true;
-			}
-
-			StringVector statements;
-			if (listArg != 0) {
-				const String expandedOuter = interpreter.expand(StringRange(*listArg));
-				interpreter.parseList(StringRange(expandedOuter), statements, false, false, 1, INT_MAX);
-			} else {
-				statements.push_back(*singleStatement);
-			}
-
-			if (invocation == 0) {
-				Interpreter::throwBadSyntax("missing snapshot invocation for scenario block.");
-			}
-
-			if (blockValidate != entry.validate) {
-				Interpreter::throwBadSyntax("snapshot validate flag changed between collection and playback.");
-			}
-
-			if (invocation->statementOrdinal == 0 || invocation->statementOrdinal > statements.size()) {
-				Interpreter::throwBadSyntax("snapshot statement ordinal exceeds available entries.");
-			}
-
-			const String& statementBody = statements[invocation->statementOrdinal - 1];
-			if (statementBody != invocation->statements) {
-				Interpreter::throwBadSyntax("snapshot statements changed between collection and playback.");
-			}
-
-			args.throwIfAnyUnfetched();
-
-			const StringRange trimmed = trimRange(StringRange(statementBody));
-			if (trimmed.b != trimmed.e) {
-				interpreter.run(trimmed);
-			}
-			return true;
-		}
-
-		bool finished() const
-		{
-			return invocationCursor >= entry.invocations.size();
-		}
-
-	private:
-		std::string resolveRelativePath(const std::string& requested) const
-		{
-			const size_t slash = sourcePath.find_last_of("/\\");
-			if (slash == std::string::npos) {
-				return requested;
-			}
-			return sourcePath.substr(0, slash + 1) + requested;
-		}
-
-		const SnapshotScenario& scenario;
-		const SnapshotEntry& entry;
-		std::vector<std::string> includeDirs;
-		std::string sourcePath;
-		uint32_t nextBlockOrdinal;
-		size_t invocationCursor;
-};
 
 static bool readFile(const std::string& path, String& contents)
 {
@@ -1074,12 +1029,12 @@ uint8_t* rasterizeIVG(const char* ivgSource, double scaling, int scenarioIndex, 
 					const uint32_t entryIndex = scenario.entryIndices[selectedEntryOrdinal - 1];
 					if (entryIndex < entries.size()) {
 						const SnapshotEntry& entry = entries[entryIndex];
-						SnapshotPlaybackExecutor executor(canvas, AffineTransformation().scale(scaling), scenario, entry, includeDirs, SNAPSHOT_SOURCE_PATH);
-						Interpreter impd(executor, topVars, formatInfo);
-						impd.run(StringRange(sourceString));
-						if (!executor.finished()) {
-							throw runtime_error("Snapshot playback did not execute all invocations.");
-						}
+                                               SnapshotExecutor executor(canvas, AffineTransformation().scale(scaling), includeDirs, SNAPSHOT_SOURCE_PATH, scenario, entry);
+                                                Interpreter impd(executor, topVars, formatInfo);
+                                                impd.run(StringRange(sourceString));
+                                                if (!executor.finished()) {
+                                                        throw runtime_error("Snapshot playback did not execute all invocations.");
+                                                }
 					}
 				}
 			} else {
