@@ -42,43 +42,6 @@ using namespace IVG;
 using namespace IMPD;
 using namespace NuXPixels;
 
-class IVGExecutorWithExternalFonts : public IVGExecutor {
-	public:
-		IVGExecutorWithExternalFonts(Canvas& canvas, const AffineTransformation& xform)
-			: IVGExecutor(canvas, xform) {
-		}
-		virtual std::vector<const Font*> lookupFonts(Interpreter& interpreter, const WideString& fontName
-				, const UniString& forString) {
-			(void)interpreter;
-			(void)forString;
-			std::pair< FontMap::iterator, bool > insertResult = loadedFonts.insert(std::make_pair(fontName, Font()));
-			if (insertResult.second) {
-				const std::string fontName8Bit(fontName.begin(), fontName.end());
-				String fontCode;
-				{
-					std::ifstream fileStream((fontName8Bit + ".ivgfont").c_str());
-					if (!fileStream.good()) {
-						return std::vector<const Font*>();
-					}
-					fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-					const std::istreambuf_iterator<Char> it(fileStream);
-					const std::istreambuf_iterator<Char> end;
-					fontCode = std::string(it, end);
-				}
-				FontParser fontParser;
-				STLMapVariables vars;
-				FormatInfo formatInfo;
-				Interpreter impd(fontParser, vars, formatInfo);
-				impd.run(fontCode);
-				insertResult.first->second = fontParser.finalizeFont();
-			}
-			return std::vector<const Font*>(1, &insertResult.first->second);
-		}
-		
-	protected:
-		FontMap loadedFonts;
-};
-
 namespace {
 const int MAX_RASTER_DIMENSION = 16384;
 const long long MAX_RASTER_PIXELS = 67108864LL;
@@ -88,7 +51,7 @@ static const char* const SNAPSHOT_SOURCE_PATH = "/ivgfiddle/source.ivg";
 size_t computeFreeHeapBytes();
 
 class SnapshotPlan;
-class SnapshotCollector;
+class SnapshotExecutor;
 
 static const String SNAPSHOT_META_KEY("snapshot-1");
 
@@ -602,196 +565,57 @@ class SnapshotPlan {
 
 static bool readFile(const std::string& path, String& contents);
 
-class SnapshotCollector : public Executor {
+class SnapshotExecutor : public IVGExecutor {
 	public:
-		SnapshotCollector(SnapshotPlan& plan, const std::string& sourcePath, const String& sourceText, const std::vector<std::string>& includeDirs)
-				: plan(plan)
-				, canvas(1.0, MAX_RASTER_PIXELS, VECTOR_HEAP_RESERVE_BYTES)
-				, executor(canvas, AffineTransformation())
-				, sourcePath(sourcePath)
-				, sourceText(sourceText)
-				, includeDirs(includeDirs)
-				, scanOffset(0)
-		{
-		}
+		enum Mode {
+			CollectingPlan,
+			PlaybackScenario
+		};
 
-		bool format(Interpreter& interpreter, const FormatInfo& formatInfo)
-		{
-			if (!executor.format(interpreter, formatInfo)) {
-				return false;
-			}
-			return true;
-		}
-
-		bool execute(Interpreter& interpreter, const String& instruction, const String& arguments)
-		{
-			return executor.execute(interpreter, instruction, arguments);
-		}
-
-		bool progress(Interpreter& interpreter, int maxStatementsLeft)
-		{
-			return executor.progress(interpreter, maxStatementsLeft);
-		}
-
-		bool load(Interpreter& interpreter, const WideString& filename, String& contents)
-		{
-			const std::string utf8(filename.begin(), filename.end());
-			if (readFile(resolveRelativePath(utf8), contents)) {
-				return true;
-			}
-			for (size_t i = 0; i < includeDirs.size(); ++i) {
-				if (readFile(includeDirs[i] + "/" + utf8, contents)) {
-					return true;
-				}
-			}
-			return executor.load(interpreter, filename, contents);
-		}
-
-		void trace(Interpreter& interpreter, const WideString& s)
-		{
-			executor.trace(interpreter, s);
-		}
-
-		bool meta(Interpreter& interpreter, const String& key, const String& arguments)
-		{
-			if (key != SNAPSHOT_META_KEY) {
-				return false;
-			}
-
-			ParsedSnapshotMeta parsed = parseSnapshotMetaArguments(interpreter, arguments);
-
-			SnapshotBlock block;
-			block.validate = parsed.validate;
-			if (parsed.hasScenario) {
-				block.scenario = parsed.scenario;
-			}
-			block.statements = parsed.statements;
-			block.sourceLine = locateMetaLine();
-
-			const uint32_t blockOrdinal = plan.addBlock(interpreter, block);
-			executeCollectionInvocation(interpreter, blockOrdinal);
-			return true;
-		}
-
-	private:
-		void executeCollectionInvocation(Interpreter& interpreter, uint32_t blockOrdinal)
-		{
-			if (!plan.isCollectingPlan()) {
-				return;
-			}
-
-			const SnapshotInvocation* invocation = plan.lookupInvocation(blockOrdinal, plan.getActiveScenarioIndex(), plan.getActiveEntryOrdinal());
-			if (invocation == 0) {
-				return;
-			}
-
-			const StringRange trimmed = trimRange(StringRange(invocation->statements));
-			if (trimmed.b == trimmed.e) {
-				return;
-			}
-
-			interpreter.run(StringRange(invocation->statements));
-		}
-
-		std::string resolveRelativePath(const std::string& requested) const
-		{
-			const size_t slash = sourcePath.find_last_of("/\\");
-			if (slash == std::string::npos) {
-				return requested;
-			}
-			return sourcePath.substr(0, slash + 1) + requested;
-		}
-
-		uint32_t locateMetaLine()
-		{
-			static const String TOKEN("meta snapshot");
-			const size_t position = sourceText.find(TOKEN, scanOffset);
-			if (position == String::npos) {
-				return 0;
-			}
-
-			scanOffset = position + TOKEN.size();
-			uint32_t line = 1;
-			for (size_t i = 0; i < position; ++i) {
-				if (sourceText[i] == '\n') {
-					++line;
-				}
-			}
-			return line;
-		}
-
-		SnapshotPlan& plan;
-		GuardedSelfContainedARGB32Canvas canvas;
-		IVGExecutorWithExternalFonts executor;
-		std::string sourcePath;
-		String sourceText;
-		std::vector<std::string> includeDirs;
-		size_t scanOffset;
-};
-
-
-SnapshotPlanCache::SnapshotPlanCache()
-	: plan(0)
-{
-}
-
-SnapshotPlanCache::~SnapshotPlanCache()
-{
-	delete plan;
-}
-
-const SnapshotPlan& SnapshotPlanCache::ensure(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs)
-{
-	if (plan == 0 || sourceTextUtf8 != cachedSourceText || includeDirs != cachedIncludeDirs) {
-		rebuild(sourceTextUtf8, sourceText, includeDirs);
-	}
-	return *plan;
-}
-
-void SnapshotPlanCache::rebuild(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs)
-{
-	std::auto_ptr<SnapshotPlan> newPlan(new SnapshotPlan("ivgfiddle"));
-	newPlan->beginCollection();
-	while (true) {
-		SnapshotCollector collector(*newPlan, SNAPSHOT_SOURCE_PATH, sourceText, includeDirs);
-		STLMapVariables variables;
-		FormatInfo formatInfo;
-		Interpreter planInterpreter(collector, variables, formatInfo);
-		planInterpreter.run(StringRange(sourceText));
-		newPlan->completeCollectionPass();
-		if (!newPlan->prepareNextCollectionPass()) {
-			break;
-		}
-	}
-
-	cachedSourceText = sourceTextUtf8;
-	cachedIncludeDirs = includeDirs;
-	delete plan;
-	plan = newPlan.release();
-}
-
-class SnapshotPlaybackExecutor : public IVGExecutorWithExternalFonts {
-	public:
-		SnapshotPlaybackExecutor(Canvas& canvas, const AffineTransformation& xform, const SnapshotScenario& scenario, const SnapshotEntry& entry, const std::vector<std::string>& includeDirs, const std::string& sourcePath)
-				: IVGExecutorWithExternalFonts(canvas, xform)
+		SnapshotExecutor(Canvas& canvas, const AffineTransformation& xform, Mode mode, SnapshotPlan* plan, const SnapshotScenario* scenario, const SnapshotEntry* entry, const std::vector<std::string>& includeDirs, const std::string& sourcePath, const String* sourceTextForMeta)
+				: IVGExecutor(canvas, xform)
+				, mode(mode)
+				, plan(plan)
 				, scenario(scenario)
 				, entry(entry)
 				, includeDirs(includeDirs)
 				, sourcePath(sourcePath)
+				, sourceText(sourceTextForMeta)
 				, nextBlockOrdinal(0)
 				, invocationCursor(0)
+				, scanOffset(0)
 		{
 		}
 
-		bool format(Interpreter& interpreter, const FormatInfo& formatInfo)
+		virtual std::vector<const Font*> lookupFonts(Interpreter& interpreter, const WideString& fontName, const UniString& forString)
 		{
-			if (!IVGExecutorWithExternalFonts::format(interpreter, formatInfo)) {
-				return false;
+			(void)interpreter;
+			(void)forString;
+			std::pair< FontMap::iterator, bool > insertResult = loadedFonts.insert(std::make_pair(fontName, Font()));
+			if (insertResult.second) {
+				const std::string fontName8Bit(fontName.begin(), fontName.end());
+				String fontCode;
+				{
+					std::ifstream fileStream((fontName8Bit + ".ivgfont").c_str());
+					if (!fileStream.good()) {
+						return std::vector<const Font*>();
+					}
+					fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+					const std::istreambuf_iterator<Char> it(fileStream);
+					const std::istreambuf_iterator<Char> end;
+					fontCode = std::string(it, end);
+				}
+				FontParser fontParser;
+				STLMapVariables vars;
+				FormatInfo formatInfo;
+				Interpreter impd(fontParser, vars, formatInfo);
+				impd.run(fontCode);
+				insertResult.first->second = fontParser.finalizeFont();
 			}
-			return true;
+			return std::vector<const Font*>(1, &insertResult.first->second);
 		}
 
-		bool load(Interpreter& interpreter, const WideString& filename, String& contents)
+		virtual bool load(Interpreter& interpreter, const WideString& filename, String& contents)
 		{
 			(void)interpreter;
 			const std::string utf8(filename.begin(), filename.end());
@@ -803,15 +627,55 @@ class SnapshotPlaybackExecutor : public IVGExecutorWithExternalFonts {
 					return true;
 				}
 			}
-			return false;
+			return IVGExecutor::load(interpreter, filename, contents);
 		}
 
-		bool meta(Interpreter& interpreter, const String& key, const String& arguments)
+		virtual bool meta(Interpreter& interpreter, const String& key, const String& arguments)
 		{
 			if (key != SNAPSHOT_META_KEY) {
-				return IVGExecutorWithExternalFonts::meta(interpreter, key, arguments);
+				return IVGExecutor::meta(interpreter, key, arguments);
 			}
 
+			if (mode == CollectingPlan) {
+				return handleCollectionMeta(interpreter, arguments);
+			}
+			if (mode == PlaybackScenario && scenario != 0 && entry != 0) {
+				return handlePlaybackMeta(interpreter, arguments);
+			}
+			return IVGExecutor::meta(interpreter, key, arguments);
+		}
+
+		bool finished() const
+		{
+			if (mode != PlaybackScenario || entry == 0) {
+				return true;
+			}
+			return invocationCursor >= entry->invocations.size();
+		}
+
+	private:
+		bool handleCollectionMeta(Interpreter& interpreter, const String& arguments)
+		{
+			if (plan == 0) {
+				Interpreter::throwBadSyntax("snapshot executor missing plan.");
+			}
+			ParsedSnapshotMeta parsed = parseSnapshotMetaArguments(interpreter, arguments);
+
+			SnapshotBlock block;
+			block.validate = parsed.validate;
+			if (parsed.hasScenario) {
+				block.scenario = parsed.scenario;
+			}
+			block.statements = parsed.statements;
+			block.sourceLine = locateMetaLine();
+
+			const uint32_t blockOrdinal = plan->addBlock(interpreter, block);
+			executeCollectionInvocation(interpreter, blockOrdinal);
+			return true;
+		}
+
+		bool handlePlaybackMeta(Interpreter& interpreter, const String& arguments)
+		{
 			ArgumentsContainer args(ArgumentsContainer::parse(interpreter, StringRange(arguments)));
 			const String* validateFlag = args.fetchOptional("validate");
 			const bool blockValidate = parseValidateFlag(interpreter, validateFlag);
@@ -821,15 +685,15 @@ class SnapshotPlaybackExecutor : public IVGExecutorWithExternalFonts {
 			const uint32_t blockOrdinal = ++nextBlockOrdinal;
 
 			const SnapshotInvocation* invocation = 0;
-			if (invocationCursor < entry.invocations.size()) {
-				const SnapshotInvocation& candidate = entry.invocations[invocationCursor];
+			if (invocationCursor < entry->invocations.size()) {
+				const SnapshotInvocation& candidate = entry->invocations[invocationCursor];
 				if (candidate.blockIndex == blockOrdinal) {
 					invocation = &candidate;
 					++invocationCursor;
 				}
 			}
 
-			const bool blockTargetsScenario = (scenario.explicitScenario ? (hasLabel && *scenarioLabel == scenario.name) : (!hasLabel && invocation != 0));
+			const bool blockTargetsScenario = (scenario->explicitScenario ? (hasLabel && *scenarioLabel == scenario->name) : (!hasLabel && invocation != 0));
 			const String* listArg = args.fetchOptional("list", false);
 			const String* singleStatement = 0;
 			if (listArg == 0) {
@@ -855,7 +719,7 @@ class SnapshotPlaybackExecutor : public IVGExecutorWithExternalFonts {
 				Interpreter::throwBadSyntax("missing snapshot invocation for scenario block.");
 			}
 
-			if (blockValidate != entry.validate) {
+			if (blockValidate != entry->validate) {
 				Interpreter::throwBadSyntax("snapshot validate flag changed between collection and playback.");
 			}
 
@@ -877,28 +741,114 @@ class SnapshotPlaybackExecutor : public IVGExecutorWithExternalFonts {
 			return true;
 		}
 
-		bool finished() const
+		void executeCollectionInvocation(Interpreter& interpreter, uint32_t blockOrdinal)
 		{
-			return invocationCursor >= entry.invocations.size();
+			if (plan == 0 || !plan->isCollectingPlan()) {
+				return;
+			}
+
+			const SnapshotInvocation* invocation = plan->lookupInvocation(blockOrdinal, plan->getActiveScenarioIndex(), plan->getActiveEntryOrdinal());
+			if (invocation == 0) {
+				return;
+			}
+
+			const StringRange trimmed = trimRange(StringRange(invocation->statements));
+			if (trimmed.b == trimmed.e) {
+				return;
+			}
+
+			interpreter.run(StringRange(invocation->statements));
 		}
 
-	private:
 		std::string resolveRelativePath(const std::string& requested) const
 		{
-			const size_t slash = sourcePath.find_last_of("/\\");
+			const size_t slash = sourcePath.find_last_of("/\");
 			if (slash == std::string::npos) {
 				return requested;
 			}
 			return sourcePath.substr(0, slash + 1) + requested;
 		}
 
-		const SnapshotScenario& scenario;
-		const SnapshotEntry& entry;
+		uint32_t locateMetaLine()
+		{
+			if (sourceText == 0) {
+				return 0;
+			}
+			static const String TOKEN("meta snapshot");
+			const size_t position = sourceText->find(TOKEN, scanOffset);
+			if (position == String::npos) {
+				return 0;
+			}
+
+			scanOffset = position + TOKEN.size();
+			uint32_t line = 1;
+			for (size_t i = 0; i < position; ++i) {
+				if ((*sourceText)[i] == '\n') {
+					++line;
+				}
+			}
+			return line;
+		}
+
+	private:
+		Mode mode;
+		SnapshotPlan* plan;
+		const SnapshotScenario* scenario;
+		const SnapshotEntry* entry;
 		std::vector<std::string> includeDirs;
 		std::string sourcePath;
+		const String* sourceText;
+		FontMap loadedFonts;
 		uint32_t nextBlockOrdinal;
 		size_t invocationCursor;
+		size_t scanOffset;
 };
+
+
+
+
+SnapshotPlanCache::SnapshotPlanCache()
+	: plan(0)
+{
+}
+
+SnapshotPlanCache::~SnapshotPlanCache()
+{
+	delete plan;
+}
+
+const SnapshotPlan& SnapshotPlanCache::ensure(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs)
+{
+	if (plan == 0 || sourceTextUtf8 != cachedSourceText || includeDirs != cachedIncludeDirs) {
+		rebuild(sourceTextUtf8, sourceText, includeDirs);
+	}
+	return *plan;
+}
+
+void SnapshotPlanCache::rebuild(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs)
+{
+	std::auto_ptr<SnapshotPlan> newPlan(new SnapshotPlan("ivgfiddle"));
+	newPlan->beginCollection();
+        while (true) {
+                GuardedSelfContainedARGB32Canvas canvas(1.0, MAX_RASTER_PIXELS, VECTOR_HEAP_RESERVE_BYTES);
+                SnapshotExecutor executor(canvas, AffineTransformation(), SnapshotExecutor::CollectingPlan, newPlan.get(), 0, 0, includeDirs, SNAPSHOT_SOURCE_PATH, &sourceText);
+                STLMapVariables variables;
+                FormatInfo formatInfo;
+                Interpreter planInterpreter(executor, variables, formatInfo);
+                planInterpreter.run(StringRange(sourceText));
+		newPlan->completeCollectionPass();
+		if (!newPlan->prepareNextCollectionPass()) {
+			break;
+		}
+	}
+
+	cachedSourceText = sourceTextUtf8;
+	cachedIncludeDirs = includeDirs;
+	delete plan;
+	plan = newPlan.release();
+}
+
+
 
 static bool readFile(const std::string& path, String& contents)
 {
@@ -1068,25 +1018,25 @@ uint8_t* rasterizeIVG(const char* ivgSource, double scaling, int scenarioIndex, 
 		{
 			STLMapVariables topVars;
 			FormatInfo formatInfo;
-			if (selectedScenarioIndex != sentinel && selectedEntryOrdinal != sentinel) {
-				const SnapshotScenario& scenario = scenarios[selectedScenarioIndex];
-				if (selectedEntryOrdinal - 1 < scenario.entryIndices.size()) {
-					const uint32_t entryIndex = scenario.entryIndices[selectedEntryOrdinal - 1];
-					if (entryIndex < entries.size()) {
-						const SnapshotEntry& entry = entries[entryIndex];
-						SnapshotPlaybackExecutor executor(canvas, AffineTransformation().scale(scaling), scenario, entry, includeDirs, SNAPSHOT_SOURCE_PATH);
-						Interpreter impd(executor, topVars, formatInfo);
-						impd.run(StringRange(sourceString));
-						if (!executor.finished()) {
-							throw runtime_error("Snapshot playback did not execute all invocations.");
-						}
-					}
-				}
-			} else {
-				IVGExecutorWithExternalFonts ivgExecutor(canvas, AffineTransformation().scale(scaling));
-				Interpreter impd(ivgExecutor, topVars, formatInfo);
-				impd.run(StringRange(sourceString));
-			}
+                        if (selectedScenarioIndex != sentinel && selectedEntryOrdinal != sentinel) {
+                                const SnapshotScenario& scenario = scenarios[selectedScenarioIndex];
+                                if (selectedEntryOrdinal - 1 < scenario.entryIndices.size()) {
+                                        const uint32_t entryIndex = scenario.entryIndices[selectedEntryOrdinal - 1];
+                                        if (entryIndex < entries.size()) {
+                                                const SnapshotEntry& entry = entries[entryIndex];
+                                                SnapshotExecutor executor(canvas, AffineTransformation().scale(scaling), SnapshotExecutor::PlaybackScenario, 0, &scenario, &entry, includeDirs, SNAPSHOT_SOURCE_PATH, 0);
+                                                Interpreter impd(executor, topVars, formatInfo);
+                                                impd.run(StringRange(sourceString));
+                                                if (!executor.finished()) {
+                                                        throw runtime_error("Snapshot playback did not execute all invocations.");
+                                                }
+                                        }
+                                }
+                        } else {
+                                SnapshotExecutor executor(canvas, AffineTransformation().scale(scaling), SnapshotExecutor::PlaybackScenario, 0, 0, 0, includeDirs, SNAPSHOT_SOURCE_PATH, 0);
+                                Interpreter impd(executor, topVars, formatInfo);
+                                impd.run(StringRange(sourceString));
+                        }
 		}
 
 		SelfContainedRaster<ARGB32>* raster = canvas.accessRaster();
