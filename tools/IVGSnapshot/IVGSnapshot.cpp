@@ -908,59 +908,33 @@ static std::string sanitizeFileComponent(const std::string &name) {
 }
 
 static bool tryBuildRelativeSnapshotTag(const NuXFiles::Path &rootDir,
-						const NuXFiles::Path &withoutExtension,
-						std::string &relative) {
+		const NuXFiles::Path &withoutExtension,
+		std::string &relative) {
 	if (rootDir.isNull()) {
 		return false;
 	}
 
 	std::wstring relativeWide;
-	try {
-		if (rootDir.makeRelative(withoutExtension, false, relativeWide)) {
-			if (!relativeWide.empty()) {
-				try {
-					relative = pathStringFromWide(relativeWide);
-				} catch (const std::exception &) {
-					relative.clear();
-					return false;
+	if (rootDir.makeRelative(withoutExtension, false, relativeWide)) {
+		if (!relativeWide.empty()) {
+			relative = pathStringFromWide(relativeWide);
+			for (size_t i = 0; i < relative.size(); ++i) {
+				if (relative[i] == '\\') {
+					relative[i] = '/';
 				}
-				for (size_t i = 0; i < relative.size(); ++i) {
-					if (relative[i] == '\\') {
-						relative[i] = '/';
-					}
-				}
-				return true;
 			}
+			return true;
 		}
-	} catch (const NuXFiles::Exception &) {
-		relativeWide.clear();
-	} catch (const std::exception &) {
-		relativeWide.clear();
 	}
 
-	std::wstring rootWide;
-	std::wstring targetWide;
-	try {
-		rootWide = rootDir.getFullPath();
-		targetWide = withoutExtension.getFullPath();
-	} catch (const NuXFiles::Exception &) {
-		return false;
-	} catch (const std::exception &) {
-		return false;
-	}
+	const std::wstring rootWide = rootDir.getFullPath();
+	const std::wstring targetWide = withoutExtension.getFullPath();
 
 	if (rootWide.empty() || targetWide.empty()) {
 		return false;
 	}
 
-	std::wstring normalizedRoot;
-	try {
-		normalizedRoot = NuXFiles::Path::appendSeparator(rootWide);
-	} catch (const NuXFiles::Exception &) {
-		normalizedRoot = rootWide;
-	} catch (const std::exception &) {
-		normalizedRoot = rootWide;
-	}
+	std::wstring normalizedRoot = NuXFiles::Path::appendSeparator(rootWide);
 	if (!normalizedRoot.empty()) {
 		const wchar_t separator = NuXFiles::Path::getSeparator();
 		if (normalizedRoot[normalizedRoot.size() - 1] != separator) {
@@ -983,11 +957,7 @@ static bool tryBuildRelativeSnapshotTag(const NuXFiles::Path &rootDir,
 		return false;
 	}
 
-	try {
-		relative = pathStringFromWide(remainder);
-	} catch (const std::exception &) {
-		return false;
-	}
+	relative = pathStringFromWide(remainder);
 	for (size_t i = 0; i < relative.size(); ++i) {
 		if (relative[i] == '\\') {
 			relative[i] = '/';
@@ -999,25 +969,18 @@ static bool tryBuildRelativeSnapshotTag(const NuXFiles::Path &rootDir,
 
 
 static std::string buildSnapshotSourceTag(const std::string &ivgPath,
-						const NuXFiles::Path &rootDir) {
-	try {
-		const NuXFiles::Path sourcePath = pathFromNativeString(ivgPath);
-		if (!sourcePath.isNull()) {
-			NuXFiles::Path withoutExtension(sourcePath);
-			try {
-				withoutExtension = sourcePath.withoutExtension();
-			} catch (const NuXFiles::Exception &) {
-				withoutExtension = sourcePath;
-			} catch (const std::exception &) {
-				withoutExtension = sourcePath;
-			}
-
-			std::string relative;
-			if (tryBuildRelativeSnapshotTag(rootDir, withoutExtension, relative)) {
-				return sanitizeFileComponent(relative);
-			}
+		const NuXFiles::Path &rootDir) {
+	const NuXFiles::Path sourcePath = pathFromNativeString(ivgPath);
+	if (!sourcePath.isNull()) {
+		NuXFiles::Path withoutExtension(sourcePath);
+		if (sourcePath.hasExtension()) {
+			withoutExtension = sourcePath.withoutExtension();
 		}
-	} catch (const std::exception &) {
+
+		std::string relative;
+		if (tryBuildRelativeSnapshotTag(rootDir, withoutExtension, relative)) {
+			return sanitizeFileComponent(relative);
+		}
 	}
 
 	std::string normalized = ivgPath;
@@ -1035,101 +998,70 @@ static std::string buildSnapshotSourceTag(const std::string &ivgPath,
 
 
 static std::string buildEntryIdentifier(const std::string &snapshotBase,
-const std::string &scenarioLabel,
-uint32_t blockIndex,
-uint32_t entryOrdinal) {
-std::ostringstream stream;
-stream << snapshotBase << '#' << scenarioLabel << '#'
-<< blockIndex << '#' << entryOrdinal;
-return stream.str();
+		const std::string &scenarioLabel,
+		uint32_t blockIndex,
+		uint32_t entryOrdinal) {
+	std::ostringstream stream;
+	stream << snapshotBase << '#' << scenarioLabel << '#'
+			<< blockIndex << '#' << entryOrdinal;
+	return stream.str();
 }
 
 static bool fileExists(const std::string &path) {
 	if (path.empty()) {
 		return false;
 	}
-	try {
-		const NuXFiles::Path filePath = pathFromNativeString(path);
-		return (!filePath.isNull() && filePath.isFile());
-	} catch (const NuXFiles::Exception &) {
-		return false;
-	} catch (const std::exception &) {
+	const NuXFiles::Path filePath = pathFromNativeString(path);
+	if (filePath.isNull()) {
 		return false;
 	}
+	return (filePath.exists() && filePath.isFile());
 }
 
 static bool directoryExists(const std::string &path) {
 	if (path.empty()) {
 		return false;
 	}
-	try {
-		const NuXFiles::Path dirPath = pathFromNativeString(path);
-		return (!dirPath.isNull() && dirPath.isDirectory());
-	} catch (const NuXFiles::Exception &) {
-		return false;
-	} catch (const std::exception &) {
+	const NuXFiles::Path dirPath = pathFromNativeString(path);
+	if (dirPath.isNull()) {
 		return false;
 	}
+	return (dirPath.exists() && dirPath.isDirectory());
 }
 
 static bool ensureDirectoryPath(const NuXFiles::Path &directory) {
-	try {
-		if (directory.isNull()) {
-			return true;
+	if (directory.isNull()) {
+		return true;
+	}
+	if (directory.exists()) {
+		return directory.isDirectory();
+	}
+
+	std::vector<NuXFiles::Path> toCreate;
+	NuXFiles::Path current(directory);
+	while (!current.exists()) {
+		toCreate.push_back(current);
+		if (current.isRoot()) {
+			break;
 		}
-		if (directory.exists()) {
-			return directory.isDirectory();
-		}
-		std::vector<NuXFiles::Path> toCreate;
-		NuXFiles::Path current(directory);
-		while (!current.exists()) {
-			toCreate.push_back(current);
-			if (current.isRoot()) {
-				break;
-			}
-			current = current.getParent();
-		}
-		if (current.exists() && !current.isDirectory()) {
-			return false;
-		}
-		for (std::vector<NuXFiles::Path>::reverse_iterator it =
-				toCreate.rbegin();
-			 it != toCreate.rend(); ++it) {
-			if (it->isRoot()) {
-				continue;
-			}
-			try {
-				it->create();
-			} catch (const NuXFiles::Exception &) {
-				try {
-					if (it->exists() && it->isDirectory()) {
-						continue;
-					}
-				} catch (const NuXFiles::Exception &) {
-					return false;
-				} catch (const std::exception &) {
-					return false;
-				}
-				return false;
-			} catch (const std::exception &) {
-				try {
-					if (it->exists() && it->isDirectory()) {
-						continue;
-					}
-				} catch (const NuXFiles::Exception &) {
-					return false;
-				} catch (const std::exception &) {
-					return false;
-				}
-				return false;
-			}
-		}
-		return directory.exists() && directory.isDirectory();
-	} catch (const NuXFiles::Exception &) {
-		return false;
-	} catch (const std::exception &) {
+		current = current.getParent();
+	}
+
+	if (current.exists() && !current.isDirectory()) {
 		return false;
 	}
+
+	for (std::vector<NuXFiles::Path>::reverse_iterator it = toCreate.rbegin();
+	     it != toCreate.rend(); ++it) {
+		if (it->isRoot()) {
+			continue;
+		}
+		if (!it->tryToCreate() && !(it->exists() && it->isDirectory())) {
+			return false;
+		}
+	}
+
+	return directory.exists() && directory.isDirectory();
 }
 
 static bool ensureDirectory(const std::string &path) {
@@ -1143,17 +1075,11 @@ static bool ensureParentDirectory(const std::string &filePath) {
 	if (filePath.empty()) {
 		return true;
 	}
-	try {
-		const NuXFiles::Path target = pathFromNativeString(filePath);
-		if (target.isNull() || target.isRoot()) {
-			return true;
-		}
-		return ensureDirectoryPath(target.getParent());
-	} catch (const NuXFiles::Exception &) {
-		return false;
-	} catch (const std::exception &) {
-		return false;
+	const NuXFiles::Path target = pathFromNativeString(filePath);
+	if (target.isNull() || target.isRoot()) {
+		return true;
 	}
+	return ensureDirectoryPath(target.getParent());
 }
 
 static void removeFileIfExists(const std::string &path) {
