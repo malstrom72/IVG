@@ -2786,108 +2786,94 @@ int main(int argc, char **argv) {
         const size_t fileCount = options.ivgPaths.size();
         const uint32_t threadCount = determineThreadCount(options, fileCount);
 
-        if (threadCount <= 1) {
-                for (size_t i = 0; i < fileCount; ++i) {
-                        const std::string &path = options.ivgPaths[i];
-                        SnapshotRunResult run = processFile(options, path);
-                        totals.accumulate(run);
-                        logFileReport(path, run);
-                        if (run.exitCode != 0 || run.fileFailed) {
-                                if (exitCode == 0) {
-                                        exitCode = (run.exitCode != 0 ? run.exitCode : 1);
-                                }
-                                if (options.exitOnFirstFailure) {
-                                        break;
-                                }
-                        }
-                }
-	} else {
-		std::vector<SnapshotRunResult> runs(fileCount);
-		std::vector<uint8_t> processed(fileCount, 0);
-		std::atomic<bool> stop(false);
+	std::vector<SnapshotRunResult> runs(fileCount);
+	std::vector<uint8_t> processed(fileCount, 0);
+	std::atomic<bool> stop(false);
 
-		auto loop = [&options, &runs, &processed, &stop](int index,
-				int iterationCount, int threadIndex) -> bool {
-			(void)iterationCount;
-			(void)threadIndex;
+	auto loop = [&options, &runs, &processed, &stop](int index,
+			int iterationCount, int threadIndex) -> bool {
+		(void)iterationCount;
+		(void)threadIndex;
 
-			if (stop.load()) {
-				return false;
-			}
+		if (stop.load()) {
+			return false;
+		}
 
-			const size_t fileIndex = static_cast<size_t>(index);
-			if (fileIndex >= options.ivgPaths.size()) {
-				return false;
-			}
+		const size_t fileIndex = static_cast<size_t>(index);
+		if (fileIndex >= options.ivgPaths.size()) {
+			return false;
+		}
 
-			const std::string &path = options.ivgPaths[fileIndex];
-			SnapshotRunResult run;
-			bool shouldStop = false;
+		const std::string &path = options.ivgPaths[fileIndex];
+		SnapshotRunResult run;
+		bool shouldStop = false;
 
-			try {
-				run = processFile(options, path);
-				if (options.exitOnFirstFailure &&
+		try {
+			run = processFile(options, path);
+			if (options.exitOnFirstFailure &&
 					(run.exitCode != 0 || run.fileFailed)) {
-					shouldStop = true;
-				}
-			} catch (Exception &e) {
-				std::ostringstream message;
-				message << path << ": " << e.getError();
-				if (e.hasStatement()) {
-					message << " near \"" << e.getStatement() << "\"";
-				}
-				run.fileFailed = true;
-				run.exitCode = 1;
-				run.fileError = message.str();
-				std::cerr << message.str() << std::endl;
-				shouldStop = options.exitOnFirstFailure;
-			} catch (std::exception &e) {
-				run.fileFailed = true;
-				run.exitCode = 1;
-				run.fileError = e.what();
-				std::cerr << path << ": " << e.what() << std::endl;
-				shouldStop = options.exitOnFirstFailure;
-			} catch (...) {
-				run.fileFailed = true;
-				run.exitCode = 1;
-				run.fileError = "unknown exception";
-				std::cerr << path << ": unknown exception" << std::endl;
-				shouldStop = options.exitOnFirstFailure;
+				shouldStop = true;
 			}
-
-			runs[fileIndex] = run;
-			processed[fileIndex] = 1;
-
-			if (shouldStop) {
-				stop.store(true);
-				return false;
+		} catch (Exception &e) {
+			std::ostringstream message;
+			message << path << ": " << e.getError();
+			if (e.hasStatement()) {
+				message << " near \"" << e.getStatement() << "\"";
 			}
+			run.fileFailed = true;
+			run.exitCode = 1;
+			run.fileError = message.str();
+			std::cerr << message.str() << std::endl;
+			shouldStop = options.exitOnFirstFailure;
+		} catch (std::exception &e) {
+			run.fileFailed = true;
+			run.exitCode = 1;
+			run.fileError = e.what();
+			std::cerr << path << ": " << e.what() << std::endl;
+			shouldStop = options.exitOnFirstFailure;
+		} catch (...) {
+			run.fileFailed = true;
+			run.exitCode = 1;
+			run.fileError = "unknown exception";
+			std::cerr << path << ": unknown exception" << std::endl;
+			shouldStop = options.exitOnFirstFailure;
+		}
 
-			return true;
-		};
+		runs[fileIndex] = run;
+		processed[fileIndex] = 1;
 
+		if (shouldStop) {
+			stop.store(true);
+			return false;
+		}
+
+		return true;
+	};
+
+	if (fileCount > 0) {
 		NuXThreads::runLoopInParallel(static_cast<int>(fileCount), loop,
-			static_cast<int>(threadCount));
+				static_cast<int>(threadCount));
+	}
 
-		for (size_t i = 0; i < fileCount; ++i) {
-			if (!processed[i]) {
-				continue;
+	for (size_t i = 0; i < fileCount; ++i) {
+		if (!processed[i]) {
+			continue;
+		}
+
+		const std::string &path = options.ivgPaths[i];
+		SnapshotRunResult &run = runs[i];
+		totals.accumulate(run);
+		logFileReport(path, run);
+		if (run.exitCode != 0 || run.fileFailed) {
+			if (exitCode == 0) {
+				exitCode = (run.exitCode != 0 ? run.exitCode : 1);
 			}
-
-			const std::string &path = options.ivgPaths[i];
-			SnapshotRunResult &run = runs[i];
-			totals.accumulate(run);
-			logFileReport(path, run);
-			if (run.exitCode != 0 || run.fileFailed) {
-				if (exitCode == 0) {
-					exitCode = (run.exitCode != 0 ? run.exitCode : 1);
-				}
-				if (options.exitOnFirstFailure) {
-					break;
-				}
+			if (options.exitOnFirstFailure) {
+				break;
 			}
 		}
 	}
+
         logTotalsSummary(totals);
         return exitCode;
 }
