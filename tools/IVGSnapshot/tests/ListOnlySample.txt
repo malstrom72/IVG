@@ -27,11 +27,11 @@ Scenario: unlabeled-1
 Summary
   Snapshots       : 3 total (3 validated)
   Updated         : 0
-  Failed          : 0 (diff failures: 0)
+  Failed          : 0 snapshots (diff failures: 0)
 
 # Overall Summary
 
-  Processed files : 1 (0 failed)
+  Processed files : 1 total (0 files reported failures)
   Snapshots       : 3 total (3 validated)
   Updated         : 0
-  Failed          : 0 (diff failures: 0)
+  Failed          : 0 snapshots (diff failures: 0)

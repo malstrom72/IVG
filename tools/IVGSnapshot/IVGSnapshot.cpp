@@ -1413,7 +1413,8 @@ static void logFileReport(const std::string &path, const SnapshotRunResult &run)
 	printSummaryLine("Snapshots", snapshotLine.str());
 	printSummaryLine("Updated", Interpreter::toString(static_cast<int32_t>(run.updatedEntries)));
 	std::ostringstream failedLine;
-	failedLine << run.failedEntries << " (diff failures: " << run.diffFailures << ')';
+	failedLine << run.failedEntries << " snapshots (diff failures: "
+			<< run.diffFailures << ')';
 	printSummaryLine("Failed", failedLine.str());
 	std::cout << std::endl;
 }
@@ -1421,8 +1422,8 @@ static void logFileReport(const std::string &path, const SnapshotRunResult &run)
 static void logTotalsSummary(const SnapshotTotals &totals) {
 	std::cout << "# Overall Summary" << std::endl << std::endl;
 	std::ostringstream processedLine;
-	processedLine << totals.filesProcessed << " (" << totals.failedFiles
-				  << " failed)";
+	processedLine << totals.filesProcessed << " total (" << totals.failedFiles
+			<< " files reported failures)";
 	printSummaryLine("Processed files", processedLine.str());
 	std::ostringstream snapshotLine;
 	snapshotLine << totals.totalEntries << " total (" << totals.validatedEntries
@@ -1430,8 +1431,8 @@ static void logTotalsSummary(const SnapshotTotals &totals) {
 	printSummaryLine("Snapshots", snapshotLine.str());
 	printSummaryLine("Updated", Interpreter::toString(static_cast<int32_t>(totals.updatedEntries)));
 	std::ostringstream failedLine;
-	failedLine << totals.failedEntries << " (diff failures: " << totals.diffFailures
-			   << ')';
+	failedLine << totals.failedEntries << " snapshots (diff failures: "
+			<< totals.diffFailures << ')';
 	printSummaryLine("Failed", failedLine.str());
 }
 static bool
