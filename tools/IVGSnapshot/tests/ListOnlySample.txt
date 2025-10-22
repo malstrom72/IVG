@@ -1,15 +1,15 @@
 tools/IVGSnapshot/tests/ListOnlySample.ivg
   Scenario smurf (validate: yes)
-          Entry 1
-                  Block 1 (statement 1), line 3
-                          [ fill red ]
-          Entry 2
-                  Block 1 (statement 2), line 3
-                          [ pen blue width:2 ]
+    Scenario entry #1
+      Snapshot block #1 (block entry #1, source line 3)
+        [ fill red ]
+    Scenario entry #2
+      Snapshot block #1 (block entry #2, source line 3)
+        [ pen blue width:2 ]
   Scenario implicit-2 (validate: yes)
-          Entry 1
-                  Block 2 (statement 1), line 4
-                          [ pen red dash:4 width:2 ]
+    Scenario entry #1
+      Snapshot block #2 (block entry #1, source line 4)
+        [ pen red dash:4 width:2 ]
 # tools/IVGSnapshot/tests/ListOnlySample.ivg
 
 Scenario: smurf #0
@@ -27,11 +27,11 @@ Scenario: unlabeled-1
 Summary
   Snapshots       : 3 total (3 validated)
   Updated         : 0
-  Failed          : 0 (diff failures: 0)
+  Failed          : 0 snapshots (diff failures: 0)
 
 # Overall Summary
 
-  Processed files : 1 (0 failed)
+  Processed files : 1 total (0 files reported failures)
   Snapshots       : 3 total (3 validated)
   Updated         : 0
-  Failed          : 0 (diff failures: 0)
+  Failed          : 0 snapshots (diff failures: 0)

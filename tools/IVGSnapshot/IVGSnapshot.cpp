@@ -34,7 +34,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <deque>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -42,7 +41,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <locale>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -109,7 +107,7 @@ class CachedDocument {
 struct SnapshotInvocation {
         uint32_t blockIndex;
         uint32_t sourceLine;
-        uint32_t statementOrdinal;
+        uint32_t entryOrdinal;
         String statements;
 };
 struct SnapshotRoundState {
@@ -145,11 +143,11 @@ struct SnapshotRoundState {
         }
 
         SnapshotInvocation *findInvocation(uint32_t blockIndex,
-                                                                  uint32_t statementOrdinal) {
+                                                                  uint32_t entryOrdinal) {
                 for (size_t i = 0; i < invocations.size(); ++i) {
                         SnapshotInvocation &invocation = invocations[i];
                         if (invocation.blockIndex == blockIndex &&
-                                invocation.statementOrdinal == statementOrdinal) {
+                                invocation.entryOrdinal == entryOrdinal) {
                                 return &invocation;
                         }
                 }
@@ -157,12 +155,12 @@ struct SnapshotRoundState {
         }
 
         void recordInvocation(uint32_t blockIndex, uint32_t sourceLine,
-                                                      uint32_t statementOrdinal,
+                                                      uint32_t entryOrdinal,
                                                       const String &statementBody) {
                 SnapshotInvocation invocation;
                 invocation.blockIndex = blockIndex;
                 invocation.sourceLine = sourceLine;
-                invocation.statementOrdinal = statementOrdinal;
+                invocation.entryOrdinal = entryOrdinal;
                 invocation.statements = statementBody;
                 invocations.push_back(invocation);
         }
@@ -1415,7 +1413,8 @@ static void logFileReport(const std::string &path, const SnapshotRunResult &run)
 	printSummaryLine("Snapshots", snapshotLine.str());
 	printSummaryLine("Updated", Interpreter::toString(static_cast<int32_t>(run.updatedEntries)));
 	std::ostringstream failedLine;
-	failedLine << run.failedEntries << " (diff failures: " << run.diffFailures << ')';
+	failedLine << run.failedEntries << " snapshots (diff failures: "
+			<< run.diffFailures << ')';
 	printSummaryLine("Failed", failedLine.str());
 	std::cout << std::endl;
 }
@@ -1423,8 +1422,8 @@ static void logFileReport(const std::string &path, const SnapshotRunResult &run)
 static void logTotalsSummary(const SnapshotTotals &totals) {
 	std::cout << "# Overall Summary" << std::endl << std::endl;
 	std::ostringstream processedLine;
-	processedLine << totals.filesProcessed << " (" << totals.failedFiles
-				  << " failed)";
+	processedLine << totals.filesProcessed << " total (" << totals.failedFiles
+			<< " files reported failures)";
 	printSummaryLine("Processed files", processedLine.str());
 	std::ostringstream snapshotLine;
 	snapshotLine << totals.totalEntries << " total (" << totals.validatedEntries
@@ -1432,8 +1431,8 @@ static void logTotalsSummary(const SnapshotTotals &totals) {
 	printSummaryLine("Snapshots", snapshotLine.str());
 	printSummaryLine("Updated", Interpreter::toString(static_cast<int32_t>(totals.updatedEntries)));
 	std::ostringstream failedLine;
-	failedLine << totals.failedEntries << " (diff failures: " << totals.diffFailures
-			   << ')';
+	failedLine << totals.failedEntries << " snapshots (diff failures: "
+			<< totals.diffFailures << ')';
 	printSummaryLine("Failed", failedLine.str());
 }
 static bool
@@ -2225,7 +2224,7 @@ scenarioLabel, blockOrdinal, entryOrdinal, scenarioOrdinal,
                                 std::cout << sourcePath << ": scenario "
                                                   << round->scenario << " entry "
                                                   << round->entryOrdinal << " block "
-                                                  << blockOrdinal << " (statement "
+                                                  << blockOrdinal << " (block entry "
                                                   << entryOrdinal << ")" << std::endl;
                         }
 
@@ -2515,39 +2514,48 @@ static bool readFile(const std::string &path, String &contents) {
 
 static void printScenarioListing(const std::string &path,
                                                             const SnapshotProgress &progress) {
-        std::cout << path << std::endl;
-	const std::vector<SeenScenario> &scenarios = progress.getSeenScenarios();
-	for (size_t i = 0; i < scenarios.size(); ++i) {
-		const SeenScenario &scenario = scenarios[i];
-		std::cout << "  Scenario " << stringFromIMPD(scenario.name)
-		          << " (validate: " << (scenario.validate ? "yes" : "no")
-		          << ")" << std::endl;
-		for (uint32_t ordinal = 1; ordinal <= scenario.maxOrdinal; ++ordinal) {
-			if (!scenario.isProcessed(ordinal)) {
-				continue;
-			}
+        static const char scenarioIndent[] = "  ";
+        static const char entryIndent[] = "    ";
+        static const char blockIndent[] = "      ";
+        static const char snippetIndent[] = "        ";
 
-			std::cout << "          Entry " << ordinal << std::endl;
-			const ScenarioEntryMetadata *metadata =
-			        scenario.getEntryMetadata(ordinal);
-			if (metadata == 0) {
+        std::cout << path << std::endl;
+        const std::vector<SeenScenario> &scenarios = progress.getSeenScenarios();
+        for (size_t i = 0; i < scenarios.size(); ++i) {
+                const SeenScenario &scenario = scenarios[i];
+                std::cout << scenarioIndent << "Scenario "
+                          << stringFromIMPD(scenario.name)
+                          << " (validate: " << (scenario.validate ? "yes" : "no")
+                          << ")" << std::endl;
+                for (uint32_t ordinal = 1; ordinal <= scenario.maxOrdinal; ++ordinal) {
+                        if (!scenario.isProcessed(ordinal)) {
+                                continue;
+                        }
+
+                        std::cout << entryIndent << "Scenario entry #" << ordinal
+                                  << std::endl;
+                        const ScenarioEntryMetadata *metadata =
+                                scenario.getEntryMetadata(ordinal);
+                        if (metadata == 0) {
                                 continue;
                         }
 
                         for (size_t k = 0; k < metadata->invocations.size(); ++k) {
                                 const SnapshotInvocation &invocation =
                                         metadata->invocations[k];
-                                std::cout << "                  Block " << invocation.blockIndex
-                                                  << " (statement " << invocation.statementOrdinal
-                                                  << "), line " << invocation.sourceLine
+                                std::cout << blockIndent << "Snapshot block #"
+                                                  << invocation.blockIndex
+                                                  << " (block entry #"
+                                                  << invocation.entryOrdinal
+                                                  << ", source line "
+                                                  << invocation.sourceLine << ")"
                                                   << std::endl;
 
                                 std::istringstream snippet(
                                         stringFromIMPD(invocation.statements));
                                 std::string line;
                                 while (std::getline(snippet, line)) {
-                                        std::cout << "                          " << line
-                                                          << std::endl;
+                                        std::cout << snippetIndent << line << std::endl;
                                 }
                         }
                 }
@@ -2788,88 +2796,94 @@ int main(int argc, char **argv) {
         const size_t fileCount = options.ivgPaths.size();
         const uint32_t threadCount = determineThreadCount(options, fileCount);
 
-        if (threadCount <= 1) {
-                for (size_t i = 0; i < fileCount; ++i) {
-                        const std::string &path = options.ivgPaths[i];
-                        SnapshotRunResult run = processFile(options, path);
-                        totals.accumulate(run);
-                        logFileReport(path, run);
-                        if (run.exitCode != 0 || run.fileFailed) {
-                                if (exitCode == 0) {
-                                        exitCode = (run.exitCode != 0 ? run.exitCode : 1);
-                                }
-                                if (options.exitOnFirstFailure) {
-                                        break;
-                                }
-                        }
-                }
-        } else {
-                std::vector<SnapshotRunResult> runs(fileCount);
-                std::vector<uint8_t> processed(fileCount, 0);
-                std::deque<size_t> pending;
-                for (size_t i = 0; i < fileCount; ++i) {
-                        pending.push_back(i);
-                }
+	std::vector<SnapshotRunResult> runs(fileCount);
+	std::vector<uint8_t> processed(fileCount, 0);
+	std::atomic<bool> stop(false);
 
-                std::mutex queueMutex;
-                std::atomic<bool> stop(false);
-                std::vector<std::thread> workers;
-                workers.reserve(threadCount);
+	auto loop = [&options, &runs, &processed, &stop](int index,
+			int iterationCount, int threadIndex) -> bool {
+		(void)iterationCount;
+		(void)threadIndex;
 
-                for (uint32_t t = 0; t < threadCount; ++t) {
-                        workers.push_back(std::thread([&options, &pending, &queueMutex, &stop,
-                                                                                 &runs, &processed]() {
-                                while (true) {
-                                        if (stop.load()) {
-                                                break;
-                                        }
+		if (stop.load()) {
+			return false;
+		}
 
-                                        size_t index = static_cast<size_t>(-1);
-                                        {
-                                                std::lock_guard<std::mutex> lock(queueMutex);
-                                                if (stop.load() || pending.empty()) {
-                                                        break;
-                                                }
-                                                index = pending.front();
-                                                pending.pop_front();
-                                        }
+		const size_t fileIndex = static_cast<size_t>(index);
+		if (fileIndex >= options.ivgPaths.size()) {
+			return false;
+		}
 
-                                        const std::string &path = options.ivgPaths[index];
-                                        SnapshotRunResult run = processFile(options, path);
-                                        runs[index] = run;
-                                        processed[index] = 1;
+		const std::string &path = options.ivgPaths[fileIndex];
+		SnapshotRunResult run;
+		bool shouldStop = false;
 
-                                        if (options.exitOnFirstFailure &&
-                                                (run.exitCode != 0 || run.fileFailed)) {
-                                                stop.store(true);
-                                        }
-                                }
-                        }));
-                }
+		try {
+			run = processFile(options, path);
+			if (options.exitOnFirstFailure &&
+					(run.exitCode != 0 || run.fileFailed)) {
+				shouldStop = true;
+			}
+		} catch (Exception &e) {
+			std::ostringstream message;
+			message << path << ": " << e.getError();
+			if (e.hasStatement()) {
+				message << " near \"" << e.getStatement() << "\"";
+			}
+			run.fileFailed = true;
+			run.exitCode = 1;
+			run.fileError = message.str();
+			std::cerr << message.str() << std::endl;
+			shouldStop = options.exitOnFirstFailure;
+		} catch (std::exception &e) {
+			run.fileFailed = true;
+			run.exitCode = 1;
+			run.fileError = e.what();
+			std::cerr << path << ": " << e.what() << std::endl;
+			shouldStop = options.exitOnFirstFailure;
+		} catch (...) {
+			run.fileFailed = true;
+			run.exitCode = 1;
+			run.fileError = "unknown exception";
+			std::cerr << path << ": unknown exception" << std::endl;
+			shouldStop = options.exitOnFirstFailure;
+		}
 
-                for (size_t i = 0; i < workers.size(); ++i) {
-                        workers[i].join();
-                }
+		runs[fileIndex] = run;
+		processed[fileIndex] = 1;
 
-                for (size_t i = 0; i < fileCount; ++i) {
-                        if (!processed[i]) {
-                                continue;
-                        }
+		if (shouldStop) {
+			stop.store(true);
+			return false;
+		}
 
-                        const std::string &path = options.ivgPaths[i];
-                        SnapshotRunResult &run = runs[i];
-                        totals.accumulate(run);
-                        logFileReport(path, run);
-                        if (run.exitCode != 0 || run.fileFailed) {
-                                if (exitCode == 0) {
-                                        exitCode = (run.exitCode != 0 ? run.exitCode : 1);
-                                }
-                                if (options.exitOnFirstFailure) {
-                                        break;
-                                }
-                        }
-                }
-        }
+		return true;
+	};
+
+	if (fileCount > 0) {
+		NuXThreads::runLoopInParallel(static_cast<int>(fileCount), loop,
+				static_cast<int>(threadCount));
+	}
+
+	for (size_t i = 0; i < fileCount; ++i) {
+		if (!processed[i]) {
+			continue;
+		}
+
+		const std::string &path = options.ivgPaths[i];
+		SnapshotRunResult &run = runs[i];
+		totals.accumulate(run);
+		logFileReport(path, run);
+		if (run.exitCode != 0 || run.fileFailed) {
+			if (exitCode == 0) {
+				exitCode = (run.exitCode != 0 ? run.exitCode : 1);
+			}
+			if (options.exitOnFirstFailure) {
+				break;
+			}
+		}
+	}
+
         logTotalsSummary(totals);
         return exitCode;
 }

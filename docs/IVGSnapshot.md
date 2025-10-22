@@ -27,6 +27,16 @@ Authors can record either a single ImpD block (`meta snapshot [ set fill red ]`)
 ### Scenario Grouping and Entry Ordinals
 Snapshot plans organize data as scenarios containing ordered entries. Every directive receives a monotonically increasing `blockIndex`, and each entry inside a scenario carries its own `entryOrdinal`. Implicit scenarios increment ordinals sequentially to preserve discovery order; explicit scenarios reuse their ordinals when additional directives append invocations to an existing entry. `SnapshotProgress` normalizes names and ordinals so that unlabeled lists surface as `unlabeled-<n>` variants while preserving the original block sequencing. When jobs are scheduled, the tool composes stable identifiers using the sanitized snapshot base, scenario name, block index, and entry ordinal (for example `controls#dark-mode#2#1`).
 
+### Terminology used in list output
+The list-only fixtures and `--list-only` output reuse a small set of names that map directly to runtime data structures:
+
+- **Scenario entry** – A single item inside a scenario, identified by the ordinal tracked in `SeenScenario::maxOrdinal`. Each entry lines up with what the executor considers a distinct choice in the preview UI and a unit of work for validation. Scenario entries can originate from a standalone `meta snapshot` directive or from an element inside a `list:[ ... ]` directive.
+- **Snapshot block** – The enclosing `meta snapshot-1 { ... }` section encountered while replaying the IVG. `SnapshotRoundState::blockOrdinalCursor` increments each time the interpreter enters a new block, so the reported number mirrors the order in which the directives appear in the source file.
+- **Block entry** – The position of a particular entry within the snapshot block that recorded it. When a `list:[ ... ]` contains multiple bodies, the executor visits them sequentially and stamps the first as block entry `#1`, the second as `#2`, and so on. Singleton directives always report block entry `#1`.
+- **Statement body** – The literal ImpD code captured for that entry. `SnapshotInvocation::statements` stores the exact text between the brackets, which the list output indents beneath the block information.
+
+These labels intentionally align with the field names in `SnapshotInvocation` so maintainers can cross-reference logs with the underlying plan representation. No additional terminology is used beyond the scenario name itself.
+
 ## Naming and Output Paths
 IVGSnapshot derives the output stem by normalizing the IVG path relative to `--root-dir` (default: the current working directory). Path separators collapse to single underscores while existing underscores are doubled to avoid collisions. For each entry the tool produces:
 

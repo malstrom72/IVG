@@ -1,37 +1,37 @@
 tools/IVGSnapshot/tests/ListScenarioVariants.ivg
   Scenario alpha (validate: yes)
-          Entry 1
-                  Block 1 (statement 1), line 3
-                          [ fill red ]
-                  Block 2 (statement 1), line 4
-                          [ fill #ffd700 ]
-          Entry 2
-                  Block 1 (statement 2), line 3
-                          [ pen blue width:2 ]
-                  Block 2 (statement 2), line 4
-                          [ pen green width:3 ]
+    Scenario entry #1
+      Snapshot block #1 (block entry #1, source line 3)
+        [ fill red ]
+      Snapshot block #2 (block entry #1, source line 4)
+        [ fill #ffd700 ]
+    Scenario entry #2
+      Snapshot block #1 (block entry #2, source line 3)
+        [ pen blue width:2 ]
+      Snapshot block #2 (block entry #2, source line 4)
+        [ pen green width:3 ]
   Scenario implicit-3 (validate: no)
-          Entry 1
-                  Block 3 (statement 1), line 5
-                          [ pen black dash:4 width:2 ]
+    Scenario entry #1
+      Snapshot block #3 (block entry #1, source line 5)
+        [ pen black dash:4 width:2 ]
   Scenario implicit-4-1 (validate: yes)
-          Entry 1
-                  Block 4 (statement 1), line 6
-                          [ fill #112233 ]
+    Scenario entry #1
+      Snapshot block #4 (block entry #1, source line 6)
+        [ fill #112233 ]
   Scenario implicit-4-2 (validate: yes)
-          Entry 1
-                  Block 4 (statement 2), line 6
-                          [ fill #445566 ]
+    Scenario entry #1
+      Snapshot block #4 (block entry #2, source line 6)
+        [ fill #445566 ]
   Scenario implicit-5 (validate: yes)
-          Entry 1
-                  Block 5 (statement 1), line 7
-                          [ fill #778899 ]
+    Scenario entry #1
+      Snapshot block #5 (block entry #1, source line 7)
+        [ fill #778899 ]
   Scenario beta (validate: no)
-          Entry 1
-                  Block 6 (statement 1), line 8
-                          [ fill black ]
-                  Block 7 (statement 1), line 9
-                          [ fill gray ]
+    Scenario entry #1
+      Snapshot block #6 (block entry #1, source line 8)
+        [ fill black ]
+      Snapshot block #7 (block entry #1, source line 9)
+        [ fill gray ]
 # tools/IVGSnapshot/tests/ListScenarioVariants.ivg
 
 Scenario: alpha #0
@@ -65,11 +65,11 @@ Scenario: beta
 Summary
   Snapshots       : 7 total (5 validated)
   Updated         : 0
-  Failed          : 0 (diff failures: 0)
+  Failed          : 0 snapshots (diff failures: 0)
 
 # Overall Summary
 
-  Processed files : 1 (0 failed)
+  Processed files : 1 total (0 files reported failures)
   Snapshots       : 7 total (5 validated)
   Updated         : 0
-  Failed          : 0 (diff failures: 0)
+  Failed          : 0 snapshots (diff failures: 0)
