@@ -27,6 +27,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cerrno>
 #include <climits>
 #include <codecvt>
@@ -65,6 +66,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "externals/NuX/NuXThreads.h"
 #include "src/IMPD.h"
 #include "src/IVG.h"
+#include "tools/IVGSnapshot/BuiltInFonts.h"
 
 using namespace IMPD;
 
@@ -187,6 +189,14 @@ struct ScenarioEntryMetadata {
 static bool parseUnsigned(const std::string &text, uint32_t &value);
 static std::string stringFromIMPD(const String &value);
 static bool isDigit(char ch) { return (ch >= '0' && ch <= '9'); }
+
+static std::string toLowerAscii(const std::string &text) {
+	std::string lowered(text);
+	for (size_t i = 0; i < lowered.size(); ++i) {
+		lowered[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(lowered[i])));
+	}
+	return lowered;
+}
 
 struct SeenScenario {
         SeenScenario()
@@ -2226,8 +2236,11 @@ scenarioLabel, blockOrdinal, entryOrdinal, scenarioOrdinal,
 		const std::string fileName = fontName8 + ".ivgfont";
 
 		String contents;
+		if (loadBuiltInFont(fontName8, contents)) {
+			return parseFont(contents, font);
+		}
 		if (readFile(resolveRelativePath(fileName), contents) ||
-			loadFromDirectories(fontDirs, fileName, contents)) {
+				loadFromDirectories(fontDirs, fileName, contents)) {
 			return parseFont(contents, font);
 		}
 		return false;
@@ -2241,6 +2254,17 @@ scenarioLabel, blockOrdinal, entryOrdinal, scenarioOrdinal,
 			}
 		}
 		return false;
+	}
+
+	bool loadBuiltInFont(const std::string &fontName, String &contents) const {
+		const std::string normalized = toLowerAscii(fontName);
+		const IVGSnapshotBuiltInFonts::FontEntry *entry =
+			IVGSnapshotBuiltInFonts::find(normalized);
+		if (entry == 0) {
+			return false;
+		}
+		contents.assign(entry->source, entry->length);
+		return true;
 	}
 
 	bool parseFont(const String &source, IVG::Font &font) {
