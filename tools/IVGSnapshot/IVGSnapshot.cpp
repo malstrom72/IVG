@@ -107,7 +107,7 @@ class CachedDocument {
 struct SnapshotInvocation {
         uint32_t blockIndex;
         uint32_t sourceLine;
-        uint32_t statementOrdinal;
+        uint32_t entryOrdinal;
         String statements;
 };
 struct SnapshotRoundState {
@@ -143,11 +143,11 @@ struct SnapshotRoundState {
         }
 
         SnapshotInvocation *findInvocation(uint32_t blockIndex,
-                                                                  uint32_t statementOrdinal) {
+                                                                  uint32_t entryOrdinal) {
                 for (size_t i = 0; i < invocations.size(); ++i) {
                         SnapshotInvocation &invocation = invocations[i];
                         if (invocation.blockIndex == blockIndex &&
-                                invocation.statementOrdinal == statementOrdinal) {
+                                invocation.entryOrdinal == entryOrdinal) {
                                 return &invocation;
                         }
                 }
@@ -155,12 +155,12 @@ struct SnapshotRoundState {
         }
 
         void recordInvocation(uint32_t blockIndex, uint32_t sourceLine,
-                                                      uint32_t statementOrdinal,
+                                                      uint32_t entryOrdinal,
                                                       const String &statementBody) {
                 SnapshotInvocation invocation;
                 invocation.blockIndex = blockIndex;
                 invocation.sourceLine = sourceLine;
-                invocation.statementOrdinal = statementOrdinal;
+                invocation.entryOrdinal = entryOrdinal;
                 invocation.statements = statementBody;
                 invocations.push_back(invocation);
         }
@@ -2224,7 +2224,7 @@ scenarioLabel, blockOrdinal, entryOrdinal, scenarioOrdinal,
                                 std::cout << sourcePath << ": scenario "
                                                   << round->scenario << " entry "
                                                   << round->entryOrdinal << " block "
-                                                  << blockOrdinal << " (statement "
+                                                  << blockOrdinal << " (block entry "
                                                   << entryOrdinal << ")" << std::endl;
                         }
 
@@ -2532,7 +2532,8 @@ static void printScenarioListing(const std::string &path,
                                 continue;
                         }
 
-                        std::cout << entryIndent << "Entry #" << ordinal << std::endl;
+                        std::cout << entryIndent << "Scenario entry #" << ordinal
+                                  << std::endl;
                         const ScenarioEntryMetadata *metadata =
                                 scenario.getEntryMetadata(ordinal);
                         if (metadata == 0) {
@@ -2542,10 +2543,13 @@ static void printScenarioListing(const std::string &path,
                         for (size_t k = 0; k < metadata->invocations.size(); ++k) {
                                 const SnapshotInvocation &invocation =
                                         metadata->invocations[k];
-                                std::cout << blockIndent << "Block #" << invocation.blockIndex
-                                                  << ", statement #" << invocation.statementOrdinal
-                                                  << " (source line " << invocation.sourceLine
-                                                  << ")" << std::endl;
+                                std::cout << blockIndent << "Snapshot block #"
+                                                  << invocation.blockIndex
+                                                  << " (block entry #"
+                                                  << invocation.entryOrdinal
+                                                  << ", source line "
+                                                  << invocation.sourceLine << ")"
+                                                  << std::endl;
 
                                 std::istringstream snippet(
                                         stringFromIMPD(invocation.statements));
