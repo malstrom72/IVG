@@ -1,15 +1,15 @@
 tools/IVGSnapshot/tests/ListOnlySample.ivg
   Scenario smurf (validate: yes)
-          Entry 1
-                  Block 1 (statement 1), line 3
-                          [ fill red ]
-          Entry 2
-                  Block 1 (statement 2), line 3
-                          [ pen blue width:2 ]
+    Entry #1
+      Block #1, statement #1 (source line 3)
+        [ fill red ]
+    Entry #2
+      Block #1, statement #2 (source line 3)
+        [ pen blue width:2 ]
   Scenario implicit-2 (validate: yes)
-          Entry 1
-                  Block 2 (statement 1), line 4
-                          [ pen red dash:4 width:2 ]
+    Entry #1
+      Block #2, statement #1 (source line 4)
+        [ pen red dash:4 width:2 ]
 # tools/IVGSnapshot/tests/ListOnlySample.ivg
 
 Scenario: smurf #0

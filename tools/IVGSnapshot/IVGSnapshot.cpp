@@ -2514,39 +2514,44 @@ static bool readFile(const std::string &path, String &contents) {
 
 static void printScenarioListing(const std::string &path,
                                                             const SnapshotProgress &progress) {
-        std::cout << path << std::endl;
-	const std::vector<SeenScenario> &scenarios = progress.getSeenScenarios();
-	for (size_t i = 0; i < scenarios.size(); ++i) {
-		const SeenScenario &scenario = scenarios[i];
-		std::cout << "  Scenario " << stringFromIMPD(scenario.name)
-		          << " (validate: " << (scenario.validate ? "yes" : "no")
-		          << ")" << std::endl;
-		for (uint32_t ordinal = 1; ordinal <= scenario.maxOrdinal; ++ordinal) {
-			if (!scenario.isProcessed(ordinal)) {
-				continue;
-			}
+        static const char scenarioIndent[] = "  ";
+        static const char entryIndent[] = "    ";
+        static const char blockIndent[] = "      ";
+        static const char snippetIndent[] = "        ";
 
-			std::cout << "          Entry " << ordinal << std::endl;
-			const ScenarioEntryMetadata *metadata =
-			        scenario.getEntryMetadata(ordinal);
-			if (metadata == 0) {
+        std::cout << path << std::endl;
+        const std::vector<SeenScenario> &scenarios = progress.getSeenScenarios();
+        for (size_t i = 0; i < scenarios.size(); ++i) {
+                const SeenScenario &scenario = scenarios[i];
+                std::cout << scenarioIndent << "Scenario "
+                          << stringFromIMPD(scenario.name)
+                          << " (validate: " << (scenario.validate ? "yes" : "no")
+                          << ")" << std::endl;
+                for (uint32_t ordinal = 1; ordinal <= scenario.maxOrdinal; ++ordinal) {
+                        if (!scenario.isProcessed(ordinal)) {
+                                continue;
+                        }
+
+                        std::cout << entryIndent << "Entry #" << ordinal << std::endl;
+                        const ScenarioEntryMetadata *metadata =
+                                scenario.getEntryMetadata(ordinal);
+                        if (metadata == 0) {
                                 continue;
                         }
 
                         for (size_t k = 0; k < metadata->invocations.size(); ++k) {
                                 const SnapshotInvocation &invocation =
                                         metadata->invocations[k];
-                                std::cout << "                  Block " << invocation.blockIndex
-                                                  << " (statement " << invocation.statementOrdinal
-                                                  << "), line " << invocation.sourceLine
-                                                  << std::endl;
+                                std::cout << blockIndent << "Block #" << invocation.blockIndex
+                                                  << ", statement #" << invocation.statementOrdinal
+                                                  << " (source line " << invocation.sourceLine
+                                                  << ")" << std::endl;
 
                                 std::istringstream snippet(
                                         stringFromIMPD(invocation.statements));
                                 std::string line;
                                 while (std::getline(snippet, line)) {
-                                        std::cout << "                          " << line
-                                                          << std::endl;
+                                        std::cout << snippetIndent << line << std::endl;
                                 }
                         }
                 }

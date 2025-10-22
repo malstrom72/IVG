@@ -1,20 +1,20 @@
 tools/IVGSnapshot/tests/ListVariableExpansion.ivg
   Scenario implicit-1-1 (validate: yes)
-          Entry 1
-                  Block 1 (statement 1), line 4
-                          [ fill $color ]
+    Entry #1
+      Block #1, statement #1 (source line 4)
+        [ fill $color ]
   Scenario implicit-1-2 (validate: yes)
-          Entry 1
-                  Block 1 (statement 2), line 4
-                          [ pen $color width:2 ]
+    Entry #1
+      Block #1, statement #2 (source line 4)
+        [ pen $color width:2 ]
   Scenario implicit-2-1 (validate: yes)
-          Entry 1
-                  Block 2 (statement 1), line 6
-                          [ fill $color ]
+    Entry #1
+      Block #2, statement #1 (source line 6)
+        [ fill $color ]
   Scenario implicit-2-2 (validate: yes)
-          Entry 1
-                  Block 2 (statement 2), line 6
-                          [ pen $color width:2 ]
+    Entry #1
+      Block #2, statement #2 (source line 6)
+        [ pen $color width:2 ]
 # tools/IVGSnapshot/tests/ListVariableExpansion.ivg
 
 Scenario: unlabeled-1 #0
