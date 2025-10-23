@@ -106,6 +106,107 @@ class CachedDocument {
 	IMPD::String source;
 };
 
+class SnapshotFormatDetector : public IMPD::Executor {
+	public:
+		SnapshotFormatDetector()
+				: sawFormat(false), supportsSnapshot(false) {}
+
+		bool format(Interpreter &interpreter, const FormatInfo &formatInfo) {
+			(void)interpreter;
+			sawFormat = true;
+			supportsSnapshot =
+				(formatInfo.uses.find(String("snapshot-1")) != formatInfo.uses.end());
+			throw FormatDetected();
+		}
+
+		bool execute(Interpreter &interpreter, const String &instruction,
+				const String &arguments) {
+			(void)interpreter;
+			(void)instruction;
+			(void)arguments;
+			throw MissingFormat();
+		}
+
+		bool progress(Interpreter &interpreter, int maxStatementsLeft) {
+			(void)interpreter;
+			(void)maxStatementsLeft;
+			return true;
+		}
+
+		bool load(Interpreter &interpreter, const WideString &filename,
+				String &contents) {
+			(void)interpreter;
+			(void)filename;
+			(void)contents;
+			throw MissingFormat();
+		}
+
+		void trace(Interpreter &interpreter, const WideString &s) {
+			(void)interpreter;
+			(void)s;
+		}
+
+		bool meta(Interpreter &interpreter, const String &key,
+				const String &arguments) {
+			(void)interpreter;
+			(void)key;
+			(void)arguments;
+			throw MissingFormat();
+		}
+
+		struct FormatDetected : public std::exception {
+			const char *what() const noexcept override { return "format detected"; }
+		};
+
+		struct MissingFormat : public std::exception {
+			const char *what() const noexcept override { return "format missing"; }
+		};
+
+		bool sawFormat;
+		bool supportsSnapshot;
+};
+
+struct FormatDetectionResult {
+	FormatDetectionResult() : determined(false), supportsSnapshot(false) {}
+
+	bool determined;
+	bool supportsSnapshot;
+};
+
+static FormatDetectionResult detectSnapshotFormat(const String &source) {
+	FormatDetectionResult result;
+	SnapshotFormatDetector detector;
+	STLMapVariables variables;
+	FormatInfo formatInfo;
+	Interpreter interpreter(detector, variables, formatInfo);
+
+	try {
+		interpreter.run(StringRange(source));
+	} catch (const SnapshotFormatDetector::FormatDetected &) {
+		result.determined = true;
+		result.supportsSnapshot = detector.supportsSnapshot;
+		return result;
+	} catch (const SnapshotFormatDetector::MissingFormat &) {
+		result.determined = true;
+		result.supportsSnapshot = false;
+		return result;
+	} catch (Exception &) {
+		return result;
+	} catch (std::exception &) {
+		return result;
+	}
+
+	if (detector.sawFormat) {
+		result.determined = true;
+		result.supportsSnapshot = detector.supportsSnapshot;
+		return result;
+	}
+
+	result.determined = true;
+	result.supportsSnapshot = false;
+	return result;
+}
+
 struct SnapshotInvocation {
         uint32_t blockIndex;
         uint32_t sourceLine;
@@ -751,7 +852,7 @@ struct SnapshotRunResult {
 	SnapshotRunResult()
 		: totalEntries(0), draftEntries(0), validatedEntries(0),
 		  updatedEntries(0), failedEntries(0), diffFailures(0), exitCode(0),
-		  fileFailed(false) {}
+		  fileFailed(false), ignored(false) {}
 
 	std::vector<SnapshotEntryResult> entries;
 	uint32_t totalEntries;
@@ -763,15 +864,21 @@ struct SnapshotRunResult {
 	int exitCode;
 	bool fileFailed;
 	std::string fileError;
+	bool ignored;
+	std::string ignoreReason;
 };
 
 struct SnapshotTotals {
 	SnapshotTotals()
 		: filesProcessed(0), failedFiles(0), totalEntries(0), draftEntries(0),
 		  validatedEntries(0), updatedEntries(0), failedEntries(0),
-		  diffFailures(0) {}
+		  diffFailures(0), ignoredFiles(0) {}
 
 	void accumulate(const SnapshotRunResult &run) {
+		if (run.ignored) {
+			++ignoredFiles;
+			return;
+		}
 		++filesProcessed;
 		totalEntries += run.totalEntries;
 		draftEntries += run.draftEntries;
@@ -792,6 +899,7 @@ struct SnapshotTotals {
 	uint32_t updatedEntries;
 	uint32_t failedEntries;
 	uint32_t diffFailures;
+	uint32_t ignoredFiles;
 };
 
 struct CommandLineOptions {
@@ -804,13 +912,14 @@ struct CommandLineOptions {
 	bool listOnly;
 	bool verbose;
 	bool exitOnFirstFailure;
+	bool recursive;
 	uint32_t threads;
 	std::vector<std::string> ivgPaths;
 
 	CommandLineOptions()
 		: rootDir(NuXFiles::Path::getCurrentDirectoryPath()),
 		  forceUpdate(false), listOnly(false), verbose(false),
-		  exitOnFirstFailure(false), threads(0) {}
+		  exitOnFirstFailure(false), recursive(false), threads(0) {}
 };
 
 static std::string stringFromIMPD(const String &value) {
@@ -1037,6 +1146,79 @@ static bool directoryExists(const std::string &path) {
 		return false;
 	}
 	return (dirPath.exists() && dirPath.isDirectory());
+}
+
+static bool hasIvgExtension(const std::string &path) {
+	const size_t dot = path.find_last_of('.');
+	if (dot == std::string::npos) {
+		return false;
+	}
+	const std::string extension = toLowerAscii(path.substr(dot + 1));
+	return (extension == "ivg");
+}
+
+static bool collectDirectoryIvgFiles(const std::string &directory, bool recursive,
+		std::vector<std::string> &files) {
+	const NuXFiles::Path dirPath = pathFromNativeString(directory);
+	if (dirPath.isNull() || !dirPath.exists() || !dirPath.isDirectory()) {
+		std::cerr << "not a directory: " << directory << std::endl;
+		return false;
+	}
+
+	std::vector<NuXFiles::Path> pending(1, dirPath);
+	while (!pending.empty()) {
+		const NuXFiles::Path current = pending.back();
+		pending.pop_back();
+
+		std::vector<NuXFiles::Path> subPaths;
+		current.listSubPaths(subPaths);
+		for (size_t i = 0; i < subPaths.size(); ++i) {
+			const NuXFiles::Path &entry = subPaths[i];
+			if (entry.isDirectory()) {
+				if (recursive) {
+					pending.push_back(entry);
+				}
+				continue;
+			}
+			if (!entry.isFile()) {
+				continue;
+			}
+			const std::wstring widePath = entry.getFullPath();
+			const std::string nativePath = pathStringFromWide(widePath);
+			if (hasIvgExtension(nativePath)) {
+				files.push_back(nativePath);
+			}
+		}
+	}
+
+	if (files.empty()) {
+		std::cerr << "no IVG files found under directory: " << directory
+				<< std::endl;
+		return false;
+	}
+
+	std::sort(files.begin(), files.end());
+	return true;
+}
+
+static bool expandInputPaths(CommandLineOptions &options) {
+	std::vector<std::string> expanded;
+	expanded.reserve(options.ivgPaths.size());
+	for (size_t i = 0; i < options.ivgPaths.size(); ++i) {
+		const std::string &input = options.ivgPaths[i];
+		if (directoryExists(input)) {
+			std::vector<std::string> directoryFiles;
+			if (!collectDirectoryIvgFiles(input, options.recursive, directoryFiles)) {
+				return false;
+			}
+			expanded.insert(expanded.end(), directoryFiles.begin(), directoryFiles.end());
+		} else {
+			expanded.push_back(input);
+		}
+	}
+
+	options.ivgPaths.swap(expanded);
+	return true;
 }
 
 static bool ensureDirectoryPath(const NuXFiles::Path &directory) {
@@ -1309,6 +1491,18 @@ static void printSummaryLine(const std::string &label, const std::string &value)
 
 static void logFileReport(const std::string &path, const SnapshotRunResult &run) {
 	std::cout << "# " << path << std::endl << std::endl;
+	if (run.ignored) {
+		std::string message("Ignored");
+		if (!run.ignoreReason.empty()) {
+			message += " (";
+			message += run.ignoreReason;
+			message += ')';
+		}
+		std::cout << "Summary" << std::endl;
+		printSummaryLine("Status", message);
+		std::cout << std::endl;
+		return;
+	}
 	bool printedSection = false;
 	if (!run.entries.empty()) {
 		std::string previousScenario;
@@ -1345,12 +1539,12 @@ static void logFileReport(const std::string &path, const SnapshotRunResult &run)
 	std::cout << "Summary" << std::endl;
 	std::ostringstream snapshotLine;
 	snapshotLine << run.totalEntries << " total (" << run.validatedEntries
-				 << " validated)";
+			 << " validated)";
 	printSummaryLine("Snapshots", snapshotLine.str());
 	printSummaryLine("Updated", Interpreter::toString(static_cast<int32_t>(run.updatedEntries)));
 	std::ostringstream failedLine;
 	failedLine << run.failedEntries << " snapshots (diff failures: "
-			<< run.diffFailures << ')';
+			 << run.diffFailures << ')';
 	printSummaryLine("Failed", failedLine.str());
 	std::cout << std::endl;
 }
@@ -1370,6 +1564,7 @@ static void logTotalsSummary(const SnapshotTotals &totals) {
 	failedLine << totals.failedEntries << " snapshots (diff failures: "
 			<< totals.diffFailures << ')';
 	printSummaryLine("Failed", failedLine.str());
+	printSummaryLine("Ignored files", Interpreter::toString(static_cast<int32_t>(totals.ignoredFiles)));
 }
 static bool
 loadPngRaster(const std::string &path,
@@ -2330,6 +2525,8 @@ static void printUsage(const char *program) {
 			  << std::endl;
 	std::cout << "\t--root-dir <path>\t\tRoot for snapshot name generation."
 			  << std::endl;
+	std::cout << "\t--recursive\t\tScan directories recursively for IVG files."
+			  << std::endl;
 	std::cout << "\t--force-update\t\tOverwrite goldens." << std::endl;
 	std::cout << "\t--threads <n>\t\tNumber of worker threads." << std::endl;
 	std::cout << "\t--list-only\t\tList collected snapshots without rendering."
@@ -2402,6 +2599,8 @@ static bool parseCommandLine(int argc, char **argv,
 						<< std::endl;
 				return false;
 			}
+		} else if (arg == "--recursive") {
+			options.recursive = true;
 		} else if (arg == "--force-update") {
 			options.forceUpdate = true;
 		} else if (arg == "--threads") {
@@ -2516,6 +2715,12 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 	}
 
 	const String &source = document.getSource();
+	const FormatDetectionResult formatDetection = detectSnapshotFormat(source);
+	if (formatDetection.determined && !formatDetection.supportsSnapshot) {
+		run.ignored = true;
+		run.ignoreReason = "format missing uses:snapshot-1";
+		return run;
+	}
 	const std::string snapshotBase = buildSnapshotSourceTag(path, options.rootDir);
 	SharedResources sharedResources;
 	SnapshotRoundCoordinator coordinator;
@@ -2729,6 +2934,14 @@ static uint32_t determineThreadCount(const CommandLineOptions &options,
 int main(int argc, char **argv) {
 	CommandLineOptions options;
 	if (!parseCommandLine(argc, argv, options)) {
+		return 1;
+	}
+
+	if (!expandInputPaths(options)) {
+		return 1;
+	}
+	if (options.ivgPaths.empty()) {
+		std::cerr << "no IVG files found." << std::endl;
 		return 1;
 	}
 

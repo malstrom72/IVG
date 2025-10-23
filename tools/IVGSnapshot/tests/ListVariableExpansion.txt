@@ -44,3 +44,4 @@ Summary
   Snapshots       : 4 total (4 validated)
   Updated         : 0
   Failed          : 0 snapshots (diff failures: 0)
+  Ignored files   : 0
