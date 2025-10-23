@@ -2007,9 +2007,12 @@ loadPngRaster(const std::string &path,
 				   static_cast<int>(width),
 				   static_cast<int>(height)));
 
+		const NuXPixels::IntRect tempBounds = tempRaster.calcBounds();
+		const int tempStride = tempRaster.getStride();
+		NuXPixels::ARGB32::Pixel *const tempBase = tempRaster.getPixelPointer();
 		for (png_uint_32 y = 0; y < height; ++y) {
 			NuXPixels::ARGB32::Pixel *dest =
-				tempRaster.getPixelPointer() + y * tempRaster.getStride();
+				tempBase + (static_cast<int>(y) + tempBounds.top) * tempStride + tempBounds.left;
 			png_bytep src = rows[y];
 			for (png_uint_32 x = 0; x < width; ++x) {
 				unsigned int b = src[x * 4 + 0];
