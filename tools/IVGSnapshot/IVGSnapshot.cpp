@@ -1991,9 +1991,21 @@ loadPngRaster(const std::string &path,
 		const png_uint_32 height = png_get_image_height(png, info);
 		png_bytep *rows = png_get_rows(png, info);
 
+		png_int_32 offsetX = 0;
+		png_int_32 offsetY = 0;
+		if ((png_get_valid(png, info, PNG_INFO_oFFs) & PNG_INFO_oFFs) != 0) {
+			int offsetUnit = PNG_OFFSET_PIXEL;
+			png_get_oFFs(png, info, &offsetX, &offsetY, &offsetUnit);
+			if (offsetUnit != PNG_OFFSET_PIXEL) {
+				offsetX = 0;
+				offsetY = 0;
+			}
+		}
+
 		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> tempRaster(
-			NuXPixels::IntRect(0, 0, static_cast<int>(width),
-							   static_cast<int>(height)));
+			NuXPixels::IntRect(static_cast<int>(offsetX), static_cast<int>(offsetY),
+				   static_cast<int>(width),
+				   static_cast<int>(height)));
 
 		for (png_uint_32 y = 0; y < height; ++y) {
 			NuXPixels::ARGB32::Pixel *dest =
