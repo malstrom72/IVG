@@ -35,3 +35,4 @@ Summary
   Snapshots       : 3 total (3 validated)
   Updated         : 0
   Failed          : 0 snapshots (diff failures: 0)
+  Ignored files   : 0
