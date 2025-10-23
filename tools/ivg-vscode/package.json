@@ -114,14 +114,19 @@
 					"minimum": 0,
 					"description": "Delay in milliseconds before automatic IVG Preview refresh when auto refresh is enabled."
 				},
-				"ivgfiddle.includes.watchersEnabled": {
-					"type": "boolean",
-					"default": true,
-					"description": "Enable include asset filesystem watchers for IMPD, IVG, IVG font, and raster fallback resources."
-				}
-			}
-		}
-	},
+"ivgfiddle.includes.watchersEnabled": {
+"type": "boolean",
+"default": true,
+"description": "Enable include asset filesystem watchers for IMPD, IVG, IVG font, and raster fallback resources."
+},
+"ivgfiddle.includes.manifestEnabled": {
+"type": "boolean",
+"default": false,
+"description": "Generate synchronized include manifests and asset bundles for IVGFiddle sessions."
+}
+}
+}
+},
 	"scripts": {
 		"compile": "tsc -p .",
 		"watch": "tsc -w -p .",

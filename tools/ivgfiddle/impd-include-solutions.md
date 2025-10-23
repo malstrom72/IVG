@@ -22,6 +22,7 @@ Those shared code paths inherit the async/await error handling that feeds into t
 A debounced background job—mirroring the cadence of `scheduleDocument`—can assemble an `include-manifest.json` that records each synchronized asset's mount path, byte length, and checksum.【F:tools/ivg-vscode/src/extension.ts†L185-L275】
 By running next to `syncDocument`, the manifest builder can surface progress through the existing status-bar UX, including duration readouts and manual-refresh hints driven by `showStatusBar`.【F:tools/ivg-vscode/src/extension.ts†L215-L360】
 Collected files stream into an archive under the extension's `globalStorageUri`, and uploads trigger only when checksum deltas appear so local edits stay snappy.
+The feature is gated by the `ivgfiddle.includes.manifestEnabled` setting (default `false`) so teams can validate the workflow incrementally without stalling baseline preview updates.【F:tools/ivg-vscode/package.json†L1-L86】【F:tools/ivg-vscode/src/extension.ts†L620-L828】
 - **Upload handshake.**
 The extension already serializes IVG source into the webview by queueing `setSource` payloads and sending them through `postMessageToWebview` (honoring any configured `webviewUpdateDelay`).【F:tools/ivg-vscode/src/extension.ts†L185-L275】
 We can introduce a sibling payload such as `{ type: 'setIncludeBundle', manifest, presignedUrl }` that advertises the packaged includes before the next preview render.

@@ -15,8 +15,9 @@ Each milestone finishes with a verification run: execute the targeted checks lis
 - [x] Implement manifest assembly using shared `workspace.fs.readFile` helpers and debounce alongside `syncDocument`.
 - [x] Persist cached bundles and manifests under `globalStorageUri`, pruning stale revisions.
 - [x] Surface manifest build progress through status-bar messaging and trace channels.
+- [x] Add a guarded `ivgfiddle.includes.manifestEnabled` setting so manifest work can be toggled without regressing baseline preview responsiveness.
 - [ ] Run milestone smoke tests (`npm run compile`, `npm run lint`, `node tools/ivgfiddle/testIVGFiddle.js`, `timeout 600 ./build.sh`).
-- [ ] VS Code user acceptance: trigger edits to multiple include files in quick succession and verify the status bar reports manifest rebuild progress while the include tree view (if available) updates without manual refresh.
+- [ ] VS Code user acceptance: trigger edits to multiple include files in quick succession, verify the status bar reports manifest rebuild progress when the manifest setting is enabled, and confirm preview updates still arrive immediately when the manifest setting is disabled.
 
 ## Milestone 3 – Upload handshake and messaging
 - [ ] Define the `{ type: 'setIncludeBundle' }` payload contract shared by extension and webview.

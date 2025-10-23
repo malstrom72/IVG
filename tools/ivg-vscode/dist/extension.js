@@ -225,7 +225,8 @@ function activate(context) {
                 syncDocument(scheduledDocument, "change");
             }
         }
-        if (event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.watchersEnabled`)) {
+        if (event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.watchersEnabled`) ||
+            event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.manifestEnabled`)) {
             includeConfig = readIncludeConfig();
             initializeIncludeWatchers(context);
             refreshStatusBar();
@@ -430,15 +431,17 @@ function showStatusBar(document, reason) {
         ? "includes off"
         : includeWatcherFolderCount === 0
             ? "includes pending"
-            : includeManifestStatus === "error"
-                ? "includes error"
-                : includeManifestStatus === "building" || includeManifestStatus === "pending"
-                    ? "includes building"
-                    : includeManifestStatus === "ready"
-                        ? includeManifestEntryCount > 0
-                            ? `includes ready (${includeManifestEntryCount})`
-                            : "includes ready (empty)"
-                        : "includes watching";
+            : !includeConfig.manifestEnabled
+                ? "includes watching"
+                : includeManifestStatus === "error"
+                    ? "includes error"
+                    : includeManifestStatus === "building" || includeManifestStatus === "pending"
+                        ? "includes building"
+                        : includeManifestStatus === "ready"
+                            ? includeManifestEntryCount > 0
+                                ? `includes ready (${includeManifestEntryCount})`
+                                : "includes ready (empty)"
+                            : "includes watching";
     suffix = suffix ? `${suffix} • ${includeSuffix}` : ` • ${includeSuffix}`;
     statusBarItem.text = `$(${icon}) IVG Preview: ${fileName}${suffix}`;
     const tooltipLines = [document.uri.fsPath];
@@ -460,7 +463,7 @@ function showStatusBar(document, reason) {
     else {
         tooltipLines.push(`Include watchers active on ${includeWatcherFolderCount} workspace folder${includeWatcherFolderCount === 1 ? "" : "s"} (pattern: ${INCLUDE_ASSET_GLOB})`);
         tooltipLines.push(`Include watcher events this session — create: ${includeWatcherEventCounts.create}, change: ${includeWatcherEventCounts.change}, delete: ${includeWatcherEventCounts.delete}`);
-        if (includeManifestStatus === "ready") {
+        if (includeConfig.manifestEnabled && includeManifestStatus === "ready") {
             const assetLabel = includeManifestEntryCount === 1 ? "asset" : "assets";
             const byteLabel = includeManifestTotalBytes === 1 ? "byte" : "bytes";
             const revisionLabel = includeManifestRevisionId ?? "unknown";
@@ -469,15 +472,18 @@ function showStatusBar(document, reason) {
                 tooltipLines.push(`Include manifest generated at ${includeManifestLastGeneratedAt}`);
             }
         }
-        else if (includeManifestStatus === "error") {
+        else if (includeConfig.manifestEnabled && includeManifestStatus === "error") {
             const detail = includeManifestLastError ? `: ${includeManifestLastError}` : "";
             tooltipLines.push(`Include manifest error${detail}`);
         }
-        else if (includeManifestStatus !== "idle") {
+        else if (includeConfig.manifestEnabled && includeManifestStatus !== "idle") {
             tooltipLines.push(`Include manifest status: ${includeManifestStatus}`);
         }
-        else {
+        else if (includeConfig.manifestEnabled) {
             tooltipLines.push("Include manifest idle");
+        }
+        else {
+            tooltipLines.push("Include manifest disabled");
         }
     }
     statusBarItem.tooltip = tooltipLines.join("\n");
@@ -547,8 +553,10 @@ function readGeneralConfig() {
 function readIncludeConfig() {
     const config = vscode.workspace.getConfiguration(INCLUDE_CONFIG_SECTION);
     const watchersEnabled = config.get("watchersEnabled", true);
+    const manifestEnabled = config.get("manifestEnabled", false);
     return {
         watchersEnabled,
+        manifestEnabled,
     };
 }
 function initializeIncludeWatchers(context) {
@@ -568,13 +576,15 @@ function initializeIncludeWatchers(context) {
         includeManifestTotalBytes = 0;
         includeManifestLastGeneratedAt = undefined;
         includeManifestLastError = undefined;
+        includeManifestBuildInProgress = false;
+        includeManifestRebuildQueued = false;
         refreshStatusBar();
         return;
     }
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
         logIncludeTelemetry("Include watchers pending workspace folders.");
-        includeManifestStatus = "pending";
+        includeManifestStatus = includeConfig.manifestEnabled ? "pending" : "idle";
         refreshStatusBar();
         return;
     }
@@ -586,6 +596,19 @@ function initializeIncludeWatchers(context) {
         includeWatcherFolderCount += 1;
     }
     logIncludeTelemetry(`Include watchers attached across ${includeWatcherFolderCount} workspace folder${includeWatcherFolderCount === 1 ? "" : "s"} using pattern ${INCLUDE_ASSET_GLOB}.`);
+    if (!includeConfig.manifestEnabled) {
+        logIncludeTelemetry("Include manifest generation disabled by configuration.");
+        includeManifestStatus = "idle";
+        includeManifestRevisionId = undefined;
+        includeManifestEntryCount = 0;
+        includeManifestTotalBytes = 0;
+        includeManifestLastGeneratedAt = undefined;
+        includeManifestLastError = undefined;
+        includeManifestBuildInProgress = false;
+        includeManifestRebuildQueued = false;
+        refreshStatusBar();
+        return;
+    }
     includeManifestStatus = "pending";
     refreshStatusBar();
     scheduleIncludeManifestBuild("watcherInitialization");
@@ -615,7 +638,9 @@ function handleIncludeWatcherEvent(kind, uri) {
     const relativePath = vscode.workspace.asRelativePath(uri, false);
     logIncludeTelemetry(`Include asset ${kind} detected at ${relativePath} (events: create=${includeWatcherEventCounts.create}, change=${includeWatcherEventCounts.change}, delete=${includeWatcherEventCounts.delete}).`);
     scheduleIncludeRefresh();
-    scheduleIncludeManifestBuild("watcherEvent");
+    if (includeConfig.manifestEnabled) {
+        scheduleIncludeManifestBuild("watcherEvent");
+    }
 }
 function scheduleIncludeRefresh() {
     const targetDocument = getActiveIvgDocument() ?? getLastPreviewDocument();
@@ -625,7 +650,7 @@ function scheduleIncludeRefresh() {
     scheduleDocument(targetDocument);
 }
 function scheduleIncludeManifestBuild(reason) {
-    if (!extensionContext || !includeConfig.watchersEnabled) {
+    if (!extensionContext || !includeConfig.watchersEnabled || !includeConfig.manifestEnabled) {
         return;
     }
     includeManifestLastError = undefined;
@@ -647,7 +672,10 @@ function scheduleIncludeManifestBuild(reason) {
     }, delay);
 }
 async function buildIncludeManifest(reason) {
-    if (!extensionContext) {
+    if (!extensionContext || !includeConfig.watchersEnabled || !includeConfig.manifestEnabled) {
+        includeManifestBuildInProgress = false;
+        includeManifestStatus = includeConfig.manifestEnabled ? includeManifestStatus : "idle";
+        refreshStatusBar();
         return;
     }
     includeManifestBuildInProgress = true;
