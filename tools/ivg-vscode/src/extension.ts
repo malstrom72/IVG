@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { createHash } from "crypto";
 
 let ivgPanel: vscode.WebviewPanel | undefined;
 let webviewReady = false;
@@ -53,8 +54,55 @@ let includeWatcherEventCounts: Record<"create" | "change" | "delete", number> = 
 };
 type IncludeWatcherEvent = "create" | "change" | "delete";
 
+const INCLUDE_CACHE_FOLDER = "include-cache";
+const INCLUDE_MANIFEST_FILE_NAME = "include-manifest.json";
+const INCLUDE_MANIFEST_VERSION = 1;
+
+type IncludeManifestStatus = "idle" | "pending" | "building" | "ready" | "error";
+
+interface IncludeManifestEntry {
+	mountPath: string;
+	byteLength: number;
+	checksum: string;
+	mimeType: string;
+}
+
+interface IncludeManifest {
+	version: number;
+	revision: string;
+	generatedAt: string;
+	entries: IncludeManifestEntry[];
+}
+
+interface IncludeManifestBuildItem {
+	relativePath: string;
+	content: Uint8Array;
+	entry: IncludeManifestEntry;
+}
+
+type IncludeManifestScheduleReason = "activation" | "watcherInitialization" | "watcherEvent" | "configuration" | "chained";
+
+let extensionContext: vscode.ExtensionContext | undefined;
+let includeManifestTimer: ReturnType<typeof setTimeout> | undefined;
+let includeManifestStatus: IncludeManifestStatus = "idle";
+let includeManifestRevisionId: string | undefined;
+let includeManifestEntryCount = 0;
+let includeManifestTotalBytes = 0;
+let includeManifestLastGeneratedAt: string | undefined;
+let includeManifestLastError: string | undefined;
+let includeManifestBuildInProgress = false;
+let includeManifestRebuildQueued = false;
+
+const MIME_TYPE_BY_EXTENSION = new Map<string, string>([
+	["impd", "application/json"],
+	["ivg", "application/xml"],
+	["ivgfont", "application/octet-stream"],
+	["png", "image/png"],
+]);
+
 export function activate(context: vscode.ExtensionContext): void {
 	console.log("IVG Preview extension activated");
+	extensionContext = context;
 
 	traceOutputChannel = vscode.window.createOutputChannel(TRACE_OUTPUT_CHANNEL_NAME);
 	context.subscriptions.push(traceOutputChannel);
@@ -434,11 +482,19 @@ function showStatusBar(document: vscode.TextDocument, reason: StatusReason): voi
 	if (typeof lastPreviewDurationMs === "number" && lastPreviewDurationMs >= 0 && reason !== "manualPending" && reason !== "deferred") {
 		suffix = `${suffix} • ${Math.round(lastPreviewDurationMs)} ms`;
 	}
-	const includeSuffix = includeConfig.watchersEnabled
-		? includeWatcherFolderCount > 0
-			? "includes watching"
-			: "includes pending"
-		: "includes off";
+	const includeSuffix = !includeConfig.watchersEnabled
+		? "includes off"
+		: includeWatcherFolderCount === 0
+			? "includes pending"
+			: includeManifestStatus === "error"
+				? "includes error"
+				: includeManifestStatus === "building" || includeManifestStatus === "pending"
+					? "includes building"
+					: includeManifestStatus === "ready"
+						? includeManifestEntryCount > 0
+							? `includes ready (${includeManifestEntryCount})`
+							: "includes ready (empty)"
+						: "includes watching";
 	suffix = suffix ? `${suffix} • ${includeSuffix}` : ` • ${includeSuffix}`;
 	statusBarItem.text = `$(${icon}) IVG Preview: ${fileName}${suffix}`;
 	const tooltipLines = [document.uri.fsPath];
@@ -462,6 +518,24 @@ function showStatusBar(document: vscode.TextDocument, reason: StatusReason): voi
 		tooltipLines.push(
 			`Include watcher events this session — create: ${includeWatcherEventCounts.create}, change: ${includeWatcherEventCounts.change}, delete: ${includeWatcherEventCounts.delete}`,
 		);
+		if (includeManifestStatus === "ready") {
+			const assetLabel = includeManifestEntryCount === 1 ? "asset" : "assets";
+			const byteLabel = includeManifestTotalBytes === 1 ? "byte" : "bytes";
+			const revisionLabel = includeManifestRevisionId ?? "unknown";
+			tooltipLines.push(
+				`Include manifest ready — revision ${revisionLabel}, ${includeManifestEntryCount} ${assetLabel}, ${includeManifestTotalBytes} ${byteLabel}`,
+			);
+			if (includeManifestLastGeneratedAt) {
+				tooltipLines.push(`Include manifest generated at ${includeManifestLastGeneratedAt}`);
+			}
+		} else if (includeManifestStatus === "error") {
+			const detail = includeManifestLastError ? `: ${includeManifestLastError}` : "";
+			tooltipLines.push(`Include manifest error${detail}`);
+		} else if (includeManifestStatus !== "idle") {
+			tooltipLines.push(`Include manifest status: ${includeManifestStatus}`);
+		} else {
+			tooltipLines.push("Include manifest idle");
+		}
 	}
 	statusBarItem.tooltip = tooltipLines.join("\n");
 	statusBarItem.show();
@@ -553,11 +627,21 @@ function initializeIncludeWatchers(context: vscode.ExtensionContext): void {
 	includeWatcherFolderCount = 0;
 	if (!includeConfig.watchersEnabled) {
 		logIncludeTelemetry("Include watchers disabled by configuration.");
+		cancelIncludeManifestScheduling();
+		includeManifestStatus = "idle";
+		includeManifestRevisionId = undefined;
+		includeManifestEntryCount = 0;
+		includeManifestTotalBytes = 0;
+		includeManifestLastGeneratedAt = undefined;
+		includeManifestLastError = undefined;
+		refreshStatusBar();
 		return;
 	}
 	const workspaceFolders = vscode.workspace.workspaceFolders;
 	if (!workspaceFolders || workspaceFolders.length === 0) {
 		logIncludeTelemetry("Include watchers pending workspace folders.");
+		includeManifestStatus = "pending";
+		refreshStatusBar();
 		return;
 	}
 	for (const folder of workspaceFolders) {
@@ -574,6 +658,9 @@ function initializeIncludeWatchers(context: vscode.ExtensionContext): void {
 	logIncludeTelemetry(
 		`Include watchers attached across ${includeWatcherFolderCount} workspace folder${includeWatcherFolderCount === 1 ? "" : "s"} using pattern ${INCLUDE_ASSET_GLOB}.`,
 	);
+	includeManifestStatus = "pending";
+	refreshStatusBar();
+	scheduleIncludeManifestBuild("watcherInitialization");
 }
 
 function disposeIncludeWatchers(): void {
@@ -594,6 +681,7 @@ function disposeIncludeWatchers(): void {
 		change: 0,
 		delete: 0,
 	};
+	cancelIncludeManifestScheduling();
 }
 
 function handleIncludeWatcherEvent(kind: IncludeWatcherEvent, uri: vscode.Uri): void {
@@ -603,6 +691,7 @@ function handleIncludeWatcherEvent(kind: IncludeWatcherEvent, uri: vscode.Uri): 
 		`Include asset ${kind} detected at ${relativePath} (events: create=${includeWatcherEventCounts.create}, change=${includeWatcherEventCounts.change}, delete=${includeWatcherEventCounts.delete}).`,
 	);
 	scheduleIncludeRefresh();
+	scheduleIncludeManifestBuild("watcherEvent");
 }
 
 function scheduleIncludeRefresh(): void {
@@ -611,6 +700,180 @@ function scheduleIncludeRefresh(): void {
 		return;
 	}
 	scheduleDocument(targetDocument);
+}
+
+function scheduleIncludeManifestBuild(reason: IncludeManifestScheduleReason): void {
+	if (!extensionContext || !includeConfig.watchersEnabled) {
+		return;
+	}
+	includeManifestLastError = undefined;
+	if (includeManifestBuildInProgress) {
+		includeManifestRebuildQueued = true;
+		includeManifestStatus = "building";
+		refreshStatusBar();
+		return;
+	}
+	includeManifestStatus = "pending";
+	refreshStatusBar();
+	if (includeManifestTimer) {
+		clearTimeout(includeManifestTimer);
+	}
+	const delay = Math.max(0, previewConfig.debounceMs);
+	includeManifestTimer = setTimeout(() => {
+		includeManifestTimer = undefined;
+		void buildIncludeManifest(reason);
+	}, delay);
+}
+
+async function buildIncludeManifest(reason: IncludeManifestScheduleReason): Promise<void> {
+	if (!extensionContext) {
+		return;
+	}
+	includeManifestBuildInProgress = true;
+	includeManifestStatus = "building";
+	refreshStatusBar();
+	const startedAt = Date.now();
+	logIncludeTelemetry(`Include manifest rebuild started (reason: ${reason}).`);
+	try {
+		const uris = await vscode.workspace.findFiles(INCLUDE_ASSET_GLOB);
+		const records: IncludeManifestBuildItem[] = [];
+		let totalBytes = 0;
+		for (const uri of uris) {
+			try {
+				const relativePath = getIncludeRelativePath(uri);
+				const content = await vscode.workspace.fs.readFile(uri);
+				const buffer = Buffer.from(content);
+				const byteLength = buffer.byteLength;
+				totalBytes += byteLength;
+				const checksum = createHash("sha256").update(buffer).digest("hex");
+				const mountPath = relativePath.startsWith("/") ? relativePath : `/${relativePath}`;
+				const entry: IncludeManifestEntry = {
+					mountPath,
+					byteLength,
+					checksum,
+					mimeType: inferIncludeMimeType(relativePath),
+				};
+				records.push({
+					relativePath,
+					content,
+					entry,
+				});
+			} catch (error) {
+				const message = formatError(error);
+				const relativePath = vscode.workspace.asRelativePath(uri, false);
+				logIncludeTelemetry(`Failed to read include asset ${relativePath}: ${message}`);
+			}
+		}
+		records.sort((a, b) => a.entry.mountPath.localeCompare(b.entry.mountPath));
+		const revisionId = createIncludeRevisionId(records);
+		const generatedAt = new Date().toISOString();
+		await persistIncludeRevision(extensionContext, revisionId, records, generatedAt);
+		includeManifestRevisionId = revisionId;
+		includeManifestEntryCount = records.length;
+		includeManifestTotalBytes = totalBytes;
+		includeManifestLastGeneratedAt = generatedAt;
+		includeManifestStatus = "ready";
+		logIncludeTelemetry(
+			`Include manifest ready (${records.length} asset${records.length === 1 ? "" : "s"}, ${totalBytes} byte${totalBytes === 1 ? "" : "s"}, revision ${revisionId}, ${Date.now() - startedAt} ms).`,
+		);
+	} catch (error) {
+		includeManifestStatus = "error";
+		includeManifestLastError = formatError(error);
+		logIncludeTelemetry(`Include manifest rebuild failed: ${includeManifestLastError}`);
+	}
+	includeManifestBuildInProgress = false;
+	refreshStatusBar();
+	if (includeManifestRebuildQueued) {
+		includeManifestRebuildQueued = false;
+		scheduleIncludeManifestBuild("chained");
+	}
+}
+
+function getIncludeRelativePath(uri: vscode.Uri): string {
+	const relative = vscode.workspace.asRelativePath(uri, false);
+	const candidate = relative && relative !== uri.fsPath ? relative : uri.path;
+	const normalized = candidate.replace(/\\/g, "/").replace(/^\.\//, "");
+	return normalized.startsWith("/") ? normalized.slice(1) : normalized;
+}
+
+function inferIncludeMimeType(relativePath: string): string {
+	const lower = relativePath.toLowerCase();
+	for (const [extension, mime] of MIME_TYPE_BY_EXTENSION) {
+		if (lower.endsWith(`.${extension}`)) {
+			return mime;
+		}
+	}
+	return "application/octet-stream";
+}
+
+function createIncludeRevisionId(records: IncludeManifestBuildItem[]): string {
+	const hash = createHash("sha256");
+	for (const record of records) {
+		hash.update(record.entry.mountPath);
+		hash.update(record.entry.checksum);
+	}
+	const digest = hash.digest("hex").slice(0, 12);
+	const timestamp = Date.now().toString(36);
+	return `rev-${timestamp}-${digest}`;
+}
+
+async function persistIncludeRevision(
+	context: vscode.ExtensionContext,
+	revisionId: string,
+	records: IncludeManifestBuildItem[],
+	generatedAt: string,
+): Promise<void> {
+	const storageRoot = vscode.Uri.joinPath(context.globalStorageUri, INCLUDE_CACHE_FOLDER);
+	await vscode.workspace.fs.createDirectory(storageRoot);
+	const revisionRoot = vscode.Uri.joinPath(storageRoot, revisionId);
+	await vscode.workspace.fs.createDirectory(revisionRoot);
+	for (const record of records) {
+		const segments = record.relativePath.split("/").filter(Boolean);
+		if (segments.length > 1) {
+			await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(revisionRoot, ...segments.slice(0, -1)));
+		}
+		const target = vscode.Uri.joinPath(revisionRoot, ...segments);
+		await vscode.workspace.fs.writeFile(target, record.content);
+	}
+	const manifest: IncludeManifest = {
+		version: INCLUDE_MANIFEST_VERSION,
+		revision: revisionId,
+		generatedAt,
+		entries: records.map((record) => record.entry),
+	};
+	const manifestUri = vscode.Uri.joinPath(revisionRoot, INCLUDE_MANIFEST_FILE_NAME);
+	await vscode.workspace.fs.writeFile(manifestUri, Buffer.from(JSON.stringify(manifest, null, 2), "utf8"));
+	await pruneStaleIncludeRevisions(storageRoot, revisionId);
+}
+
+async function pruneStaleIncludeRevisions(storageRoot: vscode.Uri, activeRevisionId: string): Promise<void> {
+	try {
+		const entries = await vscode.workspace.fs.readDirectory(storageRoot);
+		for (const [name, type] of entries) {
+			if (name === activeRevisionId) {
+				continue;
+			}
+			const target = vscode.Uri.joinPath(storageRoot, name);
+			await vscode.workspace.fs.delete(target, { recursive: true, useTrash: false });
+		}
+	} catch (error) {
+		logIncludeTelemetry(`Failed to prune stale include revisions: ${formatError(error)}`);
+	}
+}
+
+function cancelIncludeManifestScheduling(): void {
+	if (includeManifestTimer) {
+		clearTimeout(includeManifestTimer);
+		includeManifestTimer = undefined;
+	}
+	includeManifestRebuildQueued = false;
+}
+
+function formatError(error: unknown): string {
+	if (error instanceof Error && error.message) {
+		return error.message;
+	}
+	return String(error);
 }
 
 function logIncludeTelemetry(message: string): void {

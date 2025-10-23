@@ -8,13 +8,13 @@ Each milestone finishes with a verification run: execute the targeted checks lis
 - [x] Implement a `FileSystemWatcher` wiring that shares the debounce queue used by `scheduleDocument`.
 - [x] Add telemetry hooks to log watcher churn and file counts for observability.
 - [x] Run milestone smoke tests (`npm run compile`, `npm run lint`, `timeout 600 ./build.sh`).
-- [ ] VS Code user acceptance: open an `.ivg` document, toggle the include watcher setting, and confirm the status bar indicates watcher attachment without requiring a reload.
+- [x] VS Code user acceptance: open an `.ivg` document, toggle the include watcher setting, and confirm the status bar indicates watcher attachment without requiring a reload.
 
 ## Milestone 2 – Manifest generation and caching
-- [ ] Design the `include-manifest.json` schema (mount path, byte length, checksum, MIME type).
-- [ ] Implement manifest assembly using shared `workspace.fs.readFile` helpers and debounce alongside `syncDocument`.
-- [ ] Persist cached bundles and manifests under `globalStorageUri`, pruning stale revisions.
-- [ ] Surface manifest build progress through status-bar messaging and trace channels.
+- [x] Design the `include-manifest.json` schema (mount path, byte length, checksum, MIME type).
+- [x] Implement manifest assembly using shared `workspace.fs.readFile` helpers and debounce alongside `syncDocument`.
+- [x] Persist cached bundles and manifests under `globalStorageUri`, pruning stale revisions.
+- [x] Surface manifest build progress through status-bar messaging and trace channels.
 - [ ] Run milestone smoke tests (`npm run compile`, `npm run lint`, `node tools/ivgfiddle/testIVGFiddle.js`, `timeout 600 ./build.sh`).
 - [ ] VS Code user acceptance: trigger edits to multiple include files in quick succession and verify the status bar reports manifest rebuild progress while the include tree view (if available) updates without manual refresh.
 
