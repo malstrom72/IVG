@@ -836,7 +836,7 @@ static std::wstring pathStringToWide(const std::string &path) {
 	}
 	return wide;
 #else
-	std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+std::wstring_convert<std::codecvt_utf8<wchar_t> > converter;
         return converter.from_bytes(path);
 #endif
 }
@@ -862,7 +862,7 @@ static std::string pathStringFromWide(const std::wstring &path) {
 	}
 	return narrow;
 #else
-	std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+std::wstring_convert<std::codecvt_utf8<wchar_t> > converter;
 	return converter.to_bytes(path);
 #endif
 }
@@ -1967,22 +1967,22 @@ static bool readFile(const std::string &path, String &contents);
 
 class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
   public:
-        SnapshotPlaybackExecutor(IVG::Canvas &canvas,
+	SnapshotPlaybackExecutor(IVG::Canvas &canvas,
                                                          const CommandLineOptions &options,
                                                          const std::string &sourcePath,
                                                          const String &sourceText,
                                                          SharedResources &sharedResources,
                                                          SnapshotRoundState &roundState,
                                                          SnapshotProgress &snapshotProgress)
-                : SnapshotPlaybackExecutor(canvas, options, sourcePath,
-                                sharedResources) {
-                round = &roundState;
-                progress = &snapshotProgress;
-                this->sourceText = sourceText;
-        }
+                : IVG::IVGExecutor(canvas), includeDirs(options.includeDirs),
+                  fontDirs(options.fontDirs), imageDirs(options.imageDirs),
+                  sourcePath(sourcePath), verbose(options.verbose),
+                  sharedResources(sharedResources), round(&roundState),
+                  progress(&snapshotProgress), sourceText(sourceText),
+                  scanOffset(0) {}
 
 	bool load(Interpreter &interpreter, const WideString &filename,
-			  String &contents) override {
+                          String &contents) {
 		(void)interpreter;
 		const std::string utf8(filename.begin(), filename.end());
 		if (readFile(resolveRelativePath(utf8), contents)) {
@@ -1998,7 +1998,7 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 
 	std::vector<const IVG::Font *>
 	lookupFonts(Interpreter &interpreter, const WideString &fontName,
-				const UniString &forString) override {
+								const UniString &forString) {
 		(void)interpreter;
 		(void)forString;
 
@@ -2029,11 +2029,11 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 	}
 
 	IVG::Image loadImage(Interpreter &interpreter,
-						 const WideString &imageSource,
-						 const NuXPixels::IntRect *sourceRectangle,
-						 bool forStretching, double forXSize,
-						 bool xSizeIsRelative, double forYSize,
-						 bool ySizeIsRelative) override {
+								const WideString &imageSource,
+								const NuXPixels::IntRect *sourceRectangle,
+								bool forStretching, double forXSize,
+								bool xSizeIsRelative, double forYSize,
+								bool ySizeIsRelative) {
 		(void)interpreter;
 		(void)sourceRectangle;
 		(void)forStretching;
@@ -2055,8 +2055,8 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		return image;
 	}
 
-        bool meta(Interpreter &interpreter, const String &key,
-                          const String &arguments) override {
+	bool meta(Interpreter &interpreter, const String &key,
+                          const String &arguments) {
                 static const String SNAPSHOT_KEY("snapshot-1");
                 if (key != SNAPSHOT_KEY) {
                         return false;
@@ -2075,15 +2075,6 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
         bool finished() const { return true; }
 
   private:
-        SnapshotPlaybackExecutor(IVG::Canvas &canvas,
-                                                         const CommandLineOptions &options,
-                                                         const std::string &sourcePath,
-                                                         SharedResources &sharedResources)
-                : IVG::IVGExecutor(canvas), includeDirs(options.includeDirs),
-                  fontDirs(options.fontDirs), imageDirs(options.imageDirs),
-                  sourcePath(sourcePath), verbose(options.verbose),
-                  sharedResources(sharedResources), round(0), progress(0), sourceText(),
-                  scanOffset(0) {}
 
         bool handleRoundMeta(Interpreter &interpreter, ArgumentsContainer &args) {
                 const String *validateFlag = args.fetchOptional("validate");
@@ -2750,65 +2741,80 @@ int main(int argc, char **argv) {
 	std::vector<uint8_t> processed(fileCount, 0);
 	std::atomic<bool> stop(false);
 
-	auto loop = [&options, &runs, &processed, &stop](int index,
-			int iterationCount, int threadIndex) -> bool {
-		(void)iterationCount;
-		(void)threadIndex;
+	struct SnapshotLoop {
+		SnapshotLoop(const CommandLineOptions &optionsRef,
+								std::vector<SnapshotRunResult> &runsRef,
+								std::vector<uint8_t> &processedRef,
+								std::atomic<bool> &stopRef)
+			: options(optionsRef), runs(runsRef), processed(processedRef),
+			  stop(stopRef) {}
 
-		if (stop.load()) {
-			return false;
-		}
+		bool operator()(int index, int iterationCount, int threadIndex) const {
+			(void)iterationCount;
+			(void)threadIndex;
 
-		const size_t fileIndex = static_cast<size_t>(index);
-		if (fileIndex >= options.ivgPaths.size()) {
-			return false;
-		}
-
-		const std::string &path = options.ivgPaths[fileIndex];
-		SnapshotRunResult run;
-		bool shouldStop = false;
-
-		try {
-			run = processFile(options, path);
-			if (options.exitOnFirstFailure &&
-					(run.exitCode != 0 || run.fileFailed)) {
-				shouldStop = true;
+			if (stop.load()) {
+				return false;
 			}
-		} catch (Exception &e) {
-			std::ostringstream message;
-			message << path << ": " << e.getError();
-			if (e.hasStatement()) {
-				message << " near \"" << e.getStatement() << "\"";
+
+			const size_t fileIndex = static_cast<size_t>(index);
+			if (fileIndex >= options.ivgPaths.size()) {
+				return false;
 			}
-			run.fileFailed = true;
-			run.exitCode = 1;
-			run.fileError = message.str();
-			std::cerr << message.str() << std::endl;
-			shouldStop = options.exitOnFirstFailure;
-		} catch (std::exception &e) {
-			run.fileFailed = true;
-			run.exitCode = 1;
-			run.fileError = e.what();
-			std::cerr << path << ": " << e.what() << std::endl;
-			shouldStop = options.exitOnFirstFailure;
-		} catch (...) {
-			run.fileFailed = true;
-			run.exitCode = 1;
-			run.fileError = "unknown exception";
-			std::cerr << path << ": unknown exception" << std::endl;
-			shouldStop = options.exitOnFirstFailure;
+
+			const std::string &path = options.ivgPaths[fileIndex];
+			SnapshotRunResult run;
+			bool shouldStop = false;
+
+			try {
+				run = processFile(options, path);
+				if (options.exitOnFirstFailure &&
+						(run.exitCode != 0 || run.fileFailed)) {
+					shouldStop = true;
+				}
+			} catch (Exception &e) {
+				std::ostringstream message;
+				message << path << ": " << e.getError();
+				if (e.hasStatement()) {
+					message << " near \"" << e.getStatement() << "\"";
+				}
+				run.fileFailed = true;
+				run.exitCode = 1;
+				run.fileError = message.str();
+				std::cerr << message.str() << std::endl;
+				shouldStop = options.exitOnFirstFailure;
+			} catch (std::exception &e) {
+				run.fileFailed = true;
+				run.exitCode = 1;
+				run.fileError = e.what();
+				std::cerr << path << ": " << e.what() << std::endl;
+				shouldStop = options.exitOnFirstFailure;
+			} catch (...) {
+				run.fileFailed = true;
+				run.exitCode = 1;
+				run.fileError = "unknown exception";
+				std::cerr << path << ": unknown exception" << std::endl;
+				shouldStop = options.exitOnFirstFailure;
+			}
+
+			runs[fileIndex] = run;
+			processed[fileIndex] = 1;
+
+			if (shouldStop) {
+				stop.store(true);
+				return false;
+			}
+
+			return true;
 		}
 
-		runs[fileIndex] = run;
-		processed[fileIndex] = 1;
-
-		if (shouldStop) {
-			stop.store(true);
-			return false;
-		}
-
-		return true;
+		const CommandLineOptions &options;
+		std::vector<SnapshotRunResult> &runs;
+		std::vector<uint8_t> &processed;
+		std::atomic<bool> &stop;
 	};
+
+	SnapshotLoop loop(options, runs, processed, stop);
 
 	if (fileCount > 0) {
 		NuXThreads::runLoopInParallel(static_cast<int>(fileCount), loop,
