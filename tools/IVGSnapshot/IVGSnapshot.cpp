@@ -34,6 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cctype>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -62,11 +63,35 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <zlib.h>
 
 #include "externals/NuX/NuXFiles.h"
+#include "BuiltinFonts.h"
 #include "externals/NuX/NuXThreads.h"
 #include "src/IMPD.h"
 #include "src/IVG.h"
 
 using namespace IMPD;
+
+static bool loadBuiltinFontSource(const WideString &fontName, String &source) {
+	std::string ascii;
+	ascii.reserve(fontName.size());
+	for (size_t i = 0; i < fontName.size(); ++i) {
+		const WideChar ch = fontName[i];
+		if (static_cast<uint32_t>(ch) > 0x7Fu) {
+			return false;
+		}
+		ascii.push_back(static_cast<char>(ch));
+	}
+	for (size_t i = 0; i < ascii.size(); ++i) {
+		ascii[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(ascii[i])));
+	}
+	for (size_t i = 0; i < IVGSnapshot::kBuiltinFontCount; ++i) {
+		const IVGSnapshot::BuiltinFontSource &font = IVGSnapshot::kBuiltinFonts[i];
+		if (ascii == font.name) {
+			source.assign(reinterpret_cast<const char *>(font.data), font.length);
+			return true;
+		}
+	}
+	return false;
+}
 
 /**
 		Loads an IVG source once and replays it on demand so snapshot
@@ -2226,7 +2251,8 @@ scenarioLabel, blockOrdinal, entryOrdinal, scenarioOrdinal,
 		const std::string fileName = fontName8 + ".ivgfont";
 
 		String contents;
-		if (readFile(resolveRelativePath(fileName), contents) ||
+		if (loadBuiltinFontSource(fontName, contents) ||
+			readFile(resolveRelativePath(fileName), contents) ||
 			loadFromDirectories(fontDirs, fileName, contents)) {
 			return parseFont(contents, font);
 		}
