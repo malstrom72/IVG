@@ -17,7 +17,12 @@ Each milestone finishes with a verification run: execute the targeted checks lis
 - [x] Surface manifest build progress through status-bar messaging and trace channels.
 - [x] Add a guarded `ivgfiddle.includes.manifestEnabled` setting so manifest work can be toggled without regressing baseline preview responsiveness.
 - [ ] Run milestone smoke tests (`npm run compile`, `npm run lint`, `node tools/ivgfiddle/testIVGFiddle.js`, `timeout 600 ./build.sh`).
-- [ ] VS Code user acceptance: trigger edits to multiple include files in quick succession, verify the status bar reports manifest rebuild progress when the manifest setting is enabled, and confirm preview updates still arrive immediately when the manifest setting is disabled.
+- [ ] VS Code user acceptance: validate manifest progress messaging and baseline preview responsiveness.
+- [ ] Preparation: open an IVG project with at least two include-eligible assets (for example, an `.impd` layout that references separate `.ivg` snippets or textures) so you can edit multiple files that influence the active preview.
+- [ ] Enable manifests: open **Settings > Extensions > IVG Preview** (or run "Preferences: Open Settings (UI)"), search for "include", check **IVGFiddle › Includes: Manifest Enabled**, and make sure the status bar suffix reads `includes pending` or `includes building` as the watchers attach.
+- [ ] Exercise manifest rebuilds: with the manifest toggle still on, make several quick edits (save or auto-save) across different include assets. Watch the status bar change to `includes building` during the burst and settle on `includes ready (...)` when the debounce completes. Hover the status bar item and confirm the tooltip reports `Include manifest status: building` during the rebuild and `Include manifest ready — …` afterward.
+- [ ] Disable manifests: return to settings, uncheck **IVGFiddle › Includes: Manifest Enabled**, and verify the status bar suffix switches back to `includes watching` while the tooltip notes "Include manifest disabled".
+- [ ] Verify preview responsiveness: with manifests disabled, edit the same include files again and confirm the IVG preview refreshes immediately after each save (no prolonged `includes building` state) while the status bar continues to show watcher activity counts incrementing.
 
 ## Milestone 3 – Upload handshake and messaging
 - [ ] Define the `{ type: 'setIncludeBundle' }` payload contract shared by extension and webview.
