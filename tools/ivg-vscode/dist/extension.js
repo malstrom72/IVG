@@ -76,6 +76,7 @@ let includeWatcherEventCounts = {
 const INCLUDE_CACHE_FOLDER = "include-cache";
 const INCLUDE_MANIFEST_FILE_NAME = "include-manifest.json";
 const INCLUDE_MANIFEST_VERSION = 1;
+const DEFAULT_INCLUDE_RESCAN_DEBOUNCE_MS = 150;
 let extensionContext;
 let includeManifestTimer;
 let includeManifestStatus = "idle";
@@ -88,6 +89,11 @@ let includeManifestBuildInProgress = false;
 let includeManifestRebuildQueued = false;
 let includeManifestSnapshot;
 let latestIncludeBundleMessage;
+let includeManifestManualRefreshRequired = false;
+let includeExplorerProvider;
+let includeExplorerView;
+let includeExplorerLastAutoRevealRevision;
+let includeStatusBarItem;
 const MIME_TYPE_BY_EXTENSION = new Map([
     ["impd", "application/json"],
     ["ivg", "application/xml"],
@@ -104,6 +110,18 @@ function activate(context) {
     statusBarItem.command = "ivgfiddle.open";
     statusBarItem.hide();
     context.subscriptions.push(statusBarItem);
+    includeStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 99);
+    includeStatusBarItem.command = "ivgfiddle.includes.focusExplorer";
+    includeStatusBarItem.name = "IVG Include Status";
+    includeStatusBarItem.hide();
+    context.subscriptions.push(includeStatusBarItem);
+    includeExplorerProvider = new IncludeExplorerProvider();
+    includeExplorerView = vscode.window.createTreeView("ivgfiddleIncludesExplorer", {
+        treeDataProvider: includeExplorerProvider,
+        showCollapseAll: false,
+    });
+    context.subscriptions.push(includeExplorerView);
+    context.subscriptions.push(includeExplorerProvider);
     initializeIncludeWatchers(context);
     context.subscriptions.push({
         dispose: disposeIncludeWatchers,
@@ -173,7 +191,7 @@ function activate(context) {
         }
     });
     context.subscriptions.push(openCommand);
-    context.subscriptions.push(vscode.commands.registerCommand("ivgfiddle.refreshPreview", handleRefreshPreviewCommand), vscode.commands.registerCommand("ivgfiddle.clearTrace", handleClearTraceCommand));
+    context.subscriptions.push(vscode.commands.registerCommand("ivgfiddle.refreshPreview", handleRefreshPreviewCommand), vscode.commands.registerCommand("ivgfiddle.clearTrace", handleClearTraceCommand), vscode.commands.registerCommand("ivgfiddle.includes.focusExplorer", handleFocusIncludeExplorerCommand), vscode.commands.registerCommand("ivgfiddle.includes.rescan", handleRescanIncludesCommand), vscode.commands.registerCommand("ivgfiddle.includes.openAsset", handleOpenIncludeAssetCommand), vscode.commands.registerCommand("ivgfiddle.includes.revealAsset", handleRevealIncludeAssetCommand), vscode.commands.registerCommand("ivgfiddle.includes.copyMountPath", handleCopyIncludeMountPathCommand));
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((document) => {
         if (isIvgDocument(document)) {
             syncDocument(document, "open");
@@ -239,12 +257,33 @@ function activate(context) {
             }
         }
         if (event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.watchersEnabled`) ||
-            event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.manifestEnabled`)) {
+            event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.manifestEnabled`) ||
+            event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.autoRescan`) ||
+            event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.rescanDebounceMs`) ||
+            event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.autoRevealExplorer`)) {
             includeConfig = readIncludeConfig();
-            initializeIncludeWatchers(context);
+            if (event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.watchersEnabled`) ||
+                event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.manifestEnabled`)) {
+                initializeIncludeWatchers(context);
+            }
+            else {
+                refreshIncludeSurfaces();
+            }
+            if (includeConfig.autoRescan) {
+                includeManifestManualRefreshRequired = false;
+            }
+            if (includeConfig.watchersEnabled &&
+                includeConfig.manifestEnabled &&
+                includeConfig.autoRescan &&
+                (event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.autoRescan`) ||
+                    event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.rescanDebounceMs`))) {
+                scheduleIncludeManifestBuild("configuration");
+            }
             refreshStatusBar();
+            refreshIncludeSurfaces();
         }
     }));
+    refreshIncludeSurfaces();
 }
 function deactivate() {
     // Intentionally empty; no teardown required for the bootstrap milestone.
@@ -410,7 +449,272 @@ function queueEmptyIncludeBundleMessage(reason) {
         entries: [],
     };
     logIncludeTelemetry(`Include bundle cleared (${reason}).`);
-    queueIncludeBundleMessage({ type: "setIncludeBundle", revision, manifest, assets: [] });
+    queueIncludeBundleMessage({
+        type: "setIncludeBundle",
+        revision,
+        manifest,
+        assets: [],
+    });
+    refreshIncludeSurfaces();
+}
+class IncludeAssetTreeItem extends vscode.TreeItem {
+    constructor(entry) {
+        super(entry.label, vscode.TreeItemCollapsibleState.None);
+        this.entry = entry;
+        this.contextValue = "ivgfiddleIncludeAsset";
+        this.iconPath = new vscode.ThemeIcon("file");
+        this.description = `${formatByteLength(entry.byteLength)} • ${entry.mimeType}`;
+        const tooltipLines = [entry.mountPath, `Checksum: ${entry.checksum}`, `Size: ${formatByteLength(entry.byteLength)}`];
+        if (entry.revision) {
+            tooltipLines.push(`Revision: ${entry.revision}`);
+        }
+        this.tooltip = tooltipLines.join("\n");
+        this.command = {
+            command: "ivgfiddle.includes.openAsset",
+            title: "Open Include Asset",
+            arguments: [this],
+        };
+    }
+}
+class IncludeExplorerProvider {
+    constructor() {
+        this.changeEmitter = new vscode.EventEmitter();
+        this.onDidChangeTreeData = this.changeEmitter.event;
+    }
+    dispose() {
+        this.changeEmitter.dispose();
+    }
+    refresh() {
+        this.changeEmitter.fire();
+    }
+    getTreeItem(element) {
+        if (element.kind === "asset") {
+            return new IncludeAssetTreeItem(element);
+        }
+        const item = new vscode.TreeItem(element.label, vscode.TreeItemCollapsibleState.None);
+        item.contextValue = element.severity ? `ivgfiddleIncludeMessage.${element.severity}` : "ivgfiddleIncludeMessage.info";
+        if (element.icon) {
+            item.iconPath = new vscode.ThemeIcon(element.icon);
+        }
+        if (element.description) {
+            item.description = element.description;
+        }
+        const tooltipLines = [];
+        if (element.description) {
+            tooltipLines.push(element.description);
+        }
+        if (element.detail) {
+            tooltipLines.push(element.detail);
+        }
+        if (tooltipLines.length > 0) {
+            item.tooltip = tooltipLines.join("\n");
+        }
+        if (element.command) {
+            item.command = element.command;
+        }
+        return item;
+    }
+    getChildren(element) {
+        if (element) {
+            return [];
+        }
+        return buildIncludeExplorerEntries();
+    }
+}
+function buildIncludeExplorerEntries() {
+    if (!includeConfig.watchersEnabled) {
+        return [
+            {
+                kind: "message",
+                label: "Include watchers disabled",
+                description: 'Enable "IVGFiddle › Includes: Watchers Enabled" to browse synchronized assets.',
+                icon: "eye-closed",
+                severity: "warning",
+                command: {
+                    command: "workbench.action.openSettings",
+                    title: "Open Include Settings",
+                    arguments: ["ivgfiddle.includes.watchersEnabled"],
+                },
+            },
+        ];
+    }
+    if (includeWatcherCandidateFolderCount === 0) {
+        return [
+            {
+                kind: "message",
+                label: "Workspace required",
+                description: includeWatcherUnavailableMessage ?? `Open a workspace or folder to enable include watching (pattern: ${INCLUDE_ASSET_GLOB}).`,
+                icon: "workspace-untrusted",
+                severity: "info",
+            },
+        ];
+    }
+    if (includeWatcherFolderCount === 0) {
+        return [
+            {
+                kind: "message",
+                label: "Include watchers initializing…",
+                description: `Scanning ${includeWatcherCandidateFolderCount} workspace folder${includeWatcherCandidateFolderCount === 1 ? "" : "s"} for ${INCLUDE_ASSET_GLOB}.`,
+                icon: "sync~spin",
+                severity: "info",
+            },
+        ];
+    }
+    const entries = [];
+    entries.push({
+        kind: "message",
+        label: `Watching ${includeWatcherFolderCount} workspace folder${includeWatcherFolderCount === 1 ? "" : "s"}`,
+        description: `Pattern: ${INCLUDE_ASSET_GLOB}`,
+        detail: `Events — create: ${includeWatcherEventCounts.create}, change: ${includeWatcherEventCounts.change}, delete: ${includeWatcherEventCounts.delete}`,
+        icon: "watch",
+        severity: "info",
+    });
+    if (!includeConfig.manifestEnabled) {
+        entries.push({
+            kind: "message",
+            label: "Include manifest disabled",
+            description: 'Enable "IVGFiddle › Includes: Manifest Enabled" to build the synchronized bundle.',
+            icon: "circle-slash",
+            severity: "info",
+            command: {
+                command: "workbench.action.openSettings",
+                title: "Open Include Settings",
+                arguments: ["ivgfiddle.includes.manifestEnabled"],
+            },
+        });
+        return entries;
+    }
+    if (!includeConfig.autoRescan) {
+        entries.push({
+            kind: "message",
+            label: "Auto rescan disabled",
+            description: 'Run "IVGFiddle: Rescan Include Assets" after editing include files.',
+            icon: "history",
+            severity: "info",
+            command: {
+                command: "ivgfiddle.includes.rescan",
+                title: "Rescan Include Assets",
+            },
+        });
+    }
+    if (includeManifestStatus === "error") {
+        entries.push({
+            kind: "message",
+            label: "Include manifest error",
+            description: includeManifestLastError ?? "Check the trace output for additional details.",
+            icon: "error",
+            severity: "error",
+            command: { command: "ivgfiddle.open", title: "Open IVG Preview" },
+        });
+    }
+    else if (includeManifestManualRefreshRequired) {
+        entries.push({
+            kind: "message",
+            label: "Manual rescan required",
+            description: "Recent include edits require rebuilding the manifest.",
+            detail: 'Run "IVGFiddle: Rescan Include Assets" to refresh the bundle.',
+            icon: "alert",
+            severity: "warning",
+            command: {
+                command: "ivgfiddle.includes.rescan",
+                title: "Rescan Include Assets",
+            },
+        });
+    }
+    else if (includeManifestStatus === "building" || includeManifestStatus === "pending") {
+        entries.push({
+            kind: "message",
+            label: "Building include manifest…",
+            description: "Collecting updated include assets.",
+            icon: "sync~spin",
+            severity: "info",
+        });
+    }
+    else if (includeManifestStatus === "ready") {
+        entries.push({
+            kind: "message",
+            label: `Manifest ready — ${includeManifestEntryCount} ${includeManifestEntryCount === 1 ? "asset" : "assets"}`,
+            description: includeManifestRevisionId ? `Revision ${includeManifestRevisionId}` : undefined,
+            detail: includeManifestLastGeneratedAt ? `Generated at ${includeManifestLastGeneratedAt}` : undefined,
+            icon: "check",
+            severity: "info",
+        });
+    }
+    const manifest = includeManifestSnapshot;
+    if (manifest && manifest.entries.length > 0) {
+        for (const entry of manifest.entries) {
+            const relativePath = entry.mountPath.startsWith("/") ? entry.mountPath.slice(1) : entry.mountPath;
+            entries.push({
+                kind: "asset",
+                label: relativePath,
+                relativePath,
+                mountPath: entry.mountPath,
+                byteLength: entry.byteLength,
+                checksum: entry.checksum,
+                mimeType: entry.mimeType,
+                revision: manifest.revision,
+            });
+        }
+    }
+    else if (includeManifestStatus === "ready") {
+        entries.push({
+            kind: "message",
+            label: "No include assets discovered yet",
+            description: "Edit or add IMPD/IVG assets matching the include glob to populate the bundle.",
+            icon: "file-add",
+            severity: "info",
+        });
+    }
+    return entries;
+}
+function getIncludeAssetEntryFromArgument(argument) {
+    if (!argument) {
+        return undefined;
+    }
+    if (argument instanceof IncludeAssetTreeItem) {
+        return argument.entry;
+    }
+    const candidate = argument;
+    if (candidate && candidate.kind === "asset" && typeof candidate.relativePath === "string") {
+        return candidate;
+    }
+    return undefined;
+}
+async function resolveIncludeAssetUri(relativePath) {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) {
+        return undefined;
+    }
+    const normalized = relativePath.replace(/\\/g, "/").replace(/^\/+/u, "");
+    const segments = normalized.split("/").filter(Boolean);
+    for (const folder of workspaceFolders) {
+        const candidate = vscode.Uri.joinPath(folder.uri, ...segments);
+        try {
+            await vscode.workspace.fs.stat(candidate);
+            return candidate;
+        }
+        catch (error) {
+            // Continue probing additional workspace folders.
+        }
+    }
+    return undefined;
+}
+function formatByteLength(byteLength) {
+    if (!Number.isFinite(byteLength) || byteLength < 0) {
+        return `${byteLength} B`;
+    }
+    if (byteLength < 1024) {
+        return `${byteLength} B`;
+    }
+    const units = ["KB", "MB", "GB", "TB"];
+    let value = byteLength;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex += 1;
+    }
+    const precision = value >= 100 ? 0 : value >= 10 ? 1 : 2;
+    return `${value.toFixed(precision)} ${units[unitIndex]}`;
 }
 function prunePendingIncludeBundleMessages() {
     for (let index = pendingMessages.length - 1; index >= 0; index -= 1) {
@@ -542,17 +846,31 @@ function getIncludeStatusSummary() {
     if (!includeConfig.manifestEnabled) {
         const totalEvents = includeWatcherEventCounts.create + includeWatcherEventCounts.change + includeWatcherEventCounts.delete;
         const eventSuffix = totalEvents > 0 ? ` (+${totalEvents})` : "";
+        const manualSuffix = includeConfig.autoRescan ? "" : " (manual)";
         tooltipLines.push("Include manifest disabled");
+        if (!includeConfig.autoRescan) {
+            tooltipLines.push('Include auto rescan disabled; run "IVGFiddle: Rescan Include Assets" after edits.');
+        }
         return {
-            label: `includes watching${eventSuffix}`,
+            label: `includes watching${eventSuffix}${manualSuffix}`,
             tooltipLines,
         };
+    }
+    if (!includeConfig.autoRescan) {
+        tooltipLines.push("Include auto rescan disabled; manual rescan required after edits.");
     }
     if (includeManifestStatus === "error") {
         const detail = includeManifestLastError ? `: ${includeManifestLastError}` : "";
         tooltipLines.push(`Include manifest error${detail}`);
         return {
             label: "includes error",
+            tooltipLines,
+        };
+    }
+    if (includeManifestManualRefreshRequired) {
+        tooltipLines.push("Include manifest awaiting manual rescan.");
+        return {
+            label: "includes refresh required",
             tooltipLines,
         };
     }
@@ -571,14 +889,24 @@ function getIncludeStatusSummary() {
         if (includeManifestLastGeneratedAt) {
             tooltipLines.push(`Include manifest generated at ${includeManifestLastGeneratedAt}`);
         }
+        if (!includeConfig.autoRescan) {
+            tooltipLines.push("Manual rescan mode active.");
+        }
+        const manualSuffix = includeConfig.autoRescan ? "" : " (manual)";
         return {
-            label: includeManifestEntryCount > 0 ? `includes ready (${includeManifestEntryCount})` : "includes ready (empty)",
+            label: includeManifestEntryCount > 0
+                ? `includes ready (${includeManifestEntryCount})${manualSuffix}`
+                : `includes ready (empty)${manualSuffix}`,
             tooltipLines,
         };
     }
     tooltipLines.push("Include manifest idle");
+    if (!includeConfig.autoRescan) {
+        tooltipLines.push("Manual rescan mode active.");
+    }
+    const manualLabelSuffix = includeConfig.autoRescan ? "" : " (manual)";
     return {
-        label: "includes watching",
+        label: `includes watching${manualLabelSuffix}`,
         tooltipLines,
     };
 }
@@ -622,6 +950,62 @@ function handleClearTraceCommand() {
     }
     queueMessage({ type: "clearTrace" });
 }
+function handleFocusIncludeExplorerCommand() {
+    void vscode.commands.executeCommand("ivgfiddleIncludesExplorer.focus");
+}
+async function handleRescanIncludesCommand() {
+    if (!includeConfig.watchersEnabled) {
+        await vscode.window.showInformationMessage('Enable "IVGFiddle › Includes: Watchers Enabled" to rescan include assets.');
+        return;
+    }
+    if (!includeConfig.manifestEnabled) {
+        await vscode.window.showInformationMessage('Enable "IVGFiddle › Includes: Manifest Enabled" before rebuilding the include bundle.');
+        return;
+    }
+    if (includeWatcherFolderCount === 0) {
+        await vscode.window.showInformationMessage("Attach a file-backed workspace folder so the include watcher can rescan your assets.");
+        return;
+    }
+    logIncludeTelemetry("Manual include manifest rescan requested.");
+    scheduleIncludeManifestBuild("manual");
+    vscode.window.setStatusBarMessage("Rescanning include assets…", 2000);
+}
+async function handleOpenIncludeAssetCommand(target) {
+    const entry = getIncludeAssetEntryFromArgument(target);
+    if (!entry) {
+        await vscode.window.showInformationMessage("Select an include asset to open.");
+        return;
+    }
+    const uri = await resolveIncludeAssetUri(entry.relativePath);
+    if (!uri) {
+        await vscode.window.showWarningMessage(`Unable to locate include asset ${entry.relativePath} in the current workspace.`);
+        return;
+    }
+    const document = await vscode.workspace.openTextDocument(uri);
+    await vscode.window.showTextDocument(document, { preview: false });
+}
+async function handleRevealIncludeAssetCommand(target) {
+    const entry = getIncludeAssetEntryFromArgument(target);
+    if (!entry) {
+        await vscode.window.showInformationMessage("Select an include asset to reveal.");
+        return;
+    }
+    const uri = await resolveIncludeAssetUri(entry.relativePath);
+    if (!uri) {
+        await vscode.window.showWarningMessage(`Unable to reveal include asset ${entry.relativePath}; the file is missing from the current workspace.`);
+        return;
+    }
+    await vscode.commands.executeCommand("revealFileInOS", uri);
+}
+async function handleCopyIncludeMountPathCommand(target) {
+    const entry = getIncludeAssetEntryFromArgument(target);
+    if (!entry) {
+        await vscode.window.showInformationMessage("Select an include asset to copy its mount path.");
+        return;
+    }
+    await vscode.env.clipboard.writeText(entry.mountPath);
+    vscode.window.setStatusBarMessage(`Copied include mount path ${entry.mountPath}`, 2000);
+}
 function readPreviewConfig() {
     const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
     const autoRefresh = config.get("autoRefresh", true);
@@ -646,9 +1030,16 @@ function readIncludeConfig() {
     const config = vscode.workspace.getConfiguration(INCLUDE_CONFIG_SECTION);
     const watchersEnabled = config.get("watchersEnabled", true);
     const manifestEnabled = config.get("manifestEnabled", false);
+    const autoRescan = config.get("autoRescan", true);
+    const configuredDebounce = config.get("rescanDebounceMs", DEFAULT_INCLUDE_RESCAN_DEBOUNCE_MS);
+    const rescanDebounceMs = Number.isFinite(configuredDebounce) && configuredDebounce >= 0 ? configuredDebounce : DEFAULT_INCLUDE_RESCAN_DEBOUNCE_MS;
+    const autoRevealExplorer = config.get("autoRevealExplorer", true);
     return {
         watchersEnabled,
         manifestEnabled,
+        autoRescan,
+        rescanDebounceMs,
+        autoRevealExplorer,
     };
 }
 function initializeIncludeWatchers(context) {
@@ -663,6 +1054,8 @@ function initializeIncludeWatchers(context) {
     includeWatcherUnavailableMessage = undefined;
     includeManifestSnapshot = undefined;
     latestIncludeBundleMessage = undefined;
+    includeManifestManualRefreshRequired = false;
+    includeExplorerLastAutoRevealRevision = undefined;
     if (!includeConfig.watchersEnabled) {
         logIncludeTelemetry("Include watchers disabled by configuration.");
         cancelIncludeManifestScheduling();
@@ -676,6 +1069,7 @@ function initializeIncludeWatchers(context) {
         includeManifestRebuildQueued = false;
         queueEmptyIncludeBundleMessage("watchers-disabled");
         refreshStatusBar();
+        refreshIncludeSurfaces();
         return;
     }
     const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -685,6 +1079,7 @@ function initializeIncludeWatchers(context) {
         includeManifestStatus = includeConfig.manifestEnabled ? "pending" : "idle";
         queueEmptyIncludeBundleMessage("watchers-unavailable");
         refreshStatusBar();
+        refreshIncludeSurfaces();
         return;
     }
     const fileBackedFolders = workspaceFolders.filter((folder) => folder.uri.scheme === "file");
@@ -695,6 +1090,7 @@ function initializeIncludeWatchers(context) {
         includeManifestStatus = includeConfig.manifestEnabled ? "pending" : "idle";
         queueEmptyIncludeBundleMessage("watchers-unavailable");
         refreshStatusBar();
+        refreshIncludeSurfaces();
         return;
     }
     for (const folder of fileBackedFolders) {
@@ -717,10 +1113,12 @@ function initializeIncludeWatchers(context) {
         includeManifestRebuildQueued = false;
         queueEmptyIncludeBundleMessage("manifest-disabled");
         refreshStatusBar();
+        refreshIncludeSurfaces();
         return;
     }
     includeManifestStatus = "pending";
     refreshStatusBar();
+    refreshIncludeSurfaces();
     scheduleIncludeManifestBuild("watcherInitialization");
 }
 function disposeIncludeWatchers() {
@@ -747,6 +1145,9 @@ function disposeIncludeWatchers() {
     includeManifestSnapshot = undefined;
     queueEmptyIncludeBundleMessage("watchers-disposed");
     latestIncludeBundleMessage = undefined;
+    includeManifestManualRefreshRequired = false;
+    includeExplorerLastAutoRevealRevision = undefined;
+    refreshIncludeSurfaces();
 }
 function handleIncludeWatcherEvent(kind, uri) {
     includeWatcherEventCounts[kind] += 1;
@@ -757,6 +1158,7 @@ function handleIncludeWatcherEvent(kind, uri) {
     if (includeConfig.manifestEnabled) {
         scheduleIncludeManifestBuild("watcherEvent");
     }
+    refreshIncludeSurfaces();
 }
 function scheduleIncludeRefresh() {
     const targetDocument = getActiveIvgDocument() ?? getLastPreviewDocument();
@@ -769,19 +1171,30 @@ function scheduleIncludeManifestBuild(reason) {
     if (!extensionContext || !includeConfig.watchersEnabled || !includeConfig.manifestEnabled) {
         return;
     }
+    if (reason === "watcherEvent" && !includeConfig.autoRescan) {
+        if (!includeManifestManualRefreshRequired) {
+            logIncludeTelemetry("Include manifest pending manual rescan (auto rescan disabled).");
+        }
+        includeManifestManualRefreshRequired = true;
+        refreshIncludeSurfaces();
+        return;
+    }
+    includeManifestManualRefreshRequired = false;
     includeManifestLastError = undefined;
     if (includeManifestBuildInProgress) {
         includeManifestRebuildQueued = true;
         includeManifestStatus = "building";
         refreshStatusBar();
+        refreshIncludeSurfaces();
         return;
     }
     includeManifestStatus = "pending";
     refreshStatusBar();
+    refreshIncludeSurfaces();
     if (includeManifestTimer) {
         clearTimeout(includeManifestTimer);
     }
-    const delay = Math.max(0, previewConfig.debounceMs);
+    const delay = Math.max(0, includeConfig.rescanDebounceMs);
     includeManifestTimer = setTimeout(() => {
         includeManifestTimer = undefined;
         void buildIncludeManifest(reason);
@@ -844,7 +1257,14 @@ async function buildIncludeManifest(reason) {
         includeManifestStatus = "ready";
         logIncludeTelemetry(`Include manifest ready (${records.length} asset${records.length === 1 ? "" : "s"}, ${totalBytes} byte${totalBytes === 1 ? "" : "s"}, revision ${revisionId}, ${Date.now() - startedAt} ms).`);
         logIncludeTelemetry(`Include bundle prepared (${assets.length} asset${assets.length === 1 ? "" : "s"}, ${serializedBytes} serialized byte${serializedBytes === 1 ? "" : "s"}) for revision ${revisionId}.`);
-        queueIncludeBundleMessage({ type: "setIncludeBundle", revision: revisionId, manifest, assets });
+        queueIncludeBundleMessage({
+            type: "setIncludeBundle",
+            revision: revisionId,
+            manifest,
+            assets,
+        });
+        refreshIncludeSurfaces();
+        maybeAutoRevealIncludeExplorer(revisionId);
     }
     catch (error) {
         includeManifestStatus = "error";
@@ -852,9 +1272,11 @@ async function buildIncludeManifest(reason) {
         logIncludeTelemetry(`Include manifest rebuild failed: ${includeManifestLastError}`);
         includeManifestSnapshot = undefined;
         latestIncludeBundleMessage = undefined;
+        refreshIncludeSurfaces();
     }
     includeManifestBuildInProgress = false;
     refreshStatusBar();
+    refreshIncludeSurfaces();
     if (includeManifestRebuildQueued) {
         includeManifestRebuildQueued = false;
         scheduleIncludeManifestBuild("chained");
@@ -925,7 +1347,10 @@ async function pruneStaleIncludeRevisions(storageRoot, activeRevisionId) {
                 continue;
             }
             const target = vscode.Uri.joinPath(storageRoot, name);
-            await vscode.workspace.fs.delete(target, { recursive: true, useTrash: false });
+            await vscode.workspace.fs.delete(target, {
+                recursive: true,
+                useTrash: false,
+            });
         }
     }
     catch (error) {
@@ -938,6 +1363,62 @@ function cancelIncludeManifestScheduling() {
         includeManifestTimer = undefined;
     }
     includeManifestRebuildQueued = false;
+}
+function refreshIncludeSurfaces() {
+    refreshIncludeStatusBarItem();
+    if (includeExplorerProvider) {
+        includeExplorerProvider.refresh();
+    }
+}
+function refreshIncludeStatusBarItem() {
+    if (!includeStatusBarItem) {
+        return;
+    }
+    const summary = getIncludeStatusSummary();
+    let icon = "package";
+    if (!includeConfig.watchersEnabled) {
+        icon = "eye-closed";
+    }
+    else if (includeManifestStatus === "error") {
+        icon = "warning";
+    }
+    else if (includeManifestManualRefreshRequired) {
+        icon = "history";
+    }
+    else if (includeManifestStatus === "building" || includeManifestStatus === "pending") {
+        icon = "sync~spin";
+    }
+    else if (summary.label.startsWith("includes unavailable")) {
+        icon = "workspace-untrusted";
+    }
+    else if (summary.label.startsWith("includes pending")) {
+        icon = "sync";
+    }
+    const tooltipLines = [...summary.tooltipLines];
+    if (tooltipLines.length > 0) {
+        tooltipLines.push("");
+    }
+    tooltipLines.push("Click to open the IVG Include explorer.");
+    if (includeManifestManualRefreshRequired) {
+        tooltipLines.push('Run "IVGFiddle: Rescan Include Assets" to rebuild the manifest.');
+    }
+    else if (includeConfig.manifestEnabled) {
+        tooltipLines.push('Use "IVGFiddle: Rescan Include Assets" to force a rebuild.');
+    }
+    includeStatusBarItem.text = `$(${icon}) Includes: ${summary.label}`;
+    includeStatusBarItem.tooltip = tooltipLines.join("\n");
+    includeStatusBarItem.command = includeManifestManualRefreshRequired ? "ivgfiddle.includes.rescan" : "ivgfiddle.includes.focusExplorer";
+    includeStatusBarItem.show();
+}
+function maybeAutoRevealIncludeExplorer(revisionId) {
+    if (!includeConfig.autoRevealExplorer || !includeExplorerView || !revisionId) {
+        return;
+    }
+    if (includeExplorerLastAutoRevealRevision === revisionId) {
+        return;
+    }
+    includeExplorerLastAutoRevealRevision = revisionId;
+    void vscode.commands.executeCommand("ivgfiddleIncludesExplorer.focus");
 }
 function formatError(error) {
     if (error instanceof Error && error.message) {
@@ -968,6 +1449,7 @@ function processStatusMessage(message) {
     transientStatusMessage = vscode.window.setStatusBarMessage(text, 5000);
 }
 function refreshStatusBar() {
+    refreshIncludeStatusBarItem();
     if (!currentStatusDocumentUri) {
         return;
     }

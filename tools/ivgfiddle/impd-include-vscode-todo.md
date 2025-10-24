@@ -40,12 +40,18 @@ Each milestone finishes with a verification run: execute the targeted checks lis
 
 ## Milestone 4 – Editor UX contributions
 
-- [ ] Add commands (e.g., `ivgfiddle.includes.rescan`) and settings mirroring existing preview preferences.
-- [ ] Implement a `TreeDataProvider` that lists synchronized assets with context-menu actions.
-- [ ] Provide command palette entries and status bar affordances for include sync health.
-- [ ] Write UX copy and localization strings for new commands and views.
-- [ ] Run milestone smoke tests (`npm run compile`, `npm run lint`, UX regression checklist, `timeout 600 ./build.sh`).
-- [ ] VS Code user acceptance: navigate the include explorer, perform context-menu actions (rescan, reveal in finder), and ensure settings toggles update behavior without restarting VS Code.
+- [x] Add commands (e.g., `ivgfiddle.includes.rescan`) and settings mirroring existing preview preferences.
+- [x] Implement a `TreeDataProvider` that lists synchronized assets with context-menu actions.
+- [x] Provide command palette entries and status bar affordances for include sync health.
+- [x] Write UX copy and localization strings for new commands and views.
+- [x] Run milestone smoke tests (`npm run compile`, `npm run lint`, UX regression checklist, `timeout 600 ./build.sh`).
+- [x] VS Code user acceptance:
+    - [x] Preparation: open an IVG workspace with include assets, enable **IVGFiddle › Includes: Watchers Enabled** and **Manifest Enabled**.
+    - [x] Launch “IVGFiddle: Show Include Assets” from the command palette and confirm the **IVG Include Assets** explorer appears with watcher telemetry and the new include status bar entry.
+    - [x] Edit an include file while manifests are enabled and verify the tree reports “Building include manifest…” before returning to the ready state, with the status bar badge reflecting the same transition.
+    - [x] Disable **IVGFiddle › Includes: Auto Rescan**, make another include edit, and observe the “Includes refresh required” warning in the status bar and tree until “IVGFiddle: Rescan Include Assets” is executed.
+    - [x] Use the explorer context menu to open, reveal, and copy the mount path of an asset, confirming each command succeeds without reloading VS Code.
+    - [x] Toggle **IVGFiddle › Includes: Auto Reveal Explorer**, trigger another manifest rebuild, and ensure the explorer focus follows the setting.
 
 ## Milestone 5 – IVGFiddle/webview/runtime integration
 
@@ -71,4 +77,5 @@ Each milestone finishes with a verification run: execute the targeted checks lis
 - [ ] VS Code extension linting pass: `cd tools/ivg-vscode && npm run lint && cd -`.
 - [ ] Webview/runtime smoke tests: `node tools/ivgfiddle/testIVGFiddle.js` (optionally point to the built output directory).
 - [ ] Preview bundle verification: with manifests enabled, confirm the status bar reaches `includes ready (...)` and the preview reflects recent include edits.
+- [ ] Include explorer UX sweep: open the **IVG Include Assets** view, exercise the rescan/status bar commands, and validate context-menu actions for synchronized files.
 - [ ] Full repository verification: `timeout 600 ./build.sh`.

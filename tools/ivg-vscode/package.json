@@ -12,53 +12,116 @@
 	"engines": {
 		"vscode": "^1.84.0"
 	},
-	"activationEvents": [
-		"onCommand:ivgfiddle.open",
-		"onCommand:ivgfiddle.refreshPreview",
-		"onCommand:ivgfiddle.clearTrace",
-		"onLanguage:ivg"
-	],
+        "activationEvents": [
+                "onCommand:ivgfiddle.open",
+                "onCommand:ivgfiddle.refreshPreview",
+                "onCommand:ivgfiddle.clearTrace",
+                "onCommand:ivgfiddle.includes.focusExplorer",
+                "onCommand:ivgfiddle.includes.rescan",
+                "onCommand:ivgfiddle.includes.openAsset",
+                "onCommand:ivgfiddle.includes.revealAsset",
+                "onCommand:ivgfiddle.includes.copyMountPath",
+                "onView:ivgfiddleIncludesExplorer",
+                "onLanguage:ivg"
+        ],
 	"main": "./dist/extension.js",
 	"contributes": {
-		"commands": [
-			{
-				"command": "ivgfiddle.open",
-				"title": "Open Preview",
-				"category": "IVG Preview"
-			},
-			{
-				"command": "ivgfiddle.refreshPreview",
-				"title": "Refresh Preview",
-				"category": "IVG Preview"
-			},
-			{
-				"command": "ivgfiddle.clearTrace",
-				"title": "Clear Trace",
-				"category": "IVG Preview"
-			}
-		],
-		"menus": {
-			"commandPalette": [
-				{
-					"command": "ivgfiddle.open",
-					"when": "true"
-				}
-			],
-			"explorer/context": [
-				{
-					"command": "ivgfiddle.open",
-					"when": "resourceExtname == .ivg",
-					"group": "navigation@20"
-				}
-			],
-			"editor/title/context": [
-				{
-					"command": "ivgfiddle.open",
-					"when": "resourceExtname == .ivg",
-					"group": "navigation@20"
-				}
-			]
-		},
+                "commands": [
+                        {
+                                "command": "ivgfiddle.open",
+                                "title": "Open Preview",
+                                "category": "IVG Preview"
+                        },
+                        {
+                                "command": "ivgfiddle.refreshPreview",
+                                "title": "Refresh Preview",
+                                "category": "IVG Preview"
+                        },
+                        {
+                                "command": "ivgfiddle.clearTrace",
+                                "title": "Clear Trace",
+                                "category": "IVG Preview"
+                        },
+                        {
+                                "command": "ivgfiddle.includes.focusExplorer",
+                                "title": "Show Include Assets",
+                                "category": "IVG Includes"
+                        },
+                        {
+                                "command": "ivgfiddle.includes.rescan",
+                                "title": "Rescan Include Assets",
+                                "category": "IVG Includes"
+                        },
+                        {
+                                "command": "ivgfiddle.includes.openAsset",
+                                "title": "Open Include Asset",
+                                "category": "IVG Includes"
+                        },
+                        {
+                                "command": "ivgfiddle.includes.revealAsset",
+                                "title": "Reveal Include Asset",
+                                "category": "IVG Includes"
+                        },
+                        {
+                                "command": "ivgfiddle.includes.copyMountPath",
+                                "title": "Copy Include Mount Path",
+                                "category": "IVG Includes"
+                        }
+                ],
+                "menus": {
+                        "commandPalette": [
+                                {
+                                        "command": "ivgfiddle.open",
+                                        "when": "true"
+                                },
+                                {
+                                        "command": "ivgfiddle.includes.focusExplorer",
+                                        "when": "true"
+                                },
+                                {
+                                        "command": "ivgfiddle.includes.rescan",
+                                        "when": "true"
+                                }
+                        ],
+                        "explorer/context": [
+                                {
+                                        "command": "ivgfiddle.open",
+                                        "when": "resourceExtname == .ivg",
+                                        "group": "navigation@20"
+                                }
+                        ],
+                        "editor/title/context": [
+                                {
+                                        "command": "ivgfiddle.open",
+                                        "when": "resourceExtname == .ivg",
+                                        "group": "navigation@20"
+                                }
+                        ],
+                        "view/title": [
+                                {
+                                        "command": "ivgfiddle.includes.rescan",
+                                        "when": "view == ivgfiddleIncludesExplorer",
+                                        "group": "navigation@10"
+                                }
+                        ],
+                        "view/item/context": [
+                                {
+                                        "command": "ivgfiddle.includes.openAsset",
+                                        "when": "viewItem == ivgfiddleIncludeAsset",
+                                        "group": "inline@10"
+                                },
+                                {
+                                        "command": "ivgfiddle.includes.revealAsset",
+                                        "when": "viewItem == ivgfiddleIncludeAsset",
+                                        "group": "inline@20"
+                                },
+                                {
+                                        "command": "ivgfiddle.includes.copyMountPath",
+                                        "when": "viewItem == ivgfiddleIncludeAsset",
+                                        "group": "inline@30"
+                                }
+                        ]
+                },
 		"languages": [
 			{
 				"id": "ivg",
@@ -83,14 +146,22 @@
 				"path": "./syntaxes/impd.tmLanguage"
 			}
 		],
-		"snippets": [
-			{
-				"language": "ivg",
-				"path": "./snippets/ivg.code-snippets"
-			}
-		],
-		"configuration": {
-			"title": "IVG Preview",
+                "snippets": [
+                        {
+                                "language": "ivg",
+                                "path": "./snippets/ivg.code-snippets"
+                        }
+                ],
+                "views": {
+                        "explorer": [
+                                {
+                                        "id": "ivgfiddleIncludesExplorer",
+                                        "name": "IVG Include Assets"
+                                }
+                        ]
+                },
+                "configuration": {
+                        "title": "IVG Preview",
 			"properties": {
 				"ivgfiddle.syncOnOpen": {
 					"type": "boolean",
@@ -114,19 +185,35 @@
 					"minimum": 0,
 					"description": "Delay in milliseconds before automatic IVG Preview refresh when auto refresh is enabled."
 				},
-				"ivgfiddle.includes.watchersEnabled": {
-					"type": "boolean",
-					"default": true,
-					"description": "Enable include asset filesystem watchers for IMPD, IVG, IVG font, and raster fallback resources."
-				},
-				"ivgfiddle.includes.manifestEnabled": {
-					"type": "boolean",
-					"default": false,
-					"description": "Generate synchronized include manifests and asset bundles for IVGFiddle sessions."
-				}
-			}
-		}
-	},
+                                "ivgfiddle.includes.watchersEnabled": {
+                                        "type": "boolean",
+                                        "default": true,
+                                        "description": "Enable include asset filesystem watchers for IMPD, IVG, IVG font, and raster fallback resources."
+                                },
+                                "ivgfiddle.includes.manifestEnabled": {
+                                        "type": "boolean",
+                                        "default": false,
+                                        "description": "Generate synchronized include manifests and asset bundles for IVGFiddle sessions."
+                                },
+                                "ivgfiddle.includes.autoRescan": {
+                                        "type": "boolean",
+                                        "default": true,
+                                        "description": "Automatically rebuild include manifests when watched assets change."
+                                },
+                                "ivgfiddle.includes.rescanDebounceMs": {
+                                        "type": "number",
+                                        "default": 150,
+                                        "minimum": 0,
+                                        "description": "Delay in milliseconds before rebuilding include manifests after filesystem events."
+                                },
+                                "ivgfiddle.includes.autoRevealExplorer": {
+                                        "type": "boolean",
+                                        "default": true,
+                                        "description": "Automatically focus the Include Assets explorer after a successful manifest rebuild."
+                                }
+                        }
+                }
+        },
 	"scripts": {
 		"compile": "tsc -p .",
 		"watch": "tsc -w -p .",
