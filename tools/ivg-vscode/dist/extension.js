@@ -58,6 +58,8 @@ const INCLUDE_CONFIG_SECTION = "ivgfiddle.includes";
 const INCLUDE_ASSET_GLOB = "**/*.{impd,ivg,ivgfont,png}";
 const TRACE_OUTPUT_CHANNEL_NAME = "IVG Preview Trace";
 const TRACE_SHOW_ACTION = "Show Trace Output";
+const INCLUDE_SERVICE_PRESIGN_PATH = "/include-bundles/presign";
+const INCLUDE_SERVICE_DEFAULT_METHOD = "PUT";
 let traceOutputChannel;
 let traceOutputLines = [];
 let previewConfig = readPreviewConfig();
@@ -86,6 +88,19 @@ let includeManifestLastGeneratedAt;
 let includeManifestLastError;
 let includeManifestBuildInProgress = false;
 let includeManifestRebuildQueued = false;
+let includeManifestSnapshot;
+let includeBundlePayload;
+let latestIncludeBundleMessage;
+let includeUploadStatus = "idle";
+let includeUploadRevisionId;
+let includeUploadBundleId;
+let includeUploadLastError;
+let includeUploadLastCompletedAt;
+let includeUploadLatencyMs;
+let includeUploadTimer;
+let includeUploadInProgress = false;
+let includeUploadQueued = false;
+let includeUploadRetryCount = 0;
 const MIME_TYPE_BY_EXTENSION = new Map([
     ["impd", "application/json"],
     ["ivg", "application/xml"],
@@ -129,6 +144,7 @@ function activate(context) {
         ivgPanel = panel;
         webviewReady = false;
         pendingMessages.length = 0;
+        seedLatestIncludeBundleMessage();
         panel.webview.onDidReceiveMessage((message) => {
             if (!message || typeof message !== "object") {
                 return;
@@ -228,9 +244,17 @@ function activate(context) {
             }
         }
         if (event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.watchersEnabled`) ||
-            event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.manifestEnabled`)) {
+            event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.manifestEnabled`) ||
+            event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.serviceBaseUrl`) ||
+            event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.serviceAuthToken`)) {
             includeConfig = readIncludeConfig();
             initializeIncludeWatchers(context);
+            if (includeConfig.manifestEnabled &&
+                includeManifestStatus === "ready" &&
+                includeManifestSnapshot &&
+                includeManifestRevisionId) {
+                scheduleIncludeBundleUpload("configuration");
+            }
             refreshStatusBar();
         }
     }));
@@ -378,6 +402,33 @@ function queueMessage(message) {
     }
     postMessageToWebview(message);
 }
+function queueIncludeBundleMessage(message) {
+    latestIncludeBundleMessage = message;
+    if (!ivgPanel) {
+        return;
+    }
+    if (!webviewReady) {
+        prunePendingIncludeBundleMessages();
+        pendingMessages.push(message);
+        return;
+    }
+    postMessageToWebview(message);
+}
+function prunePendingIncludeBundleMessages() {
+    for (let index = pendingMessages.length - 1; index >= 0; index -= 1) {
+        const entry = pendingMessages[index];
+        if (isIncludeBundleMessage(entry)) {
+            pendingMessages.splice(index, 1);
+        }
+    }
+}
+function seedLatestIncludeBundleMessage() {
+    if (!ivgPanel || !latestIncludeBundleMessage) {
+        return;
+    }
+    prunePendingIncludeBundleMessages();
+    pendingMessages.push(latestIncludeBundleMessage);
+}
 function flushPendingMessages() {
     if (!ivgPanel) {
         pendingMessages.length = 0;
@@ -389,6 +440,13 @@ function flushPendingMessages() {
             postMessageToWebview(message);
         }
     }
+}
+function isIncludeBundleMessage(value) {
+    if (!value || typeof value !== "object") {
+        return false;
+    }
+    const candidate = value;
+    return candidate.type === "setIncludeBundle";
 }
 function postMessageToWebview(message) {
     if (!ivgPanel) {
@@ -481,7 +539,7 @@ function getIncludeStatusSummary() {
     }
     const tooltipLines = [
         `Include watchers active on ${includeWatcherFolderCount} workspace folder${includeWatcherFolderCount === 1 ? "" : "s"} (pattern: ${INCLUDE_ASSET_GLOB})`,
-        `Include watcher events this session — create: ${includeWatcherEventCounts.create}, change: ${includeWatcherEventCounts.change}, delete: ${includeWatcherEventCounts.delete}`
+        `Include watcher events this session — create: ${includeWatcherEventCounts.create}, change: ${includeWatcherEventCounts.change}, delete: ${includeWatcherEventCounts.delete}`,
     ];
     if (!includeConfig.manifestEnabled) {
         const totalEvents = includeWatcherEventCounts.create + includeWatcherEventCounts.change + includeWatcherEventCounts.delete;
@@ -495,13 +553,16 @@ function getIncludeStatusSummary() {
     if (includeManifestStatus === "error") {
         const detail = includeManifestLastError ? `: ${includeManifestLastError}` : "";
         tooltipLines.push(`Include manifest error${detail}`);
+        appendIncludeUploadTooltip(tooltipLines);
+        const label = includeUploadStatus === "error" ? "includes upload error" : "includes error";
         return {
-            label: "includes error",
+            label,
             tooltipLines,
         };
     }
     if (includeManifestStatus === "building" || includeManifestStatus === "pending") {
         tooltipLines.push(`Include manifest status: ${includeManifestStatus}`);
+        appendIncludeUploadTooltip(tooltipLines);
         return {
             label: "includes building",
             tooltipLines,
@@ -515,16 +576,69 @@ function getIncludeStatusSummary() {
         if (includeManifestLastGeneratedAt) {
             tooltipLines.push(`Include manifest generated at ${includeManifestLastGeneratedAt}`);
         }
+        appendIncludeUploadTooltip(tooltipLines);
+        let label = includeManifestEntryCount > 0 ? `includes ready (${includeManifestEntryCount})` : "includes ready (empty)";
+        if (includeUploadStatus === "pending") {
+            label = `${label} • upload pending`;
+        }
+        else if (includeUploadStatus === "uploading") {
+            label = `${label} • uploading`;
+        }
+        else if (includeUploadStatus === "ready") {
+            label = `${label} • bundle ready`;
+        }
+        else if (includeUploadStatus === "error") {
+            label = "includes upload error";
+        }
+        else if (includeUploadStatus === "disabled") {
+            label = `${label} • upload disabled`;
+        }
         return {
-            label: includeManifestEntryCount > 0 ? `includes ready (${includeManifestEntryCount})` : "includes ready (empty)",
+            label,
             tooltipLines,
         };
     }
     tooltipLines.push("Include manifest idle");
+    appendIncludeUploadTooltip(tooltipLines);
     return {
         label: "includes watching",
         tooltipLines,
     };
+    function appendIncludeUploadTooltip(target) {
+        if (!includeConfig.manifestEnabled) {
+            return;
+        }
+        switch (includeUploadStatus) {
+            case "disabled":
+                target.push("Include bundle upload disabled — configure ivgfiddle.includes.serviceBaseUrl.");
+                return;
+            case "pending":
+                target.push("Include bundle upload pending.");
+                return;
+            case "uploading":
+                target.push("Include bundle upload in progress…");
+                return;
+            case "ready": {
+                const bundleLabel = includeUploadBundleId ? `bundle ${includeUploadBundleId}` : "bundle";
+                const latencyLabel = typeof includeUploadLatencyMs === "number" && includeUploadLatencyMs >= 0 ? ` in ${includeUploadLatencyMs} ms` : "";
+                target.push(`Include bundle uploaded (${bundleLabel}${latencyLabel}).`);
+                if (includeUploadLastCompletedAt) {
+                    target.push(`Include bundle uploaded at ${includeUploadLastCompletedAt}.`);
+                }
+                return;
+            }
+            case "error": {
+                const detail = includeUploadLastError ? `: ${includeUploadLastError}` : "";
+                target.push(`Include bundle upload failed${detail}.`);
+                if (includeUploadRetryCount > 0) {
+                    target.push(`Include bundle upload retries: ${includeUploadRetryCount}.`);
+                }
+                return;
+            }
+            default:
+                return;
+        }
+    }
 }
 function hideStatusBar() {
     if (statusBarItem) {
@@ -590,9 +704,15 @@ function readIncludeConfig() {
     const config = vscode.workspace.getConfiguration(INCLUDE_CONFIG_SECTION);
     const watchersEnabled = config.get("watchersEnabled", true);
     const manifestEnabled = config.get("manifestEnabled", false);
+    const configuredBaseUrl = config.get("serviceBaseUrl", "");
+    const configuredAuthToken = config.get("serviceAuthToken", "");
+    const serviceBaseUrl = configuredBaseUrl && configuredBaseUrl.trim().length > 0 ? configuredBaseUrl.trim() : undefined;
+    const serviceAuthToken = configuredAuthToken && configuredAuthToken.trim().length > 0 ? configuredAuthToken.trim() : undefined;
     return {
         watchersEnabled,
         manifestEnabled,
+        serviceBaseUrl,
+        serviceAuthToken,
     };
 }
 function initializeIncludeWatchers(context) {
@@ -605,6 +725,19 @@ function initializeIncludeWatchers(context) {
     includeWatcherFolderCount = 0;
     includeWatcherCandidateFolderCount = 0;
     includeWatcherUnavailableMessage = undefined;
+    cancelIncludeUploadScheduling();
+    includeManifestSnapshot = undefined;
+    includeBundlePayload = undefined;
+    latestIncludeBundleMessage = undefined;
+    includeUploadStatus = "idle";
+    includeUploadRevisionId = undefined;
+    includeUploadBundleId = undefined;
+    includeUploadLastError = undefined;
+    includeUploadLastCompletedAt = undefined;
+    includeUploadLatencyMs = undefined;
+    includeUploadInProgress = false;
+    includeUploadQueued = false;
+    includeUploadRetryCount = 0;
     if (!includeConfig.watchersEnabled) {
         logIncludeTelemetry("Include watchers disabled by configuration.");
         cancelIncludeManifestScheduling();
@@ -658,6 +791,13 @@ function initializeIncludeWatchers(context) {
         return;
     }
     includeManifestStatus = "pending";
+    includeUploadStatus = "pending";
+    includeUploadLastError = undefined;
+    includeUploadBundleId = undefined;
+    includeUploadRevisionId = undefined;
+    includeUploadLastCompletedAt = undefined;
+    includeUploadLatencyMs = undefined;
+    includeUploadRetryCount = 0;
     refreshStatusBar();
     scheduleIncludeManifestBuild("watcherInitialization");
 }
@@ -682,6 +822,19 @@ function disposeIncludeWatchers() {
         delete: 0,
     };
     cancelIncludeManifestScheduling();
+    cancelIncludeUploadScheduling();
+    includeManifestSnapshot = undefined;
+    includeBundlePayload = undefined;
+    latestIncludeBundleMessage = undefined;
+    includeUploadStatus = includeConfig.manifestEnabled ? "pending" : "idle";
+    includeUploadRevisionId = undefined;
+    includeUploadBundleId = undefined;
+    includeUploadLastError = undefined;
+    includeUploadLastCompletedAt = undefined;
+    includeUploadLatencyMs = undefined;
+    includeUploadInProgress = false;
+    includeUploadQueued = false;
+    includeUploadRetryCount = 0;
 }
 function handleIncludeWatcherEvent(kind, uri) {
     includeWatcherEventCounts[kind] += 1;
@@ -712,6 +865,13 @@ function scheduleIncludeManifestBuild(reason) {
         return;
     }
     includeManifestStatus = "pending";
+    includeUploadStatus = "pending";
+    includeUploadLastError = undefined;
+    includeUploadBundleId = undefined;
+    includeUploadRevisionId = undefined;
+    includeUploadLastCompletedAt = undefined;
+    includeUploadLatencyMs = undefined;
+    includeUploadRetryCount = 0;
     refreshStatusBar();
     if (includeManifestTimer) {
         clearTimeout(includeManifestTimer);
@@ -768,24 +928,230 @@ async function buildIncludeManifest(reason) {
         records.sort((a, b) => a.entry.mountPath.localeCompare(b.entry.mountPath));
         const revisionId = createIncludeRevisionId(records);
         const generatedAt = new Date().toISOString();
-        await persistIncludeRevision(extensionContext, revisionId, records, generatedAt);
+        const { manifest } = await persistIncludeRevision(extensionContext, revisionId, records, generatedAt);
+        includeManifestSnapshot = manifest;
+        includeBundlePayload = createIncludeBundlePayload(manifest, records);
         includeManifestRevisionId = revisionId;
         includeManifestEntryCount = records.length;
         includeManifestTotalBytes = totalBytes;
         includeManifestLastGeneratedAt = generatedAt;
         includeManifestStatus = "ready";
+        includeUploadStatus = "pending";
+        includeUploadRevisionId = revisionId;
+        includeUploadBundleId = undefined;
+        includeUploadLastError = undefined;
+        includeUploadLastCompletedAt = undefined;
+        includeUploadLatencyMs = undefined;
+        includeUploadRetryCount = 0;
         logIncludeTelemetry(`Include manifest ready (${records.length} asset${records.length === 1 ? "" : "s"}, ${totalBytes} byte${totalBytes === 1 ? "" : "s"}, revision ${revisionId}, ${Date.now() - startedAt} ms).`);
+        if (includeBundlePayload) {
+            logIncludeTelemetry(`Include bundle prepared (${includeBundlePayload.byteLength} byte${includeBundlePayload.byteLength === 1 ? "" : "s"}) for revision ${revisionId}.`);
+            scheduleIncludeBundleUpload("manifestReady");
+        }
     }
     catch (error) {
         includeManifestStatus = "error";
         includeManifestLastError = formatError(error);
         logIncludeTelemetry(`Include manifest rebuild failed: ${includeManifestLastError}`);
+        includeManifestSnapshot = undefined;
+        includeBundlePayload = undefined;
+        includeUploadStatus = "error";
+        includeUploadBundleId = undefined;
+        includeUploadRevisionId = undefined;
+        includeUploadLastError = includeManifestLastError;
+        includeUploadLastCompletedAt = undefined;
+        includeUploadLatencyMs = undefined;
+        includeUploadInProgress = false;
+        includeUploadQueued = false;
+        cancelIncludeUploadScheduling();
     }
     includeManifestBuildInProgress = false;
     refreshStatusBar();
     if (includeManifestRebuildQueued) {
         includeManifestRebuildQueued = false;
         scheduleIncludeManifestBuild("chained");
+    }
+}
+function scheduleIncludeBundleUpload(reason) {
+    if (!extensionContext || !includeConfig.watchersEnabled || !includeConfig.manifestEnabled) {
+        return;
+    }
+    if (!includeManifestSnapshot || !includeBundlePayload || !includeManifestRevisionId) {
+        logIncludeTelemetry("Include bundle upload skipped: manifest snapshot unavailable.");
+        return;
+    }
+    if (includeUploadInProgress) {
+        includeUploadQueued = true;
+        logIncludeTelemetry(`Include bundle upload queued (reason: ${reason}).`);
+        includeUploadStatus = "uploading";
+        refreshStatusBar();
+        return;
+    }
+    includeUploadStatus = "pending";
+    includeUploadQueued = false;
+    if (includeUploadTimer) {
+        clearTimeout(includeUploadTimer);
+    }
+    includeUploadTimer = setTimeout(() => {
+        includeUploadTimer = undefined;
+        void performIncludeBundleUpload(reason);
+    }, Math.max(0, previewConfig.debounceMs));
+    logIncludeTelemetry(`Include bundle upload scheduled (reason: ${reason}, revision: ${includeManifestRevisionId}).`);
+    refreshStatusBar();
+}
+async function performIncludeBundleUpload(reason) {
+    if (!extensionContext || !includeConfig.watchersEnabled || !includeConfig.manifestEnabled) {
+        return;
+    }
+    if (!includeManifestSnapshot || !includeBundlePayload || !includeManifestRevisionId) {
+        return;
+    }
+    const baseUrl = includeConfig.serviceBaseUrl;
+    if (!baseUrl) {
+        includeUploadStatus = "disabled";
+        includeUploadLastError = "Configure ivgfiddle.includes.serviceBaseUrl to enable uploads.";
+        includeUploadBundleId = undefined;
+        includeUploadLastCompletedAt = undefined;
+        includeUploadLatencyMs = undefined;
+        logIncludeTelemetry("Include bundle upload disabled — serviceBaseUrl not configured.");
+        queueIncludeBundleMessage({ type: "setIncludeBundle", revision: includeManifestRevisionId, manifest: includeManifestSnapshot });
+        refreshStatusBar();
+        return;
+    }
+    includeUploadInProgress = true;
+    includeUploadQueued = false;
+    includeUploadStatus = "uploading";
+    includeUploadLastError = undefined;
+    refreshStatusBar();
+    const startedAt = Date.now();
+    logIncludeTelemetry(`Include bundle upload started (reason: ${reason}, revision: ${includeManifestRevisionId}).`);
+    try {
+        const target = await requestIncludeUploadTarget(baseUrl, includeManifestSnapshot, includeBundlePayload.byteLength, includeConfig.serviceAuthToken);
+        if (target.uploadUrl) {
+            await uploadIncludeBundle(target, includeBundlePayload);
+        }
+        includeUploadStatus = "ready";
+        includeUploadBundleId = target.bundleId;
+        includeUploadRevisionId = includeManifestRevisionId;
+        includeUploadLastCompletedAt = new Date().toISOString();
+        includeUploadLatencyMs = Date.now() - startedAt;
+        includeUploadRetryCount = 0;
+        logIncludeTelemetry(`Include bundle upload complete (bundle ${target.bundleId}, ${includeUploadLatencyMs} ms).`);
+        queueIncludeBundleMessage({
+            type: "setIncludeBundle",
+            revision: includeManifestRevisionId,
+            manifest: includeManifestSnapshot,
+            uploadedAt: includeUploadLastCompletedAt,
+            bundle: {
+                id: target.bundleId,
+                downloadUrl: target.downloadUrl ?? target.uploadUrl,
+                expiresAt: target.expiresAt,
+                latencyMs: includeUploadLatencyMs,
+            },
+        });
+    }
+    catch (error) {
+        includeUploadStatus = "error";
+        includeUploadBundleId = undefined;
+        includeUploadLastError = formatError(error);
+        includeUploadLatencyMs = Date.now() - startedAt;
+        includeUploadRetryCount += 1;
+        logIncludeTelemetry(`Include bundle upload failed: ${includeUploadLastError}`);
+    }
+    includeUploadInProgress = false;
+    refreshStatusBar();
+    if (includeUploadQueued) {
+        includeUploadQueued = false;
+        scheduleIncludeBundleUpload("retry");
+    }
+}
+async function requestIncludeUploadTarget(baseUrl, manifest, payloadBytes, authToken) {
+    let targetUrl;
+    try {
+        targetUrl = new URL(INCLUDE_SERVICE_PRESIGN_PATH, baseUrl);
+    }
+    catch (error) {
+        throw new Error(`Invalid include service base URL: ${formatError(error)}`);
+    }
+    const headers = { "Content-Type": "application/json" };
+    if (authToken) {
+        headers.Authorization = authToken;
+    }
+    const response = await fetch(targetUrl.toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+            revision: manifest.revision,
+            manifestVersion: manifest.version,
+            generatedAt: manifest.generatedAt,
+            entryCount: manifest.entries.length,
+            totalBytes: payloadBytes,
+        }),
+    });
+    if (!response.ok) {
+        const responseText = await response.text().catch(() => "");
+        throw new Error(`Include service responded with ${response.status} ${response.statusText}${responseText ? `: ${responseText}` : ""}`);
+    }
+    const raw = await response.json();
+    return normalizeIncludeUploadTarget(raw);
+}
+function normalizeIncludeUploadTarget(raw) {
+    if (!raw || typeof raw !== "object") {
+        throw new Error("Include service response missing target details.");
+    }
+    const payload = raw;
+    const bundleIdValue = payload["bundleId"];
+    const bundleId = typeof bundleIdValue === "string" && bundleIdValue.trim().length > 0 ? bundleIdValue.trim() : undefined;
+    if (!bundleId) {
+        throw new Error("Include service response missing bundleId.");
+    }
+    const uploadUrlValue = payload["uploadUrl"];
+    const downloadUrlValue = payload["downloadUrl"];
+    const methodValue = payload["method"];
+    const headersValue = payload["headers"];
+    const expiresAtValue = payload["expiresAt"];
+    const uploadUrl = typeof uploadUrlValue === "string" && uploadUrlValue.trim().length > 0 ? uploadUrlValue : undefined;
+    const downloadUrl = typeof downloadUrlValue === "string" && downloadUrlValue.trim().length > 0 ? downloadUrlValue : undefined;
+    const method = typeof methodValue === "string" && methodValue.trim().length > 0 ? methodValue.toUpperCase() : undefined;
+    let headers;
+    if (headersValue && typeof headersValue === "object") {
+        headers = {};
+        for (const [key, value] of Object.entries(headersValue)) {
+            if (typeof value === "string") {
+                headers[key] = value;
+            }
+        }
+        if (Object.keys(headers).length === 0) {
+            headers = undefined;
+        }
+    }
+    const expiresAt = typeof expiresAtValue === "string" && expiresAtValue.trim().length > 0 ? expiresAtValue : undefined;
+    return {
+        bundleId,
+        uploadUrl,
+        downloadUrl,
+        method,
+        headers,
+        expiresAt,
+    };
+}
+async function uploadIncludeBundle(target, payload) {
+    if (!target.uploadUrl) {
+        return;
+    }
+    const method = target.method && target.method.trim().length > 0 ? target.method : INCLUDE_SERVICE_DEFAULT_METHOD;
+    const headers = target.headers ? { ...target.headers } : {};
+    if (!headers["Content-Type"]) {
+        headers["Content-Type"] = "application/json";
+    }
+    const response = await fetch(target.uploadUrl, {
+        method,
+        headers,
+        body: Buffer.from(payload),
+    });
+    if (!response.ok) {
+        const responseText = await response.text().catch(() => "");
+        throw new Error(`Failed to upload include bundle (${response.status} ${response.statusText}${responseText ? `: ${responseText}` : ""})`);
     }
 }
 function getIncludeRelativePath(uri) {
@@ -813,6 +1179,16 @@ function createIncludeRevisionId(records) {
     const timestamp = Date.now().toString(36);
     return `rev-${timestamp}-${digest}`;
 }
+function createIncludeBundlePayload(manifest, records) {
+    const assets = records.map((record) => ({
+        path: record.relativePath,
+        checksum: record.entry.checksum,
+        mimeType: record.entry.mimeType,
+        data: Buffer.from(record.content).toString("base64"),
+    }));
+    const payload = { manifest, assets };
+    return Buffer.from(JSON.stringify(payload), "utf8");
+}
 async function persistIncludeRevision(context, revisionId, records, generatedAt) {
     const storageRoot = vscode.Uri.joinPath(context.globalStorageUri, INCLUDE_CACHE_FOLDER);
     await vscode.workspace.fs.createDirectory(storageRoot);
@@ -835,6 +1211,7 @@ async function persistIncludeRevision(context, revisionId, records, generatedAt)
     const manifestUri = vscode.Uri.joinPath(revisionRoot, INCLUDE_MANIFEST_FILE_NAME);
     await vscode.workspace.fs.writeFile(manifestUri, Buffer.from(JSON.stringify(manifest, null, 2), "utf8"));
     await pruneStaleIncludeRevisions(storageRoot, revisionId);
+    return { manifest };
 }
 async function pruneStaleIncludeRevisions(storageRoot, activeRevisionId) {
     try {
@@ -857,6 +1234,13 @@ function cancelIncludeManifestScheduling() {
         includeManifestTimer = undefined;
     }
     includeManifestRebuildQueued = false;
+}
+function cancelIncludeUploadScheduling() {
+    if (includeUploadTimer) {
+        clearTimeout(includeUploadTimer);
+        includeUploadTimer = undefined;
+    }
+    includeUploadQueued = false;
 }
 function formatError(error) {
     if (error instanceof Error && error.message) {
