@@ -52,6 +52,7 @@ const DEFAULT_DEBOUNCE_MS = 150;
 const CONFIG_SECTION = "ivgfiddle.preview";
 const GENERAL_CONFIG_SECTION = "ivgfiddle";
 const INCLUDE_CONFIG_SECTION = "ivgfiddle.includes";
+const DEFAULT_INCLUDE_RESCAN_DEBOUNCE_MS = 150;
 // Track include-eligible assets that must stay in sync with IVGFiddle. IMPD composition (`.impd`),
 // inline vector graphics (`.ivg`), IVG fonts (`.ivgfont`), and raster fallbacks (`.png`) are
 // pre-packaged alongside previews, so the watcher focuses on that set of extensions.
@@ -76,7 +77,6 @@ let includeWatcherEventCounts = {
 const INCLUDE_CACHE_FOLDER = "include-cache";
 const INCLUDE_MANIFEST_FILE_NAME = "include-manifest.json";
 const INCLUDE_MANIFEST_VERSION = 1;
-const DEFAULT_INCLUDE_RESCAN_DEBOUNCE_MS = 150;
 let extensionContext;
 let includeManifestTimer;
 let includeManifestStatus = "idle";
