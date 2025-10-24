@@ -1201,18 +1201,354 @@ const ivgCanvas = document.getElementById("ivgCanvas");
 let allLogLines = "";
 let traceLinesCount = 0;
 let traceDisplayLines = [];
-		let lastLogLine = null;
-		let repeatingLogLineCount = 0;
-		let moduleReady = false;
-		let currentSource = "";
-		let pendingSource = null;
-		let pendingUri = null;
-		let hasSuccessfulRender = false;
-		let lastRasterizedSourceSignature = "";
-		let currentDocumentUri = null;
-		let lastSuccessfulRenderUri = null;
-		let moduleRecoveryPromise = null;
-		let suppressFailureStatus = false;
+let lastLogLine = null;
+let repeatingLogLineCount = 0;
+let moduleReady = false;
+let currentSource = "";
+let pendingSource = null;
+let pendingUri = null;
+let hasSuccessfulRender = false;
+let lastRasterizedSourceSignature = "";
+let currentDocumentUri = null;
+let lastSuccessfulRenderUri = null;
+let moduleRecoveryPromise = null;
+let suppressFailureStatus = false;
+let renderInProgress = false;
+let rerenderQueued = false;
+
+const IncludeBundleController = (function createIncludeBundleController() {
+const INCLUDE_ROOT = "/__ivg/includes";
+const includeState = {
+staged: null,
+mountedRevision: null,
+mountedRelativePaths: [],
+mountError: null,
+missingWarnings: new Set(),
+};
+
+function stageBundle(message) {
+const bundle = normalizeBundle(message);
+includeState.staged = bundle;
+includeState.mountError = null;
+includeState.missingWarnings.clear();
+return { revision: bundle.revision, entryCount: bundle.entries.length };
+}
+
+function ensureMounted(module) {
+if (!module || !module.FS) {
+throw new Error("IVG renderer is not ready to mount include bundles.");
+}
+const fs = module.FS;
+let changed = false;
+if (!includeState.staged) {
+if (includeState.mountedRelativePaths.length > 0) {
+removeMountedPaths(fs, includeState.mountedRelativePaths);
+includeState.mountedRelativePaths = [];
+includeState.mountedRevision = null;
+changed = true;
+}
+includeState.mountError = null;
+removeIncludeRootIfEmpty(fs);
+return { changed, revision: includeState.mountedRevision, entryCount: 0 };
+}
+if (
+includeState.mountedRevision === includeState.staged.revision &&
+includeState.mountedRelativePaths.length === includeState.staged.entries.length
+) {
+includeState.mountError = null;
+return {
+changed: false,
+revision: includeState.mountedRevision,
+entryCount: includeState.staged.entries.length,
+};
+}
+removeMountedPaths(fs, includeState.mountedRelativePaths);
+ensureIncludeRoot(fs);
+const createdDirs = new Set();
+for (let index = 0; index < includeState.staged.entries.length; ++index) {
+const entry = includeState.staged.entries[index];
+const targetPath = buildIncludePath(entry.relativePath);
+ensureDirectory(fs, parentDirectory(targetPath), createdDirs);
+fs.writeFile(targetPath, entry.data, { canOwn: true });
+try {
+fs.chmod(targetPath, 0o444);
+} catch (error) {
+// Ignore inability to change permissions in the sandbox.
+}
+}
+includeState.mountedRelativePaths = includeState.staged.entries.map((entry) => entry.relativePath);
+includeState.mountedRevision = includeState.staged.revision;
+includeState.mountError = null;
+includeState.missingWarnings.clear();
+changed = true;
+return {
+changed: true,
+revision: includeState.mountedRevision,
+entryCount: includeState.staged.entries.length,
+};
+}
+
+function handleTraceLine(line) {
+const prefix = "[IVGFiddle] Include missing:";
+if (typeof line !== "string" || line.indexOf(prefix) !== 0) {
+return;
+}
+const revision = includeState.mountedRevision || "unknown";
+const key = revision + ":" + line;
+if (includeState.missingWarnings.has(key)) {
+return;
+}
+includeState.missingWarnings.add(key);
+setStatus(line, { level: "warning" });
+}
+
+function recordMountFailure(message) {
+includeState.mountError = typeof message === "string" ? message : String(message || "");
+}
+
+function getDiagnostics() {
+return {
+stagedRevision: includeState.staged ? includeState.staged.revision : null,
+stagedEntryCount: includeState.staged ? includeState.staged.entries.length : 0,
+mountedRevision: includeState.mountedRevision,
+mountedEntryCount: includeState.mountedRelativePaths.length,
+mountError: includeState.mountError || null,
+};
+}
+
+function normalizeBundle(message) {
+if (!message || typeof message !== "object") {
+throw new Error("Include bundle payload missing.");
+}
+const revision =
+typeof message.revision === "string" && message.revision.length > 0 ? message.revision : "rev-unknown";
+const manifest = message.manifest;
+if (!manifest || typeof manifest !== "object" || !Array.isArray(manifest.entries)) {
+throw new Error("Include bundle manifest is missing entries.");
+}
+const assets = Array.isArray(message.assets) ? message.assets : [];
+const assetMap = new Map();
+for (let index = 0; index < assets.length; ++index) {
+const asset = assets[index];
+if (!asset || typeof asset !== "object") {
+continue;
+}
+const relativePath = normalizeRelativePath(asset.path);
+assetMap.set(relativePath, asset);
+}
+const normalizedEntries = [];
+const entries = manifest.entries;
+for (let index = 0; index < entries.length; ++index) {
+const entry = entries[index];
+if (!entry || typeof entry !== "object") {
+continue;
+}
+const relativePath = normalizeRelativePath(entry.mountPath);
+const asset = assetMap.get(relativePath);
+if (!asset) {
+throw new Error(`Include bundle is missing data for ${relativePath}.`);
+}
+const data = decodeAssetData(asset.data);
+const byteLength = Number(entry.byteLength) || 0;
+if (byteLength !== data.byteLength) {
+throw new Error(
+`Include asset ${relativePath} byte length mismatch (expected ${byteLength}, received ${data.byteLength}).`,
+);
+}
+normalizedEntries.push({
+relativePath: relativePath,
+mountPath: "/" + relativePath,
+byteLength: byteLength,
+checksum: typeof entry.checksum === "string" ? entry.checksum : "",
+mimeType: typeof entry.mimeType === "string" ? entry.mimeType : "application/octet-stream",
+data: data,
+});
+}
+normalizedEntries.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+return {
+revision: revision,
+entries: normalizedEntries,
+};
+}
+
+function normalizeRelativePath(candidate) {
+if (typeof candidate !== "string") {
+throw new Error("Include manifest entry is missing a mount path.");
+}
+let normalized = candidate.replace(/\\/g, "/");
+normalized = normalized.replace(/\/+/g, "/");
+if (normalized.startsWith("/")) {
+normalized = normalized.slice(1);
+}
+const parts = normalized.split("/");
+const segments = [];
+for (let index = 0; index < parts.length; ++index) {
+const part = parts[index];
+if (!part || part === ".") {
+continue;
+}
+if (part === "..") {
+throw new Error(`Include path ${candidate} escapes the workspace root.`);
+}
+segments.push(part);
+}
+if (segments.length === 0) {
+throw new Error("Include manifest entry resolved to an empty path.");
+}
+return segments.join("/");
+}
+
+function decodeAssetData(data) {
+const base64 = typeof data === "string" ? data : "";
+if (!base64) {
+return new Uint8Array(0);
+}
+if (typeof atob === "function") {
+const binary = atob(base64);
+const buffer = new Uint8Array(binary.length);
+for (let index = 0; index < binary.length; ++index) {
+buffer[index] = binary.charCodeAt(index);
+}
+return buffer;
+}
+if (typeof Buffer === "function") {
+const buffer = Buffer.from(base64, "base64");
+return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+}
+throw new Error("Include bundles cannot be decoded: base64 helper unavailable.");
+}
+
+function ensureIncludeRoot(fs) {
+try {
+fs.mkdir(INCLUDE_ROOT);
+} catch (error) {
+// Ignore if it already exists.
+}
+}
+
+function buildIncludePath(relativePath) {
+return `${INCLUDE_ROOT}/${relativePath}`;
+}
+
+function removeMountedPaths(fs, relativePaths) {
+if (!relativePaths || relativePaths.length === 0) {
+return;
+}
+const directories = new Set();
+for (let index = 0; index < relativePaths.length; ++index) {
+const relative = relativePaths[index];
+if (typeof relative !== "string" || relative.length === 0) {
+continue;
+}
+const target = buildIncludePath(relative);
+try {
+fs.unlink(target);
+} catch (error) {
+try {
+fs.rmdir(target);
+} catch (removeError) {
+// Ignore removal failures; stale entries will be replaced.
+}
+}
+const dir = parentDirectory(target);
+if (dir && dir !== INCLUDE_ROOT) {
+directories.add(dir);
+}
+}
+if (directories.size === 0) {
+return;
+}
+const sorted = Array.from(directories).sort((a, b) => b.length - a.length);
+for (let index = 0; index < sorted.length; ++index) {
+const dir = sorted[index];
+try {
+if (isDirectoryEmpty(fs, dir)) {
+fs.rmdir(dir);
+}
+} catch (error) {
+// Ignore cleanup failures.
+}
+}
+}
+
+function removeIncludeRootIfEmpty(fs) {
+try {
+if (isDirectoryEmpty(fs, INCLUDE_ROOT)) {
+fs.rmdir(INCLUDE_ROOT);
+}
+} catch (error) {
+// Ignore cleanup failures.
+}
+}
+
+function ensureDirectory(fs, directory, created) {
+if (!directory || directory === "/" || directory === INCLUDE_ROOT) {
+return;
+}
+const segments = directory.split("/");
+let current = "";
+for (let index = 0; index < segments.length; ++index) {
+const segment = segments[index];
+if (!segment) {
+continue;
+}
+current = current ? `${current}/${segment}` : `/${segment}`;
+if (current === INCLUDE_ROOT) {
+continue;
+}
+if (created.has(current)) {
+continue;
+}
+try {
+const info = fs.analyzePath(current);
+if (!info || !info.exists) {
+fs.mkdir(current);
+}
+} catch (error) {
+fs.mkdir(current);
+}
+created.add(current);
+}
+}
+
+function parentDirectory(path) {
+if (typeof path !== "string" || path.length === 0) {
+return null;
+}
+const index = path.lastIndexOf("/");
+if (index <= 0) {
+return "/";
+}
+return path.slice(0, index);
+}
+
+function isDirectoryEmpty(fs, directory) {
+try {
+const entries = fs.readdir(directory);
+if (!entries) {
+return true;
+}
+for (let index = 0; index < entries.length; ++index) {
+const entry = entries[index];
+if (entry === "." || entry === "..") {
+continue;
+}
+return false;
+}
+return true;
+} catch (error) {
+return false;
+}
+}
+
+return {
+stageBundle: stageBundle,
+ensureMounted: ensureMounted,
+handleTraceLine: handleTraceLine,
+recordMountFailure: recordMountFailure,
+getDiagnostics: getDiagnostics,
+};
+})();
 
 		function notifyHost(level, message, options) {
 			const text = typeof message === "string" ? message : "";
@@ -1308,12 +1644,13 @@ let traceDisplayLines = [];
 			host.emitTrace({ action: "clear" });
 		}
 
-		function trace(message) {
-			const line = typeof message === "string" ? message : String(message);
-			if (!line) {
-				return;
-			}
-			let trimmed = false;
+function trace(message) {
+const line = typeof message === "string" ? message : String(message);
+if (!line) {
+return;
+}
+IncludeBundleController.handleTraceLine(line);
+let trimmed = false;
 			while (allLogLines.length > MAX_LOG_SIZE || traceLinesCount >= MAX_LOG_LINES) {
 				const offset = allLogLines.indexOf("\n");
 				if (offset < 0) {
@@ -1450,121 +1787,153 @@ let traceDisplayLines = [];
 			return result;
 		};
 
-		function renderCurrentSource() {
-			if (!global.Module || !ivgCanvas || !ivgContext) {
-				return;
-			}
-			clearTrace();
-			const start = window.performance.now();
-			let ok = false;
-			try {
-				const module = global.Module;
-				const devicePixelRatio = window.devicePixelRatio || 1;
-				const usesVectorScaling = ZoomController.usesVectorScaling();
-				const currentZoom = ZoomController.getZoom();
-				const rasterScale = usesVectorScaling ? currentZoom * devicePixelRatio : ZoomController.getRasterScale(devicePixelRatio);
-				const sourceSignature = computeSourceSignature(currentSource);
-				const sourceChanged = sourceSignature !== lastRasterizedSourceSignature;
-				SnapshotController.prepareForRender(sourceSignature, sourceChanged);
-				const snapshotSelection = SnapshotController.getSelectionForRender();
-				const selectionScenarioIndex =
-						snapshotSelection && Number.isInteger(snapshotSelection.scenarioIndex)
-							? snapshotSelection.scenarioIndex
-							: -1;
-				const selectionEntryOrdinal =
-						snapshotSelection && Number.isInteger(snapshotSelection.entryOrdinal)
-							? snapshotSelection.entryOrdinal
-							: -1;
-				const result = rasterizeIVG(currentSource, rasterScale, selectionScenarioIndex, selectionEntryOrdinal);
-				if (result !== 0) {
-					const heapU8 = getHeapView(module, "HEAPU8");
-					if (!heapU8) {
-						module._deallocatePixels(result);
-						throw new Error("WebAssembly heap unavailable");
-					}
-					const heapBuffer = heapU8.buffer;
-					const headerSigned = new Int32Array(heapBuffer, result, 4);
-					const left = headerSigned[0];
-					const top = headerSigned[1];
-					const width = headerSigned[2];
-					const height = headerSigned[3];
-					const header = new Uint32Array(heapBuffer, result, 8);
-					const pixelBytes = header[4];
-					const catalogBytes = header[5];
-					const defaultScenarioIndex = header[6];
-					const defaultEntryOrdinal = header[7];
-					const pixelOffset = result + 8 * 4;
-					const catalogOffset = pixelOffset + pixelBytes;
-					const pixelSlice = heapU8.subarray(pixelOffset, pixelOffset + pixelBytes);
-					const pixelData = new Uint8ClampedArray(pixelSlice);
-					const snapshotCatalogJson =
-							catalogBytes > 0 ? readUtf8FromHeap(module, catalogOffset, catalogBytes) : "";
-					module._deallocatePixels(result);
-					if (width > 0 && height > 0 && pixelData.length === pixelBytes) {
-						if (ivgCanvas.width !== width || ivgCanvas.height !== height) {
-							ivgCanvas.width = width;
-							ivgCanvas.height = height;
-						}
-						const imageData = ivgContext.createImageData(width, height);
-						imageData.data.set(pixelData);
-						ZoomController.applyRenderMetrics({
-							width: width,
-							height: height,
-							left: left,
-							top: top,
-							rasterScale: rasterScale,
-							renderZoom: usesVectorScaling ? currentZoom : 1,
-						});
-						const DEFAULT_SELECTION_SENTINEL = 0xffffffff;
-						const normalizedScenarioIndex =
-							defaultScenarioIndex === DEFAULT_SELECTION_SENTINEL ? -1 : defaultScenarioIndex;
-						const normalizedEntryOrdinal =
-							defaultEntryOrdinal === DEFAULT_SELECTION_SENTINEL ? -1 : defaultEntryOrdinal;
-						SnapshotController.applyRenderResult({
-							catalogJson: snapshotCatalogJson,
-							defaultScenarioIndex: normalizedScenarioIndex,
-							defaultEntryOrdinal: normalizedEntryOrdinal,
-						});
-						ivgContext.putImageData(imageData, 0, 0);
-						const end = window.performance.now();
-						const durationMs = end - start;
-						trace("--- IVG completed in " + durationMs + "ms ---");
-						setStatus("Preview updated in " + durationMs + " ms.", {
-							level: "info",
-							durationMs: durationMs,
-						});
-						ok = true;
-						hasSuccessfulRender = true;
-						lastSuccessfulRenderUri = currentDocumentUri;
-						lastRasterizedSourceSignature = sourceSignature;
-					} else {
-						trace("Rasterization returned no data");
-					}
-				}
-			} catch (error) {
-				trace("Rasterization crashed");
-				const errorMessage = describeError(error);
-				trace(errorMessage);
-				if (isOutOfMemoryError(errorMessage)) {
-					recoverFromOutOfMemory(errorMessage);
-				}
-			}
-			if (ok) {
-				ZoomController.restorePreferredVectorScaling();
-			}
-			if (!ok) {
-				const preserveImage = hasSuccessfulRender && isSameDocumentUri(currentDocumentUri, lastSuccessfulRenderUri);
-				if (!preserveImage) {
-					ZoomController.clearMetrics();
-				}
-				drawFailureCross({ preserveImage: preserveImage });
-				if (!suppressFailureStatus) {
-					setStatus("Rendering failed. Check trace output for details.", {
-						level: "error",
-					});
-				}
-			}
-		}
+function renderCurrentSource() {
+if (!global.Module || !ivgCanvas || !ivgContext) {
+return;
+}
+if (renderInProgress) {
+rerenderQueued = true;
+return;
+}
+renderInProgress = true;
+rerenderQueued = false;
+let ok = false;
+let start = 0;
+try {
+const module = global.Module;
+let includeResult = null;
+try {
+includeResult = IncludeBundleController.ensureMounted(module);
+} catch (includeError) {
+const includeMessage = describeError(includeError);
+IncludeBundleController.recordMountFailure(includeMessage);
+trace("Failed to mount include bundle: " + includeMessage);
+setStatus("Failed to mount include bundle: " + includeMessage, { level: "error" });
+throw includeError;
+}
+if (includeResult && includeResult.changed) {
+const count = includeResult.entryCount;
+const revision = includeResult.revision || "unknown";
+const summary = count === 1 ? "1 asset" : count + " assets";
+trace("Include bundle revision " + revision + " mounted (" + summary + ").");
+}
+clearTrace();
+start = window.performance.now();
+const devicePixelRatio = window.devicePixelRatio || 1;
+const usesVectorScaling = ZoomController.usesVectorScaling();
+const currentZoom = ZoomController.getZoom();
+const rasterScale = usesVectorScaling ? currentZoom * devicePixelRatio : ZoomController.getRasterScale(devicePixelRatio);
+const sourceSignature = computeSourceSignature(currentSource);
+const sourceChanged = sourceSignature !== lastRasterizedSourceSignature;
+SnapshotController.prepareForRender(sourceSignature, sourceChanged);
+const snapshotSelection = SnapshotController.getSelectionForRender();
+const selectionScenarioIndex =
+snapshotSelection && Number.isInteger(snapshotSelection.scenarioIndex)
+? snapshotSelection.scenarioIndex
+: -1;
+const selectionEntryOrdinal =
+snapshotSelection && Number.isInteger(snapshotSelection.entryOrdinal)
+? snapshotSelection.entryOrdinal
+: -1;
+const result = rasterizeIVG(currentSource, rasterScale, selectionScenarioIndex, selectionEntryOrdinal);
+if (result !== 0) {
+const heapU8 = getHeapView(module, "HEAPU8");
+if (!heapU8) {
+module._deallocatePixels(result);
+throw new Error("WebAssembly heap unavailable");
+}
+const heapBuffer = heapU8.buffer;
+const headerSigned = new Int32Array(heapBuffer, result, 4);
+const left = headerSigned[0];
+const top = headerSigned[1];
+const width = headerSigned[2];
+const height = headerSigned[3];
+const header = new Uint32Array(heapBuffer, result, 8);
+const pixelBytes = header[4];
+const catalogBytes = header[5];
+const defaultScenarioIndex = header[6];
+const defaultEntryOrdinal = header[7];
+const pixelOffset = result + 8 * 4;
+const catalogOffset = pixelOffset + pixelBytes;
+const pixelSlice = heapU8.subarray(pixelOffset, pixelOffset + pixelBytes);
+const pixelData = new Uint8ClampedArray(pixelSlice);
+const snapshotCatalogJson =
+catalogBytes > 0 ? readUtf8FromHeap(module, catalogOffset, catalogBytes) : "";
+module._deallocatePixels(result);
+if (width > 0 && height > 0 && pixelData.length === pixelBytes) {
+if (ivgCanvas.width !== width || ivgCanvas.height !== height) {
+ivgCanvas.width = width;
+ivgCanvas.height = height;
+}
+const imageData = ivgContext.createImageData(width, height);
+imageData.data.set(pixelData);
+ZoomController.applyRenderMetrics({
+width: width,
+height: height,
+left: left,
+top: top,
+rasterScale: rasterScale,
+renderZoom: usesVectorScaling ? currentZoom : 1,
+});
+const DEFAULT_SELECTION_SENTINEL = 0xffffffff;
+const normalizedScenarioIndex =
+defaultScenarioIndex === DEFAULT_SELECTION_SENTINEL ? -1 : defaultScenarioIndex;
+const normalizedEntryOrdinal =
+defaultEntryOrdinal === DEFAULT_SELECTION_SENTINEL ? -1 : defaultEntryOrdinal;
+SnapshotController.applyRenderResult({
+catalogJson: snapshotCatalogJson,
+defaultScenarioIndex: normalizedScenarioIndex,
+defaultEntryOrdinal: normalizedEntryOrdinal,
+});
+ivgContext.putImageData(imageData, 0, 0);
+const end = window.performance.now();
+const durationMs = end - start;
+trace("--- IVG completed in " + durationMs + "ms ---");
+setStatus("Preview updated in " + durationMs + " ms.", {
+level: "info",
+durationMs: durationMs,
+});
+ok = true;
+hasSuccessfulRender = true;
+lastSuccessfulRenderUri = currentDocumentUri;
+lastRasterizedSourceSignature = sourceSignature;
+} else {
+trace("Rasterization returned no data");
+}
+}
+} catch (error) {
+trace("Rasterization crashed");
+const errorMessage = describeError(error);
+trace(errorMessage);
+if (isOutOfMemoryError(errorMessage)) {
+recoverFromOutOfMemory(errorMessage);
+}
+} finally {
+renderInProgress = false;
+}
+if (ok) {
+ZoomController.restorePreferredVectorScaling();
+}
+if (!ok) {
+const preserveImage = hasSuccessfulRender && isSameDocumentUri(currentDocumentUri, lastSuccessfulRenderUri);
+if (!preserveImage) {
+ZoomController.clearMetrics();
+}
+drawFailureCross({ preserveImage: preserveImage });
+if (!suppressFailureStatus) {
+setStatus("Rendering failed. Check trace output for details.", {
+level: "error",
+});
+}
+}
+if (rerenderQueued) {
+const shouldRerender = rerenderQueued;
+rerenderQueued = false;
+if (shouldRerender) {
+renderCurrentSource();
+}
+}
+}
 
 		function setSource(newSource, options) {
 			const opts = options || {};
@@ -1585,38 +1954,78 @@ let traceDisplayLines = [];
 			renderCurrentSource();
 		}
 
-		function handleHostCommand(message) {
-			if (!message || typeof message !== "object") {
-				return;
-			}
-			switch (message.type) {
-				case "setSource":
-					if (!moduleReady) {
-						pendingSource = typeof message.source === "string" ? message.source : "";
-						pendingUri = normalizeDocumentUri(message.uri);
-					} else {
-						setSource(message.source, { persist: false, uri: normalizeDocumentUri(message.uri) });
-					}
-					if (typeof message.status === "string") {
-						setStatus(message.status, { notify: false });
-					} else if (moduleReady) {
-						setStatus("Preview updated.", { notify: false });
-					}
-					break;
-				case "clearTrace":
-					clearTrace();
-					setStatus("Preview trace cleared.", { level: "info" });
-					break;
-				case "rerender":
-					if (moduleReady) {
-						setStatus("Re-rendering current IVG…", { level: "info" });
-						renderCurrentSource();
-					}
-					break;
-				default:
-					break;
-			}
-		}
+function handleHostCommand(message) {
+if (!message || typeof message !== "object") {
+return;
+}
+switch (message.type) {
+case "setSource":
+if (!moduleReady) {
+pendingSource = typeof message.source === "string" ? message.source : "";
+pendingUri = normalizeDocumentUri(message.uri);
+} else {
+setSource(message.source, { persist: false, uri: normalizeDocumentUri(message.uri) });
+}
+if (typeof message.status === "string") {
+setStatus(message.status, { notify: false });
+} else if (moduleReady) {
+setStatus("Preview updated.", { notify: false });
+}
+break;
+case "clearTrace":
+clearTrace();
+setStatus("Preview trace cleared.", { level: "info" });
+break;
+case "rerender":
+if (moduleReady) {
+setStatus("Re-rendering current IVG…", { level: "info" });
+renderCurrentSource();
+}
+break;
+case "setIncludeBundle": {
+let summary;
+try {
+summary = IncludeBundleController.stageBundle(message);
+} catch (stageError) {
+const stageMessage = describeError(stageError);
+IncludeBundleController.recordMountFailure(stageMessage);
+trace("Failed to process include bundle: " + stageMessage);
+setStatus("Failed to process include bundle: " + stageMessage, { level: "error" });
+break;
+}
+const stagedCount = summary.entryCount;
+const stagedRevision = summary.revision || "unknown";
+const stagedSummary = stagedCount === 1 ? "1 asset" : stagedCount + " assets";
+trace("Include bundle revision " + stagedRevision + " staged (" + stagedSummary + ").");
+if (moduleReady && global.Module && global.Module.FS) {
+try {
+const mountResult = IncludeBundleController.ensureMounted(global.Module);
+if (mountResult && mountResult.changed) {
+const mountCount = mountResult.entryCount;
+const mountRevision = mountResult.revision || stagedRevision;
+const mountSummary = mountCount === 1 ? "1 asset" : mountCount + " assets";
+trace("Include bundle revision " + mountRevision + " mounted (" + mountSummary + ").");
+}
+renderCurrentSource();
+} catch (mountError) {
+const mountMessage = describeError(mountError);
+IncludeBundleController.recordMountFailure(mountMessage);
+trace("Failed to mount include bundle: " + mountMessage);
+setStatus("Failed to mount include bundle: " + mountMessage, { level: "error" });
+}
+} else {
+trace(
+"Renderer not ready; include bundle revision " +
+stagedRevision +
+" will mount when the preview reconnects.",
+);
+}
+break;
+}
+default:
+break;
+}
+}
 
 		function initialize() {
 			BackgroundController.init();
@@ -1662,15 +2071,16 @@ let traceDisplayLines = [];
 			host.onReady();
 		}
 
-		return {
-			initialize: initialize,
-			handleModuleInitialized: handleModuleInitialized,
-			handleHostCommand: handleHostCommand,
-			setSource: setSource,
-			clearTrace: clearTrace,
-			renderCurrentSource: renderCurrentSource,
-		};
-	}
+return {
+initialize: initialize,
+handleModuleInitialized: handleModuleInitialized,
+handleHostCommand: handleHostCommand,
+setSource: setSource,
+clearTrace: clearTrace,
+renderCurrentSource: renderCurrentSource,
+getIncludeDiagnostics: IncludeBundleController.getDiagnostics,
+};
+}
 
 	global.IVGFiddlePreview = {
 		create: createPreview,

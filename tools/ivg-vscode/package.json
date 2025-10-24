@@ -1,25 +1,31 @@
 {
-        "name": "ivg-vscode",
-        "displayName": "IVG Preview",
-        "description": "Embed the IVG Preview webview inside Visual Studio Code.",
+	"name": "ivg-vscode",
+	"displayName": "IVG Preview",
+	"description": "Embed the IVG Preview webview inside Visual Studio Code.",
 	"version": "0.0.1",
 	"publisher": "ivg",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/zeux/IVG.git"
 	},
-        "homepage": "https://github.com/zeux/IVG/tree/main/tools/ivg-vscode",
+	"homepage": "https://github.com/zeux/IVG/tree/main/tools/ivg-vscode",
 	"engines": {
 		"vscode": "^1.84.0"
 	},
-	"activationEvents": [
-		"onCommand:ivgfiddle.open",
-		"onCommand:ivgfiddle.refreshPreview",
-		"onCommand:ivgfiddle.clearTrace",
-		"onLanguage:ivg"
-	],
+        "activationEvents": [
+                "onCommand:ivgfiddle.open",
+                "onCommand:ivgfiddle.refreshPreview",
+                "onCommand:ivgfiddle.clearTrace",
+                "onCommand:ivgfiddle.includes.focusExplorer",
+                "onCommand:ivgfiddle.includes.rescan",
+                "onCommand:ivgfiddle.includes.openAsset",
+                "onCommand:ivgfiddle.includes.revealAsset",
+                "onCommand:ivgfiddle.includes.copyMountPath",
+                "onView:ivgfiddleIncludesExplorer",
+                "onLanguage:ivg"
+        ],
 	"main": "./dist/extension.js",
-        "contributes": {
+	"contributes": {
                 "commands": [
                         {
                                 "command": "ivgfiddle.open",
@@ -35,30 +41,87 @@
                                 "command": "ivgfiddle.clearTrace",
                                 "title": "Clear Trace",
                                 "category": "IVG Preview"
+                        },
+                        {
+                                "command": "ivgfiddle.includes.focusExplorer",
+                                "title": "Show Include Assets",
+                                "category": "IVG Includes"
+                        },
+                        {
+                                "command": "ivgfiddle.includes.rescan",
+                                "title": "Rescan Include Assets",
+                                "category": "IVG Includes"
+                        },
+                        {
+                                "command": "ivgfiddle.includes.openAsset",
+                                "title": "Open Include Asset",
+                                "category": "IVG Includes"
+                        },
+                        {
+                                "command": "ivgfiddle.includes.revealAsset",
+                                "title": "Reveal Include Asset",
+                                "category": "IVG Includes"
+                        },
+                        {
+                                "command": "ivgfiddle.includes.copyMountPath",
+                                "title": "Copy Include Mount Path",
+                                "category": "IVG Includes"
                         }
                 ],
-		"menus": {
-			"commandPalette": [
-				{
-					"command": "ivgfiddle.open",
-					"when": "true"
-				}
-			],
-			"explorer/context": [
-				{
-					"command": "ivgfiddle.open",
-					"when": "resourceExtname == .ivg",
-					"group": "navigation@20"
-				}
-			],
-			"editor/title/context": [
-				{
-					"command": "ivgfiddle.open",
-					"when": "resourceLangId == ivg",
-					"group": "navigation@20"
-				}
-			]
-		},
+                "menus": {
+                        "commandPalette": [
+                                {
+                                        "command": "ivgfiddle.open",
+                                        "when": "true"
+                                },
+                                {
+                                        "command": "ivgfiddle.includes.focusExplorer",
+                                        "when": "true"
+                                },
+                                {
+                                        "command": "ivgfiddle.includes.rescan",
+                                        "when": "true"
+                                }
+                        ],
+                        "explorer/context": [
+                                {
+                                        "command": "ivgfiddle.open",
+                                        "when": "resourceExtname == .ivg",
+                                        "group": "navigation@20"
+                                }
+                        ],
+                        "editor/title/context": [
+                                {
+                                        "command": "ivgfiddle.open",
+                                        "when": "resourceExtname == .ivg",
+                                        "group": "navigation@20"
+                                }
+                        ],
+                        "view/title": [
+                                {
+                                        "command": "ivgfiddle.includes.rescan",
+                                        "when": "view == ivgfiddleIncludesExplorer",
+                                        "group": "navigation@10"
+                                }
+                        ],
+                        "view/item/context": [
+                                {
+                                        "command": "ivgfiddle.includes.openAsset",
+                                        "when": "viewItem == ivgfiddleIncludeAsset",
+                                        "group": "inline@10"
+                                },
+                                {
+                                        "command": "ivgfiddle.includes.revealAsset",
+                                        "when": "viewItem == ivgfiddleIncludeAsset",
+                                        "group": "inline@20"
+                                },
+                                {
+                                        "command": "ivgfiddle.includes.copyMountPath",
+                                        "when": "viewItem == ivgfiddleIncludeAsset",
+                                        "group": "inline@30"
+                                }
+                        ]
+                },
 		"languages": [
 			{
 				"id": "ivg",
@@ -83,40 +146,74 @@
 				"path": "./syntaxes/impd.tmLanguage"
 			}
 		],
-		"snippets": [
-			{
-				"language": "ivg",
-				"path": "./snippets/ivg.code-snippets"
-			}
-		],
+                "snippets": [
+                        {
+                                "language": "ivg",
+                                "path": "./snippets/ivg.code-snippets"
+                        }
+                ],
+                "views": {
+                        "explorer": [
+                                {
+                                        "id": "ivgfiddleIncludesExplorer",
+                                        "name": "IVG Include Assets"
+                                }
+                        ]
+                },
                 "configuration": {
                         "title": "IVG Preview",
-                        "properties": {
-                                "ivgfiddle.syncOnOpen": {
+			"properties": {
+				"ivgfiddle.syncOnOpen": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically push the active IVG document to the IVG Preview webview when it opens."
+				},
+				"ivgfiddle.webviewUpdateDelay": {
+					"type": "number",
+					"default": 0,
+					"minimum": 0,
+					"description": "Delay in milliseconds before host messages are delivered to the IVG Preview webview."
+				},
+				"ivgfiddle.preview.autoRefresh": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically update the IVG Preview panel when IVG documents change."
+				},
+				"ivgfiddle.preview.debounceMs": {
+					"type": "number",
+					"default": 150,
+					"minimum": 0,
+					"description": "Delay in milliseconds before automatic IVG Preview refresh when auto refresh is enabled."
+				},
+                                "ivgfiddle.includes.watchersEnabled": {
                                         "type": "boolean",
                                         "default": true,
-                                        "description": "Automatically push the active IVG document to the IVG Preview webview when it opens."
+                                        "description": "Enable include asset filesystem watchers for IMPD, IVG, IVG font, and raster fallback resources."
                                 },
-                                "ivgfiddle.webviewUpdateDelay": {
-                                        "type": "number",
-                                        "default": 0,
-                                        "minimum": 0,
-                                        "description": "Delay in milliseconds before host messages are delivered to the IVG Preview webview."
+                                "ivgfiddle.includes.manifestEnabled": {
+                                        "type": "boolean",
+                                        "default": false,
+                                        "description": "Generate synchronized include manifests and asset bundles for IVGFiddle sessions."
                                 },
-                                "ivgfiddle.preview.autoRefresh": {
+                                "ivgfiddle.includes.autoRescan": {
                                         "type": "boolean",
                                         "default": true,
-                                        "description": "Automatically update the IVG Preview panel when IVG documents change."
+                                        "description": "Automatically rebuild include manifests when watched assets change."
                                 },
-                                "ivgfiddle.preview.debounceMs": {
+                                "ivgfiddle.includes.rescanDebounceMs": {
                                         "type": "number",
                                         "default": 150,
                                         "minimum": 0,
-                                        "description": "Delay in milliseconds before automatic IVG Preview refresh when auto refresh is enabled."
+                                        "description": "Delay in milliseconds before rebuilding include manifests after filesystem events."
+                                },
+                                "ivgfiddle.includes.autoRevealExplorer": {
+                                        "type": "boolean",
+                                        "default": true,
+                                        "description": "Automatically focus the Include Assets explorer after a successful manifest rebuild."
                                 }
                         }
                 }
-	},
+        },
 	"scripts": {
 		"compile": "tsc -p .",
 		"watch": "tsc -w -p .",
@@ -124,6 +221,7 @@
 	},
 	"devDependencies": {
 		"@types/vscode": "^1.84.0",
+		"@types/node": "^20.17.10",
 		"typescript": "^5.6.3"
 	}
 }

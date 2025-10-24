@@ -26,6 +26,7 @@
 #include <emscripten/heap.h>
 #endif
 #include <iostream>
+#include <algorithm>
 #include <fstream>
 #include <string>
 #include <istream>
@@ -35,6 +36,7 @@
 #include <cstdint>
 #include <cmath>
 #include <memory>
+#include <vector>
 #include "../src/IVG.h"
 
 using namespace std;
@@ -84,6 +86,7 @@ const int MAX_RASTER_DIMENSION = 16384;
 const long long MAX_RASTER_PIXELS = 67108864LL;
 const size_t VECTOR_HEAP_RESERVE_BYTES = 2 * 1024 * 1024;
 static const char* const SNAPSHOT_SOURCE_PATH = "/ivgfiddle/source.ivg";
+static const char* const INCLUDE_ARCHIVE_ROOT = "/__ivg/includes";
 
 size_t computeFreeHeapBytes();
 
@@ -93,10 +96,58 @@ static const String SNAPSHOT_META_KEY("snapshot-1");
 
 static std::vector<std::string> buildCollectorIncludeDirectories()
 {
-	std::vector<std::string> includeDirs;
-	includeDirs.push_back(".");
-	includeDirs.push_back("/");
-	return includeDirs;
+std::vector<std::string> includeDirs;
+includeDirs.push_back(".");
+includeDirs.push_back(INCLUDE_ARCHIVE_ROOT);
+includeDirs.push_back("/");
+return includeDirs;
+}
+
+static bool normalizeIncludeRelativePath(const std::string& candidate, std::string& output, std::string& errorReason)
+{
+output.clear();
+errorReason.clear();
+std::string sanitized(candidate);
+std::replace(sanitized.begin(), sanitized.end(), '\\', '/');
+std::vector<std::string> segments;
+size_t cursor = 0;
+while (cursor <= sanitized.size()) {
+size_t slash = sanitized.find('/', cursor);
+if (slash == std::string::npos) {
+slash = sanitized.size();
+}
+std::string part = sanitized.substr(cursor, slash - cursor);
+cursor = slash + 1;
+if (part.empty() || part == ".") {
+continue;
+}
+if (part == "..") {
+errorReason = "contains parent directory traversal";
+return false;
+}
+segments.push_back(part);
+}
+if (segments.empty()) {
+errorReason = "resolved to an empty path";
+return false;
+}
+output.clear();
+for (size_t index = 0; index < segments.size(); ++index) {
+if (index > 0) {
+output.append("/");
+}
+output.append(segments[index]);
+}
+return true;
+}
+
+static void logIncludeResolutionFailure(const std::string& includePath, const std::string& reason)
+{
+std::cout << "[IVGFiddle] Include missing: " << includePath;
+if (!reason.empty()) {
+std::cout << " (" << reason << ")";
+}
+std::cout << std::endl;
 }
 
 class SnapshotPlanCache {
@@ -638,22 +689,43 @@ class SnapshotExecutor : public IVGExecutorWithExternalFonts {
                 {
                 }
 
-                bool load(Interpreter& interpreter, const WideString& filename, String& contents)
-                {
-                        const std::string utf8(filename.begin(), filename.end());
-                        if (readFile(resolveRelativePath(utf8), contents)) {
-                                return true;
-                        }
-                        for (size_t i = 0; i < includeDirs.size(); ++i) {
-                                if (readFile(includeDirs[i] + "/" + utf8, contents)) {
-                                        return true;
-                                }
-                        }
-                        if (mode == SnapshotExecutorModeCollect) {
-                                return IVGExecutorWithExternalFonts::load(interpreter, filename, contents);
-                        }
-                        return false;
-                }
+bool load(Interpreter& interpreter, const WideString& filename, String& contents)
+{
+const std::string utf8(filename.begin(), filename.end());
+if (readFile(resolveRelativePath(utf8), contents)) {
+return true;
+}
+std::string normalized;
+std::string normalizationError;
+const bool hasNormalized = normalizeIncludeRelativePath(utf8, normalized, normalizationError);
+if (hasNormalized) {
+const std::string archivePath = std::string(INCLUDE_ARCHIVE_ROOT) + "/" + normalized;
+if (readFile(archivePath, contents)) {
+return true;
+}
+}
+for (size_t i = 0; i < includeDirs.size(); ++i) {
+if (hasNormalized) {
+if (readFile(includeDirs[i] + "/" + normalized, contents)) {
+return true;
+}
+}
+if (readFile(includeDirs[i] + "/" + utf8, contents)) {
+return true;
+}
+}
+if (mode == SnapshotExecutorModeCollect) {
+if (IVGExecutorWithExternalFonts::load(interpreter, filename, contents)) {
+return true;
+}
+}
+if (hasNormalized) {
+logIncludeResolutionFailure(utf8, "not found in synchronized bundle");
+} else {
+logIncludeResolutionFailure(utf8, normalizationError);
+}
+return false;
+}
 
                 bool meta(Interpreter& interpreter, const String& key, const String& arguments)
                 {
