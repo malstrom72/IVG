@@ -123,16 +123,6 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Generate synchronized include manifests and asset bundles for IVGFiddle sessions."
-				},
-				"ivgfiddle.includes.serviceBaseUrl": {
-					"type": "string",
-					"default": "",
-					"description": "Base URL for the include bundle upload service used by IVGFiddle."
-				},
-				"ivgfiddle.includes.serviceAuthToken": {
-					"type": "string",
-					"default": "",
-					"description": "Optional Authorization header value included with include service requests."
 				}
 			}
 		}

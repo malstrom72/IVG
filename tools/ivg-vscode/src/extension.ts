@@ -22,8 +22,6 @@ const INCLUDE_CONFIG_SECTION = "ivgfiddle.includes";
 const INCLUDE_ASSET_GLOB = "**/*.{impd,ivg,ivgfont,png}";
 const TRACE_OUTPUT_CHANNEL_NAME = "IVG Preview Trace";
 const TRACE_SHOW_ACTION = "Show Trace Output";
-const INCLUDE_SERVICE_PRESIGN_PATH = "/include-bundles/presign";
-const INCLUDE_SERVICE_DEFAULT_METHOD = "PUT";
 
 let traceOutputChannel: vscode.OutputChannel | undefined;
 let traceOutputLines: string[] = [];
@@ -39,10 +37,8 @@ interface GeneralConfig {
 }
 
 interface IncludeConfig {
-	watchersEnabled: boolean;
-	manifestEnabled: boolean;
-	serviceBaseUrl?: string;
-	serviceAuthToken?: string;
+watchersEnabled: boolean;
+manifestEnabled: boolean;
 }
 
 let previewConfig: PreviewConfig = readPreviewConfig();
@@ -95,30 +91,11 @@ interface IncludeBundleAssetPayload {
 }
 
 interface IncludeBundleMessage {
-	type: "setIncludeBundle";
-	revision: string;
-	manifest: IncludeManifest;
-	uploadedAt?: string;
-	bundle?: {
-		id?: string;
-		downloadUrl?: string;
-		expiresAt?: string;
-		latencyMs?: number;
-	};
+type: "setIncludeBundle";
+revision: string;
+manifest: IncludeManifest;
+assets: IncludeBundleAssetPayload[];
 }
-
-type IncludeUploadStatus = "idle" | "pending" | "uploading" | "ready" | "error" | "disabled";
-
-interface IncludeUploadTarget {
-	bundleId: string;
-	uploadUrl?: string;
-	downloadUrl?: string;
-	method?: string;
-	headers?: Record<string, string>;
-	expiresAt?: string;
-}
-
-type IncludeUploadScheduleReason = "manifestReady" | "retry" | "configuration";
 
 type IncludeManifestScheduleReason = "activation" | "watcherInitialization" | "watcherEvent" | "configuration" | "chained";
 
@@ -133,19 +110,7 @@ let includeManifestLastError: string | undefined;
 let includeManifestBuildInProgress = false;
 let includeManifestRebuildQueued = false;
 let includeManifestSnapshot: IncludeManifest | undefined;
-let includeBundlePayload: Uint8Array | undefined;
 let latestIncludeBundleMessage: IncludeBundleMessage | undefined;
-
-let includeUploadStatus: IncludeUploadStatus = "idle";
-let includeUploadRevisionId: string | undefined;
-let includeUploadBundleId: string | undefined;
-let includeUploadLastError: string | undefined;
-let includeUploadLastCompletedAt: string | undefined;
-let includeUploadLatencyMs: number | undefined;
-let includeUploadTimer: ReturnType<typeof setTimeout> | undefined;
-let includeUploadInProgress = false;
-let includeUploadQueued = false;
-let includeUploadRetryCount = 0;
 
 const MIME_TYPE_BY_EXTENSION = new Map<string, string>([
 	["impd", "application/json"],
@@ -312,24 +277,24 @@ export function activate(context: vscode.ExtensionContext): void {
 					syncDocument(scheduledDocument, "change");
 				}
 			}
-			if (
-				event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.watchersEnabled`) ||
-				event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.manifestEnabled`) ||
-				event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.serviceBaseUrl`) ||
-				event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.serviceAuthToken`)
-			) {
-				includeConfig = readIncludeConfig();
-				initializeIncludeWatchers(context);
-				if (
-					includeConfig.manifestEnabled &&
-					includeManifestStatus === "ready" &&
-					includeManifestSnapshot &&
-					includeManifestRevisionId
-				) {
-					scheduleIncludeBundleUpload("configuration");
-				}
-				refreshStatusBar();
-			}
+                        if (
+                                event.affectsConfiguration(`${GENERAL_CONFIG_SECTION}.syncOnOpen`) ||
+                                event.affectsConfiguration(`${GENERAL_CONFIG_SECTION}.webviewUpdateDelay`)
+                        ) {
+                                generalConfig = readGeneralConfig();
+                                refreshStatusBar();
+                                if (scheduledDocument && previewConfig.autoRefresh) {
+                                        syncDocument(scheduledDocument, "change");
+                                }
+                        }
+                        if (
+                                event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.watchersEnabled`) ||
+                                event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.manifestEnabled`)
+                        ) {
+                                includeConfig = readIncludeConfig();
+                                initializeIncludeWatchers(context);
+                                refreshStatusBar();
+                        }
 		}),
 	);
 }
@@ -509,6 +474,18 @@ function queueIncludeBundleMessage(message: IncludeBundleMessage): void {
 	postMessageToWebview(message);
 }
 
+function queueEmptyIncludeBundleMessage(reason: string): void {
+	const revision = `empty-${reason}-${Date.now().toString(36)}`;
+	const manifest: IncludeManifest = {
+		version: INCLUDE_MANIFEST_VERSION,
+		revision,
+		generatedAt: new Date().toISOString(),
+		entries: [],
+	};
+	logIncludeTelemetry(`Include bundle cleared (${reason}).`);
+	queueIncludeBundleMessage({ type: "setIncludeBundle", revision, manifest, assets: [] });
+}
+
 function prunePendingIncludeBundleMessages(): void {
 	for (let index = pendingMessages.length - 1; index >= 0; index -= 1) {
 		const entry = pendingMessages[index];
@@ -660,16 +637,13 @@ function getIncludeStatusSummary(): IncludeStatusSummary {
 	if (includeManifestStatus === "error") {
 		const detail = includeManifestLastError ? `: ${includeManifestLastError}` : "";
 		tooltipLines.push(`Include manifest error${detail}`);
-		appendIncludeUploadTooltip(tooltipLines);
-		const label = includeUploadStatus === "error" ? "includes upload error" : "includes error";
 		return {
-			label,
+			label: "includes error",
 			tooltipLines,
 		};
 	}
 	if (includeManifestStatus === "building" || includeManifestStatus === "pending") {
 		tooltipLines.push(`Include manifest status: ${includeManifestStatus}`);
-		appendIncludeUploadTooltip(tooltipLines);
 		return {
 			label: "includes building",
 			tooltipLines,
@@ -685,67 +659,18 @@ function getIncludeStatusSummary(): IncludeStatusSummary {
 		if (includeManifestLastGeneratedAt) {
 			tooltipLines.push(`Include manifest generated at ${includeManifestLastGeneratedAt}`);
 		}
-		appendIncludeUploadTooltip(tooltipLines);
-		let label = includeManifestEntryCount > 0 ? `includes ready (${includeManifestEntryCount})` : "includes ready (empty)";
-		if (includeUploadStatus === "pending") {
-			label = `${label} • upload pending`;
-		} else if (includeUploadStatus === "uploading") {
-			label = `${label} • uploading`;
-		} else if (includeUploadStatus === "ready") {
-			label = `${label} • bundle ready`;
-		} else if (includeUploadStatus === "error") {
-			label = "includes upload error";
-		} else if (includeUploadStatus === "disabled") {
-			label = `${label} • upload disabled`;
-		}
 		return {
-			label,
+			label: includeManifestEntryCount > 0 ? `includes ready (${includeManifestEntryCount})` : "includes ready (empty)",
 			tooltipLines,
 		};
 	}
 	tooltipLines.push("Include manifest idle");
-	appendIncludeUploadTooltip(tooltipLines);
 	return {
 		label: "includes watching",
 		tooltipLines,
 	};
-	function appendIncludeUploadTooltip(target: string[]): void {
-		if (!includeConfig.manifestEnabled) {
-			return;
-		}
-		switch (includeUploadStatus) {
-			case "disabled":
-				target.push("Include bundle upload disabled — configure ivgfiddle.includes.serviceBaseUrl.");
-				return;
-			case "pending":
-				target.push("Include bundle upload pending.");
-				return;
-			case "uploading":
-				target.push("Include bundle upload in progress…");
-				return;
-			case "ready": {
-				const bundleLabel = includeUploadBundleId ? `bundle ${includeUploadBundleId}` : "bundle";
-				const latencyLabel =
-					typeof includeUploadLatencyMs === "number" && includeUploadLatencyMs >= 0 ? ` in ${includeUploadLatencyMs} ms` : "";
-				target.push(`Include bundle uploaded (${bundleLabel}${latencyLabel}).`);
-				if (includeUploadLastCompletedAt) {
-					target.push(`Include bundle uploaded at ${includeUploadLastCompletedAt}.`);
-				}
-				return;
-			}
-			case "error": {
-				const detail = includeUploadLastError ? `: ${includeUploadLastError}` : "";
-				target.push(`Include bundle upload failed${detail}.`);
-				if (includeUploadRetryCount > 0) {
-					target.push(`Include bundle upload retries: ${includeUploadRetryCount}.`);
-				}
-				return;
-			}
-			default:
-				return;
-		}
-	}
 }
+
 
 function hideStatusBar(): void {
 	if (statusBarItem) {
@@ -818,15 +743,9 @@ function readIncludeConfig(): IncludeConfig {
 	const config = vscode.workspace.getConfiguration(INCLUDE_CONFIG_SECTION);
 	const watchersEnabled = config.get<boolean>("watchersEnabled", true);
 	const manifestEnabled = config.get<boolean>("manifestEnabled", false);
-	const configuredBaseUrl = config.get<string>("serviceBaseUrl", "");
-	const configuredAuthToken = config.get<string>("serviceAuthToken", "");
-	const serviceBaseUrl = configuredBaseUrl && configuredBaseUrl.trim().length > 0 ? configuredBaseUrl.trim() : undefined;
-	const serviceAuthToken = configuredAuthToken && configuredAuthToken.trim().length > 0 ? configuredAuthToken.trim() : undefined;
 	return {
 		watchersEnabled,
 		manifestEnabled,
-		serviceBaseUrl,
-		serviceAuthToken,
 	};
 }
 
@@ -840,19 +759,8 @@ function initializeIncludeWatchers(context: vscode.ExtensionContext): void {
 	includeWatcherFolderCount = 0;
 	includeWatcherCandidateFolderCount = 0;
 	includeWatcherUnavailableMessage = undefined;
-	cancelIncludeUploadScheduling();
 	includeManifestSnapshot = undefined;
-	includeBundlePayload = undefined;
 	latestIncludeBundleMessage = undefined;
-	includeUploadStatus = "idle";
-	includeUploadRevisionId = undefined;
-	includeUploadBundleId = undefined;
-	includeUploadLastError = undefined;
-	includeUploadLastCompletedAt = undefined;
-	includeUploadLatencyMs = undefined;
-	includeUploadInProgress = false;
-	includeUploadQueued = false;
-	includeUploadRetryCount = 0;
 	if (!includeConfig.watchersEnabled) {
 		logIncludeTelemetry("Include watchers disabled by configuration.");
 		cancelIncludeManifestScheduling();
@@ -864,6 +772,7 @@ function initializeIncludeWatchers(context: vscode.ExtensionContext): void {
 		includeManifestLastError = undefined;
 		includeManifestBuildInProgress = false;
 		includeManifestRebuildQueued = false;
+		queueEmptyIncludeBundleMessage("watchers-disabled");
 		refreshStatusBar();
 		return;
 	}
@@ -872,6 +781,7 @@ function initializeIncludeWatchers(context: vscode.ExtensionContext): void {
 		logIncludeTelemetry("Include watchers pending workspace folders.");
 		includeWatcherUnavailableMessage = `Open a workspace or folder to enable include watching (pattern: ${INCLUDE_ASSET_GLOB})`;
 		includeManifestStatus = includeConfig.manifestEnabled ? "pending" : "idle";
+		queueEmptyIncludeBundleMessage("watchers-unavailable");
 		refreshStatusBar();
 		return;
 	}
@@ -881,6 +791,7 @@ function initializeIncludeWatchers(context: vscode.ExtensionContext): void {
 		logIncludeTelemetry("Include watchers unavailable for non-file workspace folders.");
 		includeWatcherUnavailableMessage = "Include watchers require file-backed workspace folders.";
 		includeManifestStatus = includeConfig.manifestEnabled ? "pending" : "idle";
+		queueEmptyIncludeBundleMessage("watchers-unavailable");
 		refreshStatusBar();
 		return;
 	}
@@ -908,19 +819,13 @@ function initializeIncludeWatchers(context: vscode.ExtensionContext): void {
 		includeManifestLastError = undefined;
 		includeManifestBuildInProgress = false;
 		includeManifestRebuildQueued = false;
+		queueEmptyIncludeBundleMessage("manifest-disabled");
 		refreshStatusBar();
 		return;
 	}
 	includeManifestStatus = "pending";
-	includeUploadStatus = "pending";
-	includeUploadLastError = undefined;
-	includeUploadBundleId = undefined;
-	includeUploadRevisionId = undefined;
-	includeUploadLastCompletedAt = undefined;
-	includeUploadLatencyMs = undefined;
-	includeUploadRetryCount = 0;
 	refreshStatusBar();
-	scheduleIncludeManifestBuild("watcherInitialization");
+        scheduleIncludeManifestBuild("watcherInitialization");
 }
 
 function disposeIncludeWatchers(): void {
@@ -944,19 +849,9 @@ function disposeIncludeWatchers(): void {
 		delete: 0,
 	};
 	cancelIncludeManifestScheduling();
-	cancelIncludeUploadScheduling();
 	includeManifestSnapshot = undefined;
-	includeBundlePayload = undefined;
-	latestIncludeBundleMessage = undefined;
-	includeUploadStatus = includeConfig.manifestEnabled ? "pending" : "idle";
-	includeUploadRevisionId = undefined;
-	includeUploadBundleId = undefined;
-	includeUploadLastError = undefined;
-	includeUploadLastCompletedAt = undefined;
-	includeUploadLatencyMs = undefined;
-	includeUploadInProgress = false;
-	includeUploadQueued = false;
-	includeUploadRetryCount = 0;
+	queueEmptyIncludeBundleMessage("watchers-disposed");
+        latestIncludeBundleMessage = undefined;
 }
 
 function handleIncludeWatcherEvent(kind: IncludeWatcherEvent, uri: vscode.Uri): void {
@@ -992,13 +887,6 @@ function scheduleIncludeManifestBuild(reason: IncludeManifestScheduleReason): vo
 		return;
 	}
 	includeManifestStatus = "pending";
-	includeUploadStatus = "pending";
-	includeUploadLastError = undefined;
-	includeUploadBundleId = undefined;
-	includeUploadRevisionId = undefined;
-	includeUploadLastCompletedAt = undefined;
-	includeUploadLatencyMs = undefined;
-	includeUploadRetryCount = 0;
 	refreshStatusBar();
 	if (includeManifestTimer) {
 		clearTimeout(includeManifestTimer);
@@ -1056,252 +944,33 @@ async function buildIncludeManifest(reason: IncludeManifestScheduleReason): Prom
 		const revisionId = createIncludeRevisionId(records);
 		const generatedAt = new Date().toISOString();
 		const { manifest } = await persistIncludeRevision(extensionContext, revisionId, records, generatedAt);
+		const assets = createIncludeBundleAssets(records);
+		const serializedBytes = Buffer.byteLength(JSON.stringify({ manifest, assets }), "utf8");
 		includeManifestSnapshot = manifest;
-		includeBundlePayload = createIncludeBundlePayload(manifest, records);
 		includeManifestRevisionId = revisionId;
 		includeManifestEntryCount = records.length;
 		includeManifestTotalBytes = totalBytes;
 		includeManifestLastGeneratedAt = generatedAt;
 		includeManifestStatus = "ready";
-		includeUploadStatus = "pending";
-		includeUploadRevisionId = revisionId;
-		includeUploadBundleId = undefined;
-		includeUploadLastError = undefined;
-		includeUploadLastCompletedAt = undefined;
-		includeUploadLatencyMs = undefined;
-		includeUploadRetryCount = 0;
 		logIncludeTelemetry(
 			`Include manifest ready (${records.length} asset${records.length === 1 ? "" : "s"}, ${totalBytes} byte${totalBytes === 1 ? "" : "s"}, revision ${revisionId}, ${Date.now() - startedAt} ms).`,
 		);
-		if (includeBundlePayload) {
-			logIncludeTelemetry(
-				`Include bundle prepared (${includeBundlePayload.byteLength} byte${includeBundlePayload.byteLength === 1 ? "" : "s"}) for revision ${revisionId}.`,
-			);
-			scheduleIncludeBundleUpload("manifestReady");
-		}
+		logIncludeTelemetry(
+			`Include bundle prepared (${assets.length} asset${assets.length === 1 ? "" : "s"}, ${serializedBytes} serialized byte${serializedBytes === 1 ? "" : "s"}) for revision ${revisionId}.`,
+		);
+		queueIncludeBundleMessage({ type: "setIncludeBundle", revision: revisionId, manifest, assets });
 	} catch (error) {
 		includeManifestStatus = "error";
 		includeManifestLastError = formatError(error);
 		logIncludeTelemetry(`Include manifest rebuild failed: ${includeManifestLastError}`);
 		includeManifestSnapshot = undefined;
-		includeBundlePayload = undefined;
-		includeUploadStatus = "error";
-		includeUploadBundleId = undefined;
-		includeUploadRevisionId = undefined;
-		includeUploadLastError = includeManifestLastError;
-		includeUploadLastCompletedAt = undefined;
-		includeUploadLatencyMs = undefined;
-		includeUploadInProgress = false;
-		includeUploadQueued = false;
-		cancelIncludeUploadScheduling();
+		latestIncludeBundleMessage = undefined;
 	}
 	includeManifestBuildInProgress = false;
 	refreshStatusBar();
 	if (includeManifestRebuildQueued) {
 		includeManifestRebuildQueued = false;
 		scheduleIncludeManifestBuild("chained");
-	}
-}
-
-function scheduleIncludeBundleUpload(reason: IncludeUploadScheduleReason): void {
-	if (!extensionContext || !includeConfig.watchersEnabled || !includeConfig.manifestEnabled) {
-		return;
-	}
-	if (!includeManifestSnapshot || !includeBundlePayload || !includeManifestRevisionId) {
-		logIncludeTelemetry("Include bundle upload skipped: manifest snapshot unavailable.");
-		return;
-	}
-	if (includeUploadInProgress) {
-		includeUploadQueued = true;
-		logIncludeTelemetry(`Include bundle upload queued (reason: ${reason}).`);
-		includeUploadStatus = "uploading";
-		refreshStatusBar();
-		return;
-	}
-	includeUploadStatus = "pending";
-	includeUploadQueued = false;
-	if (includeUploadTimer) {
-		clearTimeout(includeUploadTimer);
-	}
-	includeUploadTimer = setTimeout(
-		() => {
-			includeUploadTimer = undefined;
-			void performIncludeBundleUpload(reason);
-		},
-		Math.max(0, previewConfig.debounceMs),
-	);
-	logIncludeTelemetry(`Include bundle upload scheduled (reason: ${reason}, revision: ${includeManifestRevisionId}).`);
-	refreshStatusBar();
-}
-
-async function performIncludeBundleUpload(reason: IncludeUploadScheduleReason): Promise<void> {
-	if (!extensionContext || !includeConfig.watchersEnabled || !includeConfig.manifestEnabled) {
-		return;
-	}
-	if (!includeManifestSnapshot || !includeBundlePayload || !includeManifestRevisionId) {
-		return;
-	}
-	const baseUrl = includeConfig.serviceBaseUrl;
-	if (!baseUrl) {
-		includeUploadStatus = "disabled";
-		includeUploadLastError = "Configure ivgfiddle.includes.serviceBaseUrl to enable uploads.";
-		includeUploadBundleId = undefined;
-		includeUploadLastCompletedAt = undefined;
-		includeUploadLatencyMs = undefined;
-		logIncludeTelemetry("Include bundle upload disabled — serviceBaseUrl not configured.");
-		queueIncludeBundleMessage({ type: "setIncludeBundle", revision: includeManifestRevisionId, manifest: includeManifestSnapshot });
-		refreshStatusBar();
-		return;
-	}
-	includeUploadInProgress = true;
-	includeUploadQueued = false;
-	includeUploadStatus = "uploading";
-	includeUploadLastError = undefined;
-	refreshStatusBar();
-	const startedAt = Date.now();
-	logIncludeTelemetry(`Include bundle upload started (reason: ${reason}, revision: ${includeManifestRevisionId}).`);
-	try {
-		const target = await requestIncludeUploadTarget(
-			baseUrl,
-			includeManifestSnapshot,
-			includeBundlePayload.byteLength,
-			includeConfig.serviceAuthToken,
-		);
-		if (target.uploadUrl) {
-			await uploadIncludeBundle(target, includeBundlePayload);
-		}
-		includeUploadStatus = "ready";
-		includeUploadBundleId = target.bundleId;
-		includeUploadRevisionId = includeManifestRevisionId;
-		includeUploadLastCompletedAt = new Date().toISOString();
-		includeUploadLatencyMs = Date.now() - startedAt;
-		includeUploadRetryCount = 0;
-		logIncludeTelemetry(`Include bundle upload complete (bundle ${target.bundleId}, ${includeUploadLatencyMs} ms).`);
-		queueIncludeBundleMessage({
-			type: "setIncludeBundle",
-			revision: includeManifestRevisionId,
-			manifest: includeManifestSnapshot,
-			uploadedAt: includeUploadLastCompletedAt,
-			bundle: {
-				id: target.bundleId,
-				downloadUrl: target.downloadUrl ?? target.uploadUrl,
-				expiresAt: target.expiresAt,
-				latencyMs: includeUploadLatencyMs,
-			},
-		});
-	} catch (error) {
-		includeUploadStatus = "error";
-		includeUploadBundleId = undefined;
-		includeUploadLastError = formatError(error);
-		includeUploadLatencyMs = Date.now() - startedAt;
-		includeUploadRetryCount += 1;
-		logIncludeTelemetry(`Include bundle upload failed: ${includeUploadLastError}`);
-	}
-	includeUploadInProgress = false;
-	refreshStatusBar();
-	if (includeUploadQueued) {
-		includeUploadQueued = false;
-		scheduleIncludeBundleUpload("retry");
-	}
-}
-
-async function requestIncludeUploadTarget(
-	baseUrl: string,
-	manifest: IncludeManifest,
-	payloadBytes: number,
-	authToken?: string,
-): Promise<IncludeUploadTarget> {
-	let targetUrl: URL;
-	try {
-		targetUrl = new URL(INCLUDE_SERVICE_PRESIGN_PATH, baseUrl);
-	} catch (error) {
-		throw new Error(`Invalid include service base URL: ${formatError(error)}`);
-	}
-	const headers: Record<string, string> = { "Content-Type": "application/json" };
-	if (authToken) {
-		headers.Authorization = authToken;
-	}
-	const response = await fetch(targetUrl.toString(), {
-		method: "POST",
-		headers,
-		body: JSON.stringify({
-			revision: manifest.revision,
-			manifestVersion: manifest.version,
-			generatedAt: manifest.generatedAt,
-			entryCount: manifest.entries.length,
-			totalBytes: payloadBytes,
-		}),
-	});
-	if (!response.ok) {
-		const responseText = await response.text().catch(() => "");
-		throw new Error(
-			`Include service responded with ${response.status} ${response.statusText}${responseText ? `: ${responseText}` : ""}`,
-		);
-	}
-	const raw = await response.json();
-	return normalizeIncludeUploadTarget(raw);
-}
-
-function normalizeIncludeUploadTarget(raw: unknown): IncludeUploadTarget {
-	if (!raw || typeof raw !== "object") {
-		throw new Error("Include service response missing target details.");
-	}
-	const payload = raw as Record<string, unknown>;
-	const bundleIdValue = payload["bundleId"];
-	const bundleId = typeof bundleIdValue === "string" && bundleIdValue.trim().length > 0 ? bundleIdValue.trim() : undefined;
-	if (!bundleId) {
-		throw new Error("Include service response missing bundleId.");
-	}
-	const uploadUrlValue = payload["uploadUrl"];
-	const downloadUrlValue = payload["downloadUrl"];
-	const methodValue = payload["method"];
-	const headersValue = payload["headers"];
-	const expiresAtValue = payload["expiresAt"];
-	const uploadUrl = typeof uploadUrlValue === "string" && uploadUrlValue.trim().length > 0 ? uploadUrlValue : undefined;
-	const downloadUrl = typeof downloadUrlValue === "string" && downloadUrlValue.trim().length > 0 ? downloadUrlValue : undefined;
-	const method = typeof methodValue === "string" && methodValue.trim().length > 0 ? methodValue.toUpperCase() : undefined;
-	let headers: Record<string, string> | undefined;
-	if (headersValue && typeof headersValue === "object") {
-		headers = {};
-		for (const [key, value] of Object.entries(headersValue as Record<string, unknown>)) {
-			if (typeof value === "string") {
-				headers[key] = value;
-			}
-		}
-		if (Object.keys(headers).length === 0) {
-			headers = undefined;
-		}
-	}
-	const expiresAt = typeof expiresAtValue === "string" && expiresAtValue.trim().length > 0 ? expiresAtValue : undefined;
-	return {
-		bundleId,
-		uploadUrl,
-		downloadUrl,
-		method,
-		headers,
-		expiresAt,
-	};
-}
-
-async function uploadIncludeBundle(target: IncludeUploadTarget, payload: Uint8Array): Promise<void> {
-	if (!target.uploadUrl) {
-		return;
-	}
-	const method = target.method && target.method.trim().length > 0 ? target.method : INCLUDE_SERVICE_DEFAULT_METHOD;
-	const headers: Record<string, string> = target.headers ? { ...target.headers } : {};
-	if (!headers["Content-Type"]) {
-		headers["Content-Type"] = "application/json";
-	}
-	const response = await fetch(target.uploadUrl, {
-		method,
-		headers,
-		body: Buffer.from(payload),
-	});
-	if (!response.ok) {
-		const responseText = await response.text().catch(() => "");
-		throw new Error(
-			`Failed to upload include bundle (${response.status} ${response.statusText}${responseText ? `: ${responseText}` : ""})`,
-		);
 	}
 }
 
@@ -1333,15 +1002,13 @@ function createIncludeRevisionId(records: IncludeManifestBuildItem[]): string {
 	return `rev-${timestamp}-${digest}`;
 }
 
-function createIncludeBundlePayload(manifest: IncludeManifest, records: IncludeManifestBuildItem[]): Uint8Array {
-	const assets: IncludeBundleAssetPayload[] = records.map((record) => ({
+function createIncludeBundleAssets(records: IncludeManifestBuildItem[]): IncludeBundleAssetPayload[] {
+	return records.map((record) => ({
 		path: record.relativePath,
 		checksum: record.entry.checksum,
 		mimeType: record.entry.mimeType,
 		data: Buffer.from(record.content).toString("base64"),
 	}));
-	const payload = { manifest, assets };
-	return Buffer.from(JSON.stringify(payload), "utf8");
 }
 
 async function persistIncludeRevision(
@@ -1397,13 +1064,6 @@ function cancelIncludeManifestScheduling(): void {
 	includeManifestRebuildQueued = false;
 }
 
-function cancelIncludeUploadScheduling(): void {
-	if (includeUploadTimer) {
-		clearTimeout(includeUploadTimer);
-		includeUploadTimer = undefined;
-	}
-	includeUploadQueued = false;
-}
 
 function formatError(error: unknown): string {
 	if (error instanceof Error && error.message) {

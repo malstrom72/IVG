@@ -27,17 +27,16 @@ Each milestone finishes with a verification run: execute the targeted checks lis
 - [x] Disable manifests: return to settings, uncheck **IVGFiddle › Includes: Manifest Enabled**, and verify the status bar suffix switches back to `includes watching` (or `includes watching (+N)` once events arrive) while the tooltip notes "Include manifest disabled".
 - [x] Verify preview responsiveness: with manifests disabled, edit the same include files again and confirm the IVG preview refreshes immediately after each save (no prolonged `includes building` state) while the status bar continues to show watcher activity counts incrementing.
 
-## Milestone 3 – Upload handshake and messaging
+## Milestone 3 – Webview bundle messaging
 
 - [x] Define the `{ type: 'setIncludeBundle' }` payload contract shared by extension and webview.
-- [x] Implement REST client helpers for requesting presigned URLs or bundle IDs.
-- [x] Integrate bundle upload scheduling with `queueMessage` / `postMessageToWebview` throttle logic.
-- [x] Extend trace/status handling to record upload success, retries, and latency.
-- [x] Run milestone smoke tests (`npm run compile`, `npm run lint`, `node tools/ivgfiddle/testIVGFiddle.js`, targeted backend API unit tests, `timeout 600 ./build.sh`).
+- [x] Serialize include assets into base64 `assets` entries and queue the payload once a manifest build completes.
+- [x] Update status bar and trace messaging to report bundle readiness without referencing external upload states.
+- [x] Run milestone smoke tests (`npm run compile`, `npm run lint`, `node tools/ivgfiddle/testIVGFiddle.js`, `timeout 600 ./build.sh`).
 - [ ] VS Code user acceptance:
-    - Configure **IVGFiddle › Includes: Service Base Url** with a staging endpoint (or a placeholder such as `https://example.invalid` for a dry run) and enable manifest generation and uploads.
-    - Edit multiple include files to watch the status bar transition through `includes building`, `includes ready • upload pending`, and `includes ready • bundle ready`, confirming the tooltip reports upload latency and bundle IDs.
-    - Clear the service URL to confirm the status shifts to `upload disabled` while preview updates still arrive immediately.
+    - Preparation: open an IVG project with include-eligible assets and enable **IVGFiddle › Includes: Manifest Enabled**.
+    - Trigger edits across different include files and watch the status bar progress from `includes building` to `includes ready (...)`, confirming the tooltip lists the manifest revision and asset counts.
+    - Leave the manifest toggle on, reopen the preview, and verify the view loads immediately with the synchronized assets (for example, includes resolving new colors or sprites) without configuring any upload service.
 
 ## Milestone 4 – Editor UX contributions
 
@@ -57,20 +56,10 @@ Each milestone finishes with a verification run: execute the targeted checks lis
 - [ ] Run milestone smoke tests (`npm run compile`, `npm run lint`, `node tools/ivgfiddle/testIVGFiddle.js`, browser-based include resolution checks, `timeout 600 ./build.sh`).
 - [ ] VS Code user acceptance: run a preview session, change an include, and verify the browser preview reloads with the new content while older sessions warn about stale bundles.
 
-## Milestone 6 – Backend enablement
-
-- [ ] Design API surface for issuing presigned upload URLs and retrieving bundle manifests.
-- [ ] Implement storage persistence with retention policies and project scoping.
-- [ ] Add authentication/authorization checks to protect include assets.
-- [ ] Provide integration tests covering upload, download, and manifest retrieval flows.
-- [ ] Run milestone smoke tests (backend unit/integration suite, load tests for bundle uploads, `timeout 600 ./build.sh`).
-- [ ] VS Code user acceptance: using a staging backend, upload a new include via the extension and confirm the asset appears in server-side logs/audit tools with the correct project scope.
-
-## Milestone 7 – Build, testing, and rollout
+## Milestone 6 – Build, testing, and rollout
 
 - [ ] Extend automated tests for the VS Code extension (unit/integration) to cover watchers, manifest churn, and messaging.
 - [ ] Add webview/runtime tests verifying bundle mounting, cache invalidation, and include resolution.
-- [ ] Integrate backend endpoint tests into CI to prevent regressions.
 - [ ] Create a dogfood rollout plan with staged feature flags and rollback procedures.
 - [ ] Update documentation and changelog entries summarizing the include-sync system.
 - [ ] Run milestone smoke tests (full automation battery below plus `timeout 600 ./build.sh`).
@@ -81,5 +70,5 @@ Each milestone finishes with a verification run: execute the targeted checks lis
 - [ ] VS Code extension TypeScript compilation: `cd tools/ivg-vscode && npm install && npm run compile && cd -`.
 - [ ] VS Code extension linting pass: `cd tools/ivg-vscode && npm run lint && cd -`.
 - [ ] Webview/runtime smoke tests: `node tools/ivgfiddle/testIVGFiddle.js` (optionally point to the built output directory).
-- [ ] Backend API verification: execute the backend unit and integration test suite appropriate for the deployment target, including presigned URL issuance and bundle persistence cases.
+- [ ] Preview bundle verification: with manifests enabled, confirm the status bar reaches `includes ready (...)` and the preview reflects recent include edits.
 - [ ] Full repository verification: `timeout 600 ./build.sh`.
