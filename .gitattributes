@@ -1,6 +1,27 @@
 # Mark generated files from IVG Fiddle build as linguist-generated
 /tools/ivgfiddle/output/** linguist-generated=true
-/tools/ivgfiddle/src/rasterizeIVG.js linguist-generated=true
+/tools/ivgfiddle/output/*.js text
+/tools/ivgfiddle/src/rasterizeIVG.js text linguist-generated=true
+
+# Treat Codex task documents and synchronized include metadata as text
+/\.gitattributes text
+/codex-task-file-inventory.md text
+/tools/ivgfiddle/*.md text
+
+# Ensure VS Code extension sources and manifests are diffable text
+/tools/ivg-vscode/src/*.ts text
+/tools/ivg-vscode/dist/*.js text
+/tools/ivg-vscode/media/*.js text
+/tools/ivg-vscode/package.json text
+/tools/ivg-vscode/package-lock.json text
+/tools/ivg-vscode/node_modules/.package-lock.json text
+/tools/ivg-vscode/tsconfig.json text
+
+# Mark IVGFiddle tooling scripts and sources as text
+/tools/ivgfiddle/buildIVGFiddle.cmd text
+/tools/ivgfiddle/buildIVGFiddle.sh text
+/tools/ivgfiddle/src/*.js text
+/tools/ivgfiddle/src/*.cpp text
 
 # Ensure IVG files are treated as text for diffs
 *.ivg text

@@ -60,13 +60,13 @@ Each milestone finishes with a verification run: execute the targeted checks lis
 - [x] Implement cache invalidation to swap bundles atomically between preview runs.
 - [x] Add user-facing error messages when includes fail to mount or resolve.
 - [x] Run milestone smoke tests (`npm run compile`, `npm run lint`, `node tools/ivgfiddle/testIVGFiddle.js`, browser-based include resolution checks, `timeout 600 ./build.sh`).
-- [ ] VS Code user acceptance:
-- [ ] Preparation: open an IVG workspace with include assets, enable **IVGFiddle › Includes: Watchers Enabled** and **Manifest Enabled**, and make sure the preview is visible.
-- [ ] With the manifest toggle enabled, save changes to one of the include files and watch the status bar shift through `includes building` → `includes ready (...)` while the trace output logs `Include bundle revision … mounted (...)` for the new revision.
-- [ ] Close or hide the preview panel, edit another include, and note the status/trace message `Renderer not ready; include bundle revision … will mount when the preview reconnects.` Reopen the preview to confirm it mounts the cached bundle immediately and the rendered output reflects the change.
-- [ ] Introduce a temporary typo in an include path and confirm the preview shows the `[IVGFiddle] Include missing: …` warning in the trace plus a status-bar warning, then fix the typo and verify the warning disappears after the bundle rebuilds.
-- [ ] Include a synchronized `.ivgfont` through `INCLUDE` in an IVG document and verify the preview renders text with the external glyphs while the status bar remains in the ready state.
-- [ ] Reference a synchronized `.png` asset via `IMAGE` and confirm it rasterizes correctly in both the VS Code preview and the standalone IVGFiddle runtime.
+- [x] VS Code user acceptance:
+- [x] Preparation: open an IVG workspace with include assets, enable **IVGFiddle › Includes: Watchers Enabled** and **Manifest Enabled**, and make sure the preview is visible.
+- [x] With the manifest toggle enabled, save changes to one of the include files and watch the status bar shift through `includes building` → `includes ready (...)` while the trace output logs `Include bundle revision … mounted (...)` for the new revision.
+- [x] Close or hide the preview panel, edit another include, and note the status/trace message `Renderer not ready; include bundle revision … will mount when the preview reconnects.` Reopen the preview to confirm it mounts the cached bundle immediately and the rendered output reflects the change.
+- [x] Introduce a temporary typo in an include path and confirm the preview shows the `[IVGFiddle] Include missing: …` warning in the trace plus a status-bar warning, then fix the typo and verify the warning disappears after the bundle rebuilds.
+- [x] Include a synchronized `.ivgfont` through `INCLUDE` in an IVG document and verify the preview renders text with the external glyphs while the status bar remains in the ready state.
+- [x] Reference a synchronized `.png` asset via `IMAGE` and confirm it rasterizes correctly in both the VS Code preview and the standalone IVGFiddle runtime.
 
 ## Milestone 6 – Build, testing, and rollout
 

@@ -52,6 +52,7 @@ using namespace NuXPixels;
 namespace {
 bool resolveIncludeAssetPath(const std::string& requested, std::string& resolvedPath);
 bool decodePngIntoRaster(const std::string& path, SelfContainedRaster<ARGB32>& target, std::string& errorMessage);
+bool normalizeIncludeRelativePath(const std::string& candidate, std::string& output, std::string& errorReason);
 void logIncludeResolutionFailure(const std::string& includePath, const std::string& reason);
 }
 
