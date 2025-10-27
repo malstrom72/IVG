@@ -26,6 +26,7 @@
 #include <emscripten/heap.h>
 #endif
 #include <iostream>
+#include <algorithm>
 #include <fstream>
 #include <string>
 #include <istream>
@@ -35,12 +36,25 @@
 #include <cstdint>
 #include <cmath>
 #include <memory>
+#include <vector>
+#include <cstdio>
+#include <map>
+#include <stdexcept>
+#include <png.h>
+#include <zlib.h>
 #include "../src/IVG.h"
 
 using namespace std;
 using namespace IVG;
 using namespace IMPD;
 using namespace NuXPixels;
+
+namespace {
+bool resolveIncludeAssetPath(const std::string& requested, std::string& resolvedPath);
+bool decodePngIntoRaster(const std::string& path, SelfContainedRaster<ARGB32>& target, std::string& errorMessage);
+bool normalizeIncludeRelativePath(const std::string& candidate, std::string& output, std::string& errorReason);
+void logIncludeResolutionFailure(const std::string& includePath, const std::string& reason);
+}
 
 class IVGExecutorWithExternalFonts : public IVGExecutor {
 	public:
@@ -51,32 +65,77 @@ class IVGExecutorWithExternalFonts : public IVGExecutor {
 				, const UniString& forString) {
 			(void)interpreter;
 			(void)forString;
-			std::pair< FontMap::iterator, bool > insertResult = loadedFonts.insert(std::make_pair(fontName, Font()));
-			if (insertResult.second) {
-				const std::string fontName8Bit(fontName.begin(), fontName.end());
-				String fontCode;
-				{
-					std::ifstream fileStream((fontName8Bit + ".ivgfont").c_str());
-					if (!fileStream.good()) {
-						return std::vector<const Font*>();
-					}
-					fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-					const std::istreambuf_iterator<Char> it(fileStream);
-					const std::istreambuf_iterator<Char> end;
-					fontCode = std::string(it, end);
-				}
-				FontParser fontParser;
-				STLMapVariables vars;
-				FormatInfo formatInfo;
-				Interpreter impd(fontParser, vars, formatInfo);
-				impd.run(fontCode);
-				insertResult.first->second = fontParser.finalizeFont();
-			}
-			return std::vector<const Font*>(1, &insertResult.first->second);
-		}
-		
-	protected:
-		FontMap loadedFonts;
+                        std::pair< FontMap::iterator, bool > insertResult = loadedFonts.insert(std::make_pair(fontName, Font()));
+                        if (insertResult.second) {
+                                const std::string fontName8Bit(fontName.begin(), fontName.end());
+                                String fontCode;
+                                {
+                                        const std::string requested = fontName8Bit + ".ivgfont";
+                                        std::string resolved;
+                                        if (!resolveIncludeAssetPath(requested, resolved)) {
+                                                logIncludeResolutionFailure(requested, "font asset not found");
+                                                return std::vector<const Font*>();
+                                        }
+                                        std::ifstream fileStream(resolved.c_str());
+                                        if (!fileStream.good()) {
+                                                logIncludeResolutionFailure(requested, "unable to open font asset");
+                                                return std::vector<const Font*>();
+                                        }
+                                        fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+                                        const std::istreambuf_iterator<Char> it(fileStream);
+                                        const std::istreambuf_iterator<Char> end;
+                                        fontCode = std::string(it, end);
+                                }
+                                FontParser fontParser;
+                                STLMapVariables vars;
+                                FormatInfo formatInfo;
+                                Interpreter impd(fontParser, vars, formatInfo);
+                                impd.run(fontCode);
+                                insertResult.first->second = fontParser.finalizeFont();
+                        }
+                        return std::vector<const Font*>(1, &insertResult.first->second);
+                }
+
+                virtual Image loadImage(Interpreter& interpreter, const WideString& imageSource
+                                , const IntRect* sourceRectangle, bool forStretching, double forXSize, bool xSizeIsRelative
+                                , double forYSize, bool ySizeIsRelative) {
+                        (void)interpreter;
+                        (void)sourceRectangle;
+                        (void)forStretching;
+                        (void)forXSize;
+                        (void)xSizeIsRelative;
+                        (void)forYSize;
+                        (void)ySizeIsRelative;
+
+                        const std::string imageName(imageSource.begin(), imageSource.end());
+                        std::string resolved;
+                        if (!resolveIncludeAssetPath(imageName, resolved)) {
+                                logIncludeResolutionFailure(imageName, "image asset not found");
+                                return Image();
+                        }
+
+                        SelfContainedRaster<ARGB32>& raster = loadedImages[resolved];
+                        std::string decodeError;
+                        if (!decodePngIntoRaster(resolved, raster, decodeError)) {
+                                if (!decodeError.empty()) {
+                                        logIncludeResolutionFailure(imageName, decodeError);
+                                } else {
+                                        logIncludeResolutionFailure(imageName, "failed to decode image asset");
+                                }
+                                loadedImages.erase(resolved);
+                                return Image();
+                        }
+
+                        Image img;
+                        img.raster = &raster;
+                        img.xResolution = 1.0;
+                        img.yResolution = 1.0;
+                        return img;
+                }
+
+        protected:
+                FontMap loadedFonts;
+                std::map<std::string, SelfContainedRaster<ARGB32> > loadedImages;
 };
 
 namespace {
@@ -84,6 +143,7 @@ const int MAX_RASTER_DIMENSION = 16384;
 const long long MAX_RASTER_PIXELS = 67108864LL;
 const size_t VECTOR_HEAP_RESERVE_BYTES = 2 * 1024 * 1024;
 static const char* const SNAPSHOT_SOURCE_PATH = "/ivgfiddle/source.ivg";
+static const char* const INCLUDE_ARCHIVE_ROOT = "/__ivg/includes";
 
 size_t computeFreeHeapBytes();
 
@@ -93,10 +153,195 @@ static const String SNAPSHOT_META_KEY("snapshot-1");
 
 static std::vector<std::string> buildCollectorIncludeDirectories()
 {
-	std::vector<std::string> includeDirs;
-	includeDirs.push_back(".");
-	includeDirs.push_back("/");
-	return includeDirs;
+std::vector<std::string> includeDirs;
+includeDirs.push_back(".");
+includeDirs.push_back(INCLUDE_ARCHIVE_ROOT);
+includeDirs.push_back("/");
+return includeDirs;
+}
+
+static void appendUniqueCandidate(std::vector<std::string>& candidates, const std::string& candidate)
+{
+if (candidate.empty()) {
+return;
+}
+for (size_t index = 0; index < candidates.size(); ++index) {
+if (candidates[index] == candidate) {
+return;
+}
+}
+candidates.push_back(candidate);
+}
+
+static bool resolveIncludeAssetPath(const std::string& requested, std::string& resolvedPath)
+{
+resolvedPath.clear();
+if (requested.empty()) {
+return false;
+}
+
+std::vector<std::string> candidates;
+appendUniqueCandidate(candidates, requested);
+
+std::string normalized;
+std::string normalizationError;
+const bool hasNormalized = normalizeIncludeRelativePath(requested, normalized, normalizationError);
+
+if (hasNormalized) {
+appendUniqueCandidate(candidates, std::string(INCLUDE_ARCHIVE_ROOT) + "/" + normalized);
+appendUniqueCandidate(candidates, normalized);
+const std::vector<std::string> includeDirs = buildCollectorIncludeDirectories();
+for (size_t index = 0; index < includeDirs.size(); ++index) {
+const std::string& dir = includeDirs[index];
+if (dir.empty() || dir == ".") {
+appendUniqueCandidate(candidates, normalized);
+continue;
+}
+if (dir == "/") {
+appendUniqueCandidate(candidates, std::string("/") + normalized);
+continue;
+}
+if (!dir.empty() && dir[dir.size() - 1] == '/') {
+appendUniqueCandidate(candidates, dir + normalized);
+} else {
+appendUniqueCandidate(candidates, dir + "/" + normalized);
+}
+}
+}
+
+for (size_t index = 0; index < candidates.size(); ++index) {
+const std::string& candidate = candidates[index];
+std::ifstream stream(candidate.c_str(), std::ios::binary);
+if (stream.good()) {
+resolvedPath = candidate;
+return true;
+}
+}
+
+return false;
+}
+
+static bool isLittleEndian()
+{
+static const unsigned char bytes[4] = { 0x4A, 0x3B, 0x2C, 0x1D };
+return (*reinterpret_cast<const unsigned int*>(bytes) == 0x1D2C3B4A);
+}
+
+static void PNGAPI ivgPngError(png_structp png_ptr, png_const_charp error_msg)
+{
+(void)png_ptr;
+const char* message = (error_msg ? error_msg : "Unknown PNG error");
+throw std::runtime_error(message);
+}
+
+static bool decodePngIntoRaster(const std::string& path, SelfContainedRaster<ARGB32>& target, std::string& errorMessage)
+{
+errorMessage.clear();
+FILE* file = fopen(path.c_str(), "rb");
+if (file == 0) {
+errorMessage = "unable to open image asset";
+return false;
+}
+
+png_structp png_ptr = 0;
+png_infop info_ptr = 0;
+bool success = false;
+try {
+png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, ivgPngError, 0);
+if (png_ptr == 0) {
+throw std::runtime_error("could not initialize PNG reader");
+}
+info_ptr = png_create_info_struct(png_ptr);
+if (info_ptr == 0) {
+throw std::runtime_error("could not initialize PNG info");
+}
+png_init_io(png_ptr, file);
+png_set_add_alpha(png_ptr, 0xFF, PNG_FILLER_AFTER);
+if (isLittleEndian()) {
+png_set_bgr(png_ptr);
+} else {
+png_set_swap_alpha(png_ptr);
+}
+png_read_png(png_ptr, info_ptr, PNG_TRANSFORM_EXPAND, 0);
+png_uint_32 width = png_get_image_width(png_ptr, info_ptr);
+png_uint_32 height = png_get_image_height(png_ptr, info_ptr);
+png_bytep* rows = png_get_rows(png_ptr, info_ptr);
+target = SelfContainedRaster<ARGB32>(IntRect(0, 0, static_cast<int>(width), static_cast<int>(height)));
+for (png_uint_32 y = 0; y < height; ++y) {
+ARGB32::Pixel* dest = target.getPixelPointer() + y * target.getStride();
+png_bytep src = rows[y];
+for (png_uint_32 x = 0; x < width; ++x) {
+unsigned int b = src[x * 4 + 0];
+unsigned int g = src[x * 4 + 1];
+unsigned int r = src[x * 4 + 2];
+unsigned int a = src[x * 4 + 3];
+if (a != 0xFF) {
+r = (r * a + 0x7F) >> 8;
+g = (g * a + 0x7F) >> 8;
+b = (b * a + 0x7F) >> 8;
+}
+dest[x] = (a << 24) | (r << 16) | (g << 8) | b;
+}
+}
+success = true;
+} catch (const std::exception& ex) {
+errorMessage = ex.what();
+} catch (...) {
+errorMessage = "unknown PNG decoding error";
+}
+
+if (png_ptr != 0 || info_ptr != 0) {
+png_destroy_read_struct(&png_ptr, (info_ptr != 0 ? &info_ptr : 0), 0);
+}
+fclose(file);
+return success;
+}
+
+static bool normalizeIncludeRelativePath(const std::string& candidate, std::string& output, std::string& errorReason)
+{
+output.clear();
+errorReason.clear();
+std::string sanitized(candidate);
+std::replace(sanitized.begin(), sanitized.end(), '\\', '/');
+std::vector<std::string> segments;
+size_t cursor = 0;
+while (cursor <= sanitized.size()) {
+size_t slash = sanitized.find('/', cursor);
+if (slash == std::string::npos) {
+slash = sanitized.size();
+}
+std::string part = sanitized.substr(cursor, slash - cursor);
+cursor = slash + 1;
+if (part.empty() || part == ".") {
+continue;
+}
+if (part == "..") {
+errorReason = "contains parent directory traversal";
+return false;
+}
+segments.push_back(part);
+}
+if (segments.empty()) {
+errorReason = "resolved to an empty path";
+return false;
+}
+output.clear();
+for (size_t index = 0; index < segments.size(); ++index) {
+if (index > 0) {
+output.append("/");
+}
+output.append(segments[index]);
+}
+return true;
+}
+
+void logIncludeResolutionFailure(const std::string& includePath, const std::string& reason)
+{
+std::cout << "[IVGFiddle] Include missing: " << includePath;
+if (!reason.empty()) {
+std::cout << " (" << reason << ")";
+}
+std::cout << std::endl;
 }
 
 class SnapshotPlanCache {
@@ -638,22 +883,43 @@ class SnapshotExecutor : public IVGExecutorWithExternalFonts {
                 {
                 }
 
-                bool load(Interpreter& interpreter, const WideString& filename, String& contents)
-                {
-                        const std::string utf8(filename.begin(), filename.end());
-                        if (readFile(resolveRelativePath(utf8), contents)) {
-                                return true;
-                        }
-                        for (size_t i = 0; i < includeDirs.size(); ++i) {
-                                if (readFile(includeDirs[i] + "/" + utf8, contents)) {
-                                        return true;
-                                }
-                        }
-                        if (mode == SnapshotExecutorModeCollect) {
-                                return IVGExecutorWithExternalFonts::load(interpreter, filename, contents);
-                        }
-                        return false;
-                }
+bool load(Interpreter& interpreter, const WideString& filename, String& contents)
+{
+const std::string utf8(filename.begin(), filename.end());
+if (readFile(resolveRelativePath(utf8), contents)) {
+return true;
+}
+std::string normalized;
+std::string normalizationError;
+const bool hasNormalized = normalizeIncludeRelativePath(utf8, normalized, normalizationError);
+if (hasNormalized) {
+const std::string archivePath = std::string(INCLUDE_ARCHIVE_ROOT) + "/" + normalized;
+if (readFile(archivePath, contents)) {
+return true;
+}
+}
+for (size_t i = 0; i < includeDirs.size(); ++i) {
+if (hasNormalized) {
+if (readFile(includeDirs[i] + "/" + normalized, contents)) {
+return true;
+}
+}
+if (readFile(includeDirs[i] + "/" + utf8, contents)) {
+return true;
+}
+}
+if (mode == SnapshotExecutorModeCollect) {
+if (IVGExecutorWithExternalFonts::load(interpreter, filename, contents)) {
+return true;
+}
+}
+if (hasNormalized) {
+logIncludeResolutionFailure(utf8, "not found in synchronized bundle");
+} else {
+logIncludeResolutionFailure(utf8, normalizationError);
+}
+return false;
+}
 
                 bool meta(Interpreter& interpreter, const String& key, const String& arguments)
                 {
