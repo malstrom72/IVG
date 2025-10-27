@@ -124,7 +124,7 @@ interface IncludeExplorerMessageEntry {
 
 type IncludeExplorerEntry = IncludeExplorerAssetEntry | IncludeExplorerMessageEntry;
 
-type IncludeManifestScheduleReason = "activation" | "watcherInitialization" | "watcherEvent" | "configuration" | "chained" | "manual";
+type IncludeManifestScheduleReason = "activation" | "watcherInitialization" | "watcherEvent" | "configuration" | "chained" | "manual" | "traceMissing";
 
 let extensionContext: vscode.ExtensionContext | undefined;
 let includeManifestTimer: ReturnType<typeof setTimeout> | undefined;
@@ -145,6 +145,7 @@ let includeExplorerView: vscode.TreeView<IncludeExplorerEntry> | undefined;
 let includeExplorerLastAutoRevealRevision: string | undefined;
 
 let includeStatusBarItem: vscode.StatusBarItem | undefined;
+const includeMissingRescanPaths = new Set<string>();
 
 const MIME_TYPE_BY_EXTENSION = new Map<string, string>([
 	["impd", "application/json"],
@@ -1149,6 +1150,7 @@ async function handleRescanIncludesCommand(): Promise<void> {
 		return;
 	}
 	logIncludeTelemetry("Manual include manifest rescan requested.");
+	includeMissingRescanPaths.clear();
 	scheduleIncludeManifestBuild("manual");
 	vscode.window.setStatusBarMessage("Rescanning include assets…", 2000);
 }
@@ -1248,6 +1250,7 @@ function initializeIncludeWatchers(context: vscode.ExtensionContext): void {
 	latestIncludeBundleMessage = undefined;
 	includeManifestManualRefreshRequired = false;
 	includeExplorerLastAutoRevealRevision = undefined;
+	includeMissingRescanPaths.clear();
 	if (!includeConfig.watchersEnabled) {
 		logIncludeTelemetry("Include watchers disabled by configuration.");
 		cancelIncludeManifestScheduling();
@@ -1346,6 +1349,7 @@ function disposeIncludeWatchers(): void {
 	latestIncludeBundleMessage = undefined;
 	includeManifestManualRefreshRequired = false;
 	includeExplorerLastAutoRevealRevision = undefined;
+	includeMissingRescanPaths.clear();
 	refreshIncludeSurfaces();
 }
 
@@ -1357,6 +1361,7 @@ function handleIncludeWatcherEvent(kind: IncludeWatcherEvent, uri: vscode.Uri): 
 	);
 	refreshStatusBar();
 	scheduleIncludeRefresh();
+	includeMissingRescanPaths.clear();
 	if (includeConfig.manifestEnabled) {
 		scheduleIncludeManifestBuild("watcherEvent");
 	}
@@ -1375,7 +1380,8 @@ function scheduleIncludeManifestBuild(reason: IncludeManifestScheduleReason): vo
 	if (!extensionContext || !includeConfig.watchersEnabled || !includeConfig.manifestEnabled) {
 		return;
 	}
-	if (reason === "watcherEvent" && !includeConfig.autoRescan) {
+	const autoRescanBlocked = reason === "watcherEvent" || reason === "traceMissing";
+	if (autoRescanBlocked && !includeConfig.autoRescan) {
 		if (!includeManifestManualRefreshRequired) {
 			logIncludeTelemetry("Include manifest pending manual rescan (auto rescan disabled).");
 		}
@@ -1685,6 +1691,23 @@ function clearTransientStatusMessage(): void {
 	}
 }
 
+function handleIncludeMissingTraceLine(line: string): void {
+	if (!includeConfig.watchersEnabled || !includeConfig.manifestEnabled) {
+		return;
+	}
+	if (typeof line !== "string" || !line.startsWith("[IVGFiddle] Include missing:")) {
+		return;
+	}
+	const match = line.match(/^\[IVGFiddle\] Include missing:\s*(.+?)(?:\s+\(|$)/);
+	const includePath = match && match[1] ? match[1].trim() : "";
+	if (!includePath || includeMissingRescanPaths.has(includePath)) {
+		return;
+	}
+	includeMissingRescanPaths.add(includePath);
+	logIncludeTelemetry(`Include missing trace detected for ${includePath}; scheduling manifest rebuild.`);
+	scheduleIncludeManifestBuild("traceMissing");
+}
+
 function processTraceMessage(raw: unknown): void {
 	if (!raw || (typeof raw !== "object" && typeof raw !== "function")) {
 		return;
@@ -1705,11 +1728,13 @@ function processTraceMessage(raw: unknown): void {
 	}
 	if (action === "append") {
 		if (typeof payload.text === "string") {
+			handleIncludeMissingTraceLine(payload.text);
 			appendTraceOutputLine(payload.text);
 		}
 		return;
 	}
 	if (action === "replace" && typeof payload.text === "string") {
+		handleIncludeMissingTraceLine(payload.text);
 		replaceLastTraceOutputLine(payload.text);
 	}
 }
