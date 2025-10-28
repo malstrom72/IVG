@@ -1,0 +1,19 @@
+bounds 0,0,280,520
+scale 0.25
+wipe red
+offset 0,-200
+drawOne = context [
+	pen white
+	path svg:[m182 311 275 164c26 15 42 43 42 74v311l0.0,-311c0-31 16-59 42-74l274-165-270 162a87 87 0 0 1-90 0L182 311Z]
+	offset 80,0
+	pen black
+	path svg:[m182 311 275 164c26 15 42 43 42 74v311l0.0001,-311c0-31 16-59 42-74l274-165-270 162a87 87 0 0 1-90 0L182 311Z]
+]
+pen width:30 joints:bevel
+$drawOne
+offset 0,600
+pen joints:curve
+$drawOne
+offset 0,600
+pen joints:miter miter-limit:10
+$drawOne
