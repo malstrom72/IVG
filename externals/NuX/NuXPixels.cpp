@@ -663,7 +663,32 @@ static void strokeOneSide(Path& stroked, double direction, const StrokeSegment* 
 	*/
 	if ((bx0 - ax1) * bdx < (ay1 - by0) * bdy + EPSILON * 2) {
 		// --- Inner joint ---
-		double d = (bdx * ady - adx * bdy);					// determinant of direction matrix
+		const double d = bdx * ady - adx * bdy;					// determinant of direction matrix
+		const double dot = adx * bdx + ady * bdy;
+		
+		// --- Special case: virtually collinear but opposite directions ---
+		if (fabs(d) < EPSILON && dot <= -1.0 + EPSILON) {
+			switch (joints) {
+				case Path::MITER: {
+					double limit = maxValue(miterLimitW, -minValue(al, bl));
+					stroked.lineTo(ax1 - adx * limit, ay1 - ady * limit);
+					stroked.lineTo(bx0 + bdx * limit, by0 + bdy * limit);
+					break;
+				}
+				case Path::BEVEL: {
+					stroked.lineTo(ax1, ay1);
+					stroked.lineTo(bx0, by0);
+					break;
+				}
+				case Path::CURVE: {
+					strokeRounded(stroked, ax1, ay1, bx0, by0, -adx, -ady, rx, ry);
+					break;
+				}
+				default: assert(0);
+			}
+			return;
+		}
+		
 		double v = 0.0;										// param along segment A
 		double w = 0.0;										// param along segment B
 		if (fabs(d) >= EPSILON) {
