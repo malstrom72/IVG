@@ -41,6 +41,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <iterator>
 #include <locale>
 #include <map>
+#include <set>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -913,13 +914,15 @@ struct CommandLineOptions {
 	bool verbose;
 	bool exitOnFirstFailure;
 	bool recursive;
+	bool goldenAudit;
 	uint32_t threads;
 	std::vector<std::string> ivgPaths;
 
 	CommandLineOptions()
 		: rootDir(NuXFiles::Path::getCurrentDirectoryPath()),
 		  forceUpdate(false), listOnly(false), verbose(false),
-		  exitOnFirstFailure(false), recursive(false), threads(0) {}
+		  exitOnFirstFailure(false), recursive(false), goldenAudit(true),
+		  threads(0) {}
 };
 
 static std::string stringFromIMPD(const String &value) {
@@ -995,7 +998,7 @@ static std::string extractDirectory(const std::string &path) {
 }
 
 static std::string joinPath(const std::string &base,
-							const std::string &component) {
+								const std::string &component) {
 	if (base.empty()) {
 		return component;
 	}
@@ -1007,6 +1010,32 @@ static std::string joinPath(const std::string &base,
 		return base + component;
 	}
 	return base + "/" + component;
+}
+
+// Returns true if there exists any golden PNG matching
+// the source tag for this IVG (regardless of scenario label).
+// Pattern: <snapshot-root>/<snapshotBase>__*.png
+static bool hasAnyGoldensForSource(const std::string &ivgPath,
+										 const std::string &snapshotBase,
+										 const CommandLineOptions &options) {
+	const std::string root =
+		(options.snapshotDir.empty() ? extractDirectory(ivgPath)
+									   : options.snapshotDir);
+
+	if (root.empty() || snapshotBase.empty()) {
+		return false;
+	}
+
+	const std::string wildcard =
+		joinPath(root, snapshotBase + std::string("__*.png"));
+
+	try {
+		std::vector<NuXFiles::Path> matches;
+		NuXFiles::Path::findPaths(matches, pathStringToWide(wildcard));
+		return !matches.empty();
+	} catch (...) {
+		return false;
+	}
 }
 
 static std::string sanitizeFileComponent(const std::string &name) {
@@ -1489,7 +1518,20 @@ static void printSummaryLine(const std::string &label, const std::string &value)
 	std::cout << line.str() << std::endl;
 }
 
-static void logFileReport(const std::string &path, const SnapshotRunResult &run) {
+static void logFileReport(const std::string &path, const SnapshotRunResult &run,
+						  const CommandLineOptions &options) {
+	const bool showDetails = (options.verbose || options.listOnly);
+
+	// In concise mode, suppress noise for ignored and fully passing files.
+	if (!showDetails) {
+		if (run.ignored) {
+			return;
+		}
+		if (!run.fileFailed && run.failedEntries == 0 && run.updatedEntries == 0) {
+			return;
+		}
+	}
+
 	std::cout << "# " << path << std::endl << std::endl;
 	if (run.ignored) {
 		std::string message("Ignored");
@@ -1503,50 +1545,89 @@ static void logFileReport(const std::string &path, const SnapshotRunResult &run)
 		std::cout << std::endl;
 		return;
 	}
-	bool printedSection = false;
-	if (!run.entries.empty()) {
-		std::string previousScenario;
-		bool firstScenario = true;
-		bool firstEntry = true;
-		for (size_t i = 0; i < run.entries.size(); ++i) {
-			const SnapshotEntryResult &entry = run.entries[i];
-			const std::string scenarioName =
-			(entry.scenarioName.empty() ? "(unnamed)" : entry.scenarioName);
-			if (firstScenario || scenarioName != previousScenario) {
-				if (!firstScenario) {
+
+    if (options.verbose || options.listOnly) {
+		bool printedSection = false;
+		if (!run.entries.empty()) {
+			std::string previousScenario;
+			bool firstScenario = true;
+			bool firstEntry = true;
+			for (size_t i = 0; i < run.entries.size(); ++i) {
+				const SnapshotEntryResult &entry = run.entries[i];
+				const std::string scenarioName =
+					(entry.scenarioName.empty() ? "(unnamed)" : entry.scenarioName);
+				if (firstScenario || scenarioName != previousScenario) {
+					if (!firstScenario) {
+						std::cout << std::endl;
+					}
+					std::cout << "Scenario: " << scenarioName << std::endl;
+					previousScenario = scenarioName;
+					firstScenario = false;
+					firstEntry = true;
+				}
+				if (!firstEntry) {
 					std::cout << std::endl;
 				}
-				std::cout << "Scenario: " << scenarioName << std::endl;
-				previousScenario = scenarioName;
-				firstScenario = false;
-				firstEntry = true;
+				printEntryReport(entry);
+				firstEntry = false;
 			}
-			if (!firstEntry) {
-				std::cout << std::endl;
-			}
-			printEntryReport(entry);
-			firstEntry = false;
+			printedSection = true;
 		}
-		printedSection = true;
+		if (run.entries.empty() && run.fileFailed && !run.fileError.empty()) {
+			printDetailLines("Error", formatErrorMessage(run.fileError));
+			printedSection = true;
+		}
+		if (printedSection) {
+			std::cout << std::endl;
+		}
+	} else {
+		// Concise mode: only show file-level failures and per-entry failures.
+		bool anyPrinted = false;
+		if (run.fileFailed && !run.fileError.empty()) {
+			std::cout << "Error: " << run.fileError << std::endl;
+			anyPrinted = true;
+		}
+		for (size_t i = 0; i < run.entries.size(); ++i) {
+			const SnapshotEntryResult &entry = run.entries[i];
+			if (entry.success) {
+				continue;
+			}
+			const std::string scenarioName =
+				(entry.scenarioName.empty() ? "(unnamed)" : entry.scenarioName);
+			std::cout << "FAIL: scenario \"" << scenarioName << "\" entry "
+					  << entry.entryOrdinal << " (block " << entry.blockIndex << ")";
+			if (!entry.message.empty()) {
+				std::cout << ": " << entry.message;
+			}
+			std::cout << std::endl;
+			anyPrinted = true;
+		}
+		if (anyPrinted) {
+			std::cout << std::endl;
+		}
 	}
-	if (run.entries.empty() && run.fileFailed && !run.fileError.empty()) {
-		printDetailLines("Error", formatErrorMessage(run.fileError));
-		printedSection = true;
-	}
-	if (printedSection) {
+
+	if (showDetails) {
+		std::cout << "Summary" << std::endl;
+		std::ostringstream snapshotLine;
+		snapshotLine << run.totalEntries << " total (" << run.validatedEntries
+				 << " validated)";
+		printSummaryLine("Snapshots", snapshotLine.str());
+		printSummaryLine("Updated", Interpreter::toString(static_cast<int32_t>(run.updatedEntries)));
+		std::ostringstream failedLine;
+		failedLine << run.failedEntries << " snapshots (diff failures: "
+				 << run.diffFailures << ')';
+		printSummaryLine("Failed", failedLine.str());
 		std::cout << std::endl;
 	}
-	std::cout << "Summary" << std::endl;
-	std::ostringstream snapshotLine;
-	snapshotLine << run.totalEntries << " total (" << run.validatedEntries
-			 << " validated)";
-	printSummaryLine("Snapshots", snapshotLine.str());
-	printSummaryLine("Updated", Interpreter::toString(static_cast<int32_t>(run.updatedEntries)));
-	std::ostringstream failedLine;
-	failedLine << run.failedEntries << " snapshots (diff failures: "
-			 << run.diffFailures << ')';
-	printSummaryLine("Failed", failedLine.str());
-	std::cout << std::endl;
+}
+
+// Backwards-compatible overload used by internal tests and any
+// existing callers expecting the verbose, detailed report format.
+static void logFileReport(const std::string &path, const SnapshotRunResult &run) {
+	CommandLineOptions opts;
+	opts.verbose = true;
+	logFileReport(path, run, opts);
 }
 
 static void logTotalsSummary(const SnapshotTotals &totals) {
@@ -2533,7 +2614,9 @@ static void printUsage(const char *program) {
 			  << std::endl;
 	std::cout << "\t--verbose\t\tPrint verbose diagnostics." << std::endl;
 	std::cout << "\t--exit-on-first-failure\tAbort after first failure."
-			  << std::endl;
+				  << std::endl;
+	std::cout << "\t--no-golden-audit\tDisable orphan golden PNG audit."
+				  << std::endl;
 	std::cout << "\t--help\t\t\tShow this message." << std::endl;
 }
 static bool parseUnsigned(const std::string &text, uint32_t &value) {
@@ -2616,17 +2699,19 @@ static bool parseCommandLine(int argc, char **argv,
 			}
 			options.threads = threads;
 			++i;
-		} else if (arg == "--list-only") {
-			options.listOnly = true;
-		} else if (arg == "--verbose") {
-			options.verbose = true;
-		} else if (arg == "--exit-on-first-failure") {
-			options.exitOnFirstFailure = true;
-		} else if (!arg.empty() && arg[0] == '-') {
-			std::cerr << "unrecognized option: " << arg << std::endl;
-			return false;
-		} else {
-			options.ivgPaths.push_back(arg);
+			} else if (arg == "--list-only") {
+				options.listOnly = true;
+			} else if (arg == "--verbose") {
+				options.verbose = true;
+			} else if (arg == "--exit-on-first-failure") {
+				options.exitOnFirstFailure = true;
+			} else if (arg == "--no-golden-audit") {
+				options.goldenAudit = false;
+			} else if (!arg.empty() && arg[0] == '-') {
+				std::cerr << "unrecognized option: " << arg << std::endl;
+				return false;
+			} else {
+				options.ivgPaths.push_back(arg);
 		}
 	}
 
@@ -2703,28 +2788,31 @@ static void printScenarioListing(const std::string &path,
 }
 
 static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
-										const std::string &path) {
-	SnapshotRunResult run;
-	CachedDocument document;
-	if (!document.loadFromFile(path)) {
-		run.fileFailed = true;
-		run.exitCode = 1;
-		run.fileError = "failed to read IVG file";
-		std::cerr << "failed to read IVG file: " << path << std::endl;
-		return run;
-	}
+											const std::string &path) {
+		SnapshotRunResult run;
+		CachedDocument document;
+    if (!document.loadFromFile(path)) {
+        run.fileFailed = true;
+        run.exitCode = 1;
+        run.fileError = "failed to read IVG file";
+        if (options.verbose) {
+            std::cerr << "failed to read IVG file: " << path << std::endl;
+        }
+        return run;
+    }
 
 	const String &source = document.getSource();
-	const FormatDetectionResult formatDetection = detectSnapshotFormat(source);
-	if (formatDetection.determined && !formatDetection.supportsSnapshot) {
-		run.ignored = true;
-		run.ignoreReason = "format missing uses:snapshot-1";
-		return run;
-	}
-	const std::string snapshotBase = buildSnapshotSourceTag(path, options.rootDir);
-	SharedResources sharedResources;
-	SnapshotRoundCoordinator coordinator;
-	SnapshotProgress &progress = coordinator.accessProgress();
+		const FormatDetectionResult formatDetection = detectSnapshotFormat(source);
+		if (formatDetection.determined && !formatDetection.supportsSnapshot) {
+			run.ignored = true;
+			run.ignoreReason = "format missing uses:snapshot-1";
+			return run;
+		}
+		const std::string snapshotBase = buildSnapshotSourceTag(path, options.rootDir);
+		const bool goldensExist = hasAnyGoldensForSource(path, snapshotBase, options);
+		SharedResources sharedResources;
+		SnapshotRoundCoordinator coordinator;
+		SnapshotProgress &progress = coordinator.accessProgress();
 
 	if (options.verbose) {
 		std::cout << path << ": include dirs:";
@@ -2781,14 +2869,36 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 			executionError = e.what();
 		}
 
-		if (!round.hasPinned) {
-			if (executionFailed) {
-				std::cerr << path << ": " << executionError
-				          << " (ignored: no snapshots executed)." << std::endl;
-			}
-			coordinator.completeRound(round);
-			break;
-		}
+            if (!round.hasPinned) {
+                // If the format declares snapshot support, or if goldens already exist
+                // for this source, then a failure before any snapshot meta executes
+                // should be treated as a hard error (not ignored).
+                if (formatDetection.supportsSnapshot || goldensExist) {
+                    run.fileFailed = true;
+                    run.exitCode = 1;
+                    if (executionFailed) {
+                        run.fileError = executionError;
+                        if (options.verbose) {
+                            std::cerr << path << ": " << executionError << std::endl;
+                        }
+                    } else {
+                        run.fileError = "no snapshots executed";
+                        if (options.verbose) {
+                            std::cerr << path << ": expected snapshots but none executed." << std::endl;
+                        }
+                    }
+                    coordinator.completeRound(round);
+                    break;
+                }
+
+                // Otherwise keep current behavior: ignore files with no snapshots executed.
+                if (executionFailed && options.verbose) {
+                    std::cerr << path << ": " << executionError
+                              << " (ignored: no snapshots executed)." << std::endl;
+                }
+                coordinator.completeRound(round);
+                break;
+            }
 
 		SnapshotEntryResult result;
 		result.ivgPath = path;
@@ -2813,23 +2923,29 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 			run.fileFailed = true;
 			run.exitCode = 1;
 			run.fileError = executionError;
-			std::cerr << path << ": scenario " << result.scenarioName
-			                  << ": " << result.message << std::endl;
+				if (options.verbose) {
+					std::cerr << path << ": scenario " << result.scenarioName
+					                  << ": " << result.message << std::endl;
+				}
 		} else {
 			NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> *raster =
 					canvas.accessRaster();
 			if (!executor.finished()) {
 				result.message = "did not execute all snapshot invocations";
 				result.success = false;
-				std::cerr << path << ": scenario " << result.scenarioName
-				                  << " did not execute all snapshot invocations."
-				                  << std::endl;
-			} else if (raster == 0) {
-				result.message = "rendered image is empty";
-				result.success = false;
-				std::cerr << path << ": scenario " << result.scenarioName
-				                  << " produced no raster output." << std::endl;
-			} else if (options.listOnly) {
+					if (options.verbose) {
+						std::cerr << path << ": scenario " << result.scenarioName
+						                  << " did not execute all snapshot invocations."
+						                  << std::endl;
+					}
+                } else if (raster == 0) {
+                    result.message = "rendered image is empty";
+                    result.success = false;
+                    if (options.verbose) {
+                        std::cerr << path << ": scenario " << result.scenarioName
+                                      << " produced no raster output." << std::endl;
+                    }
+                } else if (options.listOnly) {
 				result.rendered = false;
 				result.skipped = true;
 				result.success = true;
@@ -2838,22 +2954,26 @@ result.rendered = true;
 SnapshotGolden golden(path, snapshotBase, effectiveLabel,
 options);
 				if (!round.validate) {
-					if (!golden.writeDraft(*raster, result)) {
-						if (result.message.empty()) {
-							result.message = "failed to write draft";
-						}
-						std::cerr << path << ": scenario "
-						                  << result.scenarioName << ": "
-						                  << result.message << std::endl;
-					}
-				} else if (!golden.validate(*raster, options.forceUpdate, result)) {
-					if (result.message.empty()) {
-						result.message = "validation failed";
-					}
-					std::cerr << path << ": scenario " << result.scenarioName
-					                  << ": " << result.message << std::endl;
-				}
-			}
+                        if (!golden.writeDraft(*raster, result)) {
+                            if (result.message.empty()) {
+                                result.message = "failed to write draft";
+                            }
+                            if (options.verbose) {
+                                std::cerr << path << ": scenario "
+                                                  << result.scenarioName << ": "
+                                                  << result.message << std::endl;
+                            }
+                        }
+                    } else if (!golden.validate(*raster, options.forceUpdate, result)) {
+                        if (result.message.empty()) {
+                            result.message = "validation failed";
+                        }
+                        if (options.verbose) {
+                            std::cerr << path << ": scenario " << result.scenarioName
+                                              << ": " << result.message << std::endl;
+                        }
+                    }
+                }
 		}
 
 		if (!result.success) {
@@ -2985,30 +3105,36 @@ int main(int argc, char **argv) {
 						(run.exitCode != 0 || run.fileFailed)) {
 					shouldStop = true;
 				}
-			} catch (Exception &e) {
-				std::ostringstream message;
-				message << path << ": " << e.getError();
-				if (e.hasStatement()) {
-					message << " near \"" << e.getStatement() << "\"";
-				}
-				run.fileFailed = true;
-				run.exitCode = 1;
-				run.fileError = message.str();
-				std::cerr << message.str() << std::endl;
-				shouldStop = options.exitOnFirstFailure;
-			} catch (std::exception &e) {
-				run.fileFailed = true;
-				run.exitCode = 1;
-				run.fileError = e.what();
-				std::cerr << path << ": " << e.what() << std::endl;
-				shouldStop = options.exitOnFirstFailure;
-			} catch (...) {
-				run.fileFailed = true;
-				run.exitCode = 1;
-				run.fileError = "unknown exception";
-				std::cerr << path << ": unknown exception" << std::endl;
-				shouldStop = options.exitOnFirstFailure;
-			}
+                } catch (Exception &e) {
+                    std::ostringstream message;
+                    message << path << ": " << e.getError();
+                    if (e.hasStatement()) {
+                        message << " near \"" << e.getStatement() << "\"";
+                    }
+                    run.fileFailed = true;
+                    run.exitCode = 1;
+                    run.fileError = message.str();
+                    if (options.verbose) {
+                        std::cerr << message.str() << std::endl;
+                    }
+                    shouldStop = options.exitOnFirstFailure;
+                } catch (std::exception &e) {
+                    run.fileFailed = true;
+                    run.exitCode = 1;
+                    run.fileError = e.what();
+                    if (options.verbose) {
+                        std::cerr << path << ": " << e.what() << std::endl;
+                    }
+                    shouldStop = options.exitOnFirstFailure;
+                } catch (...) {
+                    run.fileFailed = true;
+                    run.exitCode = 1;
+                    run.fileError = "unknown exception";
+                    if (options.verbose) {
+                        std::cerr << path << ": unknown exception" << std::endl;
+                    }
+                    shouldStop = options.exitOnFirstFailure;
+                }
 
 			runs[fileIndex] = run;
 			processed[fileIndex] = 1;
@@ -3034,27 +3160,87 @@ int main(int argc, char **argv) {
 				static_cast<int>(threadCount));
 	}
 
-	for (size_t i = 0; i < fileCount; ++i) {
-		if (!processed[i]) {
-			continue;
-		}
+		for (size_t i = 0; i < fileCount; ++i) {
+			if (!processed[i]) {
+				continue;
+			}
 
 		const std::string &path = options.ivgPaths[i];
 		SnapshotRunResult &run = runs[i];
 		totals.accumulate(run);
-		logFileReport(path, run);
-		if (run.exitCode != 0 || run.fileFailed) {
-			if (exitCode == 0) {
-				exitCode = (run.exitCode != 0 ? run.exitCode : 1);
-			}
-			if (options.exitOnFirstFailure) {
-				break;
+			logFileReport(path, run, options);
+			if (run.exitCode != 0 || run.fileFailed) {
+				if (exitCode == 0) {
+					exitCode = (run.exitCode != 0 ? run.exitCode : 1);
+				}
+				if (options.exitOnFirstFailure) {
+					break;
+				}
 			}
 		}
-	}
 
-        logTotalsSummary(totals);
-        return exitCode;
+		// Global golden audit: ensure that any golden PNG present under the
+		// snapshot directories correspond to at least one IVG source included
+		// in this run (by matching the sanitized snapshot base).
+		if (!options.listOnly && options.goldenAudit) {
+			std::set<std::string> processedBases;
+			processedBases.clear();
+			for (size_t i = 0; i < options.ivgPaths.size(); ++i) {
+				const std::string &ivgPath = options.ivgPaths[i];
+				processedBases.insert(buildSnapshotSourceTag(ivgPath, options.rootDir));
+			}
+
+			std::set<std::string> auditRoots;
+			if (!options.snapshotDir.empty()) {
+				auditRoots.insert(options.snapshotDir);
+			} else {
+				for (size_t i = 0; i < options.ivgPaths.size(); ++i) {
+					auditRoots.insert(extractDirectory(options.ivgPaths[i]));
+				}
+			}
+
+			std::vector<std::string> orphanGoldens;
+			for (std::set<std::string>::const_iterator it = auditRoots.begin();
+				 it != auditRoots.end(); ++it) {
+				const std::string &root = *it;
+				if (root.empty()) {
+					continue;
+				}
+				const std::string wildcard = joinPath(root, std::string("*__*.png"));
+				try {
+					std::vector<NuXFiles::Path> matches;
+					NuXFiles::Path::findPaths(matches, pathStringToWide(wildcard));
+					for (size_t k = 0; k < matches.size(); ++k) {
+						const NuXFiles::Path &p = matches[k];
+						const std::wstring name = p.getName(); // without extension
+						std::string narrow = pathStringFromWide(name);
+						const size_t sep = narrow.find("__");
+						if (sep == std::string::npos) {
+							continue;
+						}
+						const std::string base = narrow.substr(0, sep);
+						if (processedBases.find(base) == processedBases.end()) {
+							orphanGoldens.push_back(pathStringFromWide(p.getFullPath()));
+						}
+					}
+				} catch (...) {
+					// Ignore listing errors; best-effort audit only.
+				}
+			}
+
+			if (!orphanGoldens.empty()) {
+				for (size_t i = 0; i < orphanGoldens.size(); ++i) {
+					std::cerr << "orphan golden PNG without IVG in run: "
+					          << orphanGoldens[i] << std::endl;
+				}
+				if (exitCode == 0) {
+					exitCode = 1;
+				}
+			}
+		}
+
+	        logTotalsSummary(totals);
+	        return exitCode;
 }
 
 #endif // !defined(IVG_SNAPSHOT_TESTING)
