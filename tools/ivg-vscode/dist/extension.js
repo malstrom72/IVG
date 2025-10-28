@@ -94,6 +94,7 @@ let includeExplorerProvider;
 let includeExplorerView;
 let includeExplorerLastAutoRevealRevision;
 let includeStatusBarItem;
+const includeMissingRescanPaths = new Set();
 const MIME_TYPE_BY_EXTENSION = new Map([
     ["impd", "application/json"],
     ["ivg", "application/xml"],
@@ -996,6 +997,7 @@ async function handleRescanIncludesCommand() {
         return;
     }
     logIncludeTelemetry("Manual include manifest rescan requested.");
+    includeMissingRescanPaths.clear();
     scheduleIncludeManifestBuild("manual");
     vscode.window.setStatusBarMessage("Rescanning include assets…", 2000);
 }
@@ -1085,6 +1087,7 @@ function initializeIncludeWatchers(context) {
     latestIncludeBundleMessage = undefined;
     includeManifestManualRefreshRequired = false;
     includeExplorerLastAutoRevealRevision = undefined;
+    includeMissingRescanPaths.clear();
     if (!includeConfig.watchersEnabled) {
         logIncludeTelemetry("Include watchers disabled by configuration.");
         cancelIncludeManifestScheduling();
@@ -1176,6 +1179,7 @@ function disposeIncludeWatchers() {
     latestIncludeBundleMessage = undefined;
     includeManifestManualRefreshRequired = false;
     includeExplorerLastAutoRevealRevision = undefined;
+    includeMissingRescanPaths.clear();
     refreshIncludeSurfaces();
 }
 function handleIncludeWatcherEvent(kind, uri) {
@@ -1184,6 +1188,7 @@ function handleIncludeWatcherEvent(kind, uri) {
     logIncludeTelemetry(`Include asset ${kind} detected at ${relativePath} (events: create=${includeWatcherEventCounts.create}, change=${includeWatcherEventCounts.change}, delete=${includeWatcherEventCounts.delete}).`);
     refreshStatusBar();
     scheduleIncludeRefresh();
+    includeMissingRescanPaths.clear();
     if (includeConfig.manifestEnabled) {
         scheduleIncludeManifestBuild("watcherEvent");
     }
@@ -1200,7 +1205,8 @@ function scheduleIncludeManifestBuild(reason) {
     if (!extensionContext || !includeConfig.watchersEnabled || !includeConfig.manifestEnabled) {
         return;
     }
-    if (reason === "watcherEvent" && !includeConfig.autoRescan) {
+    const autoRescanBlocked = reason === "watcherEvent" || reason === "traceMissing";
+    if (autoRescanBlocked && !includeConfig.autoRescan) {
         if (!includeManifestManualRefreshRequired) {
             logIncludeTelemetry("Include manifest pending manual rescan (auto rescan disabled).");
         }
@@ -1493,6 +1499,22 @@ function clearTransientStatusMessage() {
         transientStatusMessage = undefined;
     }
 }
+function handleIncludeMissingTraceLine(line) {
+    if (!includeConfig.watchersEnabled || !includeConfig.manifestEnabled) {
+        return;
+    }
+    if (typeof line !== "string" || !line.startsWith("[IVGFiddle] Include missing:")) {
+        return;
+    }
+    const match = line.match(/^\[IVGFiddle\] Include missing:\s*(.+?)(?:\s+\(|$)/);
+    const includePath = match && match[1] ? match[1].trim() : "";
+    if (!includePath || includeMissingRescanPaths.has(includePath)) {
+        return;
+    }
+    includeMissingRescanPaths.add(includePath);
+    logIncludeTelemetry(`Include missing trace detected for ${includePath}; scheduling manifest rebuild.`);
+    scheduleIncludeManifestBuild("traceMissing");
+}
 function processTraceMessage(raw) {
     if (!raw || (typeof raw !== "object" && typeof raw !== "function")) {
         return;
@@ -1513,11 +1535,13 @@ function processTraceMessage(raw) {
     }
     if (action === "append") {
         if (typeof payload.text === "string") {
+            handleIncludeMissingTraceLine(payload.text);
             appendTraceOutputLine(payload.text);
         }
         return;
     }
     if (action === "replace" && typeof payload.text === "string") {
+        handleIncludeMissingTraceLine(payload.text);
         replaceLastTraceOutputLine(payload.text);
     }
 }
