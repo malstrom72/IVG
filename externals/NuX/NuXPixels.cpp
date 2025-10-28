@@ -681,33 +681,39 @@ static void strokeEnd(Path& stroked, double direction, const StrokeSegment* seg,
 **/
 static void strokeOneSide(Path& stroked, double direction, const StrokeSegment* segA, const StrokeSegment* segB
 		, Path::JointStyle joints, double miterLimitW, double rx, double ry) {
-	int o = (direction >= 0) ? 0 : 1;		// select start/end index depending on traversal direction
+	int o = (direction >= 0) ? 0 : 1;			// select start/end index depending on traversal direction
 	
-	double al = segA[0].l;					// length of A measured in stroke widths
-	double adx = segA[0].d.x * direction;	// normalized delta for segment A
+	double al = segA[0].l;						// length of A measured in stroke widths
+	double adx = segA[0].d.x * direction;		// normalized delta for segment A
 	double ady = segA[0].d.y * direction;
-	double ax0 = segA[o].v.x + ady;			// offset point A at start of join
+	double ax0 = segA[o].v.x + ady;				// offset point A at start of join
 	double ay0 = segA[o].v.y - adx;
-	double ax1 = segA[1 - o].v.x + ady;		// offset point A at end of join
+	double ax1 = segA[1 - o].v.x + ady;			// offset point A at end of join
 	double ay1 = segA[1 - o].v.y - adx;
-	double bl = segB[0].l;					// length of B in stroke widths
-	double bdx = segB[0].d.x * direction;	// normalized delta for segment B
+	double bl = segB[0].l;						// length of B in stroke widths
+	double bdx = segB[0].d.x * direction;		// normalized delta for segment B
 	double bdy = segB[0].d.y * direction;
-	double bx0 = segB[o].v.x + bdy;			// offset point B at start of join
+	double bx0 = segB[o].v.x + bdy;				// offset point B at start of join
 	double by0 = segB[o].v.y - bdx;
+	const double cross = bdx * ady - adx * bdy;	// determinant of direction vectors
+	const double dot = adx * bdx + ady * bdy;	// dot product of direction vectors
+	const bool zeroCross = (fabs(cross) < EPSILON);
 
 	/*
 		Inner joint if B is inside half-plane of A (or if A and B are virtually
-		collinear, which is checked by adding EPSILON * 2).
+		collinear, which is checked by adding EPSILON * 2), unless they are
+		virtually collinear but opposite directions.
 	*/
-	if ((bx0 - ax1) * bdx < (ay1 - by0) * bdy + EPSILON * 2) {
+	const bool insideHalfPlane = (bx0 - ax1) * bdx < (ay1 - by0) * bdy + EPSILON * 2;
+	const bool oppositeDirs = zeroCross && dot <= -1.0 + EPSILON;
+	if (insideHalfPlane && !oppositeDirs) {
 		// --- Inner joint ---
-		double d = (bdx * ady - adx * bdy);					// determinant of direction matrix
+		
 		double v = 0.0;										// param along segment A
 		double w = 0.0;										// param along segment B
-		if (fabs(d) >= EPSILON) {
-			v = (bdy * (ax0 - bx0) - bdx * (ay0 - by0)) / d;
-			w = (ady * (ax0 - bx0) - adx * (ay0 - by0)) / d;
+		if (!zeroCross) {
+			v = (bdy * (ax0 - bx0) - bdx * (ay0 - by0)) / cross;
+			w = (ady * (ax0 - bx0) - adx * (ay0 - by0)) / cross;
 		}
 		if (v >= 0.0 && v <= al && w >= 0.0 && w <= bl) {	// Do the offset lines cross before segment ends?
 			stroked.lineTo(ax0 + adx * v, ay0 + ady * v);
@@ -720,27 +726,28 @@ static void strokeOneSide(Path& stroked, double direction, const StrokeSegment* 
 		// --- Outer joint ---
 		switch (joints) {
 			case Path::MITER: {
-				double d = (bdx * ady - adx * bdy);			// same determinant as above
-				double w = (fabs(d) >= EPSILON) ? (ady * (ax0 - bx0) - adx * (ay0 - by0)) / d : 0.0;	// param along B
-				if (w > miterLimitW) {						// Intersection within miter limit?
-					stroked.lineTo(bx0 + bdx * w, by0 + bdy * w);
-				} else {									// Clip to miter limit
-					stroked.lineTo(ax1 - adx * miterLimitW, ay1 - ady * miterLimitW);
-					stroked.lineTo(bx0 + bdx * miterLimitW, by0 + bdy * miterLimitW);
+				if (!zeroCross) {
+					const double w = (ady * (ax0 - bx0) - adx * (ay0 - by0)) / cross;	// param along B
+					if (w > miterLimitW) {	// Intersection within miter limit?
+						stroked.lineTo(bx0 + bdx * w, by0 + bdy * w);
+						break;
+					} 
 				}
+				stroked.lineTo(ax1 - adx * miterLimitW, ay1 - ady * miterLimitW);	// Clip to miter limit
+				stroked.lineTo(bx0 + bdx * miterLimitW, by0 + bdy * miterLimitW);
+				break;
 			}
-			break;
 			
 			case Path::BEVEL: {
 				stroked.lineTo(ax1, ay1);
 				stroked.lineTo(bx0, by0);
+				break;
 			}
-			break;
 			
 			case Path::CURVE: {
 				strokeRounded(stroked, ax1, ay1, bx0, by0, bdx, bdy, rx, ry);
+				break;
 			}
-			break;
 			
 			default: assert(0);
 		}
