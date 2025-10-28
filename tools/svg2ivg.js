@@ -1615,6 +1615,8 @@ converters.text = function (element, attribs) {
 				}
 				if (seg.attribs.strokeJoin) {
 					opts += ` joints:${seg.attribs.strokeJoin}`;
+				} else {
+					opts += " joints:miter";
 				}
 				if (seg.attribs.strokeCap) {
 					opts += ` caps:${seg.attribs.strokeCap}`;

@@ -2,6 +2,6 @@ format IVG-3 requires:IMPD-1
 bounds 0,0,120,50
 fill black
 pen miter-limit:4
-font serif size:30 color:yellow outline:[black width:2]
+font serif size:30 color:yellow outline:[black width:2 joints:miter]
 TEXT at:60,35 anchor:center "Hi"
 

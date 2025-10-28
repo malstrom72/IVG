@@ -252,7 +252,7 @@ class FontParser : public IMPD::Executor {
 	Holds font name and painting settings for drawing text.
 **/
 class TextStyle {
-	public:		TextStyle() : size(20.0), letterSpacing(0.0) { }
+	public:		TextStyle() : size(20.0), letterSpacing(0.0) { outline.joints = NuXPixels::Path::CURVE; }
 	public:		IMPD::WideString fontName;
 	public:		Paint fill;
 	public:		Stroke outline;
