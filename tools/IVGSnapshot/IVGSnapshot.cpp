@@ -2795,7 +2795,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
         run.fileFailed = true;
         run.exitCode = 1;
         run.fileError = "failed to read IVG file";
-        if (options.verbose) {
+        if (options.verbose || options.listOnly) {
             std::cerr << "failed to read IVG file: " << path << std::endl;
         }
         return run;
@@ -2878,12 +2878,12 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
                     run.exitCode = 1;
                     if (executionFailed) {
                         run.fileError = executionError;
-                        if (options.verbose) {
+                        if (options.verbose || options.listOnly) {
                             std::cerr << path << ": " << executionError << std::endl;
                         }
                     } else {
                         run.fileError = "no snapshots executed";
-                        if (options.verbose) {
+                        if (options.verbose || options.listOnly) {
                             std::cerr << path << ": expected snapshots but none executed." << std::endl;
                         }
                     }
@@ -2892,7 +2892,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
                 }
 
                 // Otherwise keep current behavior: ignore files with no snapshots executed.
-                if (executionFailed && options.verbose) {
+                if (executionFailed && (options.verbose || options.listOnly)) {
                     std::cerr << path << ": " << executionError
                               << " (ignored: no snapshots executed)." << std::endl;
                 }
@@ -2923,7 +2923,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 			run.fileFailed = true;
 			run.exitCode = 1;
 			run.fileError = executionError;
-				if (options.verbose) {
+				if (options.verbose || options.listOnly) {
 					std::cerr << path << ": scenario " << result.scenarioName
 					                  << ": " << result.message << std::endl;
 				}
@@ -2933,7 +2933,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 			if (!executor.finished()) {
 				result.message = "did not execute all snapshot invocations";
 				result.success = false;
-					if (options.verbose) {
+					if (options.verbose || options.listOnly) {
 						std::cerr << path << ": scenario " << result.scenarioName
 						                  << " did not execute all snapshot invocations."
 						                  << std::endl;
@@ -2941,7 +2941,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
                 } else if (raster == 0) {
                     result.message = "rendered image is empty";
                     result.success = false;
-                    if (options.verbose) {
+                    if (options.verbose || options.listOnly) {
                         std::cerr << path << ": scenario " << result.scenarioName
                                       << " produced no raster output." << std::endl;
                     }
@@ -2958,7 +2958,7 @@ options);
                             if (result.message.empty()) {
                                 result.message = "failed to write draft";
                             }
-                            if (options.verbose) {
+                            if (options.verbose || options.listOnly) {
                                 std::cerr << path << ": scenario "
                                                   << result.scenarioName << ": "
                                                   << result.message << std::endl;
@@ -2968,7 +2968,7 @@ options);
                         if (result.message.empty()) {
                             result.message = "validation failed";
                         }
-                        if (options.verbose) {
+                        if (options.verbose || options.listOnly) {
                             std::cerr << path << ": scenario " << result.scenarioName
                                               << ": " << result.message << std::endl;
                         }
@@ -3114,7 +3114,7 @@ int main(int argc, char **argv) {
                     run.fileFailed = true;
                     run.exitCode = 1;
                     run.fileError = message.str();
-                    if (options.verbose) {
+                    if (options.verbose || options.listOnly) {
                         std::cerr << message.str() << std::endl;
                     }
                     shouldStop = options.exitOnFirstFailure;
@@ -3122,7 +3122,7 @@ int main(int argc, char **argv) {
                     run.fileFailed = true;
                     run.exitCode = 1;
                     run.fileError = e.what();
-                    if (options.verbose) {
+                    if (options.verbose || options.listOnly) {
                         std::cerr << path << ": " << e.what() << std::endl;
                     }
                     shouldStop = options.exitOnFirstFailure;
@@ -3130,7 +3130,7 @@ int main(int argc, char **argv) {
                     run.fileFailed = true;
                     run.exitCode = 1;
                     run.fileError = "unknown exception";
-                    if (options.verbose) {
+                    if (options.verbose || options.listOnly) {
                         std::cerr << path << ": unknown exception" << std::endl;
                     }
                     shouldStop = options.exitOnFirstFailure;
