@@ -715,25 +715,26 @@ function buildIncludeExplorerEntries(): IncludeExplorerEntry[] {
 			},
 		];
 	}
-	if (includeWatcherCandidateFolderCount === 0) {
+	if (includeWatcherCandidateRootCount === 0) {
 		return [
 			{
 				kind: "message",
-				label: "Workspace required",
+				label: "Include watchers unavailable",
 				description:
-					includeWatcherUnavailableMessage ?? `Open a workspace or folder to enable include watching (pattern: ${INCLUDE_ASSET_GLOB}).`,
+					includeWatcherUnavailableMessage ??
+					`Open a workspace or configure include roots to enable include watching (pattern: ${INCLUDE_ASSET_GLOB}).`,
 				icon: "workspace-untrusted",
 				severity: "info",
 			},
 		];
 	}
-	if (includeWatcherFolderCount === 0) {
+	if (includeWatcherRootCount === 0) {
 		return [
 			{
 				kind: "message",
 				label: "Include watchers initializing…",
-				description: `Scanning ${includeWatcherCandidateFolderCount} workspace folder${
-					includeWatcherCandidateFolderCount === 1 ? "" : "s"
+				description: `Scanning ${includeWatcherCandidateRootCount} include root${
+					includeWatcherCandidateRootCount === 1 ? "" : "s"
 				} for ${INCLUDE_ASSET_GLOB}.`,
 				icon: "sync~spin",
 				severity: "info",
@@ -1208,8 +1209,11 @@ async function handleRescanIncludesCommand(): Promise<void> {
 		await vscode.window.showInformationMessage('Enable "IVGFiddle › Includes: Manifest Enabled" before rebuilding the include bundle.');
 		return;
 	}
-	if (includeWatcherFolderCount === 0) {
-		await vscode.window.showInformationMessage("Attach a file-backed workspace folder so the include watcher can rescan your assets.");
+	if (includeWatcherRootCount === 0) {
+		await vscode.window.showInformationMessage(
+			includeWatcherUnavailableMessage ??
+				"Configure at least one include root so the include watcher can rescan your assets.",
+		);
 		return;
 	}
 	logIncludeTelemetry("Manual include manifest rescan requested.");
