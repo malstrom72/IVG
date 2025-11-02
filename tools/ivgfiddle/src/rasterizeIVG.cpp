@@ -968,20 +968,35 @@ class SnapshotExecutor : public IVGExecutorWithExternalFonts {
                 {
                 }
 
-                SnapshotExecutor(GuardedSelfContainedARGB32Canvas& canvas, const AffineTransformation& xform, const std::vector<std::string>& includeDirs, const std::string& sourcePath, SnapshotPlan& planRef, const SnapshotScenario& scenario, const SnapshotEntry& entry)
-                                : IVGExecutorWithExternalFonts(canvas, xform)
-                                , mode(SnapshotExecutorModePlayback)
-                                , plan(&planRef)
-                                , sourceText(0)
-                                , scenario(&scenario)
-                                , entry(&entry)
-                                , includeDirs(includeDirs)
-                                , sourcePath(sourcePath)
-                                , scanOffset(0)
-                                , nextBlockOrdinal(0)
-                                , invocationCursor(0)
-                {
-                }
+		SnapshotExecutor(GuardedSelfContainedARGB32Canvas& canvas, const AffineTransformation& xform, const std::vector<std::string>& includeDirs, const std::string& sourcePath, SnapshotPlan& planRef, const SnapshotScenario& scenario, const SnapshotEntry& entry)
+				: IVGExecutorWithExternalFonts(canvas, xform)
+				, mode(SnapshotExecutorModePlayback)
+				, plan(&planRef)
+				, sourceText(0)
+				, scenario(&scenario)
+				, entry(&entry)
+				, includeDirs(includeDirs)
+				, sourcePath(sourcePath)
+				, scanOffset(0)
+				, nextBlockOrdinal(0)
+				, invocationCursor(0)
+		{
+		}
+
+		SnapshotExecutor(GuardedSelfContainedARGB32Canvas& canvas, const AffineTransformation& xform, const std::vector<std::string>& includeDirs, const std::string& sourcePath, SnapshotPlan& planRef)
+				: IVGExecutorWithExternalFonts(canvas, xform)
+				, mode(SnapshotExecutorModePlayback)
+				, plan(&planRef)
+				, sourceText(0)
+				, scenario(0)
+				, entry(0)
+				, includeDirs(includeDirs)
+				, sourcePath(sourcePath)
+				, scanOffset(0)
+				, nextBlockOrdinal(0)
+				, invocationCursor(0)
+		{
+		}
 
 bool load(Interpreter& interpreter, const WideString& filename, String& contents)
 {
@@ -1092,7 +1107,14 @@ return false;
                                 Interpreter::throwBadSyntax("snapshot common block changed between collection and playback.");
                         }
 
-                        const bool blockTargetsScenario = (scenario->explicitScenario ? (hasLabel && *scenarioLabel == scenario->name) : (!hasLabel && scenarioInvocation != 0));
+			bool blockTargetsScenario = false;
+			if (scenario != 0) {
+				if (scenario->explicitScenario) {
+					blockTargetsScenario = (hasLabel && *scenarioLabel == scenario->name);
+				} else {
+					blockTargetsScenario = (!hasLabel && scenarioInvocation != 0);
+				}
+			}
                         const String* listArg = args.fetchOptional("list", false);
                         StringVector statements;
                         if (listArg != 0) {
@@ -1433,25 +1455,29 @@ uint8_t* rasterizeIVG(const char* ivgSource, double scaling, int scenarioIndex, 
 		{
 			STLMapVariables topVars;
 			FormatInfo formatInfo;
-			if (selectedScenarioIndex != sentinel && selectedEntryOrdinal != sentinel) {
-				const SnapshotScenario& scenario = scenarios[selectedScenarioIndex];
-				if (selectedEntryOrdinal - 1 < scenario.entryIndices.size()) {
-					const uint32_t entryIndex = scenario.entryIndices[selectedEntryOrdinal - 1];
-					if (entryIndex < entries.size()) {
-						const SnapshotEntry& entry = entries[entryIndex];
-                                               SnapshotExecutor executor(canvas, AffineTransformation().scale(scaling), includeDirs, SNAPSHOT_SOURCE_PATH, snapshotPlan, scenario, entry);
-                                                Interpreter impd(executor, topVars, formatInfo);
-                                                impd.run(StringRange(sourceString));
-                                                if (!executor.finished()) {
-                                                        throw runtime_error("Snapshot playback did not execute all invocations.");
-                                                }
+				if (selectedScenarioIndex != sentinel && selectedEntryOrdinal != sentinel) {
+					const SnapshotScenario& scenario = scenarios[selectedScenarioIndex];
+					if (selectedEntryOrdinal - 1 < scenario.entryIndices.size()) {
+						const uint32_t entryIndex = scenario.entryIndices[selectedEntryOrdinal - 1];
+						if (entryIndex < entries.size()) {
+							const SnapshotEntry& entry = entries[entryIndex];
+							SnapshotExecutor executor(canvas, AffineTransformation().scale(scaling), includeDirs, SNAPSHOT_SOURCE_PATH, snapshotPlan, scenario, entry);
+							Interpreter impd(executor, topVars, formatInfo);
+							impd.run(StringRange(sourceString));
+							if (!executor.finished()) {
+								throw runtime_error("Snapshot playback did not execute all invocations.");
+							}
+						}
 					}
+				} else if (snapshotPlan.hasCommonBlocks()) {
+					SnapshotExecutor executor(canvas, AffineTransformation().scale(scaling), includeDirs, SNAPSHOT_SOURCE_PATH, snapshotPlan);
+					Interpreter impd(executor, topVars, formatInfo);
+					impd.run(StringRange(sourceString));
+				} else {
+					IVGExecutorWithExternalFonts ivgExecutor(canvas, AffineTransformation().scale(scaling));
+					Interpreter impd(ivgExecutor, topVars, formatInfo);
+					impd.run(StringRange(sourceString));
 				}
-			} else {
-				IVGExecutorWithExternalFonts ivgExecutor(canvas, AffineTransformation().scale(scaling));
-				Interpreter impd(ivgExecutor, topVars, formatInfo);
-				impd.run(StringRange(sourceString));
-			}
 		}
 
 		SelfContainedRaster<ARGB32>* raster = canvas.accessRaster();
