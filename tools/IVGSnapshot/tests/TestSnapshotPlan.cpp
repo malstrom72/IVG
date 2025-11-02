@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 
 namespace {
 
@@ -120,6 +121,65 @@ void TestListVariableExpansion()
         const std::string expected = ReadFile("tools/IVGSnapshot/tests/ListVariableExpansion.txt");
         ExpectEqual(io.out, expected, "ListVariableExpansion list-only output");
         ExpectEqual(run.totalEntries, static_cast<uint32_t>(4), "ListVariableExpansion entry count");
+}
+
+void TestCommonBlockListOnly()
+{
+        const std::string ivgPath = "tools/IVGSnapshot/tests/CommonBlock.ivg";
+        SnapshotRunResult run;
+        CapturedIO io = RunListOnlyTool(ivgPath, run);
+
+        Expect(run.exitCode == 0, "CommonBlock run should succeed");
+        Expect(io.err.empty(), "CommonBlock run should not print to stderr");
+        const std::string expected = ReadFile("tools/IVGSnapshot/tests/CommonBlock.txt");
+        ExpectEqual(io.out, expected, "CommonBlock list-only output");
+        ExpectEqual(run.totalEntries, static_cast<uint32_t>(3), "CommonBlock entry count");
+}
+
+void TestCommonBlockMismatchDetection()
+{
+        SnapshotRoundState round;
+        round.reset();
+
+        SnapshotBodies first;
+        first.common = String(" pen blue width:4 ");
+        first.statements.push_back(String("fill #123456"));
+        testRecordSnapshotBodies(round, 1, first);
+
+        bool threw = false;
+        try {
+                SnapshotBodies second;
+                second.common = String(" pen blue width:6 ");
+                second.statements = first.statements;
+                testRecordSnapshotBodies(round, 1, second);
+        } catch (const std::runtime_error &error) {
+                threw = (std::string(error.what()) ==
+                        "snapshot common block changed within iterative round.");
+        }
+        Expect(threw, "Common block mismatch should raise runtime error");
+}
+
+void TestScenarioMismatchDetection()
+{
+        SnapshotRoundState round;
+        round.reset();
+
+        SnapshotBodies first;
+        first.common = String(" pen red width:2 ");
+        first.statements.push_back(String("fill #abcdef"));
+        testRecordSnapshotBodies(round, 2, first);
+
+        bool threw = false;
+        try {
+                SnapshotBodies second;
+                second.common = first.common;
+                second.statements.push_back(String("fill #fedcba"));
+                testRecordSnapshotBodies(round, 2, second);
+        } catch (const std::runtime_error &error) {
+                threw = (std::string(error.what()) ==
+                        "snapshot statements changed within iterative round.");
+        }
+        Expect(threw, "Scenario statement mismatch should raise runtime error");
 }
 
 std::string WriteTemporaryIVG(const std::string &contents)
@@ -285,6 +345,9 @@ int main()
         TestListOnlySample();
         TestListScenarioVariants();
         TestListVariableExpansion();
+        TestCommonBlockListOnly();
+        TestCommonBlockMismatchDetection();
+        TestScenarioMismatchDetection();
         TestValidateMismatch();
         TestSnapshotSourceTags();
         TestDraftValidateWorkflow();

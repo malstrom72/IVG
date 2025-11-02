@@ -1,0 +1,7 @@
+format ivg-3 uses:snapshot-1
+bounds 0,0,16,16
+
+meta snapshot common:[ pen green width:3 ]
+meta snapshot scenario:prep common:[ fill #cccccc ]
+meta snapshot scenario:swatch common:[ pen blue width:2 ] list:[ [ fill #ff0000 ] [ fill #0000ff ] ]
+meta snapshot list:[ [ pen black width:1 ] ]

@@ -349,7 +349,7 @@ public: SnapshotPlanCache();
 
 public: ~SnapshotPlanCache();
 
-public: const SnapshotPlan& ensure(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs);
+public: SnapshotPlan& ensure(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs);
 
 private: void rebuild(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs);
 
@@ -478,6 +478,7 @@ struct ParsedSnapshotMeta {
 	bool hasScenario;
 	String scenario;
 	StringVector statements;
+	String common;
 };
 
 static StringVector parseSnapshotStatements(Interpreter& interpreter, ArgumentsContainer& args)
@@ -490,7 +491,12 @@ static StringVector parseSnapshotStatements(Interpreter& interpreter, ArgumentsC
 		return elements;
 	}
 
-	return StringVector(1, args.fetchRequired(0, false));
+	StringVector statements;
+	const String* singleStatement = args.fetchOptional(0, false);
+	if (singleStatement != 0) {
+		statements.push_back(*singleStatement);
+	}
+	return statements;
 }
 
 static ParsedSnapshotMeta parseSnapshotMetaArguments(Interpreter& interpreter, const String& arguments)
@@ -507,6 +513,12 @@ static ParsedSnapshotMeta parseSnapshotMetaArguments(Interpreter& interpreter, c
 		result.scenario.clear();
 	}
 
+	const String* commonBody = args.fetchOptional("common", false);
+	if (commonBody != 0) {
+		result.common = *commonBody;
+	} else {
+		result.common.clear();
+	}
 	result.statements = parseSnapshotStatements(interpreter, args);
 	args.throwIfAnyUnfetched();
 	return result;
@@ -517,10 +529,25 @@ struct SnapshotBlock {
 	bool validate;
 	String scenario;
 	StringVector statements;
+	String common;
 	uint32_t sourceLine;
 };
 
+enum SnapshotInvocationKind {
+	SnapshotInvocationKindScenario,
+	SnapshotInvocationKindCommon
+};
+
 struct SnapshotInvocation {
+	SnapshotInvocation()
+		: kind(SnapshotInvocationKindScenario)
+		, blockIndex(0)
+		, sourceLine(0)
+		, statementOrdinal(0)
+	{
+	}
+
+	SnapshotInvocationKind kind;
 	uint32_t blockIndex;
 	uint32_t sourceLine;
 	uint32_t statementOrdinal;
@@ -557,21 +584,30 @@ struct SnapshotScenario {
 class SnapshotPlan {
 	public:
 		explicit SnapshotPlan(const std::string& ivgPath)
-				: baseName(extractBaseName(ivgPath))
-				, nextBlockOrdinal(1)
-				, collectingPlan(false)
-				, activeScenarioIndex(0)
-				, activeEntryOrdinal(1)
-				, collectionRunCursor(0)
-				, collectionRunsBuilt(false)
-				, recordedBlockCursor(0)
+			: baseName(extractBaseName(ivgPath))
+			, nextBlockOrdinal(1)
+			, collectingPlan(false)
+			, activeScenarioIndex(0)
+			, activeEntryOrdinal(1)
+			, collectionRunCursor(0)
+			, collectionRunsBuilt(false)
+			, recordedBlockCursor(0)
+			, anyCommonBlocks(false)
+			, commonOnlyBlocks(false)
 		{
 		}
 
 		uint32_t addBlock(Interpreter& interpreter, const SnapshotBlock& block)
 		{
-			if (block.statements.empty()) {
-				Interpreter::throwBadSyntax("snapshot meta requires at least one statement block.");
+			const bool hasCommon = !block.common.empty();
+			if (hasCommon) {
+				anyCommonBlocks = true;
+				if (block.statements.empty()) {
+					commonOnlyBlocks = true;
+			}
+			}
+			if (block.statements.empty() && !hasCommon) {
+Interpreter::throwBadSyntax("snapshot meta requires at least one statement block.");
 			}
 
 			uint32_t blockOrdinal = nextBlockOrdinal;
@@ -580,15 +616,33 @@ class SnapshotPlan {
 					Interpreter::throwBadSyntax("snapshot replay encountered an unexpected block.");
 				}
 				blockOrdinal = recordedBlockOrdinals[recordedBlockCursor++];
+				const SnapshotInvocation* recordedCommon = lookupCommonInvocation(blockOrdinal);
+				if (hasCommon) {
+					if (recordedCommon == 0 || recordedCommon->statements != block.common) {
+						Interpreter::throwBadSyntax("snapshot common block changed between collection runs.");
+					}
+				} else if (recordedCommon != 0) {
+					Interpreter::throwBadSyntax("snapshot common block changed between collection runs.");
+				}
 				return blockOrdinal;
 			}
 
 			recordedBlockOrdinals.push_back(blockOrdinal);
+			if (hasCommon) {
+				SnapshotInvocation commonInvocation;
+				commonInvocation.kind = SnapshotInvocationKindCommon;
+				commonInvocation.blockIndex = blockOrdinal;
+				commonInvocation.sourceLine = block.sourceLine;
+				commonInvocation.statementOrdinal = 0;
+				commonInvocation.statements = block.common;
+				commonInvocations.insert(std::make_pair(blockOrdinal, commonInvocation));
+			}
+
 			const bool hasExplicitScenario = !block.scenario.empty();
+			const uint32_t statementCount = static_cast<uint32_t>(block.statements.size());
 			if (hasExplicitScenario) {
 				const uint32_t scenarioIndex = resolveScenario(interpreter, block.scenario, block.validate, true);
 				SnapshotScenario& scenario = scenarios[scenarioIndex];
-				const uint32_t statementCount = static_cast<uint32_t>(block.statements.size());
 				if (!scenario.entryIndices.empty() && statementCount != scenario.entryIndices.size()) {
 					Interpreter::throwBadSyntax("scenario entry count does not match previous blocks.");
 				}
@@ -598,7 +652,18 @@ class SnapshotPlan {
 					uint32_t entryIndex = 0;
 					SnapshotEntry& entry = ensureEntry(scenarioIndex, scenario, entryOrdinal, block.validate, block.scenario, i, entryIndex);
 
+					if (hasCommon) {
+						SnapshotInvocation sharedInvocation;
+						sharedInvocation.kind = SnapshotInvocationKindCommon;
+						sharedInvocation.blockIndex = blockOrdinal;
+						sharedInvocation.sourceLine = block.sourceLine;
+						sharedInvocation.statementOrdinal = 0;
+						sharedInvocation.statements = block.common;
+						entry.invocations.push_back(sharedInvocation);
+					}
+
 					SnapshotInvocation invocation;
+					invocation.kind = SnapshotInvocationKindScenario;
 					invocation.blockIndex = blockOrdinal;
 					invocation.sourceLine = block.sourceLine;
 					invocation.statementOrdinal = entryOrdinal;
@@ -606,7 +671,6 @@ class SnapshotPlan {
 					entry.invocations.push_back(invocation);
 				}
 			} else {
-				const uint32_t statementCount = static_cast<uint32_t>(block.statements.size());
 				for (uint32_t i = 0; i < statementCount; ++i) {
 					const uint32_t entryOrdinal = 1;
 					const String scenarioName = synthesizeScenarioName(blockOrdinal, statementCount, i + 1);
@@ -615,7 +679,18 @@ class SnapshotPlan {
 					uint32_t entryIndex = 0;
 					SnapshotEntry& entry = ensureEntry(scenarioIndex, scenario, entryOrdinal, block.validate, scenarioName, i, entryIndex);
 
+					if (hasCommon) {
+						SnapshotInvocation sharedInvocation;
+						sharedInvocation.kind = SnapshotInvocationKindCommon;
+						sharedInvocation.blockIndex = blockOrdinal;
+						sharedInvocation.sourceLine = block.sourceLine;
+						sharedInvocation.statementOrdinal = 0;
+						sharedInvocation.statements = block.common;
+						entry.invocations.push_back(sharedInvocation);
+					}
+
 					SnapshotInvocation invocation;
+					invocation.kind = SnapshotInvocationKindScenario;
 					invocation.blockIndex = blockOrdinal;
 					invocation.sourceLine = block.sourceLine;
 					invocation.statementOrdinal = i + 1;
@@ -638,6 +713,16 @@ class SnapshotPlan {
 			return entries;
 		}
 
+		bool hasCommonBlocks() const
+		{
+			return anyCommonBlocks;
+		}
+
+		bool hasCommonOnlyBlocks() const
+		{
+			return commonOnlyBlocks;
+		}
+
 		void beginCollection()
 		{
 			collectingPlan = true;
@@ -648,6 +733,8 @@ class SnapshotPlan {
 			collectionRunsBuilt = false;
 			recordedBlockOrdinals.clear();
 			recordedBlockCursor = 0;
+			anyCommonBlocks = false;
+			commonOnlyBlocks = false;
 		}
 
 		void completeCollectionPass()
@@ -698,7 +785,7 @@ class SnapshotPlan {
 			return activeEntryOrdinal;
 		}
 
-		const SnapshotInvocation* lookupInvocation(uint32_t blockOrdinal, uint32_t scenarioIndex, uint32_t entryOrdinal) const
+		const SnapshotInvocation* lookupInvocation(uint32_t blockOrdinal, uint32_t scenarioIndex, uint32_t entryOrdinal, SnapshotInvocationKind kind) const
 		{
 			if (scenarioIndex >= scenarios.size()) {
 				return 0;
@@ -712,11 +799,21 @@ class SnapshotPlan {
 			const uint32_t entryIndex = scenario.entryIndices[entryOrdinal - 1];
 			const SnapshotEntry& entry = entries[entryIndex];
 			for (size_t i = 0; i < entry.invocations.size(); ++i) {
-				if (entry.invocations[i].blockIndex == blockOrdinal) {
+				const SnapshotInvocation& invocation = entry.invocations[i];
+				if (invocation.blockIndex == blockOrdinal && invocation.kind == kind) {
 					return &entry.invocations[i];
 				}
 			}
 			return 0;
+		}
+
+		const SnapshotInvocation* lookupCommonInvocation(uint32_t blockOrdinal) const
+		{
+			const std::map<uint32_t, SnapshotInvocation>::const_iterator it = commonInvocations.find(blockOrdinal);
+			if (it == commonInvocations.end()) {
+				return 0;
+			}
+			return &it->second;
 		}
 
 	private:
@@ -823,16 +920,19 @@ class SnapshotPlan {
 			}
 		}
 
-		String baseName;
-		std::vector<SnapshotEntry> entries;
-		std::vector<SnapshotScenario> scenarios;
-		std::map<String, uint32_t> scenarioLookup;
-		uint32_t nextBlockOrdinal;
-		bool collectingPlan;
-		uint32_t activeScenarioIndex;
-		uint32_t activeEntryOrdinal;
-		std::vector<uint32_t> recordedBlockOrdinals;
-		size_t recordedBlockCursor;
+String baseName;
+std::vector<SnapshotEntry> entries;
+std::vector<SnapshotScenario> scenarios;
+std::map<String, uint32_t> scenarioLookup;
+uint32_t nextBlockOrdinal;
+bool collectingPlan;
+uint32_t activeScenarioIndex;
+uint32_t activeEntryOrdinal;
+std::vector<uint32_t> recordedBlockOrdinals;
+size_t recordedBlockCursor;
+std::map<uint32_t, SnapshotInvocation> commonInvocations;
+bool anyCommonBlocks;
+bool commonOnlyBlocks;
 
 		struct CollectionRun {
 			uint32_t scenarioIndex;
@@ -868,20 +968,35 @@ class SnapshotExecutor : public IVGExecutorWithExternalFonts {
                 {
                 }
 
-                SnapshotExecutor(GuardedSelfContainedARGB32Canvas& canvas, const AffineTransformation& xform, const std::vector<std::string>& includeDirs, const std::string& sourcePath, const SnapshotScenario& scenario, const SnapshotEntry& entry)
-                                : IVGExecutorWithExternalFonts(canvas, xform)
-                                , mode(SnapshotExecutorModePlayback)
-                                , plan(0)
-                                , sourceText(0)
-                                , scenario(&scenario)
-                                , entry(&entry)
-                                , includeDirs(includeDirs)
-                                , sourcePath(sourcePath)
-                                , scanOffset(0)
-                                , nextBlockOrdinal(0)
-                                , invocationCursor(0)
-                {
-                }
+		SnapshotExecutor(GuardedSelfContainedARGB32Canvas& canvas, const AffineTransformation& xform, const std::vector<std::string>& includeDirs, const std::string& sourcePath, SnapshotPlan& planRef, const SnapshotScenario& scenario, const SnapshotEntry& entry)
+				: IVGExecutorWithExternalFonts(canvas, xform)
+				, mode(SnapshotExecutorModePlayback)
+				, plan(&planRef)
+				, sourceText(0)
+				, scenario(&scenario)
+				, entry(&entry)
+				, includeDirs(includeDirs)
+				, sourcePath(sourcePath)
+				, scanOffset(0)
+				, nextBlockOrdinal(0)
+				, invocationCursor(0)
+		{
+		}
+
+		SnapshotExecutor(GuardedSelfContainedARGB32Canvas& canvas, const AffineTransformation& xform, const std::vector<std::string>& includeDirs, const std::string& sourcePath, SnapshotPlan& planRef)
+				: IVGExecutorWithExternalFonts(canvas, xform)
+				, mode(SnapshotExecutorModePlayback)
+				, plan(&planRef)
+				, sourceText(0)
+				, scenario(0)
+				, entry(0)
+				, includeDirs(includeDirs)
+				, sourcePath(sourcePath)
+				, scanOffset(0)
+				, nextBlockOrdinal(0)
+				, invocationCursor(0)
+		{
+		}
 
 bool load(Interpreter& interpreter, const WideString& filename, String& contents)
 {
@@ -936,6 +1051,7 @@ return false;
                                         block.scenario = parsed.scenario;
                                 }
                                 block.statements = parsed.statements;
+                                block.common = parsed.common;
                                 block.sourceLine = locateMetaLine();
 
                                 const uint32_t blockOrdinal = plan->addBlock(interpreter, block);
@@ -948,54 +1064,94 @@ return false;
                         const bool blockValidate = parseValidateFlag(interpreter, validateFlag);
                         const String* scenarioLabel = args.fetchOptional("scenario");
                         const bool hasLabel = (scenarioLabel != 0);
+                        const String* commonArg = args.fetchOptional("common", false);
 
                         const uint32_t blockOrdinal = ++nextBlockOrdinal;
 
-                        const SnapshotInvocation* invocation = 0;
-                        if (invocationCursor < entry->invocations.size()) {
-                                const SnapshotInvocation& candidate = entry->invocations[invocationCursor];
-                                if (candidate.blockIndex == blockOrdinal) {
-                                        invocation = &candidate;
+                        const SnapshotInvocation* commonInvocation = 0;
+                        const SnapshotInvocation* scenarioInvocation = 0;
+                        if (entry != 0) {
+                                while (invocationCursor < entry->invocations.size()) {
+                                        const SnapshotInvocation& candidate = entry->invocations[invocationCursor];
+                                        if (candidate.blockIndex != blockOrdinal) {
+                                                break;
+                                        }
+                                        if (candidate.kind == SnapshotInvocationKindCommon) {
+                                                commonInvocation = &candidate;
+                                                ++invocationCursor;
+                                                continue;
+                                        }
+                                        scenarioInvocation = &candidate;
                                         ++invocationCursor;
+                                        break;
                                 }
                         }
 
-                        const bool blockTargetsScenario = (scenario->explicitScenario ? (hasLabel && *scenarioLabel == scenario->name) : (!hasLabel && invocation != 0));
+                        const SnapshotInvocation* planCommon = (plan != 0 ? plan->lookupCommonInvocation(blockOrdinal) : 0);
+                        if (commonInvocation != 0 && planCommon != 0 && commonInvocation->statements != planCommon->statements) {
+                                Interpreter::throwBadSyntax("snapshot common block changed between collection and playback.");
+                        }
+                        const SnapshotInvocation* effectiveCommon = (planCommon != 0 ? planCommon : commonInvocation);
+                        if (effectiveCommon != 0) {
+                                if (commonArg == 0) {
+                                        Interpreter::throwBadSyntax("snapshot common block missing during playback.");
+                                }
+                                if (*commonArg != effectiveCommon->statements) {
+                                        Interpreter::throwBadSyntax("snapshot common block changed between collection and playback.");
+                                }
+                                const StringRange trimmedCommon = trimRange(StringRange(effectiveCommon->statements));
+                                if (trimmedCommon.b != trimmedCommon.e) {
+                                        interpreter.run(trimmedCommon);
+                                }
+                        } else if (commonArg != 0) {
+                                Interpreter::throwBadSyntax("snapshot common block changed between collection and playback.");
+                        }
+
+			bool blockTargetsScenario = false;
+			if (scenario != 0) {
+				if (scenario->explicitScenario) {
+					blockTargetsScenario = (hasLabel && *scenarioLabel == scenario->name);
+				} else {
+					blockTargetsScenario = (!hasLabel && scenarioInvocation != 0);
+				}
+			}
                         const String* listArg = args.fetchOptional("list", false);
-                        const String* singleStatement = 0;
-                        if (listArg == 0) {
-                                singleStatement = &args.fetchRequired(0, false);
-                        }
-                        if (!blockTargetsScenario) {
-                                args.throwIfAnyUnfetched();
-                                if (invocation != 0) {
-                                        Interpreter::throwBadSyntax("unexpected snapshot invocation for scenario.");
-                                }
-                                return true;
-                        }
-
                         StringVector statements;
                         if (listArg != 0) {
                                 const String expandedOuter = interpreter.expand(StringRange(*listArg));
                                 interpreter.parseList(StringRange(expandedOuter), statements, false, false, 1, INT_MAX);
                         } else {
-                                statements.push_back(*singleStatement);
+                                const String* singleStatement = args.fetchOptional(0, false);
+                                if (singleStatement != 0) {
+                                        statements.push_back(*singleStatement);
+                                }
                         }
-
-                        if (invocation == 0) {
-                                Interpreter::throwBadSyntax("missing snapshot invocation for scenario block.");
+                        if (!blockTargetsScenario) {
+                                args.throwIfAnyUnfetched();
+                                if (scenarioInvocation != 0) {
+                                        Interpreter::throwBadSyntax("unexpected snapshot invocation for scenario.");
+                                }
+                                return true;
                         }
 
                         if (blockValidate != entry->validate) {
                                 Interpreter::throwBadSyntax("snapshot validate flag changed between collection and playback.");
                         }
 
-                        if (invocation->statementOrdinal == 0 || invocation->statementOrdinal > statements.size()) {
+                        if (scenarioInvocation == 0) {
+                                if (!statements.empty()) {
+                                        Interpreter::throwBadSyntax("missing snapshot invocation for scenario block.");
+                                }
+                                args.throwIfAnyUnfetched();
+                                return true;
+                        }
+
+                        if (scenarioInvocation->statementOrdinal == 0 || scenarioInvocation->statementOrdinal > statements.size()) {
                                 Interpreter::throwBadSyntax("snapshot statement ordinal exceeds available entries.");
                         }
 
-                        const String& statementBody = statements[invocation->statementOrdinal - 1];
-                        if (statementBody != invocation->statements) {
+                        const String& statementBody = statements[scenarioInvocation->statementOrdinal - 1];
+                        if (statementBody != scenarioInvocation->statements) {
                                 Interpreter::throwBadSyntax("snapshot statements changed between collection and playback.");
                         }
 
@@ -1023,7 +1179,15 @@ return false;
                                 return;
                         }
 
-                        const SnapshotInvocation* invocation = plan->lookupInvocation(blockOrdinal, plan->getActiveScenarioIndex(), plan->getActiveEntryOrdinal());
+                        const SnapshotInvocation* commonInvocation = plan->lookupCommonInvocation(blockOrdinal);
+                        if (commonInvocation != 0) {
+                                const StringRange trimmedCommon = trimRange(StringRange(commonInvocation->statements));
+                                if (trimmedCommon.b != trimmedCommon.e) {
+                                        interpreter.run(StringRange(commonInvocation->statements));
+                                }
+                        }
+
+                        const SnapshotInvocation* invocation = plan->lookupInvocation(blockOrdinal, plan->getActiveScenarioIndex(), plan->getActiveEntryOrdinal(), SnapshotInvocationKindScenario);
                         if (invocation == 0) {
                                 return;
                         }
@@ -1089,7 +1253,7 @@ SnapshotPlanCache::~SnapshotPlanCache()
 	delete plan;
 }
 
-const SnapshotPlan& SnapshotPlanCache::ensure(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs)
+SnapshotPlan& SnapshotPlanCache::ensure(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs)
 {
 	if (plan == 0 || sourceTextUtf8 != cachedSourceText || includeDirs != cachedIncludeDirs) {
 		rebuild(sourceTextUtf8, sourceText, includeDirs);
@@ -1193,7 +1357,9 @@ static std::string buildSnapshotCatalogJson(const SnapshotPlan& plan, uint32_t d
 		json << "\"defaultScenarioIndex\":" << defaultScenarioIndex;
 		json << ",\"defaultEntryOrdinal\":" << defaultEntryOrdinal;
 	}
-	json << ",\"scenarios\":[";
+json << ",\"hasCommon\":" << (plan.hasCommonBlocks() ? "true" : "false");
+json << ",\"hasCommonOnly\":" << (plan.hasCommonOnlyBlocks() ? "true" : "false");
+json << ",\"scenarios\":[";
 	bool firstScenario = true;
 	for (size_t i = 0; i < scenarios.size(); ++i) {
 		const SnapshotScenario& scenario = scenarios[i];
@@ -1245,7 +1411,7 @@ uint8_t* rasterizeIVG(const char* ivgSource, double scaling, int scenarioIndex, 
 		sourceString.assign(sourceText.begin(), sourceText.end());
 
 		const std::vector<std::string> includeDirs = buildCollectorIncludeDirectories();
-		const SnapshotPlan& snapshotPlan = snapshotPlanCache.ensure(sourceText, sourceString, includeDirs);
+		SnapshotPlan& snapshotPlan = snapshotPlanCache.ensure(sourceText, sourceString, includeDirs);
 
 		const std::vector<SnapshotScenario>& scenarios = snapshotPlan.getScenarios();
 		const std::vector<SnapshotEntry>& entries = snapshotPlan.getEntries();
@@ -1289,25 +1455,29 @@ uint8_t* rasterizeIVG(const char* ivgSource, double scaling, int scenarioIndex, 
 		{
 			STLMapVariables topVars;
 			FormatInfo formatInfo;
-			if (selectedScenarioIndex != sentinel && selectedEntryOrdinal != sentinel) {
-				const SnapshotScenario& scenario = scenarios[selectedScenarioIndex];
-				if (selectedEntryOrdinal - 1 < scenario.entryIndices.size()) {
-					const uint32_t entryIndex = scenario.entryIndices[selectedEntryOrdinal - 1];
-					if (entryIndex < entries.size()) {
-						const SnapshotEntry& entry = entries[entryIndex];
-                                               SnapshotExecutor executor(canvas, AffineTransformation().scale(scaling), includeDirs, SNAPSHOT_SOURCE_PATH, scenario, entry);
-                                                Interpreter impd(executor, topVars, formatInfo);
-                                                impd.run(StringRange(sourceString));
-                                                if (!executor.finished()) {
-                                                        throw runtime_error("Snapshot playback did not execute all invocations.");
-                                                }
+				if (selectedScenarioIndex != sentinel && selectedEntryOrdinal != sentinel) {
+					const SnapshotScenario& scenario = scenarios[selectedScenarioIndex];
+					if (selectedEntryOrdinal - 1 < scenario.entryIndices.size()) {
+						const uint32_t entryIndex = scenario.entryIndices[selectedEntryOrdinal - 1];
+						if (entryIndex < entries.size()) {
+							const SnapshotEntry& entry = entries[entryIndex];
+							SnapshotExecutor executor(canvas, AffineTransformation().scale(scaling), includeDirs, SNAPSHOT_SOURCE_PATH, snapshotPlan, scenario, entry);
+							Interpreter impd(executor, topVars, formatInfo);
+							impd.run(StringRange(sourceString));
+							if (!executor.finished()) {
+								throw runtime_error("Snapshot playback did not execute all invocations.");
+							}
+						}
 					}
+				} else if (snapshotPlan.hasCommonBlocks()) {
+					SnapshotExecutor executor(canvas, AffineTransformation().scale(scaling), includeDirs, SNAPSHOT_SOURCE_PATH, snapshotPlan);
+					Interpreter impd(executor, topVars, formatInfo);
+					impd.run(StringRange(sourceString));
+				} else {
+					IVGExecutorWithExternalFonts ivgExecutor(canvas, AffineTransformation().scale(scaling));
+					Interpreter impd(ivgExecutor, topVars, formatInfo);
+					impd.run(StringRange(sourceString));
 				}
-			} else {
-				IVGExecutorWithExternalFonts ivgExecutor(canvas, AffineTransformation().scale(scaling));
-				Interpreter impd(ivgExecutor, topVars, formatInfo);
-				impd.run(StringRange(sourceString));
-			}
 		}
 
 		SelfContainedRaster<ARGB32>* raster = canvas.accessRaster();

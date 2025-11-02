@@ -208,37 +208,45 @@ static FormatDetectionResult detectSnapshotFormat(const String &source) {
 	return result;
 }
 
+enum SnapshotInvocationKind {
+SNAPSHOT_INVOCATION_SCENARIO,
+SNAPSHOT_INVOCATION_COMMON
+};
+
 struct SnapshotInvocation {
-        uint32_t blockIndex;
-        uint32_t sourceLine;
-        uint32_t entryOrdinal;
-        String statements;
+SnapshotInvocation() : kind(SNAPSHOT_INVOCATION_SCENARIO), blockIndex(0), sourceLine(0), entryOrdinal(0) {}
+
+SnapshotInvocationKind kind;
+uint32_t blockIndex;
+uint32_t sourceLine;
+uint32_t entryOrdinal;
+String statements;
 };
 struct SnapshotRoundState {
         SnapshotRoundState() { reset(); }
 
-        void reset() {
-                hasPinned = false;
-                scenario.clear();
-                entryOrdinal = 0;
-                validate = false;
-                blockOrdinalCursor = 0;
-                moreRemaining = false;
-                explicitScenario = false;
-                firstSourceLine = 0;
-                invocations.clear();
-        }
+void reset() {
+hasPinned = false;
+scenario.clear();
+entryOrdinal = 0;
+validate = false;
+blockOrdinalCursor = 0;
+moreRemaining = false;
+explicitScenario = false;
+firstSourceLine = 0;
+executedCommonBlock = false;
+invocations.clear();
+}
 
-        void pin(const String &scenarioName, uint32_t ordinal, bool shouldValidate,
-                          bool explicitLabel) {
-                hasPinned = true;
-                scenario = scenarioName;
-                entryOrdinal = ordinal;
-                validate = shouldValidate;
-                explicitScenario = explicitLabel;
-                firstSourceLine = 0;
-                invocations.clear();
-        }
+void pin(const String &scenarioName, uint32_t ordinal, bool shouldValidate,
+          bool explicitLabel) {
+hasPinned = true;
+scenario = scenarioName;
+entryOrdinal = ordinal;
+validate = shouldValidate;
+explicitScenario = explicitLabel;
+firstSourceLine = 0;
+}
 
         void advanceBlockCursor() { ++blockOrdinalCursor; }
 
@@ -246,38 +254,43 @@ struct SnapshotRoundState {
                 return hasPinned && scenario == scenarioName && entryOrdinal == ordinal;
         }
 
-        SnapshotInvocation *findInvocation(uint32_t blockIndex,
-                                                                  uint32_t entryOrdinal) {
-                for (size_t i = 0; i < invocations.size(); ++i) {
-                        SnapshotInvocation &invocation = invocations[i];
-                        if (invocation.blockIndex == blockIndex &&
-                                invocation.entryOrdinal == entryOrdinal) {
-                                return &invocation;
-                        }
-                }
-                return 0;
-        }
+SnapshotInvocation *findInvocation(uint32_t blockIndex,
+                                                          uint32_t entryOrdinal,
+                                                          SnapshotInvocationKind kind) {
+for (size_t i = 0; i < invocations.size(); ++i) {
+SnapshotInvocation &invocation = invocations[i];
+if (invocation.blockIndex == blockIndex &&
+        invocation.entryOrdinal == entryOrdinal &&
+        invocation.kind == kind) {
+return &invocation;
+}
+}
+return 0;
+}
 
-        void recordInvocation(uint32_t blockIndex, uint32_t sourceLine,
-                                                      uint32_t entryOrdinal,
-                                                      const String &statementBody) {
-                SnapshotInvocation invocation;
-                invocation.blockIndex = blockIndex;
-                invocation.sourceLine = sourceLine;
-                invocation.entryOrdinal = entryOrdinal;
-                invocation.statements = statementBody;
-                invocations.push_back(invocation);
-        }
+void recordInvocation(uint32_t blockIndex, uint32_t sourceLine,
+                                              uint32_t entryOrdinal,
+                                              SnapshotInvocationKind kind,
+                                              const String &statementBody) {
+SnapshotInvocation invocation;
+invocation.kind = kind;
+invocation.blockIndex = blockIndex;
+invocation.sourceLine = sourceLine;
+invocation.entryOrdinal = entryOrdinal;
+invocation.statements = statementBody;
+invocations.push_back(invocation);
+}
 
-        bool hasPinned;
-        String scenario;
-        uint32_t entryOrdinal;
-        bool validate;
-        uint32_t blockOrdinalCursor;
-        bool moreRemaining;
-        bool explicitScenario;
-        uint32_t firstSourceLine;
-        std::vector<SnapshotInvocation> invocations;
+bool hasPinned;
+String scenario;
+uint32_t entryOrdinal;
+bool validate;
+uint32_t blockOrdinalCursor;
+bool moreRemaining;
+bool explicitScenario;
+uint32_t firstSourceLine;
+bool executedCommonBlock;
+std::vector<SnapshotInvocation> invocations;
 };
 
 struct ScenarioEntryMetadata {
@@ -2219,25 +2232,70 @@ static bool parseValidateFlag(Interpreter &interpreter, const String *value) {
 	return interpreter.toBool(*value);
 }
 
-static StringVector parseSnapshotStatements(Interpreter &interpreter,
-												ArgumentsContainer &args) {
-	// New grammar:
-	// - Single body as positional arg #0; keep value verbatim (including brackets if present).
-	// - List of bodies via label: list:[ [ ... ] [ ... ] ... ]
+struct SnapshotBodies {
+	String common;
+	StringVector statements;
+};
+
+static SnapshotBodies parseSnapshotBodies(Interpreter &interpreter,
+                                                        ArgumentsContainer &args) {
+        SnapshotBodies bodies;
+        const String *commonArg = args.fetchOptional("common", false);
+        if (commonArg != 0) {
+                bodies.common = *commonArg;
+        }
 
 	const String *listArg = args.fetchOptional("list", false);
 	if (listArg != 0) {
-		// Parse labeled list; remove the outer list brackets via expand(),
-		// but keep each element exactly as returned by parseList (including brackets).
 		const String expandedOuter = interpreter.expand(StringRange(*listArg));
-		StringVector elements;
-		interpreter.parseList(StringRange(expandedOuter), elements, false, false, 1, INT_MAX);
-		return elements;
+		interpreter.parseList(StringRange(expandedOuter), bodies.statements, false, false, 1, INT_MAX);
+		return bodies;
 	}
 
-	// Expect exactly one positional argument (verbatim; may be bracketed or raw)
-	return StringVector(1, args.fetchRequired(0, false));
+	const String *single = args.fetchOptional(0, false);
+	if (single != 0) {
+		bodies.statements.push_back(*single);
+        }
+        return bodies;
 }
+
+#if defined(IVG_SNAPSHOT_TESTING)
+static void testRecordSnapshotBodies(SnapshotRoundState &round,
+        uint32_t blockOrdinal, const SnapshotBodies &bodies)
+{
+        const bool hasCommon = !bodies.common.empty();
+        if (hasCommon) {
+                SnapshotInvocation *existingCommon =
+                        round.findInvocation(blockOrdinal, 0, SNAPSHOT_INVOCATION_COMMON);
+                if (existingCommon != 0) {
+                        if (existingCommon->statements != bodies.common) {
+                                throw std::runtime_error(
+                                        "snapshot common block changed within iterative round.");
+                        }
+                } else {
+                        round.recordInvocation(blockOrdinal, 0, 0,
+                                SNAPSHOT_INVOCATION_COMMON, bodies.common);
+                }
+                round.executedCommonBlock = true;
+        }
+
+        for (uint32_t i = 0; i < bodies.statements.size(); ++i) {
+                const uint32_t entryOrdinal = i + 1;
+                SnapshotInvocation *existing = round.findInvocation(blockOrdinal,
+                        entryOrdinal, SNAPSHOT_INVOCATION_SCENARIO);
+                const String &statementBody = bodies.statements[i];
+                if (existing != 0) {
+                        if (existing->statements != statementBody) {
+                                throw std::runtime_error(
+                                        "snapshot statements changed within iterative round.");
+                        }
+                } else {
+                        round.recordInvocation(blockOrdinal, 0, entryOrdinal,
+                                SNAPSHOT_INVOCATION_SCENARIO, statementBody);
+                }
+        }
+}
+#endif
 
 static bool readFile(const std::string &path, String &contents);
 
@@ -2362,12 +2420,45 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
                 const uint32_t blockOrdinal = round->blockOrdinalCursor + 1;
                 round->advanceBlockCursor();
 
-                StringVector statements = parseSnapshotStatements(interpreter, args);
+                SnapshotBodies bodies = parseSnapshotBodies(interpreter, args);
                 args.throwIfAnyUnfetched();
 
+                if (bodies.common.empty() && bodies.statements.empty()) {
+                        Interpreter::throwBadSyntax("snapshot meta requires at least one statement or common block.");
+                }
+
                 const uint32_t sourceLine = locateRoundMetaLine();
+                const bool hasCommon = !bodies.common.empty();
+                const StringVector &statements = bodies.statements;
                 const bool multipleEntries = (statements.size() > 1);
                 const uint32_t entryCount = static_cast<uint32_t>(statements.size());
+
+                if (hasCommon) {
+                        SnapshotInvocation *existingCommon =
+                                round->findInvocation(blockOrdinal, 0, SNAPSHOT_INVOCATION_COMMON);
+                        if (existingCommon != 0) {
+                                if (existingCommon->statements != bodies.common) {
+                                        Interpreter::throwBadSyntax(
+                                                "snapshot common block changed within iterative round.");
+                                }
+                        } else {
+                                round->recordInvocation(blockOrdinal, sourceLine, 0,
+                                        SNAPSHOT_INVOCATION_COMMON, bodies.common);
+                        }
+
+                        round->executedCommonBlock = true;
+                        if (round->firstSourceLine == 0) {
+                                round->firstSourceLine = sourceLine;
+                        }
+                        if (verbose) {
+                                std::cout << sourcePath << ": block "
+                                                  << blockOrdinal << " common setup" << std::endl;
+                        }
+
+                        IVG::Context commonContext(
+                                currentContext->accessCanvas(), *currentContext);
+                        runInNewContext(interpreter, commonContext, bodies.common);
+                }
 
                 bool sawPinnedEntry = false;
                 bool executedPinnedEntry = false;
@@ -2382,9 +2473,9 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
                                          : buildImplicitScenarioName(blockOrdinal,
                                                  entryOrdinal, multipleEntries));
 
-			progress->ensureDisplayLabel(scenarioName, explicitLabel,
-scenarioLabel, blockOrdinal, entryOrdinal, scenarioOrdinal,
-			entryCount, (i == 0));
+                        progress->ensureDisplayLabel(scenarioName, explicitLabel,
+                                scenarioLabel, blockOrdinal, entryOrdinal, scenarioOrdinal,
+                                entryCount, (i == 0));
 
                         const bool shouldExecute = progress->observeScenarioEntry(
                                 *round, scenarioName, explicitLabel, blockValidate,
@@ -2411,7 +2502,8 @@ scenarioLabel, blockOrdinal, entryOrdinal, scenarioOrdinal,
                         }
 
                         SnapshotInvocation *existing =
-                                round->findInvocation(blockOrdinal, entryOrdinal);
+                                round->findInvocation(blockOrdinal, entryOrdinal,
+                                        SNAPSHOT_INVOCATION_SCENARIO);
                         const String &statementBody = statements[i];
                         if (existing != 0) {
                                 if (existing->statements != statementBody) {
@@ -2420,7 +2512,7 @@ scenarioLabel, blockOrdinal, entryOrdinal, scenarioOrdinal,
                                 }
                         } else {
                                 round->recordInvocation(blockOrdinal, sourceLine,
-                                        entryOrdinal, statementBody);
+                                        entryOrdinal, SNAPSHOT_INVOCATION_SCENARIO, statementBody);
                         }
 
                         if (verbose) {
@@ -2435,7 +2527,6 @@ scenarioLabel, blockOrdinal, entryOrdinal, scenarioOrdinal,
                                 currentContext->accessCanvas(), *currentContext);
                         runInNewContext(interpreter, invocationContext, statementBody);
                 }
-
                 if (sawPinnedEntry && !executedPinnedEntry) {
                         Interpreter::throwBadSyntax(
                                 "selected snapshot entry missing from scenario block.");
@@ -2765,24 +2856,28 @@ static void printScenarioListing(const std::string &path,
                                 continue;
                         }
 
-                        for (size_t k = 0; k < metadata->invocations.size(); ++k) {
-                                const SnapshotInvocation &invocation =
-                                        metadata->invocations[k];
-                                std::cout << blockIndent << "Snapshot block #"
-                                                  << invocation.blockIndex
-                                                  << " (block entry #"
-                                                  << invocation.entryOrdinal
-                                                  << ", source line "
-                                                  << invocation.sourceLine << ")"
-                                                  << std::endl;
+for (size_t k = 0; k < metadata->invocations.size(); ++k) {
+const SnapshotInvocation &invocation =
+metadata->invocations[k];
+std::cout << blockIndent << "Snapshot block #"
+<< invocation.blockIndex;
+if (invocation.kind == SNAPSHOT_INVOCATION_COMMON) {
+std::cout << " (common setup, source line "
+  << invocation.sourceLine << ")" << std::endl;
+} else {
+std::cout << " (block entry #"
+  << invocation.entryOrdinal
+  << ", source line "
+  << invocation.sourceLine << ")" << std::endl;
+}
 
-                                std::istringstream snippet(
-                                        stringFromIMPD(invocation.statements));
-                                std::string line;
-                                while (std::getline(snippet, line)) {
-                                        std::cout << snippetIndent << line << std::endl;
-                                }
-                        }
+std::istringstream snippet(
+stringFromIMPD(invocation.statements));
+std::string line;
+while (std::getline(snippet, line)) {
+std::cout << snippetIndent << line << std::endl;
+}
+}
                 }
         }
 }
@@ -2870,37 +2965,49 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 		}
 
             if (!round.hasPinned) {
-                // If the format declares snapshot support, or if goldens already exist
-                // for this source, then a failure before any snapshot meta executes
-                // should be treated as a hard error (not ignored).
-                if (formatDetection.supportsSnapshot || goldensExist) {
-                    run.fileFailed = true;
-                    run.exitCode = 1;
-                    if (executionFailed) {
-                        run.fileError = executionError;
-                        if (options.verbose || options.listOnly) {
-                            std::cerr << path << ": " << executionError << std::endl;
+                if (!round.executedCommonBlock) {
+                    // If the format declares snapshot support, or if goldens already exist
+                    // for this source, then a failure before any snapshot meta executes
+                    // should be treated as a hard error (not ignored).
+                    if (formatDetection.supportsSnapshot || goldensExist) {
+                        run.fileFailed = true;
+                        run.exitCode = 1;
+                        if (executionFailed) {
+                            run.fileError = executionError;
+                            if (options.verbose || options.listOnly) {
+                                std::cerr << path << ": " << executionError << std::endl;
+                            }
+                        } else {
+                            run.fileError = "no snapshots executed";
+                            if (options.verbose || options.listOnly) {
+                                std::cerr << path << ": expected snapshots but none executed." << std::endl;
+                            }
                         }
-                    } else {
-                        run.fileError = "no snapshots executed";
-                        if (options.verbose || options.listOnly) {
-                            std::cerr << path << ": expected snapshots but none executed." << std::endl;
-                        }
+                        coordinator.completeRound(round);
+                        break;
+                    }
+
+                    // Otherwise keep current behavior: ignore files with no snapshots executed.
+                    if (executionFailed && (options.verbose || options.listOnly)) {
+                        std::cerr << path << ": " << executionError
+                                  << " (ignored: no snapshots executed)." << std::endl;
                     }
                     coordinator.completeRound(round);
                     break;
                 }
 
-                // Otherwise keep current behavior: ignore files with no snapshots executed.
-                if (executionFailed && (options.verbose || options.listOnly)) {
-                    std::cerr << path << ": " << executionError
-                              << " (ignored: no snapshots executed)." << std::endl;
+                if (executionFailed) {
+                    run.fileFailed = true;
+                    run.exitCode = 1;
+                    run.fileError = executionError;
+                    if (options.verbose || options.listOnly) {
+                        std::cerr << path << ": " << executionError << std::endl;
+                    }
                 }
                 coordinator.completeRound(round);
                 break;
-            }
-
-		SnapshotEntryResult result;
+        }
+                SnapshotEntryResult result;
 		result.ivgPath = path;
 		const std::string &registeredLabel =
 		        progress.lookupDisplayLabel(round.scenario, round.entryOrdinal);

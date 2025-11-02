@@ -114,4 +114,26 @@ test("WebAssembly snapshot catalog playback honors selections", async () => {
 	assert.equal(variantResult.selectedEntryOrdinal, 2);
 });
 
+test("WebAssembly executes common-only snapshot blocks", async () => {
+	const Module = await createModule();
+	const source = [
+		"format IVG-3 requires:IMPD-1 uses:snapshot-1",
+		"bounds 0,0,1,1",
+		"meta snapshot common:[ c=#336699 ]",
+		"wipe $c",
+		"",
+	].join("\n");
+	const size = Module.lengthBytesUTF8(source) + 1;
+	const ptr = Module._malloc(size);
+	Module.stringToUTF8(source, ptr, size);
+	const rasterPtr = Module._rasterizeIVG(ptr, 1);
+	Module._free(ptr);
+	assert.notEqual(rasterPtr, 0, "common-only raster failed");
+	const result = decodeRasterResult(Module, rasterPtr);
+	Module._deallocatePixels(rasterPtr);
+	assert.deepEqual(result.firstPixel, [0x33, 0x66, 0x99, 0xFF], "wipe should apply shared color");
+	assert.equal(result.catalog.hasCommon, true);
+	assert.equal(result.catalog.hasCommonOnly, true);
+});
+
 

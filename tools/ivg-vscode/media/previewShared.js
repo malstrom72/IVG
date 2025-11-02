@@ -172,10 +172,12 @@ const ivgCanvas = document.getElementById("ivgCanvas");
 		})();
 
 		const SnapshotController = (function createSnapshotController() {
-			let catalog = null;
-			let defaultSelection = null;
-			let activeSelection = null;
-			let activeSourceSignature = "";
+let catalog = null;
+let defaultSelection = null;
+let activeSelection = null;
+let activeSourceSignature = "";
+let catalogHasCommon = false;
+let catalogHasCommonOnly = false;
 			const catalogCache = new Map();
 			const selectionCache = new Map();
 			let persistedKey = Settings.read(STORAGE_KEYS.SNAPSHOT_SELECTION, "");
@@ -412,6 +414,8 @@ const ivgCanvas = document.getElementById("ivgCanvas");
 				if (activeSourceSignature) {
 					catalogCache.set(activeSourceSignature, parsed);
 				}
+				catalogHasCommon = !!(parsed && parsed.hasCommon === true);
+				catalogHasCommonOnly = !!(parsed && parsed.hasCommonOnly === true);
 				const executedSelection = Number.isInteger(params.defaultScenarioIndex) && Number.isInteger(params.defaultEntryOrdinal) && params.defaultScenarioIndex >= 0 && params.defaultEntryOrdinal >= 0 ? {
 					scenarioIndex: params.defaultScenarioIndex >>> 0,
 					entryOrdinal: params.defaultEntryOrdinal >>> 0,
@@ -431,11 +435,11 @@ const ivgCanvas = document.getElementById("ivgCanvas");
 					if (persisted) {
 						nextSelection = persisted;
 					} else if (executedSelection && selectionExists(options, executedSelection)) {
-						nextSelection = executedSelection;
-					} else if (catalogDefault && selectionExists(options, catalogDefault)) {
-						nextSelection = catalogDefault;
-					}
-				}
+					nextSelection = executedSelection;
+				} else if (catalogDefault && selectionExists(options, catalogDefault)) {
+				nextSelection = catalogDefault;
+			}
+			}
 				activeSelection = nextSelection;
 				if (!activeSelection && activeSourceSignature) {
 					const cachedSelection = selectionCache.get(activeSourceSignature) || null;
@@ -450,7 +454,11 @@ const ivgCanvas = document.getElementById("ivgCanvas");
 				}
 				const scenarioCount = parsed && Array.isArray(parsed.scenarios) ? parsed.scenarios.length : 0;
 				const entriesCount = options.length;
-				trace("Snapshot catalog: " + scenarioCount + " scenario" + (scenarioCount === 1 ? "" : "s") + ", " + entriesCount + " entr" + (entriesCount === 1 ? "y" : "ies"));
+				let catalogSummary = "Snapshot catalog: " + scenarioCount + " scenario" + (scenarioCount === 1 ? "" : "s") + ", " + entriesCount + " entr" + (entriesCount === 1 ? "y" : "ies");
+				if (catalogHasCommon) {
+					catalogSummary += catalogHasCommonOnly ? " (shared common setup only)" : " (shared common setup present)";
+				}
+				trace(catalogSummary);
 				updateToolbar(options);
 			}
 
