@@ -553,10 +553,71 @@ void TestSnapshotDetectsOffsetMismatch()
 	Expect(mismatch.diffed, "mismatch should record diff output");
 	Expect(mismatch.message.find("differs from golden") != std::string::npos,
 		"mismatch should report diff message");
+	Expect(mismatch.message.find("bounds differ") != std::string::npos,
+		"mismatch should explain bounds difference");
 	Expect(fileExists(mismatch.actualPath),
 		"actual PNG should be written on mismatch");
 	Expect(fileExists(mismatch.diffPath),
 		"diff PNG should be written on mismatch");
+
+	removeFileIfExists(mismatch.goldenPath);
+	removeFileIfExists(mismatch.actualPath);
+	removeFileIfExists(mismatch.diffPath);
+	removeFileIfExists(mismatch.backupPath);
+	removeFileIfExists(baselineResult.backupPath);
+	removeFileIfExists(baselineResult.oldPath);
+}
+
+void TestSnapshotDetectsBoundsMismatch()
+{
+	char tempName[L_tmpnam];
+	Expect(std::tmpnam(tempName) != 0,
+		"failed to allocate bounds mismatch snapshot directory");
+	std::string root(tempName);
+	root += "_bounds_mismatch";
+	Expect(ensureDirectory(root),
+		"create bounds mismatch snapshot directory");
+
+	CommandLineOptions options;
+	options.snapshotDir = root;
+
+	SnapshotGolden golden("bounds.ivg", "bounds_base",
+		"boundsScenario", options);
+
+	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> baseline(
+		NuXPixels::IntRect(2, 3, 4, 4));
+	const NuXPixels::IntRect baselineBounds = baseline.calcBounds();
+	for (int y = baselineBounds.top; y < baselineBounds.calcBottom(); ++y) {
+		for (int x = baselineBounds.left; x < baselineBounds.calcRight(); ++x) {
+			baseline.setPixel(x, y, 0u);
+		}
+	}
+
+	SnapshotEntryResult baselineResult;
+	Expect(golden.validate(baseline, true, baselineResult),
+		"baseline force update should succeed");
+	Expect(baselineResult.success, "baseline success flag");
+
+	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> expanded(
+		NuXPixels::IntRect(6, 7, 4, 4));
+	const NuXPixels::IntRect expandedBounds = expanded.calcBounds();
+	for (int y = expandedBounds.top; y < expandedBounds.calcBottom(); ++y) {
+		for (int x = expandedBounds.left; x < expandedBounds.calcRight(); ++x) {
+			expanded.setPixel(x, y, 0u);
+		}
+	}
+
+	SnapshotEntryResult mismatch;
+	Expect(!golden.validate(expanded, false, mismatch),
+		"bounds mismatch should fail validation");
+	Expect(!mismatch.success,
+		"bounds mismatch success flag should be false");
+	Expect(mismatch.diffed,
+		"bounds mismatch should produce diff output");
+	Expect(mismatch.diffStats.differingPixels > 0,
+		"bounds mismatch should report differing pixels");
+	Expect(mismatch.message.find("bounds differ") != std::string::npos,
+		"bounds mismatch should explain bounds difference");
 
 	removeFileIfExists(mismatch.goldenPath);
 	removeFileIfExists(mismatch.actualPath);
@@ -584,5 +645,6 @@ int main()
 	TestPngOffsetsRoundTrip();
 	TestSnapshotValidationWithOffsets();
 	TestSnapshotDetectsOffsetMismatch();
+	TestSnapshotDetectsBoundsMismatch();
 	return 0;
 }

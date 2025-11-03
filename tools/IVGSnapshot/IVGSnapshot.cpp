@@ -1884,6 +1884,10 @@ class SnapshotGolden {
 
 		const NuXPixels::IntRect actualBounds = raster.calcBounds();
 		const NuXPixels::IntRect goldenBounds = goldenRaster.calcBounds();
+		const bool boundsMatch = (actualBounds.left == goldenBounds.left &&
+			actualBounds.top == goldenBounds.top &&
+			actualBounds.width == goldenBounds.width &&
+			actualBounds.height == goldenBounds.height);
 		const int left =
 			NuXPixels::minValue(actualBounds.left, goldenBounds.left);
 		const int top = NuXPixels::minValue(actualBounds.top, goldenBounds.top);
@@ -1919,7 +1923,7 @@ class SnapshotGolden {
 		uint64_t sumRed = 0;
 		uint64_t sumGreen = 0;
 		uint64_t sumBlue = 0;
-		bool match = true;
+		bool match = boundsMatch;
 
 		for (int y = top; y < bottom; ++y) {
 			NuXPixels::ARGB32::Pixel *diffRow = diffPixels + y * diffStride;
@@ -1932,16 +1936,43 @@ class SnapshotGolden {
 					? goldenPixelsPtr + y * goldenStride
 					: 0;
 			for (int x = left; x < right; ++x) {
-				const NuXPixels::ARGB32::Pixel actualPixel =
+				const bool actualContains =
 					(actualRow != 0 && x >= actualBounds.left &&
-					 x < actualBounds.calcRight())
-						? actualRow[x]
-						: 0;
-				const NuXPixels::ARGB32::Pixel goldenPixel =
+					 x < actualBounds.calcRight());
+				const bool goldenContains =
 					(goldenRow != 0 && x >= goldenBounds.left &&
-					 x < goldenBounds.calcRight())
-						? goldenRow[x]
-						: 0;
+					 x < goldenBounds.calcRight());
+				if (actualContains != goldenContains) {
+					match = false;
+					++stats.differingPixels;
+					const unsigned int highlightA = 0xFFu;
+					const unsigned int highlightR = actualContains ? 0xFFu : 0u;
+					const unsigned int highlightG = actualContains ? 0u : 0xFFu;
+					const unsigned int highlightB = 0u;
+					diffRow[x] = (highlightA << 24) | (highlightR << 16)
+						| (highlightG << 8) | highlightB;
+					sumAlpha += highlightA;
+					sumRed += highlightR;
+					sumGreen += highlightG;
+					sumBlue += highlightB;
+					if (highlightA > stats.maxAlphaDiff) {
+						stats.maxAlphaDiff = highlightA;
+					}
+					if (highlightR > stats.maxRedDiff) {
+						stats.maxRedDiff = highlightR;
+					}
+					if (highlightG > stats.maxGreenDiff) {
+						stats.maxGreenDiff = highlightG;
+					}
+					if (highlightB > stats.maxBlueDiff) {
+						stats.maxBlueDiff = highlightB;
+					}
+					continue;
+				}
+				const NuXPixels::ARGB32::Pixel actualPixel =
+					actualContains ? actualRow[x] : 0;
+				const NuXPixels::ARGB32::Pixel goldenPixel =
+					goldenContains ? goldenRow[x] : 0;
 				if (actualPixel == goldenPixel) {
 					diffRow[x] = 0;
 					continue;
@@ -2021,6 +2052,13 @@ class SnapshotGolden {
 		std::ostringstream summary;
 		summary << "differs from golden (pixels: " << stats.differingPixels
 				<< "/" << (stats.width * stats.height) << ")";
+		if (!boundsMatch) {
+			summary << ", bounds differ (actual " << actualBounds.left << ","
+				<< actualBounds.top << " " << actualBounds.width << "x"
+				<< actualBounds.height << " vs golden " << goldenBounds.left << ","
+				<< goldenBounds.top << " " << goldenBounds.width << "x"
+				<< goldenBounds.height << ")";
+		}
 		result.message = summary.str();
 
 		removeFileIfExists(actualPath);
