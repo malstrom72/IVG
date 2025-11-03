@@ -2964,49 +2964,119 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 			executionError = e.what();
 		}
 
+            bool implicitSnapshot = false;
             if (!round.hasPinned) {
                 if (!round.executedCommonBlock) {
-                    // If the format declares snapshot support, or if goldens already exist
-                    // for this source, then a failure before any snapshot meta executes
-                    // should be treated as a hard error (not ignored).
                     if (formatDetection.supportsSnapshot || goldensExist) {
-                        run.fileFailed = true;
-                        run.exitCode = 1;
-                        if (executionFailed) {
-                            run.fileError = executionError;
-                            if (options.verbose || options.listOnly) {
-                                std::cerr << path << ": " << executionError << std::endl;
-                            }
-                        } else {
-                            run.fileError = "no snapshots executed";
-                            if (options.verbose || options.listOnly) {
-                                std::cerr << path << ": expected snapshots but none executed." << std::endl;
-                            }
+                        implicitSnapshot = true;
+                    } else {
+                        if (executionFailed && (options.verbose || options.listOnly)) {
+                            std::cerr << path << ": " << executionError
+                                      << " (ignored: no snapshots executed)." << std::endl;
                         }
                         coordinator.completeRound(round);
                         break;
                     }
-
-                    // Otherwise keep current behavior: ignore files with no snapshots executed.
-                    if (executionFailed && (options.verbose || options.listOnly)) {
-                        std::cerr << path << ": " << executionError
-                                  << " (ignored: no snapshots executed)." << std::endl;
+                } else {
+                    if (executionFailed) {
+                        run.fileFailed = true;
+                        run.exitCode = 1;
+                        run.fileError = executionError;
+                        if (options.verbose || options.listOnly) {
+                            std::cerr << path << ": " << executionError << std::endl;
+                        }
                     }
                     coordinator.completeRound(round);
                     break;
                 }
+            }
+
+            if (implicitSnapshot) {
+                SnapshotEntryResult result;
+                result.ivgPath = path;
+                result.scenarioName = "document";
+                result.entryOrdinal = 1;
+                result.validate = true;
+                result.planOrdinal = static_cast<uint32_t>(run.entries.size());
+                result.blockIndex = 0;
+                result.identifier =
+                                buildEntryIdentifier(snapshotBase, result.scenarioName,
+                                        result.blockIndex, result.entryOrdinal);
 
                 if (executionFailed) {
+                    result.message = executionError;
+                    result.success = false;
                     run.fileFailed = true;
                     run.exitCode = 1;
                     run.fileError = executionError;
                     if (options.verbose || options.listOnly) {
-                        std::cerr << path << ": " << executionError << std::endl;
+                        std::cerr << path << ": scenario " << result.scenarioName
+                                  << ": " << result.message << std::endl;
+                    }
+                } else {
+                    NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> *raster =
+                                    canvas.accessRaster();
+                    if (!executor.finished()) {
+                        result.message = "did not execute all snapshot invocations";
+                        result.success = false;
+                        if (options.verbose || options.listOnly) {
+                            std::cerr << path << ": scenario " << result.scenarioName
+                                      << " did not execute all snapshot invocations."
+                                      << std::endl;
+                        }
+                    } else if (raster == 0) {
+                        result.message = "rendered image is empty";
+                        result.success = false;
+                        if (options.verbose || options.listOnly) {
+                            std::cerr << path << ": scenario " << result.scenarioName
+                                      << " produced no raster output." << std::endl;
+                        }
+                    } else if (options.listOnly) {
+                        result.rendered = false;
+                        result.skipped = true;
+                        result.success = true;
+                    } else {
+                        result.rendered = true;
+                        SnapshotGolden golden(path, snapshotBase, result.scenarioName,
+                                        options);
+                        if (!golden.validate(*raster, options.forceUpdate, result)) {
+                            if (result.message.empty()) {
+                                result.message = "validation failed";
+                            }
+                            if (options.verbose || options.listOnly) {
+                                std::cerr << path << ": scenario "
+                                          << result.scenarioName << ": "
+                                          << result.message << std::endl;
+                            }
+                        }
                     }
                 }
+
+                if (!result.success) {
+                    run.failedEntries++;
+                    if (result.diffed) {
+                        run.diffFailures++;
+                    }
+                    run.exitCode = 1;
+                    if (options.exitOnFirstFailure) {
+                        stopAfterFailure = true;
+                    }
+                }
+
+                if (result.validate) {
+                    ++run.validatedEntries;
+                } else {
+                    ++run.draftEntries;
+                }
+                if (result.updated) {
+                    ++run.updatedEntries;
+                }
+                ++run.totalEntries;
+
+                run.entries.push_back(result);
                 coordinator.completeRound(round);
                 break;
-        }
+            }
                 SnapshotEntryResult result;
 		result.ivgPath = path;
 		const std::string &registeredLabel =
