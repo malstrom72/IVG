@@ -199,6 +199,42 @@ std::string WriteTemporaryIVG(const std::string &contents)
         return path;
 }
 
+void TestImplicitSnapshotRendering()
+{
+        const char *source =
+                "format ivg-3 uses:snapshot-1\n"
+                "bounds 0,0,32,32\n"
+                "color=#00FF00\n"
+                "FILL $color\n"
+                "ELLIPSE 16,16,12\n";
+
+        const std::string path = WriteTemporaryIVG(source);
+
+        CommandLineOptions options;
+        options.snapshotDir = extractDirectory(path);
+        options.forceUpdate = true;
+
+        SnapshotRunResult run = processFile(options, path);
+        Expect(run.exitCode == 0, "implicit snapshot run should succeed");
+        ExpectEqual(run.totalEntries, static_cast<uint32_t>(1),
+                "implicit snapshot entry count");
+        Expect(!run.entries.empty(), "implicit snapshot should record entry");
+
+        const SnapshotEntryResult &entry = run.entries.front();
+        Expect(entry.success, "implicit snapshot entry should succeed");
+        Expect(entry.rendered, "implicit snapshot should render image");
+        Expect(entry.updated, "implicit snapshot force update should mark updated");
+        Expect(entry.validate, "implicit snapshot defaults to validation");
+        Expect(fileExists(entry.goldenPath), "implicit snapshot should write golden");
+
+        removeFileIfExists(entry.goldenPath);
+        removeFileIfExists(entry.oldPath);
+        removeFileIfExists(entry.actualPath);
+        removeFileIfExists(entry.diffPath);
+        removeFileIfExists(entry.backupPath);
+        std::remove(path.c_str());
+}
+
 void TestValidateMismatch()
 {
         const char *source =
@@ -348,6 +384,7 @@ int main()
         TestCommonBlockListOnly();
         TestCommonBlockMismatchDetection();
         TestScenarioMismatchDetection();
+        TestImplicitSnapshotRendering();
         TestValidateMismatch();
         TestSnapshotSourceTags();
         TestDraftValidateWorkflow();
