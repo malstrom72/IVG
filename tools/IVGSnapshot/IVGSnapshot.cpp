@@ -2172,6 +2172,11 @@ loadPngRaster(const std::string &path,
 				|| height > static_cast<png_uint_32>(std::numeric_limits<int>::max())) {
 			throw std::runtime_error("PNG dimensions exceed supported range");
 		}
+		const int widthInt = static_cast<int>(width);
+		const int heightInt = static_cast<int>(height);
+		if (widthInt <= 0 || heightInt <= 0) {
+			throw std::runtime_error("PNG dimensions exceed supported range");
+		}
 
 		png_int_32 rawOffsetX = 0;
 		png_int_32 rawOffsetY = 0;
@@ -2195,9 +2200,26 @@ loadPngRaster(const std::string &path,
 			top = static_cast<int>(rawOffsetY);
 		}
 
+		const long long widthLL = static_cast<long long>(widthInt);
+		const long long heightLL = static_cast<long long>(heightInt);
+		const long long pixelCount = widthLL * heightLL;
+		if (pixelCount > static_cast<long long>(std::numeric_limits<int>::max())) {
+			throw std::runtime_error("PNG dimensions exceed supported range");
+		}
+
+		const long long strideLL = widthLL;
+		const long long topLL = static_cast<long long>(top);
+		const long long leftLL = static_cast<long long>(left);
+		const long long minOffset = topLL * strideLL + leftLL;
+		const long long maxOffset
+				= (topLL + heightLL - 1) * strideLL + (leftLL + widthLL - 1);
+		if (minOffset < static_cast<long long>(std::numeric_limits<int>::min())
+				|| maxOffset > static_cast<long long>(std::numeric_limits<int>::max())) {
+			throw std::runtime_error("PNG offsets exceed supported range");
+		}
+
 		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> tempRaster(
-				NuXPixels::IntRect(left, top, static_cast<int>(width),
-								static_cast<int>(height)));
+				NuXPixels::IntRect(left, top, widthInt, heightInt));
 
 		png_bytep *rows = png_get_rows(png, info);
 
