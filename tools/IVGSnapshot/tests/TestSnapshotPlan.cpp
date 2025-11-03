@@ -427,6 +427,145 @@ void TestDraftValidateWorkflow()
         removeFileIfExists(paths.oldPath);
 }
 
+
+void TestPngOffsetsRoundTrip()
+{
+	char tempName[L_tmpnam];
+	Expect(std::tmpnam(tempName) != 0,
+		"failed to allocate temporary PNG name");
+	std::string path(tempName);
+	path += ".png";
+
+	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> raster(
+		NuXPixels::IntRect(11, 13, 4, 3));
+	const NuXPixels::IntRect bounds = raster.calcBounds();
+	for (int y = bounds.top; y < bounds.calcBottom(); ++y) {
+		for (int x = bounds.left; x < bounds.calcRight(); ++x) {
+			raster.setPixel(x, y, 0xFF336699u);
+		}
+	}
+
+	std::string error;
+	Expect(writeRasterToPng(path, raster, error),
+		"writeRasterToPng should succeed");
+	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> loaded;
+	Expect(loadPngRaster(path, loaded),
+		"loadPngRaster should succeed");
+	Expect(loaded.calcBounds() == bounds,
+		"loaded bounds should match original");
+	Expect(loaded.getPixel(bounds.left, bounds.top) == 0xFF336699u,
+		"loaded pixel should match original color");
+
+	removeFileIfExists(path);
+}
+
+void TestSnapshotValidationWithOffsets()
+{
+	char tempName[L_tmpnam];
+	Expect(std::tmpnam(tempName) != 0,
+		"failed to allocate temporary snapshot directory");
+	std::string root(tempName);
+	root += "_offset_validate";
+	Expect(ensureDirectory(root), "create snapshot directory");
+
+	CommandLineOptions options;
+	options.snapshotDir = root;
+
+	SnapshotGolden golden("offset.ivg", "offset_base",
+		"offsetScenario", options);
+
+	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> raster(
+		NuXPixels::IntRect(7, 9, 6, 5));
+	const NuXPixels::IntRect bounds = raster.calcBounds();
+	for (int y = bounds.top; y < bounds.calcBottom(); ++y) {
+		for (int x = bounds.left; x < bounds.calcRight(); ++x) {
+			raster.setPixel(x, y, 0xFF123456u);
+		}
+	}
+
+	SnapshotEntryResult first;
+	Expect(golden.validate(raster, true, first),
+		"force update should succeed");
+	Expect(first.success, "force update result success flag");
+	Expect(first.updated, "force update should mark updated");
+	Expect(fileExists(first.goldenPath),
+		"golden PNG should be written with offsets");
+
+	SnapshotEntryResult second;
+	Expect(golden.validate(raster, false, second),
+		"validate should succeed with matching offsets");
+	Expect(second.success, "second validate result success flag");
+	Expect(!second.diffed, "second validate should not diff");
+	Expect(!second.updated, "second validate should not update");
+	Expect(second.message.empty(),
+		"second validate should not produce a message");
+
+	removeFileIfExists(second.goldenPath);
+	removeFileIfExists(second.actualPath);
+	removeFileIfExists(second.diffPath);
+	removeFileIfExists(second.backupPath);
+	removeFileIfExists(first.backupPath);
+	removeFileIfExists(first.oldPath);
+}
+
+void TestSnapshotDetectsOffsetMismatch()
+{
+	char tempName[L_tmpnam];
+	Expect(std::tmpnam(tempName) != 0,
+		"failed to allocate mismatch snapshot directory");
+	std::string root(tempName);
+	root += "_offset_mismatch";
+	Expect(ensureDirectory(root), "create mismatch snapshot directory");
+
+	CommandLineOptions options;
+	options.snapshotDir = root;
+
+	SnapshotGolden golden("mismatch.ivg", "offset_base",
+		"offsetScenario", options);
+
+	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> baseline(
+		NuXPixels::IntRect(4, 6, 5, 4));
+	const NuXPixels::IntRect baselineBounds = baseline.calcBounds();
+	for (int y = baselineBounds.top; y < baselineBounds.calcBottom(); ++y) {
+		for (int x = baselineBounds.left; x < baselineBounds.calcRight(); ++x) {
+			baseline.setPixel(x, y, 0xFF89ABC0u);
+		}
+	}
+
+	SnapshotEntryResult baselineResult;
+	Expect(golden.validate(baseline, true, baselineResult),
+		"baseline force update should succeed");
+	Expect(baselineResult.success, "baseline success flag");
+
+	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> shifted(
+		NuXPixels::IntRect(4, 7, 5, 4));
+	const NuXPixels::IntRect shiftedBounds = shifted.calcBounds();
+	for (int y = shiftedBounds.top; y < shiftedBounds.calcBottom(); ++y) {
+		for (int x = shiftedBounds.left; x < shiftedBounds.calcRight(); ++x) {
+			shifted.setPixel(x, y, 0xFF89ABC0u);
+		}
+	}
+
+	SnapshotEntryResult mismatch;
+	Expect(!golden.validate(shifted, false, mismatch),
+		"mismatched offsets should fail validation");
+	Expect(!mismatch.success, "mismatch success flag should be false");
+	Expect(mismatch.diffed, "mismatch should record diff output");
+	Expect(mismatch.message.find("differs from golden") != std::string::npos,
+		"mismatch should report diff message");
+	Expect(fileExists(mismatch.actualPath),
+		"actual PNG should be written on mismatch");
+	Expect(fileExists(mismatch.diffPath),
+		"diff PNG should be written on mismatch");
+
+	removeFileIfExists(mismatch.goldenPath);
+	removeFileIfExists(mismatch.actualPath);
+	removeFileIfExists(mismatch.diffPath);
+	removeFileIfExists(mismatch.backupPath);
+	removeFileIfExists(baselineResult.backupPath);
+	removeFileIfExists(baselineResult.oldPath);
+}
+
 } // namespace
 
 int main()
@@ -442,5 +581,8 @@ int main()
 	TestSnapshotSourceTags();
 	TestGoldenAuditWithSanitizedBases();
 	TestDraftValidateWorkflow();
+	TestPngOffsetsRoundTrip();
+	TestSnapshotValidationWithOffsets();
+	TestSnapshotDetectsOffsetMismatch();
 	return 0;
 }

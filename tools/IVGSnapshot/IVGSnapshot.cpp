@@ -39,6 +39,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <iomanip>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <locale>
 #include <map>
 #include <set>
@@ -2129,15 +2130,43 @@ loadPngRaster(const std::string &path,
 		png_read_png(png, info, PNG_TRANSFORM_EXPAND, 0);
 		const png_uint_32 width = png_get_image_width(png, info);
 		const png_uint_32 height = png_get_image_height(png, info);
-		png_bytep *rows = png_get_rows(png, info);
+		if (width > static_cast<png_uint_32>(std::numeric_limits<int>::max())
+				|| height > static_cast<png_uint_32>(std::numeric_limits<int>::max())) {
+			throw std::runtime_error("PNG dimensions exceed supported range");
+		}
+
+		png_int_32 rawOffsetX = 0;
+		png_int_32 rawOffsetY = 0;
+		int offsetUnit = PNG_OFFSET_PIXEL;
+		bool hasPixelOffsets = false;
+		if (png_get_valid(png, info, PNG_INFO_oFFs)) {
+			(void)png_get_oFFs(png, info, &rawOffsetX, &rawOffsetY, &offsetUnit);
+			hasPixelOffsets = (offsetUnit == PNG_OFFSET_PIXEL);
+		}
+
+		int left = 0;
+		int top = 0;
+		if (hasPixelOffsets) {
+			if (rawOffsetX < static_cast<png_int_32>(std::numeric_limits<int>::min())
+				|| rawOffsetX > static_cast<png_int_32>(std::numeric_limits<int>::max())
+				|| rawOffsetY < static_cast<png_int_32>(std::numeric_limits<int>::min())
+				|| rawOffsetY > static_cast<png_int_32>(std::numeric_limits<int>::max())) {
+				throw std::runtime_error("PNG offsets exceed supported range");
+			}
+			left = static_cast<int>(rawOffsetX);
+			top = static_cast<int>(rawOffsetY);
+		}
 
 		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> tempRaster(
-			NuXPixels::IntRect(0, 0, static_cast<int>(width),
-							   static_cast<int>(height)));
+				NuXPixels::IntRect(left, top, static_cast<int>(width),
+								static_cast<int>(height)));
+
+		png_bytep *rows = png_get_rows(png, info);
 
 		for (png_uint_32 y = 0; y < height; ++y) {
+			const int targetY = top + static_cast<int>(y);
 			NuXPixels::ARGB32::Pixel *dest =
-				tempRaster.getPixelPointer() + y * tempRaster.getStride();
+					tempRaster.getPixelPointer() + targetY * tempRaster.getStride();
 			png_bytep src = rows[y];
 			for (png_uint_32 x = 0; x < width; ++x) {
 				unsigned int b = src[x * 4 + 0];
@@ -2149,7 +2178,8 @@ loadPngRaster(const std::string &path,
 					g = convertStraightChannelToPremultiplied(g, a);
 					b = convertStraightChannelToPremultiplied(b, a);
 				}
-				dest[x] = (a << 24) | (r << 16) | (g << 8) | b;
+				const int targetX = left + static_cast<int>(x);
+				dest[targetX] = (a << 24) | (r << 16) | (g << 8) | b;
 			}
 		}
 
