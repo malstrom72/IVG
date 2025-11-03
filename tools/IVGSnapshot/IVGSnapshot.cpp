@@ -39,6 +39,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <iomanip>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <locale>
 #include <map>
 #include <set>
@@ -1883,6 +1884,10 @@ class SnapshotGolden {
 
 		const NuXPixels::IntRect actualBounds = raster.calcBounds();
 		const NuXPixels::IntRect goldenBounds = goldenRaster.calcBounds();
+		const bool boundsMatch = (actualBounds.left == goldenBounds.left &&
+			actualBounds.top == goldenBounds.top &&
+			actualBounds.width == goldenBounds.width &&
+			actualBounds.height == goldenBounds.height);
 		const int left =
 			NuXPixels::minValue(actualBounds.left, goldenBounds.left);
 		const int top = NuXPixels::minValue(actualBounds.top, goldenBounds.top);
@@ -1918,7 +1923,7 @@ class SnapshotGolden {
 		uint64_t sumRed = 0;
 		uint64_t sumGreen = 0;
 		uint64_t sumBlue = 0;
-		bool match = true;
+		bool match = boundsMatch;
 
 		for (int y = top; y < bottom; ++y) {
 			NuXPixels::ARGB32::Pixel *diffRow = diffPixels + y * diffStride;
@@ -1931,16 +1936,43 @@ class SnapshotGolden {
 					? goldenPixelsPtr + y * goldenStride
 					: 0;
 			for (int x = left; x < right; ++x) {
-				const NuXPixels::ARGB32::Pixel actualPixel =
+				const bool actualContains =
 					(actualRow != 0 && x >= actualBounds.left &&
-					 x < actualBounds.calcRight())
-						? actualRow[x]
-						: 0;
-				const NuXPixels::ARGB32::Pixel goldenPixel =
+					 x < actualBounds.calcRight());
+				const bool goldenContains =
 					(goldenRow != 0 && x >= goldenBounds.left &&
-					 x < goldenBounds.calcRight())
-						? goldenRow[x]
-						: 0;
+					 x < goldenBounds.calcRight());
+				if (actualContains != goldenContains) {
+					match = false;
+					++stats.differingPixels;
+					const unsigned int highlightA = 0xFFu;
+					const unsigned int highlightR = actualContains ? 0xFFu : 0u;
+					const unsigned int highlightG = actualContains ? 0u : 0xFFu;
+					const unsigned int highlightB = 0u;
+					diffRow[x] = (highlightA << 24) | (highlightR << 16)
+						| (highlightG << 8) | highlightB;
+					sumAlpha += highlightA;
+					sumRed += highlightR;
+					sumGreen += highlightG;
+					sumBlue += highlightB;
+					if (highlightA > stats.maxAlphaDiff) {
+						stats.maxAlphaDiff = highlightA;
+					}
+					if (highlightR > stats.maxRedDiff) {
+						stats.maxRedDiff = highlightR;
+					}
+					if (highlightG > stats.maxGreenDiff) {
+						stats.maxGreenDiff = highlightG;
+					}
+					if (highlightB > stats.maxBlueDiff) {
+						stats.maxBlueDiff = highlightB;
+					}
+					continue;
+				}
+				const NuXPixels::ARGB32::Pixel actualPixel =
+					actualContains ? actualRow[x] : 0;
+				const NuXPixels::ARGB32::Pixel goldenPixel =
+					goldenContains ? goldenRow[x] : 0;
 				if (actualPixel == goldenPixel) {
 					diffRow[x] = 0;
 					continue;
@@ -2020,6 +2052,13 @@ class SnapshotGolden {
 		std::ostringstream summary;
 		summary << "differs from golden (pixels: " << stats.differingPixels
 				<< "/" << (stats.width * stats.height) << ")";
+		if (!boundsMatch) {
+			summary << ", bounds differ (actual " << actualBounds.left << ","
+				<< actualBounds.top << " " << actualBounds.width << "x"
+				<< actualBounds.height << " vs golden " << goldenBounds.left << ","
+				<< goldenBounds.top << " " << goldenBounds.width << "x"
+				<< goldenBounds.height << ")";
+		}
 		result.message = summary.str();
 
 		removeFileIfExists(actualPath);
@@ -2129,15 +2168,43 @@ loadPngRaster(const std::string &path,
 		png_read_png(png, info, PNG_TRANSFORM_EXPAND, 0);
 		const png_uint_32 width = png_get_image_width(png, info);
 		const png_uint_32 height = png_get_image_height(png, info);
-		png_bytep *rows = png_get_rows(png, info);
+		if (width > static_cast<png_uint_32>(std::numeric_limits<int>::max())
+				|| height > static_cast<png_uint_32>(std::numeric_limits<int>::max())) {
+			throw std::runtime_error("PNG dimensions exceed supported range");
+		}
+
+		png_int_32 rawOffsetX = 0;
+		png_int_32 rawOffsetY = 0;
+		int offsetUnit = PNG_OFFSET_PIXEL;
+		bool hasPixelOffsets = false;
+		if (png_get_valid(png, info, PNG_INFO_oFFs)) {
+			(void)png_get_oFFs(png, info, &rawOffsetX, &rawOffsetY, &offsetUnit);
+			hasPixelOffsets = (offsetUnit == PNG_OFFSET_PIXEL);
+		}
+
+		int left = 0;
+		int top = 0;
+		if (hasPixelOffsets) {
+			if (rawOffsetX < static_cast<png_int_32>(std::numeric_limits<int>::min())
+				|| rawOffsetX > static_cast<png_int_32>(std::numeric_limits<int>::max())
+				|| rawOffsetY < static_cast<png_int_32>(std::numeric_limits<int>::min())
+				|| rawOffsetY > static_cast<png_int_32>(std::numeric_limits<int>::max())) {
+				throw std::runtime_error("PNG offsets exceed supported range");
+			}
+			left = static_cast<int>(rawOffsetX);
+			top = static_cast<int>(rawOffsetY);
+		}
 
 		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> tempRaster(
-			NuXPixels::IntRect(0, 0, static_cast<int>(width),
-							   static_cast<int>(height)));
+				NuXPixels::IntRect(left, top, static_cast<int>(width),
+								static_cast<int>(height)));
+
+		png_bytep *rows = png_get_rows(png, info);
 
 		for (png_uint_32 y = 0; y < height; ++y) {
+			const int targetY = top + static_cast<int>(y);
 			NuXPixels::ARGB32::Pixel *dest =
-				tempRaster.getPixelPointer() + y * tempRaster.getStride();
+					tempRaster.getPixelPointer() + targetY * tempRaster.getStride();
 			png_bytep src = rows[y];
 			for (png_uint_32 x = 0; x < width; ++x) {
 				unsigned int b = src[x * 4 + 0];
@@ -2149,7 +2216,8 @@ loadPngRaster(const std::string &path,
 					g = convertStraightChannelToPremultiplied(g, a);
 					b = convertStraightChannelToPremultiplied(b, a);
 				}
-				dest[x] = (a << 24) | (r << 16) | (g << 8) | b;
+				const int targetX = left + static_cast<int>(x);
+				dest[targetX] = (a << 24) | (r << 16) | (g << 8) | b;
 			}
 		}
 
