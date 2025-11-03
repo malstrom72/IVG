@@ -311,6 +311,59 @@ void TestSnapshotSourceTags()
                 "outside root should sanitize absolute path");
 }
 
+void TestGoldenAuditWithSanitizedBases()
+{
+	char tempName[L_tmpnam];
+	if (std::tmpnam(tempName) == 0) {
+		Fail("failed to allocate temporary audit root");
+	}
+	std::string root(tempName);
+	root += "_ivgsnapshot_audit";
+	Expect(ensureDirectory(root), "create audit root");
+	const std::string alpha = joinPath(root, "alpha");
+	Expect(ensureDirectory(alpha), "create alpha directory");
+	const std::string beta = joinPath(alpha, "beta");
+	Expect(ensureDirectory(beta), "create beta directory");
+
+	const std::string ivgPath = joinPath(beta, "sample.ivg");
+	{
+		std::ofstream file(ivgPath.c_str(), std::ios::binary);
+		if (!file.good()) {
+			Fail(std::string("failed to write temporary IVG: ") + ivgPath);
+		}
+		file << "format ivg-3 uses:snapshot-1\n";
+		file << "bounds 0,0,1,1\n";
+		file << "meta snapshot scenario:document [ fill red ]\n";
+	}
+
+	const NuXFiles::Path rootPath = pathFromNativeString(root);
+	Expect(!rootPath.isNull(), "audit root path should be valid");
+	const std::string snapshotBase = buildSnapshotSourceTag(ivgPath, rootPath);
+	Expect(!snapshotBase.empty(), "snapshot base should not be empty");
+
+	const std::string goldenPath = joinPath(beta, snapshotBase + "__document.png");
+	{
+		std::ofstream golden(goldenPath.c_str(), std::ios::binary);
+		if (!golden.good()) {
+			Fail(std::string("failed to write temporary golden: ") + goldenPath);
+		}
+		golden.put('\0');
+	}
+
+	std::set<std::string> processedBases;
+	processedBases.insert(snapshotBase);
+
+	std::set<std::string> auditRoots;
+	auditRoots.insert(beta);
+
+	std::vector<std::string> orphanGoldens;
+	collectOrphanGoldens(processedBases, auditRoots, orphanGoldens);
+	Expect(orphanGoldens.empty(), "sanitized golden should not be orphan");
+
+	removeFileIfExists(ivgPath);
+	removeFileIfExists(goldenPath);
+}
+
 void TestDraftValidateWorkflow()
 {
         const char *tempEnv = std::getenv("TMPDIR");
@@ -378,15 +431,16 @@ void TestDraftValidateWorkflow()
 
 int main()
 {
-        TestListOnlySample();
-        TestListScenarioVariants();
-        TestListVariableExpansion();
-        TestCommonBlockListOnly();
-        TestCommonBlockMismatchDetection();
-        TestScenarioMismatchDetection();
-        TestImplicitSnapshotRendering();
-        TestValidateMismatch();
-        TestSnapshotSourceTags();
-        TestDraftValidateWorkflow();
-        return 0;
+	TestListOnlySample();
+	TestListScenarioVariants();
+	TestListVariableExpansion();
+	TestCommonBlockListOnly();
+	TestCommonBlockMismatchDetection();
+	TestScenarioMismatchDetection();
+	TestImplicitSnapshotRendering();
+	TestValidateMismatch();
+	TestSnapshotSourceTags();
+	TestGoldenAuditWithSanitizedBases();
+	TestDraftValidateWorkflow();
+	return 0;
 }
