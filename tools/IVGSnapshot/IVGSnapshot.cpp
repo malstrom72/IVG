@@ -1332,6 +1332,52 @@ static void removeFileIfExists(const std::string &path) {
 	}
 }
 
+
+static void collectOrphanGoldens(const std::set<std::string> &processedBases,
+		const std::set<std::string> &auditRoots,
+		std::vector<std::string> &orphanGoldens) {
+	orphanGoldens.clear();
+	for (std::set<std::string>::const_iterator it = auditRoots.begin();
+		it != auditRoots.end(); ++it) {
+		const std::string &root = *it;
+		if (root.empty()) {
+			continue;
+		}
+		const std::string wildcard = joinPath(root, std::string("*__*.png"));
+		try {
+			std::vector<NuXFiles::Path> matches;
+			NuXFiles::Path::findPaths(matches, pathStringToWide(wildcard));
+			for (size_t k = 0; k < matches.size(); ++k) {
+				const NuXFiles::Path &p = matches[k];
+				const std::wstring name = p.getName();
+				std::string narrow = pathStringFromWide(name);
+				bool matchedBase = false;
+				for (std::set<std::string>::const_iterator baseIt = processedBases.begin();
+					baseIt != processedBases.end(); ++baseIt) {
+					const std::string &base = *baseIt;
+					if (base.empty()) {
+						continue;
+					}
+					const size_t baseLength = base.size();
+					if (narrow.size() <= baseLength + 2) {
+						continue;
+					}
+					if (narrow.compare(0, baseLength, base) == 0 &&
+						narrow.compare(baseLength, 2, "__") == 0) {
+						matchedBase = true;
+						break;
+					}
+				}
+				if (!matchedBase) {
+					orphanGoldens.push_back(pathStringFromWide(p.getFullPath()));
+				}
+			}
+		} catch (...) {
+			// Ignore listing errors; best-effort audit only.
+		}
+	}
+}
+
 static bool renameFile(const std::string &from, const std::string &to,
 					   std::string &error) {
 	if (from.empty() || from == to) {
@@ -3377,33 +3423,7 @@ int main(int argc, char **argv) {
 			}
 
 			std::vector<std::string> orphanGoldens;
-			for (std::set<std::string>::const_iterator it = auditRoots.begin();
-				 it != auditRoots.end(); ++it) {
-				const std::string &root = *it;
-				if (root.empty()) {
-					continue;
-				}
-				const std::string wildcard = joinPath(root, std::string("*__*.png"));
-				try {
-					std::vector<NuXFiles::Path> matches;
-					NuXFiles::Path::findPaths(matches, pathStringToWide(wildcard));
-					for (size_t k = 0; k < matches.size(); ++k) {
-						const NuXFiles::Path &p = matches[k];
-						const std::wstring name = p.getName(); // without extension
-						std::string narrow = pathStringFromWide(name);
-						const size_t sep = narrow.find("__");
-						if (sep == std::string::npos) {
-							continue;
-						}
-						const std::string base = narrow.substr(0, sep);
-						if (processedBases.find(base) == processedBases.end()) {
-							orphanGoldens.push_back(pathStringFromWide(p.getFullPath()));
-						}
-					}
-				} catch (...) {
-					// Ignore listing errors; best-effort audit only.
-				}
-			}
+			collectOrphanGoldens(processedBases, auditRoots, orphanGoldens);
 
 			if (!orphanGoldens.empty()) {
 				for (size_t i = 0; i < orphanGoldens.size(); ++i) {
