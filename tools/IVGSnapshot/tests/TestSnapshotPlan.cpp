@@ -459,6 +459,82 @@ void TestPngOffsetsRoundTrip()
 	removeFileIfExists(path);
 }
 
+void TestRelativeSnapshotDirectory()
+{
+	const std::string baseDir = "RelativeSnapshotTest";
+	Expect(ensureDirectory(baseDir), "create base directory");
+	const std::string childDir = joinPath(baseDir, "child");
+	Expect(ensureDirectory(childDir), "create child directory");
+
+	const std::string ivgRelative = joinPath(childDir, "relative.ivg");
+	{
+		std::ofstream file(ivgRelative.c_str(), std::ios::binary);
+		Expect(file.good(), "open relative IVG for writing");
+		file << "format ivg-3 uses:snapshot-1\n";
+		file << "bounds 0,0,1,1\n";
+		file << "meta snapshot scenario:document [ fill white ]\n";
+	}
+
+	const NuXFiles::Path ivgPathObj = pathFromNativeString(ivgRelative);
+	Expect(!ivgPathObj.isNull(), "relative IVG path should resolve");
+	std::string ivgPath;
+	try {
+		ivgPath = pathStringFromWide(ivgPathObj.getFullPath());
+	} catch (const std::exception &) {
+		Fail("failed to canonicalize relative IVG path");
+	}
+
+	const std::string snapshotDirArgument = joinPath(childDir, "..");
+	std::vector<std::string> args;
+	args.push_back("IVGSnapshotTest");
+	args.push_back("--snapshot-dir");
+	args.push_back(snapshotDirArgument);
+	args.push_back(ivgPath);
+	std::vector<char *> argv(args.size());
+	for (size_t i = 0; i < args.size(); ++i) {
+		argv[i] = &args[i][0];
+	}
+	CommandLineOptions options;
+	Expect(parseCommandLine(static_cast<int>(args.size()), &argv[0], options),
+			"parse relative snapshot directory");
+
+	const std::string snapshotBase =
+			buildSnapshotSourceTag(ivgPath, options.rootDir);
+	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> raster(
+		NuXPixels::IntRect(0, 0, 1, 1));
+	raster.getPixelPointer()[0] = 0xFFFFFFFFu;
+	SnapshotGolden golden(ivgPath, snapshotBase, "document", options);
+
+	SnapshotEntryResult updateResult;
+	Expect(golden.validate(raster, true, updateResult),
+			"force update with relative snapshot dir");
+	Expect(updateResult.success, "relative force update success flag");
+
+	SnapshotEntryResult validateResult;
+	Expect(golden.validate(raster, false, validateResult),
+			"validate with relative snapshot dir");
+	Expect(validateResult.success, "relative validate success flag");
+	Expect(!validateResult.updated, "relative validate should not update");
+
+	removeFileIfExists(updateResult.goldenPath);
+	removeFileIfExists(updateResult.oldPath);
+	removeFileIfExists(updateResult.actualPath);
+	removeFileIfExists(updateResult.diffPath);
+	removeFileIfExists(updateResult.backupPath);
+	removeFileIfExists(validateResult.actualPath);
+	removeFileIfExists(validateResult.diffPath);
+	removeFileIfExists(validateResult.backupPath);
+	std::remove(ivgPath.c_str());
+	const NuXFiles::Path childPath = pathFromNativeString(childDir);
+	if (!childPath.isNull()) {
+		childPath.tryToErase();
+	}
+	const NuXFiles::Path basePath = pathFromNativeString(baseDir);
+	if (!basePath.isNull()) {
+		basePath.tryToErase();
+	}
+}
+
 void TestSnapshotValidationWithOffsets()
 {
 	char tempName[L_tmpnam];
@@ -643,6 +719,7 @@ int main()
 	TestGoldenAuditWithSanitizedBases();
 	TestDraftValidateWorkflow();
 	TestPngOffsetsRoundTrip();
+	TestRelativeSnapshotDirectory();
 	TestSnapshotValidationWithOffsets();
 	TestSnapshotDetectsOffsetMismatch();
 	TestSnapshotDetectsBoundsMismatch();
