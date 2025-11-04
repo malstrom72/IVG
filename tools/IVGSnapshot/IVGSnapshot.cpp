@@ -2054,9 +2054,9 @@ class SnapshotGolden {
 				<< "/" << (stats.width * stats.height) << ")";
 		if (!boundsMatch) {
 			summary << ", bounds differ (actual " << actualBounds.left << ","
-				<< actualBounds.top << " " << actualBounds.width << "x"
+				<< actualBounds.top << "," << actualBounds.width << ","
 				<< actualBounds.height << " vs golden " << goldenBounds.left << ","
-				<< goldenBounds.top << " " << goldenBounds.width << "x"
+				<< goldenBounds.top << "," << goldenBounds.width << ","
 				<< goldenBounds.height << ")";
 		}
 		result.message = summary.str();

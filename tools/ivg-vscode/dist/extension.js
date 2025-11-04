@@ -37,6 +37,8 @@ exports.activate = activate;
 exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
 const crypto_1 = require("crypto");
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
 let ivgPanel;
 let webviewReady = false;
 let statusBarItem;
@@ -53,6 +55,7 @@ const CONFIG_SECTION = "ivgfiddle.preview";
 const GENERAL_CONFIG_SECTION = "ivgfiddle";
 const INCLUDE_CONFIG_SECTION = "ivgfiddle.includes";
 const DEFAULT_INCLUDE_RESCAN_DEBOUNCE_MS = 150;
+const WORKSPACE_STATE_INCLUDE_ROOTS_KEY = "ivgfiddle.includes.lastRoots";
 // Track include-eligible assets that must stay in sync with IVGFiddle. IMPD composition (`.impd`),
 // inline vector graphics (`.ivg`), IVG fonts (`.ivgfont`), and raster fallbacks (`.png`) are
 // pre-packaged alongside previews, so the watcher focuses on that set of extensions.
@@ -66,14 +69,15 @@ let generalConfig = readGeneralConfig();
 let includeConfig = readIncludeConfig();
 let includeWatchers = [];
 let includeWatcherDisposables = [];
-let includeWatcherFolderCount = 0;
-let includeWatcherCandidateFolderCount = 0;
+let includeWatcherRootCount = 0;
+let includeWatcherCandidateRootCount = 0;
 let includeWatcherUnavailableMessage;
 let includeWatcherEventCounts = {
     create: 0,
     change: 0,
     delete: 0,
 };
+let includeWatcherRootLabels = [];
 const INCLUDE_CACHE_FOLDER = "include-cache";
 const INCLUDE_MANIFEST_FILE_NAME = "include-manifest.json";
 const INCLUDE_MANIFEST_VERSION = 1;
@@ -95,6 +99,7 @@ let includeExplorerView;
 let includeExplorerLastAutoRevealRevision;
 let includeStatusBarItem;
 const includeMissingRescanPaths = new Set();
+let includeLastUsedRoots = [];
 const MIME_TYPE_BY_EXTENSION = new Map([
     ["impd", "application/json"],
     ["ivg", "application/xml"],
@@ -104,6 +109,7 @@ const MIME_TYPE_BY_EXTENSION = new Map([
 function activate(context) {
     console.log("IVG Preview extension activated");
     extensionContext = context;
+    includeLastUsedRoots = context.workspaceState.get(WORKSPACE_STATE_INCLUDE_ROOTS_KEY, []);
     traceOutputChannel = vscode.window.createOutputChannel(TRACE_OUTPUT_CHANNEL_NAME);
     context.subscriptions.push(traceOutputChannel);
     clearTraceOutput();
@@ -192,7 +198,7 @@ function activate(context) {
         }
     });
     context.subscriptions.push(openCommand);
-    context.subscriptions.push(vscode.commands.registerCommand("ivgfiddle.refreshPreview", handleRefreshPreviewCommand), vscode.commands.registerCommand("ivgfiddle.clearTrace", handleClearTraceCommand), vscode.commands.registerCommand("ivgfiddle.includes.focusExplorer", handleFocusIncludeExplorerCommand), vscode.commands.registerCommand("ivgfiddle.includes.rescan", handleRescanIncludesCommand), vscode.commands.registerCommand("ivgfiddle.includes.openAsset", handleOpenIncludeAssetCommand), vscode.commands.registerCommand("ivgfiddle.includes.revealAsset", handleRevealIncludeAssetCommand), vscode.commands.registerCommand("ivgfiddle.includes.copyMountPath", handleCopyIncludeMountPathCommand));
+    context.subscriptions.push(vscode.commands.registerCommand("ivgfiddle.refreshPreview", handleRefreshPreviewCommand), vscode.commands.registerCommand("ivgfiddle.clearTrace", handleClearTraceCommand), vscode.commands.registerCommand("ivgfiddle.includes.focusExplorer", handleFocusIncludeExplorerCommand), vscode.commands.registerCommand("ivgfiddle.includes.rescan", handleRescanIncludesCommand), vscode.commands.registerCommand("ivgfiddle.includes.openAsset", handleOpenIncludeAssetCommand), vscode.commands.registerCommand("ivgfiddle.includes.revealAsset", handleRevealIncludeAssetCommand), vscode.commands.registerCommand("ivgfiddle.includes.copyMountPath", handleCopyIncludeMountPathCommand), vscode.commands.registerCommand("ivgfiddle.includes.setRoot", () => handleChooseIncludeRootCommand("replace")), vscode.commands.registerCommand("ivgfiddle.includes.addRoot", () => handleChooseIncludeRootCommand("append")), vscode.commands.registerCommand("ivgfiddle.includes.clearRoots", handleClearIncludeRootsCommand));
     context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((document) => {
         if (isIvgDocument(document)) {
             syncDocument(document, "open");
@@ -261,10 +267,13 @@ function activate(context) {
             event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.manifestEnabled`) ||
             event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.autoRescan`) ||
             event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.rescanDebounceMs`) ||
-            event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.autoRevealExplorer`)) {
+            event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.autoRevealExplorer`) ||
+            event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.roots`)) {
             includeConfig = readIncludeConfig();
-            if (event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.watchersEnabled`) ||
-                event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.manifestEnabled`)) {
+            const watcherTopologyChanged = event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.watchersEnabled`) ||
+                event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.manifestEnabled`) ||
+                event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.roots`);
+            if (watcherTopologyChanged) {
                 initializeIncludeWatchers(context);
             }
             else {
@@ -277,7 +286,8 @@ function activate(context) {
                 includeConfig.manifestEnabled &&
                 includeConfig.autoRescan &&
                 (event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.autoRescan`) ||
-                    event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.rescanDebounceMs`))) {
+                    event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.rescanDebounceMs`) ||
+                    event.affectsConfiguration(`${INCLUDE_CONFIG_SECTION}.roots`))) {
                 scheduleIncludeManifestBuild("configuration");
             }
             refreshStatusBar();
@@ -539,23 +549,24 @@ function buildIncludeExplorerEntries() {
             },
         ];
     }
-    if (includeWatcherCandidateFolderCount === 0) {
+    if (includeWatcherCandidateRootCount === 0) {
         return [
             {
                 kind: "message",
-                label: "Workspace required",
-                description: includeWatcherUnavailableMessage ?? `Open a workspace or folder to enable include watching (pattern: ${INCLUDE_ASSET_GLOB}).`,
+                label: "Include watchers unavailable",
+                description: includeWatcherUnavailableMessage ??
+                    `Open a workspace or configure include roots to enable include watching (pattern: ${INCLUDE_ASSET_GLOB}).`,
                 icon: "workspace-untrusted",
                 severity: "info",
             },
         ];
     }
-    if (includeWatcherFolderCount === 0) {
+    if (includeWatcherRootCount === 0) {
         return [
             {
                 kind: "message",
                 label: "Include watchers initializing…",
-                description: `Scanning ${includeWatcherCandidateFolderCount} workspace folder${includeWatcherCandidateFolderCount === 1 ? "" : "s"} for ${INCLUDE_ASSET_GLOB}.`,
+                description: `Scanning ${includeWatcherCandidateRootCount} include root${includeWatcherCandidateRootCount === 1 ? "" : "s"} for ${INCLUDE_ASSET_GLOB}.`,
                 icon: "sync~spin",
                 severity: "info",
             },
@@ -564,12 +575,44 @@ function buildIncludeExplorerEntries() {
     const entries = [];
     entries.push({
         kind: "message",
-        label: `Watching ${includeWatcherFolderCount} workspace folder${includeWatcherFolderCount === 1 ? "" : "s"}`,
+        label: `Watching ${includeWatcherRootCount} include root${includeWatcherRootCount === 1 ? "" : "s"}`,
         description: `Pattern: ${INCLUDE_ASSET_GLOB}`,
         detail: `Events — create: ${includeWatcherEventCounts.create}, change: ${includeWatcherEventCounts.change}, delete: ${includeWatcherEventCounts.delete}`,
         icon: "watch",
         severity: "info",
     });
+    if (includeWatcherRootLabels.length > 0) {
+        entries.push({
+            kind: "message",
+            label: "Active roots",
+            description: includeWatcherRootLabels.join(", "),
+            icon: "folder",
+            severity: "info",
+        });
+    }
+    if (includeConfig.roots.length > 0) {
+        entries.push({
+            kind: "message",
+            label: "Configured roots",
+            description: includeConfig.roots.map((root) => root.displayName).join(", "),
+            icon: "settings-gear",
+            severity: "info",
+        });
+    }
+    if (includeConfig.rootErrors.length > 0) {
+        entries.push({
+            kind: "message",
+            label: "Include root issues",
+            description: includeConfig.rootErrors.map((error) => formatIncludeRootError(error)).join("; "),
+            icon: "warning",
+            severity: "warning",
+            command: {
+                command: "workbench.action.openSettings",
+                title: "Open Include Root Settings",
+                arguments: ["ivgfiddle.includes.roots"],
+            },
+        });
+    }
     if (!includeConfig.manifestEnabled) {
         entries.push({
             kind: "message",
@@ -682,21 +725,24 @@ function getIncludeAssetEntryFromArgument(argument) {
     return undefined;
 }
 async function resolveIncludeAssetUri(relativePath) {
+    const normalized = normalizeIncludeRelativePath(relativePath);
+    const segments = normalized.split("/").filter(Boolean);
+    for (const root of includeConfig.effectiveRoots) {
+        const target = segments.length > 0 ? vscode.Uri.joinPath(root.uri, ...segments) : root.uri;
+        try {
+            await vscode.workspace.fs.stat(target);
+            return target;
+        }
+        catch (error) {
+            // Continue probing remaining roots.
+        }
+    }
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
         return undefined;
     }
-    const normalized = relativePath.replace(/\\/g, "/").replace(/^\/+/u, "");
-    const segments = normalized.split("/").filter(Boolean);
     for (const folder of workspaceFolders) {
-        let candidateSegments = segments;
-        if (workspaceFolders.length > 1 && segments.length > 1) {
-            const firstSegment = segments[0];
-            if (isWorkspaceFolderSegment(firstSegment, folder)) {
-                candidateSegments = segments.slice(1);
-            }
-        }
-        const candidate = candidateSegments.length > 0 ? vscode.Uri.joinPath(folder.uri, ...candidateSegments) : folder.uri;
+        const candidate = segments.length > 0 ? vscode.Uri.joinPath(folder.uri, ...segments) : folder.uri;
         try {
             await vscode.workspace.fs.stat(candidate);
             return candidate;
@@ -706,28 +752,6 @@ async function resolveIncludeAssetUri(relativePath) {
         }
     }
     return undefined;
-}
-function isWorkspaceFolderSegment(segment, folder) {
-    if (segment === folder.name || equalsFileSystemInsensitive(segment, folder.name)) {
-        return true;
-    }
-    const baseName = getWorkspaceFolderBaseName(folder);
-    return segment === baseName || equalsFileSystemInsensitive(segment, baseName);
-}
-function getWorkspaceFolderBaseName(folder) {
-    const fsPath = folder.uri.fsPath;
-    if (!fsPath) {
-        return folder.name;
-    }
-    const normalized = fsPath.replace(/\\+/g, "/");
-    const parts = normalized.split("/").filter(Boolean);
-    return parts.length > 0 ? parts[parts.length - 1] : folder.name;
-}
-function equalsFileSystemInsensitive(a, b) {
-    if (a === b) {
-        return true;
-    }
-    return a.localeCompare(b, undefined, { sensitivity: "accent" }) === 0;
 }
 function formatByteLength(byteLength) {
     if (!Number.isFinite(byteLength) || byteLength < 0) {
@@ -851,8 +875,8 @@ function getIncludeStatusSummary() {
             tooltipLines: ["Include watchers disabled"],
         };
     }
-    if (includeWatcherFolderCount === 0) {
-        if (includeWatcherCandidateFolderCount === 0) {
+    if (includeWatcherRootCount === 0) {
+        if (includeWatcherCandidateRootCount === 0) {
             return {
                 label: "includes unavailable",
                 tooltipLines: [
@@ -862,17 +886,20 @@ function getIncludeStatusSummary() {
                 ],
             };
         }
+        const pendingTooltip = [
+            `Include watchers initializing across ${includeWatcherCandidateRootCount} include root${includeWatcherCandidateRootCount === 1 ? "" : "s"} (pattern: ${INCLUDE_ASSET_GLOB})`,
+        ];
+        appendIncludeRootDiagnostics(pendingTooltip);
         return {
             label: "includes pending",
-            tooltipLines: [
-                `Include watchers initializing across ${includeWatcherCandidateFolderCount} workspace folder${includeWatcherCandidateFolderCount === 1 ? "" : "s"} (pattern: ${INCLUDE_ASSET_GLOB})`,
-            ],
+            tooltipLines: pendingTooltip,
         };
     }
     const tooltipLines = [
-        `Include watchers active on ${includeWatcherFolderCount} workspace folder${includeWatcherFolderCount === 1 ? "" : "s"} (pattern: ${INCLUDE_ASSET_GLOB})`,
+        `Include watchers active on ${includeWatcherRootCount} include root${includeWatcherRootCount === 1 ? "" : "s"} (pattern: ${INCLUDE_ASSET_GLOB})`,
         `Include watcher events this session — create: ${includeWatcherEventCounts.create}, change: ${includeWatcherEventCounts.change}, delete: ${includeWatcherEventCounts.delete}`,
     ];
+    appendIncludeRootDiagnostics(tooltipLines);
     if (!includeConfig.manifestEnabled) {
         const totalEvents = includeWatcherEventCounts.create + includeWatcherEventCounts.change + includeWatcherEventCounts.delete;
         const eventSuffix = totalEvents > 0 ? ` (+${totalEvents})` : "";
@@ -992,8 +1019,9 @@ async function handleRescanIncludesCommand() {
         await vscode.window.showInformationMessage('Enable "IVGFiddle › Includes: Manifest Enabled" before rebuilding the include bundle.');
         return;
     }
-    if (includeWatcherFolderCount === 0) {
-        await vscode.window.showInformationMessage("Attach a file-backed workspace folder so the include watcher can rescan your assets.");
+    if (includeWatcherRootCount === 0) {
+        await vscode.window.showInformationMessage(includeWatcherUnavailableMessage ??
+            "Configure at least one include root so the include watcher can rescan your assets.");
         return;
     }
     logIncludeTelemetry("Manual include manifest rescan requested.");
@@ -1037,6 +1065,206 @@ async function handleCopyIncludeMountPathCommand(target) {
     await vscode.env.clipboard.writeText(entry.mountPath);
     vscode.window.setStatusBarMessage(`Copied include mount path ${entry.mountPath}`, 2000);
 }
+async function handleChooseIncludeRootCommand(mode) {
+    const workspaceFolders = vscode.workspace.workspaceFolders?.filter((folder) => folder.uri.scheme === "file") ?? [];
+    if (workspaceFolders.length === 0) {
+        await vscode.window.showInformationMessage("Open a file-backed workspace to configure include roots.");
+        return;
+    }
+    const quickPickItems = await buildIncludeRootQuickPickItems(workspaceFolders);
+    quickPickItems.push({
+        label: "$(folder-opened) Browse for folder…",
+        description: "Select an include root directory from the filesystem",
+        selectionType: "browse",
+    });
+    const placeHolder = mode === "replace" ? "Select the include root to use" : "Select an additional include root";
+    const pick = await vscode.window.showQuickPick(quickPickItems, {
+        placeHolder,
+        matchOnDescription: true,
+        matchOnDetail: true,
+    });
+    if (!pick) {
+        return;
+    }
+    if (pick.selectionType === "browse") {
+        const selection = await vscode.window.showOpenDialog({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false });
+        if (!selection || selection.length === 0) {
+            return;
+        }
+        const targetUri = selection[0];
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(targetUri);
+        if (!workspaceFolder || workspaceFolder.uri.scheme !== "file") {
+            await vscode.window.showWarningMessage("Choose a folder inside an open workspace to use it as an include root.");
+            return;
+        }
+        const configurationPath = computeConfigurationPath(workspaceFolder, targetUri);
+        await updateWorkspaceIncludeRoots(workspaceFolder, configurationPath, mode);
+        return;
+    }
+    if (!pick.workspaceFolder || !pick.configurationPath) {
+        await vscode.window.showWarningMessage("Select a workspace include root to continue.");
+        return;
+    }
+    await updateWorkspaceIncludeRoots(pick.workspaceFolder, pick.configurationPath, mode);
+}
+async function handleClearIncludeRootsCommand() {
+    const workspaceFolders = vscode.workspace.workspaceFolders?.filter((folder) => folder.uri.scheme === "file") ?? [];
+    if (workspaceFolders.length === 0) {
+        await vscode.window.showInformationMessage("Open a file-backed workspace to clear include roots.");
+        return;
+    }
+    const candidates = workspaceFolders
+        .map((folder) => {
+        const key = folder.uri.toString();
+        const configured = includeConfig.rawRootsByWorkspace.get(key) ?? [];
+        const hasErrors = includeConfig.rootErrors.some((error) => error.workspaceFolder && error.workspaceFolder.uri.toString() === key);
+        return { folder, configured, hasErrors };
+    })
+        .filter((entry) => entry.configured.length > 0 || entry.hasErrors);
+    if (candidates.length === 0) {
+        await vscode.window.showInformationMessage("No include roots are configured for the current workspace.");
+        return;
+    }
+    let targetFolder;
+    if (candidates.length === 1) {
+        targetFolder = candidates[0].folder;
+    }
+    else {
+        const pick = await vscode.window.showQuickPick(candidates.map((entry) => ({
+            label: entry.folder.name,
+            description: entry.folder.uri.fsPath,
+            detail: entry.configured.length > 0 ? entry.configured.join(", ") : "Root entries reported issues.",
+            folder: entry.folder,
+        })), { placeHolder: "Select the workspace to clear include roots" });
+        if (!pick || !pick.folder) {
+            return;
+        }
+        targetFolder = pick.folder;
+    }
+    const config = vscode.workspace.getConfiguration(INCLUDE_CONFIG_SECTION, targetFolder);
+    await config.update("roots", [], vscode.ConfigurationTarget.WorkspaceFolder);
+    vscode.window.setStatusBarMessage(`Cleared include roots for ${targetFolder.name}`, 2000);
+}
+async function buildIncludeRootQuickPickItems(workspaceFolders) {
+    const items = [];
+    const seenKeys = new Set();
+    for (const folder of workspaceFolders) {
+        const folderKey = folder.uri.toString();
+        const folderPath = folder.uri.fsPath;
+        if (!folderPath) {
+            continue;
+        }
+        const configured = includeConfig.rawRootsByWorkspace.get(folderKey) ?? [];
+        const isConfigured = (candidate) => configured.includes(candidate);
+        const addItem = (label, description, detail, configurationPath, targetUri, selectionType) => {
+            const key = `${folderKey}::${configurationPath}`;
+            if (seenKeys.has(key)) {
+                return;
+            }
+            seenKeys.add(key);
+            items.push({
+                label,
+                description,
+                detail: detail
+                    ? isConfigured(configurationPath)
+                        ? `${detail} - Configured`
+                        : detail
+                    : isConfigured(configurationPath)
+                        ? "Configured"
+                        : undefined,
+                picked: isConfigured(configurationPath),
+                workspaceFolder: folder,
+                configurationPath,
+                targetUri,
+                selectionType,
+            });
+        };
+        addItem(`${folder.name}/.`, folderPath, "Workspace root", ".", folder.uri, "candidate");
+        const notableDirectories = await collectNotableIncludeDirectories(folder);
+        for (const uri of notableDirectories) {
+            const configurationPath = computeConfigurationPath(folder, uri);
+            const displayPath = configurationPath === "." ? "." : configurationPath;
+            addItem(`${folder.name}/${displayPath}`, uri.fsPath, "Contains include assets", configurationPath, uri, "candidate");
+        }
+    }
+    for (const rootPath of includeLastUsedRoots) {
+        const uri = vscode.Uri.file(rootPath);
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+        if (!workspaceFolder || workspaceFolder.uri.scheme !== "file") {
+            continue;
+        }
+        const configurationPath = computeConfigurationPath(workspaceFolder, uri);
+        const label = describeIncludeRootFromPath(rootPath) ?? `${workspaceFolder.name}/${configurationPath}`;
+        const description = uri.fsPath;
+        const detail = "Recent include root";
+        const key = `${workspaceFolder.uri.toString()}::${configurationPath}`;
+        if (seenKeys.has(key)) {
+            continue;
+        }
+        items.push({
+            label,
+            description,
+            detail,
+            workspaceFolder,
+            configurationPath,
+            targetUri: uri,
+            selectionType: "recent",
+            picked: (includeConfig.rawRootsByWorkspace.get(workspaceFolder.uri.toString()) ?? []).includes(configurationPath),
+        });
+        seenKeys.add(key);
+    }
+    return items;
+}
+async function collectNotableIncludeDirectories(folder) {
+    try {
+        const pattern = new vscode.RelativePattern(folder, "**/*.{ivg,impd}");
+        const files = await vscode.workspace.findFiles(pattern, undefined, 200);
+        const directories = new Map();
+        for (const file of files) {
+            const directoryPath = path.dirname(file.fsPath);
+            if (!directories.has(directoryPath)) {
+                directories.set(directoryPath, vscode.Uri.file(directoryPath));
+            }
+        }
+        return Array.from(directories.values()).slice(0, 50);
+    }
+    catch (error) {
+        logIncludeTelemetry(`Failed to discover include root candidates in ${folder.name}: ${formatError(error)}`);
+        return [];
+    }
+}
+function computeConfigurationPath(folder, targetUri) {
+    const folderPath = folder.uri.fsPath;
+    const targetPath = targetUri.fsPath;
+    if (!folderPath || !targetPath) {
+        return toPosixPath(targetUri.fsPath);
+    }
+    const relative = safeRelativePath(folderPath, targetPath);
+    if (typeof relative === "string") {
+        return relative === "" ? "." : toPosixPath(relative);
+    }
+    return toPosixPath(targetPath);
+}
+async function updateWorkspaceIncludeRoots(folder, configurationPath, mode) {
+    const config = vscode.workspace.getConfiguration(INCLUDE_CONFIG_SECTION, folder);
+    const current = config.get("roots", []) ?? [];
+    const normalized = configurationPath === "." ? "." : toPosixPath(configurationPath);
+    let next;
+    if (mode === "replace") {
+        next = [normalized];
+    }
+    else {
+        const combined = new Map();
+        for (const entry of current) {
+            combined.set(entry, entry);
+        }
+        combined.set(normalized, normalized);
+        next = Array.from(combined.values());
+    }
+    await config.update("roots", next, vscode.ConfigurationTarget.WorkspaceFolder);
+    const action = mode === "replace" ? "Set" : "Added";
+    vscode.window.setStatusBarMessage(`${action} include root for ${folder.name}`, 2000);
+}
 function readPreviewConfig() {
     const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
     const autoRefresh = config.get("autoRefresh", true);
@@ -1065,13 +1293,229 @@ function readIncludeConfig() {
     const configuredDebounce = config.get("rescanDebounceMs", DEFAULT_INCLUDE_RESCAN_DEBOUNCE_MS);
     const rescanDebounceMs = Number.isFinite(configuredDebounce) && configuredDebounce >= 0 ? configuredDebounce : DEFAULT_INCLUDE_RESCAN_DEBOUNCE_MS;
     const autoRevealExplorer = config.get("autoRevealExplorer", true);
+    const rootScan = collectIncludeRoots();
     return {
         watchersEnabled,
         manifestEnabled,
         autoRescan,
         rescanDebounceMs,
         autoRevealExplorer,
+        roots: rootScan.configured,
+        effectiveRoots: rootScan.effective,
+        rootErrors: rootScan.errors,
+        rawRootsByWorkspace: rootScan.rawRootsByWorkspace,
     };
+}
+function collectIncludeRoots() {
+    const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+    const configured = [];
+    const errors = [];
+    const defaults = [];
+    const rawRootsByWorkspace = new Map();
+    const seenConfigured = new Set();
+    const seenDefaults = new Set();
+    for (const folder of workspaceFolders) {
+        if (folder.uri.scheme !== "file") {
+            continue;
+        }
+        const folderKey = folder.uri.toString();
+        const folderConfig = vscode.workspace.getConfiguration(INCLUDE_CONFIG_SECTION, folder);
+        const rawRoots = folderConfig.get("roots", []);
+        const sanitizedRoots = [];
+        if (Array.isArray(rawRoots)) {
+            for (const raw of rawRoots) {
+                if (typeof raw !== "string") {
+                    continue;
+                }
+                const trimmed = raw.trim();
+                if (!trimmed) {
+                    continue;
+                }
+                sanitizedRoots.push(trimmed);
+                const resolved = resolveIncludeRootFsPath(folder, trimmed);
+                if (!resolved) {
+                    errors.push({
+                        workspaceFolder: folder,
+                        sourcePath: trimmed,
+                        message: "Resolve include roots against file-backed workspace folders.",
+                    });
+                    continue;
+                }
+                const normalizedFsPath = normalizeFileSystemPath(resolved);
+                let directoryMissing = false;
+                try {
+                    const stat = fs.statSync(normalizedFsPath);
+                    if (!stat.isDirectory()) {
+                        errors.push({ workspaceFolder: folder, sourcePath: trimmed, message: "Include root must point to a directory." });
+                        continue;
+                    }
+                }
+                catch (error) {
+                    directoryMissing = true;
+                }
+                if (directoryMissing) {
+                    errors.push({ workspaceFolder: folder, sourcePath: trimmed, message: "Include root directory not found." });
+                    continue;
+                }
+                const id = createIncludeRootId(normalizedFsPath);
+                if (seenConfigured.has(id)) {
+                    continue;
+                }
+                seenConfigured.add(id);
+                configured.push(createIncludeRootEntry({
+                    origin: "configured",
+                    workspaceFolder: folder,
+                    sourcePath: trimmed,
+                    resolvedFsPath: normalizedFsPath,
+                }));
+            }
+        }
+        rawRootsByWorkspace.set(folderKey, Array.from(new Set(sanitizedRoots)));
+        const workspaceFsPath = folder.uri.fsPath;
+        if (workspaceFsPath) {
+            const defaultResolved = normalizeFileSystemPath(workspaceFsPath);
+            const defaultId = createIncludeRootId(defaultResolved);
+            if (!seenDefaults.has(defaultId)) {
+                defaults.push(createIncludeRootEntry({
+                    origin: "workspace",
+                    workspaceFolder: folder,
+                    sourcePath: workspaceFsPath,
+                    resolvedFsPath: defaultResolved,
+                }));
+                seenDefaults.add(defaultId);
+            }
+        }
+    }
+    const effective = configured.length > 0 ? configured : defaults;
+    return {
+        configured,
+        effective,
+        errors,
+        rawRootsByWorkspace,
+    };
+}
+function createIncludeRootEntry(params) {
+    const normalizedFsPath = normalizeFileSystemPath(params.resolvedFsPath);
+    const uri = vscode.Uri.file(normalizedFsPath);
+    let displayName = toPosixPath(normalizedFsPath);
+    if (params.workspaceFolder) {
+        const folderPath = params.workspaceFolder.uri.fsPath;
+        if (folderPath) {
+            const relative = safeRelativePath(folderPath, normalizedFsPath);
+            if (typeof relative === "string") {
+                displayName = `${params.workspaceFolder.name}/${relative ? toPosixPath(relative) : "."}`;
+            }
+            else {
+                displayName = `${params.workspaceFolder.name} → ${toPosixPath(normalizedFsPath)}`;
+            }
+        }
+    }
+    return {
+        id: createIncludeRootId(normalizedFsPath),
+        origin: params.origin,
+        workspaceFolder: params.workspaceFolder,
+        sourcePath: params.sourcePath,
+        resolvedFsPath: normalizedFsPath,
+        uri,
+        displayName,
+    };
+}
+function resolveIncludeRootFsPath(folder, sourcePath) {
+    if (folder.uri.scheme !== "file") {
+        return undefined;
+    }
+    if (path.isAbsolute(sourcePath)) {
+        return path.normalize(sourcePath);
+    }
+    const folderPath = folder.uri.fsPath;
+    if (!folderPath) {
+        return undefined;
+    }
+    return path.normalize(path.join(folderPath, sourcePath));
+}
+function safeRelativePath(base, target) {
+    const relative = path.relative(base, target);
+    if (!relative || relative === ".") {
+        return "";
+    }
+    if (relative.startsWith("..")) {
+        return undefined;
+    }
+    return relative;
+}
+function normalizeFileSystemPath(fsPath) {
+    if (!fsPath) {
+        return fsPath;
+    }
+    return path.resolve(fsPath);
+}
+function createIncludeRootId(fsPath) {
+    const normalized = normalizeFileSystemPath(fsPath).replace(/\\+/g, "/");
+    return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+}
+function toPosixPath(fsPath) {
+    return fsPath.replace(/\\+/g, "/");
+}
+function isPathInside(parent, candidate) {
+    const normalizedParent = normalizeFileSystemPath(parent);
+    const normalizedCandidate = normalizeFileSystemPath(candidate);
+    if (normalizedParent === normalizedCandidate) {
+        return true;
+    }
+    const relative = path.relative(normalizedParent, normalizedCandidate);
+    return Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+function normalizeIncludeRelativePath(candidate) {
+    const normalized = candidate.replace(/\\/g, "/").replace(/^\.\//, "");
+    return normalized.startsWith("/") ? normalized.slice(1) : normalized;
+}
+function appendIncludeRootDiagnostics(lines) {
+    if (includeWatcherRootLabels.length > 0) {
+        lines.push(`Active include roots (${includeWatcherRootLabels.length}):`);
+        for (const label of includeWatcherRootLabels) {
+            lines.push(` • ${label}`);
+        }
+    }
+    const configuredCount = includeConfig.roots.length;
+    if (configuredCount > 0) {
+        lines.push(`Configured include roots (${configuredCount}):`);
+        for (const root of includeConfig.roots) {
+            lines.push(` • ${root.displayName}`);
+        }
+    }
+    else {
+        lines.push("Configured include roots: none (watching workspace folders).");
+    }
+    if (includeConfig.rootErrors.length > 0) {
+        lines.push("Include root issues:");
+        for (const error of includeConfig.rootErrors) {
+            lines.push(` • ${formatIncludeRootError(error)}`);
+        }
+    }
+    if (includeLastUsedRoots.length > 0) {
+        const lastRoots = includeLastUsedRoots
+            .map((pathValue) => describeIncludeRootFromPath(pathValue) ?? toPosixPath(pathValue))
+            .filter((label, index, array) => array.indexOf(label) === index);
+        if (lastRoots.length > 0) {
+            lines.push(`Last manifest roots (${lastRoots.length}):`);
+            for (const label of lastRoots) {
+                lines.push(` • ${label}`);
+            }
+        }
+    }
+}
+function formatIncludeRootError(error) {
+    const scope = error.workspaceFolder ? error.workspaceFolder.name : "workspace";
+    return `${scope}: ${error.sourcePath} - ${error.message}`;
+}
+function describeIncludeRootFromPath(fsPath) {
+    const normalized = normalizeFileSystemPath(fsPath);
+    for (const root of includeConfig.effectiveRoots) {
+        if (createIncludeRootId(root.resolvedFsPath) === createIncludeRootId(normalized)) {
+            return root.displayName;
+        }
+    }
+    return undefined;
 }
 function initializeIncludeWatchers(context) {
     disposeIncludeWatchers();
@@ -1080,9 +1524,10 @@ function initializeIncludeWatchers(context) {
         change: 0,
         delete: 0,
     };
-    includeWatcherFolderCount = 0;
-    includeWatcherCandidateFolderCount = 0;
+    includeWatcherRootCount = 0;
+    includeWatcherCandidateRootCount = 0;
     includeWatcherUnavailableMessage = undefined;
+    includeWatcherRootLabels = [];
     includeManifestSnapshot = undefined;
     latestIncludeBundleMessage = undefined;
     includeManifestManualRefreshRequired = false;
@@ -1115,7 +1560,6 @@ function initializeIncludeWatchers(context) {
         return;
     }
     const fileBackedFolders = workspaceFolders.filter((folder) => folder.uri.scheme === "file");
-    includeWatcherCandidateFolderCount = fileBackedFolders.length;
     if (fileBackedFolders.length === 0) {
         logIncludeTelemetry("Include watchers unavailable for non-file workspace folders.");
         includeWatcherUnavailableMessage = "Include watchers require file-backed workspace folders.";
@@ -1125,14 +1569,26 @@ function initializeIncludeWatchers(context) {
         refreshIncludeSurfaces();
         return;
     }
-    for (const folder of fileBackedFolders) {
-        const pattern = new vscode.RelativePattern(folder, INCLUDE_ASSET_GLOB);
+    const candidateRoots = includeConfig.effectiveRoots.length > 0 ? includeConfig.effectiveRoots : [];
+    includeWatcherCandidateRootCount = candidateRoots.length;
+    if (candidateRoots.length === 0) {
+        logIncludeTelemetry("Include watchers pending include roots.");
+        includeWatcherUnavailableMessage = "Configure at least one include root to enable include watching.";
+        includeManifestStatus = includeConfig.manifestEnabled ? "pending" : "idle";
+        queueEmptyIncludeBundleMessage("watchers-unavailable");
+        refreshStatusBar();
+        refreshIncludeSurfaces();
+        return;
+    }
+    for (const root of candidateRoots) {
+        const pattern = new vscode.RelativePattern(root.resolvedFsPath, INCLUDE_ASSET_GLOB);
         const watcher = vscode.workspace.createFileSystemWatcher(pattern);
         includeWatchers.push(watcher);
         includeWatcherDisposables.push(watcher.onDidCreate((uri) => handleIncludeWatcherEvent("create", uri)), watcher.onDidChange((uri) => handleIncludeWatcherEvent("change", uri)), watcher.onDidDelete((uri) => handleIncludeWatcherEvent("delete", uri)));
-        includeWatcherFolderCount += 1;
+        includeWatcherRootCount += 1;
+        includeWatcherRootLabels.push(root.displayName);
     }
-    logIncludeTelemetry(`Include watchers attached across ${includeWatcherFolderCount} workspace folder${includeWatcherFolderCount === 1 ? "" : "s"} using pattern ${INCLUDE_ASSET_GLOB}.`);
+    logIncludeTelemetry(`Include watchers attached across ${includeWatcherRootCount} include root${includeWatcherRootCount === 1 ? "" : "s"} using pattern ${INCLUDE_ASSET_GLOB}.`);
     if (!includeConfig.manifestEnabled) {
         logIncludeTelemetry("Include manifest generation disabled by configuration.");
         includeManifestStatus = "idle";
@@ -1162,17 +1618,18 @@ function disposeIncludeWatchers() {
         watcher.dispose();
     }
     includeWatchers = [];
-    if (includeWatcherFolderCount > 0) {
+    if (includeWatcherRootCount > 0) {
         logIncludeTelemetry("Include watchers disposed.");
     }
-    includeWatcherFolderCount = 0;
-    includeWatcherCandidateFolderCount = 0;
+    includeWatcherRootCount = 0;
+    includeWatcherCandidateRootCount = 0;
     includeWatcherUnavailableMessage = undefined;
     includeWatcherEventCounts = {
         create: 0,
         change: 0,
         delete: 0,
     };
+    includeWatcherRootLabels = [];
     cancelIncludeManifestScheduling();
     includeManifestSnapshot = undefined;
     queueEmptyIncludeBundleMessage("watchers-disposed");
@@ -1184,8 +1641,11 @@ function disposeIncludeWatchers() {
 }
 function handleIncludeWatcherEvent(kind, uri) {
     includeWatcherEventCounts[kind] += 1;
-    const relativePath = vscode.workspace.asRelativePath(uri, false);
-    logIncludeTelemetry(`Include asset ${kind} detected at ${relativePath} (events: create=${includeWatcherEventCounts.create}, change=${includeWatcherEventCounts.change}, delete=${includeWatcherEventCounts.delete}).`);
+    const relativeInfo = getIncludeRelativePath(uri);
+    const locationLabel = relativeInfo.matchedRoot
+        ? `${relativeInfo.relativePath} @ ${relativeInfo.matchedRoot.displayName}`
+        : relativeInfo.relativePath;
+    logIncludeTelemetry(`Include asset ${kind} detected at ${locationLabel} (events: create=${includeWatcherEventCounts.create}, change=${includeWatcherEventCounts.change}, delete=${includeWatcherEventCounts.delete}).`);
     refreshStatusBar();
     scheduleIncludeRefresh();
     includeMissingRescanPaths.clear();
@@ -1248,12 +1708,33 @@ async function buildIncludeManifest(reason) {
     const startedAt = Date.now();
     logIncludeTelemetry(`Include manifest rebuild started (reason: ${reason}).`);
     try {
-        const uris = await vscode.workspace.findFiles(INCLUDE_ASSET_GLOB);
+        const uriSet = new Map();
+        for (const root of includeConfig.effectiveRoots) {
+            try {
+                const pattern = new vscode.RelativePattern(root.resolvedFsPath, INCLUDE_ASSET_GLOB);
+                const rootUris = await vscode.workspace.findFiles(pattern);
+                for (const uri of rootUris) {
+                    const id = createIncludeRootId(uri.fsPath);
+                    if (!uriSet.has(id)) {
+                        uriSet.set(id, uri);
+                    }
+                }
+            }
+            catch (error) {
+                logIncludeTelemetry(`Failed to enumerate include assets under ${root.displayName}: ${formatError(error)}`);
+            }
+        }
+        const uris = Array.from(uriSet.values());
         const records = [];
         let totalBytes = 0;
+        const usedRootPaths = new Set();
         for (const uri of uris) {
             try {
-                const relativePath = getIncludeRelativePath(uri);
+                const relativeInfo = getIncludeRelativePath(uri);
+                const relativePath = relativeInfo.relativePath;
+                if (relativeInfo.matchedRoot) {
+                    usedRootPaths.add(relativeInfo.matchedRoot.resolvedFsPath);
+                }
                 const content = await vscode.workspace.fs.readFile(uri);
                 const buffer = Buffer.from(content);
                 const byteLength = buffer.byteLength;
@@ -1283,6 +1764,8 @@ async function buildIncludeManifest(reason) {
         const generatedAt = new Date().toISOString();
         const { manifest } = await persistIncludeRevision(extensionContext, revisionId, records, generatedAt);
         const assets = createIncludeBundleAssets(records);
+        includeLastUsedRoots = Array.from(usedRootPaths.values());
+        await extensionContext.workspaceState.update(WORKSPACE_STATE_INCLUDE_ROOTS_KEY, includeLastUsedRoots);
         const serializedBytes = Buffer.byteLength(JSON.stringify({ manifest, assets }), "utf8");
         includeManifestSnapshot = manifest;
         includeManifestRevisionId = revisionId;
@@ -1318,10 +1801,33 @@ async function buildIncludeManifest(reason) {
     }
 }
 function getIncludeRelativePath(uri) {
+    const normalizedFsPath = normalizeFileSystemPath(uri.fsPath);
+    let matchedRoot;
+    let matchedRelative;
+    for (const root of includeConfig.effectiveRoots) {
+        if (!isPathInside(root.resolvedFsPath, normalizedFsPath)) {
+            continue;
+        }
+        const relative = path.relative(root.resolvedFsPath, normalizedFsPath);
+        if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+            continue;
+        }
+        if (!matchedRoot || root.resolvedFsPath.length > matchedRoot.resolvedFsPath.length) {
+            matchedRoot = root;
+            matchedRelative = relative;
+        }
+    }
+    if (matchedRoot && typeof matchedRelative === "string") {
+        return {
+            relativePath: normalizeIncludeRelativePath(matchedRelative),
+            matchedRoot,
+        };
+    }
     const relative = vscode.workspace.asRelativePath(uri, false);
     const candidate = relative && relative !== uri.fsPath ? relative : uri.path;
-    const normalized = candidate.replace(/\\/g, "/").replace(/^\.\//, "");
-    return normalized.startsWith("/") ? normalized.slice(1) : normalized;
+    return {
+        relativePath: normalizeIncludeRelativePath(candidate),
+    };
 }
 function inferIncludeMimeType(relativePath) {
     const lower = relativePath.toLowerCase();
@@ -1410,6 +1916,7 @@ function refreshIncludeStatusBarItem() {
         return;
     }
     const summary = getIncludeStatusSummary();
+    const rootCount = includeConfig.watchersEnabled ? includeConfig.effectiveRoots.length : 0;
     let icon = "package";
     if (!includeConfig.watchersEnabled) {
         icon = "eye-closed";
@@ -1440,7 +1947,9 @@ function refreshIncludeStatusBarItem() {
     else if (includeConfig.manifestEnabled) {
         tooltipLines.push('Use "IVGFiddle: Rescan Include Assets" to force a rebuild.');
     }
-    includeStatusBarItem.text = `$(${icon}) Includes: ${summary.label}`;
+    tooltipLines.push('Configure roots with "IVGFiddle: Set Include Root…", "Add Another Root…", or "Clear Roots".');
+    const rootSuffix = rootCount > 0 ? ` • roots ${rootCount}` : "";
+    includeStatusBarItem.text = `$(${icon}) Includes: ${summary.label}${rootSuffix}`;
     includeStatusBarItem.tooltip = tooltipLines.join("\n");
     includeStatusBarItem.command = includeManifestManualRefreshRequired ? "ivgfiddle.includes.rescan" : "ivgfiddle.includes.focusExplorer";
     includeStatusBarItem.show();
