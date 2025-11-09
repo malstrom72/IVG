@@ -2896,7 +2896,22 @@ static bool parseCommandLine(int argc, char **argv,
 				std::cerr << "--snapshot-dir requires a path." << std::endl;
 				return false;
 			}
-			options.snapshotDir = argv[++i];
+			const std::string snapshotArgument(argv[++i]);
+			const NuXFiles::Path snapshotPath =
+				pathFromNativeString(snapshotArgument);
+			if (snapshotPath.isNull()) {
+				std::cerr << "failed to parse snapshot directory: "
+						<< snapshotArgument << std::endl;
+				return false;
+			}
+			try {
+				options.snapshotDir =
+					pathStringFromWide(snapshotPath.getFullPath());
+			} catch (const std::exception &) {
+				std::cerr << "failed to resolve snapshot directory: "
+						<< snapshotArgument << std::endl;
+				return false;
+			}
 		} else if (arg == "--root-dir") {
 			if (i + 1 >= argc) {
 				std::cerr << "--root-dir requires a path." << std::endl;
