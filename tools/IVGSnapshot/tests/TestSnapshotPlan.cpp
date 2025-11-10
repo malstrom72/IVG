@@ -43,13 +43,36 @@ void ExpectEqual(const std::string &actual, const std::string &expected, const s
 
 std::string ReadFile(const std::string &path)
 {
-        std::ifstream input(path.c_str(), std::ios::binary);
-        if (!input.good()) {
-                Fail(std::string("failed to read file: ") + path);
-        }
-        std::ostringstream buffer;
-        buffer << input.rdbuf();
-        return buffer.str();
+	std::ifstream input(path.c_str(), std::ios::binary);
+	if (!input.good()) {
+		Fail(std::string("failed to read file: ") + path);
+	}
+	std::ostringstream buffer;
+	buffer << input.rdbuf();
+	return buffer.str();
+}
+
+std::string JoinPath(const std::string &base, const std::string &component)
+{
+	const NuXFiles::Path basePath = SnapshotPathBridge::fromNative(base);
+	const NuXFiles::Path joined = SnapshotPathBridge::append(basePath, component);
+	std::string native = SnapshotPathBridge::toNative(joined);
+	if (!native.empty()) {
+		return native;
+	}
+	if (base.empty()) {
+		return component;
+	}
+	if (component.empty()) {
+		return base;
+	}
+	return base + "/" + component;
+}
+
+std::string ParentDirectory(const std::string &path)
+{
+	const NuXFiles::Path parent = SnapshotPathBridge::parentFromNative(path);
+	return SnapshotPathBridge::toNative(parent);
 }
 
 struct CapturedIO {
@@ -211,7 +234,7 @@ void TestImplicitSnapshotRendering()
         const std::string path = WriteTemporaryIVG(source);
 
         CommandLineOptions options;
-        options.snapshotDir = extractDirectory(path);
+        options.snapshotDir = ParentDirectory(path);
         options.forceUpdate = true;
 
         SnapshotRunResult run = processFile(options, path);
@@ -320,12 +343,12 @@ void TestGoldenAuditWithSanitizedBases()
 	std::string root(tempName);
 	root += "_ivgsnapshot_audit";
 	Expect(ensureDirectory(root), "create audit root");
-	const std::string alpha = joinPath(root, "alpha");
+	const std::string alpha = JoinPath(root, "alpha");
 	Expect(ensureDirectory(alpha), "create alpha directory");
-	const std::string beta = joinPath(alpha, "beta");
+	const std::string beta = JoinPath(alpha, "beta");
 	Expect(ensureDirectory(beta), "create beta directory");
 
-	const std::string ivgPath = joinPath(beta, "sample.ivg");
+	const std::string ivgPath = JoinPath(beta, "sample.ivg");
 	{
 		std::ofstream file(ivgPath.c_str(), std::ios::binary);
 		if (!file.good()) {
@@ -336,12 +359,12 @@ void TestGoldenAuditWithSanitizedBases()
 		file << "meta snapshot scenario:document [ fill red ]\n";
 	}
 
-	const NuXFiles::Path rootPath = pathFromNativeString(root);
+	const NuXFiles::Path rootPath = SnapshotPathBridge::fromNative(root);
 	Expect(!rootPath.isNull(), "audit root path should be valid");
 	const std::string snapshotBase = buildSnapshotSourceTag(ivgPath, rootPath);
 	Expect(!snapshotBase.empty(), "snapshot base should not be empty");
 
-	const std::string goldenPath = joinPath(beta, snapshotBase + "__document.png");
+	const std::string goldenPath = JoinPath(beta, snapshotBase + "__document.png");
 	{
 		std::ofstream golden(goldenPath.c_str(), std::ios::binary);
 		if (!golden.good()) {
@@ -371,7 +394,7 @@ void TestDraftValidateWorkflow()
                 (tempEnv != 0 && tempEnv[0] != '\0') ? std::string(tempEnv) : std::string("/tmp");
 
         CommandLineOptions options;
-        options.snapshotDir = joinPath(tempRoot, "IVGSnapshotWorkflowTest");
+        options.snapshotDir = JoinPath(tempRoot, "IVGSnapshotWorkflowTest");
         options.forceUpdate = false;
 
         const String scenarioName("workflow");
@@ -380,7 +403,7 @@ void TestDraftValidateWorkflow()
 
         SnapshotEntryResult paths;
         golden.populateResult(paths);
-        Expect(ensureDirectory(extractDirectory(paths.goldenPath)),
+        Expect(ensureDirectory(ParentDirectory(paths.goldenPath)),
                 "create workflow directory");
         removeFileIfExists(paths.goldenPath);
         removeFileIfExists(paths.oldPath);
@@ -463,10 +486,10 @@ void TestRelativeSnapshotDirectory()
 {
 	const std::string baseDir = "RelativeSnapshotTest";
 	Expect(ensureDirectory(baseDir), "create base directory");
-	const std::string childDir = joinPath(baseDir, "child");
+	const std::string childDir = JoinPath(baseDir, "child");
 	Expect(ensureDirectory(childDir), "create child directory");
 
-	const std::string ivgRelative = joinPath(childDir, "relative.ivg");
+	const std::string ivgRelative = JoinPath(childDir, "relative.ivg");
 	{
 		std::ofstream file(ivgRelative.c_str(), std::ios::binary);
 		Expect(file.good(), "open relative IVG for writing");
@@ -475,7 +498,7 @@ void TestRelativeSnapshotDirectory()
 		file << "meta snapshot scenario:document [ fill white ]\n";
 	}
 
-	const NuXFiles::Path ivgPathObj = pathFromNativeString(ivgRelative);
+	const NuXFiles::Path ivgPathObj = SnapshotPathBridge::fromNative(ivgRelative);
 	Expect(!ivgPathObj.isNull(), "relative IVG path should resolve");
 	std::string ivgPath;
 	try {
@@ -484,7 +507,7 @@ void TestRelativeSnapshotDirectory()
 		Fail("failed to canonicalize relative IVG path");
 	}
 
-	const std::string snapshotDirArgument = joinPath(childDir, "..");
+	const std::string snapshotDirArgument = JoinPath(childDir, "..");
 	std::vector<std::string> args;
 	args.push_back("IVGSnapshotTest");
 	args.push_back("--snapshot-dir");
@@ -525,11 +548,11 @@ void TestRelativeSnapshotDirectory()
 	removeFileIfExists(validateResult.diffPath);
 	removeFileIfExists(validateResult.backupPath);
 	std::remove(ivgPath.c_str());
-	const NuXFiles::Path childPath = pathFromNativeString(childDir);
+	const NuXFiles::Path childPath = SnapshotPathBridge::fromNative(childDir);
 	if (!childPath.isNull()) {
 		childPath.tryToErase();
 	}
-	const NuXFiles::Path basePath = pathFromNativeString(baseDir);
+	const NuXFiles::Path basePath = SnapshotPathBridge::fromNative(baseDir);
 	if (!basePath.isNull()) {
 		basePath.tryToErase();
 	}

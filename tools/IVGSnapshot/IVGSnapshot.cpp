@@ -72,6 +72,35 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using namespace IMPD;
 
+struct SnapshotPathBridge;
+
+/**
+	Captures CLI options while keeping raw strings only for echoing back to
+	users. Filesystem work converts these members through `SnapshotPathBridge`
+	so the rest of the tool operates on canonical `NuXFiles::Path` instances.
+**/
+struct CommandLineOptions {
+	std::vector<std::string> includeDirs;
+	std::vector<std::string> fontDirs;
+	std::vector<std::string> imageDirs;
+	std::string snapshotDir;
+	NuXFiles::Path rootDir;
+	bool forceUpdate;
+	bool listOnly;
+	bool verbose;
+	bool exitOnFirstFailure;
+	bool recursive;
+	bool goldenAudit;
+	uint32_t threads;
+	std::vector<std::string> ivgPaths;
+
+	CommandLineOptions()
+		: rootDir(NuXFiles::Path::getCurrentDirectoryPath()),
+		  forceUpdate(false), listOnly(false), verbose(false),
+		  exitOnFirstFailure(false), recursive(false), goldenAudit(true),
+		  threads(0) {}
+};
+
 /**
 		Loads an IVG source once and replays it on demand so snapshot
 		playback can reuse parsed scripts without touching the core library.
@@ -917,28 +946,6 @@ struct SnapshotTotals {
 	uint32_t ignoredFiles;
 };
 
-struct CommandLineOptions {
-	std::vector<std::string> includeDirs;
-	std::vector<std::string> fontDirs;
-	std::vector<std::string> imageDirs;
-	std::string snapshotDir;
-	NuXFiles::Path rootDir;
-	bool forceUpdate;
-	bool listOnly;
-	bool verbose;
-	bool exitOnFirstFailure;
-	bool recursive;
-	bool goldenAudit;
-	uint32_t threads;
-	std::vector<std::string> ivgPaths;
-
-	CommandLineOptions()
-		: rootDir(NuXFiles::Path::getCurrentDirectoryPath()),
-		  forceUpdate(false), listOnly(false), verbose(false),
-		  exitOnFirstFailure(false), recursive(false), goldenAudit(true),
-		  threads(0) {}
-};
-
 static std::string stringFromIMPD(const String &value) {
 	return std::string(value.begin(), value.end());
 }
@@ -992,60 +999,90 @@ std::wstring_convert<std::codecvt_utf8<wchar_t> > converter;
 	return converter.to_bytes(path);
 #endif
 }
-static NuXFiles::Path pathFromNativeString(const std::string &path) {
-        if (path.empty()) {
-                return NuXFiles::Path();
-        }
-        try {
-		return NuXFiles::Path(pathStringToWide(path));
-	} catch (const std::range_error &) {
-		return NuXFiles::Path();
+/**
+	Centralized conversions between user-facing native strings and `NuXFiles::Path`
+	objects. The bridge exposes helpers so IVGSnapshot can store canonical paths
+	while still emitting UTF-8 strings for logging, CLI echoing, and test fixtures.
+**/
+struct SnapshotPathBridge {
+	static NuXFiles::Path fromNative(const std::string &path) {
+		if (path.empty()) {
+			return NuXFiles::Path();
+		}
+		try {
+			return NuXFiles::Path(pathStringToWide(path));
+		} catch (const std::range_error &) {
+			return NuXFiles::Path();
+		}
 	}
-}
 
-static std::string extractDirectory(const std::string &path) {
-	const size_t slash = path.find_last_of("/\\");
-	if (slash == std::string::npos) {
-		return std::string();
+	static NuXFiles::Path parentFromNative(const std::string &path) {
+		const NuXFiles::Path source = fromNative(path);
+		if (source.isNull() || source.isRoot()) {
+			return NuXFiles::Path();
+		}
+		return source.getParent();
 	}
-	return path.substr(0, slash);
-}
 
-static std::string joinPath(const std::string &base,
-								const std::string &component) {
-	if (base.empty()) {
-		return component;
+	static NuXFiles::Path append(const NuXFiles::Path &base,
+						const std::string &component) {
+		if (component.empty()) {
+			return base;
+		}
+		const std::wstring componentWide = pathStringToWide(component);
+		if (base.isNull()) {
+			return NuXFiles::Path(componentWide);
+		}
+		return base.getRelative(componentWide);
 	}
-	if (component.empty()) {
-		return base;
+
+	static std::string toNative(const NuXFiles::Path &path) {
+		if (path.isNull()) {
+			return std::string();
+		}
+		const std::wstring full = path.getFullPath();
+		if (full.empty()) {
+			return std::string();
+		}
+		return pathStringFromWide(full);
 	}
-	const char last = base[base.size() - 1];
-	if (last == '/' || last == '\\') {
-		return base + component;
+};
+
+static NuXFiles::Path resolveSnapshotRoot(const std::string &ivgPath,
+		const CommandLineOptions &options) {
+	if (!options.snapshotDir.empty()) {
+		return SnapshotPathBridge::fromNative(options.snapshotDir);
 	}
-	return base + "/" + component;
+	return SnapshotPathBridge::parentFromNative(ivgPath);
 }
 
 // Returns true if there exists any golden PNG matching
 // the source tag for this IVG (regardless of scenario label).
 // Pattern: <snapshot-root>/<snapshotBase>__*.png
 static bool hasAnyGoldensForSource(const std::string &ivgPath,
-										 const std::string &snapshotBase,
-										 const CommandLineOptions &options) {
-	const std::string root =
-		(options.snapshotDir.empty() ? extractDirectory(ivgPath)
-									   : options.snapshotDir);
-
-	if (root.empty() || snapshotBase.empty()) {
+						const std::string &snapshotBase,
+						const CommandLineOptions &options) {
+	if (snapshotBase.empty()) {
 		return false;
 	}
 
-	const std::string wildcard =
-		joinPath(root, snapshotBase + std::string("__*.png"));
+	const NuXFiles::Path root = resolveSnapshotRoot(ivgPath, options);
+	if (root.isNull()) {
+		return false;
+	}
+
+	const std::wstring rootWide = root.getFullPath();
+	if (rootWide.empty()) {
+		return false;
+	}
+
+	const std::wstring wildcardWide =
+		NuXFiles::Path::appendSeparator(rootWide)
+				+ pathStringToWide(snapshotBase + std::string("__*.png"));
 
 	try {
 		std::vector<NuXFiles::Path> matches;
-		NuXFiles::Path::findPaths(matches, pathStringToWide(wildcard));
+		NuXFiles::Path::findPaths(matches, wildcardWide);
 		return !matches.empty();
 	} catch (...) {
 		return false;
@@ -1130,9 +1167,14 @@ static bool tryBuildRelativeSnapshotTag(const NuXFiles::Path &rootDir,
 
 
 
+/**
+	Reporting logic needs sanitized identifiers derived from canonical paths.
+	This helper builds those tags by preferring `NuXFiles::Path` math and only
+	falling back to native strings when no normalized form is available.
+**/
 static std::string buildSnapshotSourceTag(const std::string &ivgPath,
 		const NuXFiles::Path &rootDir) {
-	const NuXFiles::Path sourcePath = pathFromNativeString(ivgPath);
+	const NuXFiles::Path sourcePath = SnapshotPathBridge::fromNative(ivgPath);
 	if (!sourcePath.isNull()) {
 		NuXFiles::Path withoutExtension(sourcePath);
 		if (sourcePath.hasExtension()) {
@@ -1142,6 +1184,17 @@ static std::string buildSnapshotSourceTag(const std::string &ivgPath,
 		std::string relative;
 		if (tryBuildRelativeSnapshotTag(rootDir, withoutExtension, relative)) {
 			return sanitizeFileComponent(relative);
+		}
+
+		const std::string canonical = SnapshotPathBridge::toNative(withoutExtension);
+		if (!canonical.empty()) {
+			std::string normalized = canonical;
+			for (size_t i = 0; i < normalized.size(); ++i) {
+				if (normalized[i] == '\\') {
+					normalized[i] = '/';
+				}
+			}
+			return sanitizeFileComponent(normalized);
 		}
 	}
 
@@ -1158,7 +1211,6 @@ static std::string buildSnapshotSourceTag(const std::string &ivgPath,
 	return sanitizeFileComponent(normalized);
 }
 
-
 static std::string buildEntryIdentifier(const std::string &snapshotBase,
 		const std::string &scenarioLabel,
 		uint32_t blockIndex,
@@ -1173,7 +1225,7 @@ static bool fileExists(const std::string &path) {
 	if (path.empty()) {
 		return false;
 	}
-	const NuXFiles::Path filePath = pathFromNativeString(path);
+	const NuXFiles::Path filePath = SnapshotPathBridge::fromNative(path);
 	if (filePath.isNull()) {
 		return false;
 	}
@@ -1184,7 +1236,7 @@ static bool directoryExists(const std::string &path) {
 	if (path.empty()) {
 		return false;
 	}
-	const NuXFiles::Path dirPath = pathFromNativeString(path);
+	const NuXFiles::Path dirPath = SnapshotPathBridge::fromNative(path);
 	if (dirPath.isNull()) {
 		return false;
 	}
@@ -1202,7 +1254,7 @@ static bool hasIvgExtension(const std::string &path) {
 
 static bool collectDirectoryIvgFiles(const std::string &directory, bool recursive,
 		std::vector<std::string> &files) {
-	const NuXFiles::Path dirPath = pathFromNativeString(directory);
+	const NuXFiles::Path dirPath = SnapshotPathBridge::fromNative(directory);
 	if (dirPath.isNull() || !dirPath.exists() || !dirPath.isDirectory()) {
 		std::cerr << "not a directory: " << directory << std::endl;
 		return false;
@@ -1303,14 +1355,14 @@ static bool ensureDirectory(const std::string &path) {
 	if (path.empty()) {
 		return true;
 	}
-	return ensureDirectoryPath(pathFromNativeString(path));
+	return ensureDirectoryPath(SnapshotPathBridge::fromNative(path));
 }
 
 static bool ensureParentDirectory(const std::string &filePath) {
 	if (filePath.empty()) {
 		return true;
 	}
-	const NuXFiles::Path target = pathFromNativeString(filePath);
+	const NuXFiles::Path target = SnapshotPathBridge::fromNative(filePath);
 	if (target.isNull() || target.isRoot()) {
 		return true;
 	}
@@ -1322,7 +1374,7 @@ static void removeFileIfExists(const std::string &path) {
 		return;
 	}
 	try {
-		const NuXFiles::Path filePath = pathFromNativeString(path);
+		const NuXFiles::Path filePath = SnapshotPathBridge::fromNative(path);
 		if (!filePath.isNull() && filePath.exists() && filePath.isFile()) {
 			filePath.erase();
 		}
@@ -1338,19 +1390,28 @@ static void collectOrphanGoldens(const std::set<std::string> &processedBases,
 		const std::set<std::string> &auditRoots,
 		std::vector<std::string> &orphanGoldens) {
 	orphanGoldens.clear();
-	for (std::set<std::string>::const_iterator it = auditRoots.begin();
-		it != auditRoots.end(); ++it) {
-		const std::string &root = *it;
-		if (root.empty()) {
-			continue;
-		}
-		const std::string wildcard = joinPath(root, std::string("*__*.png"));
-		try {
-			std::vector<NuXFiles::Path> matches;
-			NuXFiles::Path::findPaths(matches, pathStringToWide(wildcard));
-			for (size_t k = 0; k < matches.size(); ++k) {
-				const NuXFiles::Path &p = matches[k];
-				const std::wstring name = p.getName();
+for (std::set<std::string>::const_iterator it = auditRoots.begin();
+it != auditRoots.end(); ++it) {
+const std::string &root = *it;
+if (root.empty()) {
+continue;
+}
+const NuXFiles::Path rootPath = SnapshotPathBridge::fromNative(root);
+if (rootPath.isNull()) {
+continue;
+}
+const std::wstring rootWide = rootPath.getFullPath();
+if (rootWide.empty()) {
+continue;
+}
+const std::wstring wildcardWide =
+NuXFiles::Path::appendSeparator(rootWide) + pathStringToWide("*__*.png");
+try {
+std::vector<NuXFiles::Path> matches;
+NuXFiles::Path::findPaths(matches, wildcardWide);
+for (size_t k = 0; k < matches.size(); ++k) {
+const NuXFiles::Path &p = matches[k];
+const std::wstring name = p.getName();
 				std::string narrow = pathStringFromWide(name);
 				bool matchedBase = false;
 				for (std::set<std::string>::const_iterator baseIt = processedBases.begin();
@@ -1386,8 +1447,8 @@ static bool renameFile(const std::string &from, const std::string &to,
 	}
 	removeFileIfExists(to);
 	try {
-		const NuXFiles::Path fromPath = pathFromNativeString(from);
-		const NuXFiles::Path toPath = pathFromNativeString(to);
+		const NuXFiles::Path fromPath = SnapshotPathBridge::fromNative(from);
+		const NuXFiles::Path toPath = SnapshotPathBridge::fromNative(to);
 		if (fromPath.isNull() || toPath.isNull()) {
 			return true;
 		}
@@ -2083,25 +2144,39 @@ class SnapshotGolden {
         std::string backupPath;
 
   private:
-        void initializePaths(const std::string &ivgPath,
-                                                 const std::string &snapshotBase,
-                                                 const std::string &scenarioLabel,
-                                                 const CommandLineOptions &options) {
-                const std::string root =
-                        (options.snapshotDir.empty() ? extractDirectory(ivgPath)
-                                                                   : options.snapshotDir);
-                const std::string scenarioName = sanitizeFileComponent(scenarioLabel);
-                std::string fileStem = scenarioName;
-                if (!snapshotBase.empty()) {
-                        fileStem = snapshotBase + "__" + fileStem;
-                }
-                const std::string stem = joinPath(root, fileStem);
-                goldenPath = stem + ".png";
-                oldPath = stem + ".png.old";
-                actualPath = stem + ".actual.png";
-                diffPath = stem + ".diff.png";
-                backupPath = stem + ".png.bak";
-        }
+	void initializePaths(const std::string &ivgPath,
+				const std::string &snapshotBase,
+				const std::string &scenarioLabel,
+				const CommandLineOptions &options) {
+		const NuXFiles::Path root = resolveSnapshotRoot(ivgPath, options);
+		const std::string scenarioName = sanitizeFileComponent(scenarioLabel);
+		std::string fileStem = scenarioName;
+		if (!snapshotBase.empty()) {
+			fileStem = snapshotBase + "__" + fileStem;
+		}
+
+		// Preserve sanitized UTF-8 strings for logging while the filesystem work
+		// is performed with canonical NuX paths.
+		std::string stem;
+		if (root.isNull()) {
+			stem = fileStem;
+		} else if (fileStem.empty()) {
+			stem = SnapshotPathBridge::toNative(root);
+		} else {
+			const NuXFiles::Path stemPath = SnapshotPathBridge::append(root, fileStem);
+			stem = SnapshotPathBridge::toNative(stemPath);
+		}
+
+		if (stem.empty()) {
+			stem = fileStem;
+		}
+
+		goldenPath = stem + ".png";
+		oldPath = stem + ".png.old";
+		actualPath = stem + ".actual.png";
+		diffPath = stem + ".diff.png";
+backupPath = stem + ".png.bak";
+}
 };
 
 static void PNGAPI snapshotPNGError(png_structp png, png_const_charp message) {
@@ -2898,7 +2973,7 @@ static bool parseCommandLine(int argc, char **argv,
 			}
 			const std::string snapshotArgument(argv[++i]);
 			const NuXFiles::Path snapshotPath =
-				pathFromNativeString(snapshotArgument);
+				SnapshotPathBridge::fromNative(snapshotArgument);
 			if (snapshotPath.isNull()) {
 				std::cerr << "failed to parse snapshot directory: "
 						<< snapshotArgument << std::endl;
@@ -2918,7 +2993,7 @@ static bool parseCommandLine(int argc, char **argv,
 				return false;
 			}
 			const std::string rootArgument(argv[++i]);
-			options.rootDir = pathFromNativeString(rootArgument);
+			options.rootDir = SnapshotPathBridge::fromNative(rootArgument);
 			if (options.rootDir.isNull()) {
 				std::cerr << "failed to parse root directory: " << rootArgument
 						<< std::endl;
@@ -2979,6 +3054,12 @@ static bool readFile(const std::string &path, String &contents) {
         return true;
 }
 
+/**
+	List-only reporting still accepts native strings so fixtures remain stable,
+	but every identifier within the progress object now originates from
+	`NuXFiles::Path` data. Keeping the bridge boundary here makes it clear which
+	parts of the log are sanitized echoes versus canonical filesystem paths.
+**/
 static void printScenarioListing(const std::string &path,
                                                             const SnapshotProgress &progress) {
         static const char scenarioIndent[] = "  ";
@@ -3519,13 +3600,18 @@ int main(int argc, char **argv) {
 			}
 
 			std::set<std::string> auditRoots;
-			if (!options.snapshotDir.empty()) {
-				auditRoots.insert(options.snapshotDir);
-			} else {
-				for (size_t i = 0; i < options.ivgPaths.size(); ++i) {
-					auditRoots.insert(extractDirectory(options.ivgPaths[i]));
-				}
-			}
+if (!options.snapshotDir.empty()) {
+auditRoots.insert(options.snapshotDir);
+} else {
+for (size_t i = 0; i < options.ivgPaths.size(); ++i) {
+const NuXFiles::Path parent =
+SnapshotPathBridge::parentFromNative(options.ivgPaths[i]);
+const std::string nativeParent = SnapshotPathBridge::toNative(parent);
+if (!nativeParent.empty()) {
+auditRoots.insert(nativeParent);
+}
+}
+}
 
 			std::vector<std::string> orphanGoldens;
 			collectOrphanGoldens(processedBases, auditRoots, orphanGoldens);
