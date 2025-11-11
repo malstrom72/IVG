@@ -43,13 +43,51 @@ void ExpectEqual(const std::string &actual, const std::string &expected, const s
 
 std::string ReadFile(const std::string &path)
 {
-        std::ifstream input(path.c_str(), std::ios::binary);
-        if (!input.good()) {
-                Fail(std::string("failed to read file: ") + path);
-        }
-        std::ostringstream buffer;
-        buffer << input.rdbuf();
-        return buffer.str();
+	std::ifstream input(path.c_str(), std::ios::binary);
+	if (!input.good()) {
+		Fail(std::string("failed to read file: ") + path);
+	}
+	std::ostringstream buffer;
+	buffer << input.rdbuf();
+	return buffer.str();
+}
+
+std::string JoinPath(const std::string &base, const std::string &component)
+{
+	const NuXFiles::Path basePath = SnapshotPathBridge::fromNative(base);
+	const NuXFiles::Path joined = SnapshotPathBridge::append(basePath, component);
+	std::string native = SnapshotPathBridge::toNative(joined);
+	if (!native.empty()) {
+		return native;
+	}
+	if (base.empty()) {
+		return component;
+	}
+	if (component.empty()) {
+		return base;
+	}
+	return base + "/" + component;
+}
+
+std::string ParentDirectory(const std::string &path)
+{
+	const NuXFiles::Path parent = SnapshotPathBridge::parentFromNative(path);
+	return SnapshotPathBridge::toNative(parent);
+}
+
+std::string NativePath(const NuXFiles::Path &path)
+{
+	return SnapshotPathBridge::toNative(path);
+}
+
+void SetSnapshotDirectory(CommandLineOptions &options, const std::string &native)
+{
+	const NuXFiles::Path directory = SnapshotPathBridge::fromNative(native);
+	if (directory.isNull()) {
+		Fail(std::string("failed to canonicalize snapshot directory: ") + native);
+	}
+	options.snapshotDir = directory;
+	options.snapshotDirDisplay = native;
 }
 
 struct CapturedIO {
@@ -210,9 +248,9 @@ void TestImplicitSnapshotRendering()
 
         const std::string path = WriteTemporaryIVG(source);
 
-        CommandLineOptions options;
-        options.snapshotDir = extractDirectory(path);
-        options.forceUpdate = true;
+	CommandLineOptions options;
+	SetSnapshotDirectory(options, ParentDirectory(path));
+	options.forceUpdate = true;
 
         SnapshotRunResult run = processFile(options, path);
         Expect(run.exitCode == 0, "implicit snapshot run should succeed");
@@ -225,13 +263,13 @@ void TestImplicitSnapshotRendering()
         Expect(entry.rendered, "implicit snapshot should render image");
         Expect(entry.updated, "implicit snapshot force update should mark updated");
         Expect(entry.validate, "implicit snapshot defaults to validation");
-        Expect(fileExists(entry.goldenPath), "implicit snapshot should write golden");
+        Expect(fileExists(NativePath(entry.goldenPath)), "implicit snapshot should write golden");
 
-        removeFileIfExists(entry.goldenPath);
-        removeFileIfExists(entry.oldPath);
-        removeFileIfExists(entry.actualPath);
-        removeFileIfExists(entry.diffPath);
-        removeFileIfExists(entry.backupPath);
+        removeFileIfExists(NativePath(entry.goldenPath));
+        removeFileIfExists(NativePath(entry.oldPath));
+        removeFileIfExists(NativePath(entry.actualPath));
+        removeFileIfExists(NativePath(entry.diffPath));
+        removeFileIfExists(NativePath(entry.backupPath));
         std::remove(path.c_str());
 }
 
@@ -320,12 +358,12 @@ void TestGoldenAuditWithSanitizedBases()
 	std::string root(tempName);
 	root += "_ivgsnapshot_audit";
 	Expect(ensureDirectory(root), "create audit root");
-	const std::string alpha = joinPath(root, "alpha");
+	const std::string alpha = JoinPath(root, "alpha");
 	Expect(ensureDirectory(alpha), "create alpha directory");
-	const std::string beta = joinPath(alpha, "beta");
+	const std::string beta = JoinPath(alpha, "beta");
 	Expect(ensureDirectory(beta), "create beta directory");
 
-	const std::string ivgPath = joinPath(beta, "sample.ivg");
+	const std::string ivgPath = JoinPath(beta, "sample.ivg");
 	{
 		std::ofstream file(ivgPath.c_str(), std::ios::binary);
 		if (!file.good()) {
@@ -336,12 +374,12 @@ void TestGoldenAuditWithSanitizedBases()
 		file << "meta snapshot scenario:document [ fill red ]\n";
 	}
 
-	const NuXFiles::Path rootPath = pathFromNativeString(root);
+	const NuXFiles::Path rootPath = SnapshotPathBridge::fromNative(root);
 	Expect(!rootPath.isNull(), "audit root path should be valid");
 	const std::string snapshotBase = buildSnapshotSourceTag(ivgPath, rootPath);
 	Expect(!snapshotBase.empty(), "snapshot base should not be empty");
 
-	const std::string goldenPath = joinPath(beta, snapshotBase + "__document.png");
+	const std::string goldenPath = JoinPath(beta, snapshotBase + "__document.png");
 	{
 		std::ofstream golden(goldenPath.c_str(), std::ios::binary);
 		if (!golden.good()) {
@@ -370,9 +408,9 @@ void TestDraftValidateWorkflow()
         const std::string tempRoot =
                 (tempEnv != 0 && tempEnv[0] != '\0') ? std::string(tempEnv) : std::string("/tmp");
 
-        CommandLineOptions options;
-        options.snapshotDir = joinPath(tempRoot, "IVGSnapshotWorkflowTest");
-        options.forceUpdate = false;
+	CommandLineOptions options;
+	SetSnapshotDirectory(options, JoinPath(tempRoot, "IVGSnapshotWorkflowTest"));
+	options.forceUpdate = false;
 
         const String scenarioName("workflow");
         SnapshotGolden golden("workflow.ivg", "workflow",
@@ -380,13 +418,13 @@ void TestDraftValidateWorkflow()
 
         SnapshotEntryResult paths;
         golden.populateResult(paths);
-        Expect(ensureDirectory(extractDirectory(paths.goldenPath)),
+        Expect(ensureDirectory(ParentDirectory(NativePath(paths.goldenPath))),
                 "create workflow directory");
-        removeFileIfExists(paths.goldenPath);
-        removeFileIfExists(paths.oldPath);
-        removeFileIfExists(paths.actualPath);
-        removeFileIfExists(paths.diffPath);
-        removeFileIfExists(paths.backupPath);
+        removeFileIfExists(NativePath(paths.goldenPath));
+        removeFileIfExists(NativePath(paths.oldPath));
+        removeFileIfExists(NativePath(paths.actualPath));
+        removeFileIfExists(NativePath(paths.diffPath));
+        removeFileIfExists(NativePath(paths.backupPath));
 
         NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> raster(NuXPixels::IntRect(0, 0, 1, 1));
         raster.getPixelPointer()[0] = 0xFFFFFFFFu;
@@ -395,8 +433,8 @@ void TestDraftValidateWorkflow()
         Expect(golden.writeDraft(raster, draftResult), "draft write should succeed");
         Expect(draftResult.success, "draft result success flag");
         Expect(draftResult.skipped, "draft result skipped flag");
-        Expect(fileExists(draftResult.oldPath), "old draft file should exist");
-        Expect(!fileExists(draftResult.goldenPath),
+        Expect(fileExists(NativePath(draftResult.oldPath)), "old draft file should exist");
+        Expect(!fileExists(NativePath(draftResult.goldenPath)),
                 "golden should not exist after draft");
 
         SnapshotEntryResult validateResult;
@@ -405,9 +443,9 @@ void TestDraftValidateWorkflow()
         Expect(validateResult.success, "validate result success flag");
         Expect(validateResult.updated, "validate should mark updated");
         Expect(!validateResult.skipped, "validate should not be skipped");
-        Expect(fileExists(validateResult.goldenPath),
+        Expect(fileExists(NativePath(validateResult.goldenPath)),
                 "golden should exist after validate");
-        Expect(!fileExists(validateResult.oldPath),
+        Expect(!fileExists(NativePath(validateResult.oldPath)),
                 "old draft file should be removed");
         Expect(validateResult.message.find("promoted draft image") != std::string::npos,
                 "validate should report promotion");
@@ -420,11 +458,11 @@ void TestDraftValidateWorkflow()
         Expect(!secondResult.diffed, "second validate should not diff");
         Expect(secondResult.message.empty(), "second validate should not report message");
 
-        removeFileIfExists(secondResult.goldenPath);
-        removeFileIfExists(secondResult.actualPath);
-        removeFileIfExists(secondResult.diffPath);
-        removeFileIfExists(secondResult.backupPath);
-        removeFileIfExists(paths.oldPath);
+        removeFileIfExists(NativePath(secondResult.goldenPath));
+        removeFileIfExists(NativePath(secondResult.actualPath));
+        removeFileIfExists(NativePath(secondResult.diffPath));
+        removeFileIfExists(NativePath(secondResult.backupPath));
+        removeFileIfExists(NativePath(paths.oldPath));
 }
 
 
@@ -463,10 +501,10 @@ void TestRelativeSnapshotDirectory()
 {
 	const std::string baseDir = "RelativeSnapshotTest";
 	Expect(ensureDirectory(baseDir), "create base directory");
-	const std::string childDir = joinPath(baseDir, "child");
+	const std::string childDir = JoinPath(baseDir, "child");
 	Expect(ensureDirectory(childDir), "create child directory");
 
-	const std::string ivgRelative = joinPath(childDir, "relative.ivg");
+	const std::string ivgRelative = JoinPath(childDir, "relative.ivg");
 	{
 		std::ofstream file(ivgRelative.c_str(), std::ios::binary);
 		Expect(file.good(), "open relative IVG for writing");
@@ -475,7 +513,7 @@ void TestRelativeSnapshotDirectory()
 		file << "meta snapshot scenario:document [ fill white ]\n";
 	}
 
-	const NuXFiles::Path ivgPathObj = pathFromNativeString(ivgRelative);
+	const NuXFiles::Path ivgPathObj = SnapshotPathBridge::fromNative(ivgRelative);
 	Expect(!ivgPathObj.isNull(), "relative IVG path should resolve");
 	std::string ivgPath;
 	try {
@@ -484,7 +522,7 @@ void TestRelativeSnapshotDirectory()
 		Fail("failed to canonicalize relative IVG path");
 	}
 
-	const std::string snapshotDirArgument = joinPath(childDir, "..");
+	const std::string snapshotDirArgument = JoinPath(childDir, "..");
 	std::vector<std::string> args;
 	args.push_back("IVGSnapshotTest");
 	args.push_back("--snapshot-dir");
@@ -516,20 +554,20 @@ void TestRelativeSnapshotDirectory()
 	Expect(validateResult.success, "relative validate success flag");
 	Expect(!validateResult.updated, "relative validate should not update");
 
-	removeFileIfExists(updateResult.goldenPath);
-	removeFileIfExists(updateResult.oldPath);
-	removeFileIfExists(updateResult.actualPath);
-	removeFileIfExists(updateResult.diffPath);
-	removeFileIfExists(updateResult.backupPath);
-	removeFileIfExists(validateResult.actualPath);
-	removeFileIfExists(validateResult.diffPath);
-	removeFileIfExists(validateResult.backupPath);
+        removeFileIfExists(NativePath(updateResult.goldenPath));
+        removeFileIfExists(NativePath(updateResult.oldPath));
+        removeFileIfExists(NativePath(updateResult.actualPath));
+        removeFileIfExists(NativePath(updateResult.diffPath));
+        removeFileIfExists(NativePath(updateResult.backupPath));
+        removeFileIfExists(NativePath(validateResult.actualPath));
+        removeFileIfExists(NativePath(validateResult.diffPath));
+        removeFileIfExists(NativePath(validateResult.backupPath));
 	std::remove(ivgPath.c_str());
-	const NuXFiles::Path childPath = pathFromNativeString(childDir);
+	const NuXFiles::Path childPath = SnapshotPathBridge::fromNative(childDir);
 	if (!childPath.isNull()) {
 		childPath.tryToErase();
 	}
-	const NuXFiles::Path basePath = pathFromNativeString(baseDir);
+	const NuXFiles::Path basePath = SnapshotPathBridge::fromNative(baseDir);
 	if (!basePath.isNull()) {
 		basePath.tryToErase();
 	}
@@ -545,7 +583,7 @@ void TestSnapshotValidationWithOffsets()
 	Expect(ensureDirectory(root), "create snapshot directory");
 
 	CommandLineOptions options;
-	options.snapshotDir = root;
+	SetSnapshotDirectory(options, root);
 
 	SnapshotGolden golden("offset.ivg", "offset_base",
 		"offsetScenario", options);
@@ -564,8 +602,8 @@ void TestSnapshotValidationWithOffsets()
 		"force update should succeed");
 	Expect(first.success, "force update result success flag");
 	Expect(first.updated, "force update should mark updated");
-	Expect(fileExists(first.goldenPath),
-		"golden PNG should be written with offsets");
+        Expect(fileExists(NativePath(first.goldenPath)),
+                "golden PNG should be written with offsets");
 
 	SnapshotEntryResult second;
 	Expect(golden.validate(raster, false, second),
@@ -576,12 +614,12 @@ void TestSnapshotValidationWithOffsets()
 	Expect(second.message.empty(),
 		"second validate should not produce a message");
 
-	removeFileIfExists(second.goldenPath);
-	removeFileIfExists(second.actualPath);
-	removeFileIfExists(second.diffPath);
-	removeFileIfExists(second.backupPath);
-	removeFileIfExists(first.backupPath);
-	removeFileIfExists(first.oldPath);
+        removeFileIfExists(NativePath(second.goldenPath));
+        removeFileIfExists(NativePath(second.actualPath));
+        removeFileIfExists(NativePath(second.diffPath));
+        removeFileIfExists(NativePath(second.backupPath));
+        removeFileIfExists(NativePath(first.backupPath));
+        removeFileIfExists(NativePath(first.oldPath));
 }
 
 void TestSnapshotDetectsOffsetMismatch()
@@ -594,7 +632,7 @@ void TestSnapshotDetectsOffsetMismatch()
 	Expect(ensureDirectory(root), "create mismatch snapshot directory");
 
 	CommandLineOptions options;
-	options.snapshotDir = root;
+	SetSnapshotDirectory(options, root);
 
 	SnapshotGolden golden("mismatch.ivg", "offset_base",
 		"offsetScenario", options);
@@ -631,17 +669,17 @@ void TestSnapshotDetectsOffsetMismatch()
 		"mismatch should report diff message");
 	Expect(mismatch.message.find("bounds differ") != std::string::npos,
 		"mismatch should explain bounds difference");
-	Expect(fileExists(mismatch.actualPath),
-		"actual PNG should be written on mismatch");
-	Expect(fileExists(mismatch.diffPath),
-		"diff PNG should be written on mismatch");
+        Expect(fileExists(NativePath(mismatch.actualPath)),
+                "actual PNG should be written on mismatch");
+        Expect(fileExists(NativePath(mismatch.diffPath)),
+                "diff PNG should be written on mismatch");
 
-	removeFileIfExists(mismatch.goldenPath);
-	removeFileIfExists(mismatch.actualPath);
-	removeFileIfExists(mismatch.diffPath);
-	removeFileIfExists(mismatch.backupPath);
-	removeFileIfExists(baselineResult.backupPath);
-	removeFileIfExists(baselineResult.oldPath);
+        removeFileIfExists(NativePath(mismatch.goldenPath));
+        removeFileIfExists(NativePath(mismatch.actualPath));
+        removeFileIfExists(NativePath(mismatch.diffPath));
+        removeFileIfExists(NativePath(mismatch.backupPath));
+        removeFileIfExists(NativePath(baselineResult.backupPath));
+        removeFileIfExists(NativePath(baselineResult.oldPath));
 }
 
 void TestSnapshotDetectsBoundsMismatch()
@@ -655,7 +693,7 @@ void TestSnapshotDetectsBoundsMismatch()
 		"create bounds mismatch snapshot directory");
 
 	CommandLineOptions options;
-	options.snapshotDir = root;
+	SetSnapshotDirectory(options, root);
 
 	SnapshotGolden golden("bounds.ivg", "bounds_base",
 		"boundsScenario", options);
@@ -695,12 +733,12 @@ void TestSnapshotDetectsBoundsMismatch()
 	Expect(mismatch.message.find("bounds differ") != std::string::npos,
 		"bounds mismatch should explain bounds difference");
 
-	removeFileIfExists(mismatch.goldenPath);
-	removeFileIfExists(mismatch.actualPath);
-	removeFileIfExists(mismatch.diffPath);
-	removeFileIfExists(mismatch.backupPath);
-	removeFileIfExists(baselineResult.backupPath);
-	removeFileIfExists(baselineResult.oldPath);
+        removeFileIfExists(NativePath(mismatch.goldenPath));
+        removeFileIfExists(NativePath(mismatch.actualPath));
+        removeFileIfExists(NativePath(mismatch.diffPath));
+        removeFileIfExists(NativePath(mismatch.backupPath));
+        removeFileIfExists(NativePath(baselineResult.backupPath));
+        removeFileIfExists(NativePath(baselineResult.oldPath));
 }
 
 } // namespace
