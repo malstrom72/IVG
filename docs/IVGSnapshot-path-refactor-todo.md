@@ -26,13 +26,19 @@
   - Call sites that need strings (filesystem APIs lacking NuX overloads, JSON/logging) will request string views from the bridge rather than rebuilding conversions, centralizing normalization and reducing duplicated error handling.
 
 - [ ] **Step 4 – Refactor core data structures to store `NuXFiles::Path`**
-  - [x] Store `NuXFiles::Path` in `CommandLineOptions::includeDirs`, `fontDirs`, and `imageDirs`, keeping bridge-based conversions for CLI echoes and playback resolution.
-  - [x] Persist the optional snapshot directory as `NuXFiles::Path` and retain a display mirror for user-facing text.
-  - [ ] Convert `CommandLineOptions::ivgPaths` to `NuXFiles::Path` and update expansion helpers/tests that still expect raw UTF-8 strings.
-  - [x] Have `SnapshotGolden` cache golden/draft/actual/diff/backup paths as `NuXFiles::Path`, stringifying only at filesystem/reporting boundaries.
-  - [x] Store `NuXFiles::Path` inside `SnapshotEntryResult` for all per-entry artifacts, limiting bridge conversions to logging and serialization.
-  - [ ] Thread `NuXFiles::Path` through `SnapshotRunResult` (including failure context) and any remaining per-entry metadata so runtime bookkeeping no longer persists native strings for filesystem objects.
-  - [ ] Update `SharedResources` caches, playback scaffolding, and any helper structs that still receive string paths so they accept `NuXFiles::Path` inputs without redundant conversions.
+  - **Command-line inputs**
+    - [x] Store `NuXFiles::Path` in `CommandLineOptions::includeDirs`, `fontDirs`, and `imageDirs`, keeping bridge-based conversions for CLI echoes and playback resolution.
+    - [x] Persist the optional snapshot directory as `NuXFiles::Path` and retain a display mirror for user-facing text.
+    - [ ] Convert `CommandLineOptions::ivgPaths` to `NuXFiles::Path`, updating `expandInputPaths`, `collectDirectoryIvgFiles`, and the tests that still assume raw UTF-8 strings.
+    - [ ] Ensure CLI error/reporting strings pull from bridge-generated native text instead of storing parallel raw strings.
+  - **Playback and caches**
+    - [ ] Update `SharedResources` caches (`images`, `fonts`) to key off `NuXFiles::Path` (or normalized string mirrors) instead of raw input strings.
+    - [ ] Convert any remaining playback helpers that accept string paths (e.g., font/image resolution) to take `NuXFiles::Path` and stringify only when invoking legacy APIs.
+  - **Per-entry artifacts**
+    - [x] Have `SnapshotGolden` cache golden/draft/actual/diff/backup paths as `NuXFiles::Path`, stringifying only at filesystem/reporting boundaries.
+    - [x] Store `NuXFiles::Path` inside `SnapshotEntryResult` for all per-entry artifacts, limiting bridge conversions to logging and serialization.
+    - [ ] Thread `NuXFiles::Path` through `SnapshotRunResult` (including failure context) so runtime bookkeeping no longer persists native strings for filesystem objects.
+    - [ ] Audit any per-entry metadata that still persists native strings (e.g., diff status, orphan audits) and convert to `NuXFiles::Path` with bridge-based display helpers.
 
 - [ ] **Step 5 – Update filesystem helpers and execution paths**
   - Rewrite the helper layer (`fileExists`, `directoryExists`, `ensureDirectory*`, `removeFileIfExists`, `renameFile`, `collectDirectoryIvgFiles`, `expandInputPaths`) to operate on `NuXFiles::Path` arguments end-to-end.
