@@ -26,13 +26,13 @@
   - Call sites that need strings (filesystem APIs lacking NuX overloads, JSON/logging) will request string views from the bridge rather than rebuilding conversions, centralizing normalization and reducing duplicated error handling.
 
 - [ ] **Step 4 – Refactor core data structures to store `NuXFiles::Path`**
-  - Convert `CommandLineOptions` member vectors (`includeDirs`, `fontDirs`, `imageDirs`, `ivgPaths`) plus the optional `snapshotDir` to store `NuXFiles::Path` instead of raw UTF-8 strings and provide helpers for echoing them back to the CLI.
-  - ✅ `CommandLineOptions::includeDirs`, `fontDirs`, and `imageDirs` now store `NuXFiles::Path` values, with CLI parsing, verbose logging, and the playback executor resolving native strings through `SnapshotPathBridge` as needed.
-  - `CommandLineOptions::snapshotDir` now persists a `NuXFiles::Path` with a dedicated `snapshotDirDisplay` string for echoing the original CLI input, while call sites such as the golden audit consume the canonical path.
-  - ✅ `SnapshotGolden` now caches its golden/draft/diff file targets as `NuXFiles::Path`, only stringifying through the bridge when touching the filesystem or reporting status.
-  - ✅ `SnapshotEntryResult` now persists its IVG source plus golden/draft/actual/diff/backup artifacts as `NuXFiles::Path`, with reporting shims converting through `SnapshotPathBridge` when printing or touching the filesystem. Tests access native strings through a helper to preserve existing expectations.
-  - Migrate `SnapshotRunResult` and any remaining per-entry metadata so every filesystem artifact (golden, draft, diff, backup, IVG source) is represented by a `NuXFiles::Path`, keeping sanitized string mirrors only where logs/tests require them.
-  - Update `SharedResources` caches (font/image lookup) and playback scaffolding (`SnapshotPlaybackExecutor`) to accept the new path-backed structs without duplicating conversions.
+  - [x] Store `NuXFiles::Path` in `CommandLineOptions::includeDirs`, `fontDirs`, and `imageDirs`, keeping bridge-based conversions for CLI echoes and playback resolution.
+  - [x] Persist the optional snapshot directory as `NuXFiles::Path` and retain a display mirror for user-facing text.
+  - [ ] Convert `CommandLineOptions::ivgPaths` to `NuXFiles::Path` and update expansion helpers/tests that still expect raw UTF-8 strings.
+  - [x] Have `SnapshotGolden` cache golden/draft/actual/diff/backup paths as `NuXFiles::Path`, stringifying only at filesystem/reporting boundaries.
+  - [x] Store `NuXFiles::Path` inside `SnapshotEntryResult` for all per-entry artifacts, limiting bridge conversions to logging and serialization.
+  - [ ] Thread `NuXFiles::Path` through `SnapshotRunResult` (including failure context) and any remaining per-entry metadata so runtime bookkeeping no longer persists native strings for filesystem objects.
+  - [ ] Update `SharedResources` caches, playback scaffolding, and any helper structs that still receive string paths so they accept `NuXFiles::Path` inputs without redundant conversions.
 
 - [ ] **Step 5 – Update filesystem helpers and execution paths**
   - Rewrite the helper layer (`fileExists`, `directoryExists`, `ensureDirectory*`, `removeFileIfExists`, `renameFile`, `collectDirectoryIvgFiles`, `expandInputPaths`) to operate on `NuXFiles::Path` arguments end-to-end.
