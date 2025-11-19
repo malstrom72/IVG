@@ -1219,49 +1219,42 @@ static bool tryBuildRelativeSnapshotTag(const NuXFiles::Path &rootDir,
 	This helper builds those tags by preferring `NuXFiles::Path` math and only
 	falling back to native strings when no normalized form is available.
 **/
-// Legacy adapter; prefer the Path overload below. Retained for tests.
-static std::string buildSnapshotSourceTag(const std::string &ivgPath,
-        const NuXFiles::Path &rootDir) {
-	const NuXFiles::Path sourcePath = SnapshotPathBridge::fromNative(ivgPath);
-	if (!sourcePath.isNull()) {
-		NuXFiles::Path withoutExtension(sourcePath);
-		if (sourcePath.hasExtension()) {
-			withoutExtension = sourcePath.withoutExtension();
-		}
-
-		std::string relative;
-		if (tryBuildRelativeSnapshotTag(rootDir, withoutExtension, relative)) {
-			return sanitizeFileComponent(relative);
-		}
-
-		const std::string canonical = SnapshotPathBridge::toNative(withoutExtension);
-		if (!canonical.empty()) {
-			std::string normalized = canonical;
-			for (size_t i = 0; i < normalized.size(); ++i) {
-				if (normalized[i] == '\\') {
-					normalized[i] = '/';
-				}
-			}
-			return sanitizeFileComponent(normalized);
-		}
-	}
-
-	std::string normalized = ivgPath;
-	for (size_t i = 0; i < normalized.size(); ++i) {
-		if (normalized[i] == '\\') {
-			normalized[i] = '/';
-		}
-	}
-	const size_t dot = normalized.find_last_of('.');
-	if (dot != std::string::npos) {
-		normalized.resize(dot);
-	}
-	return sanitizeFileComponent(normalized);
-}
-
 static std::string buildSnapshotSourceTag(const NuXFiles::Path &ivgPath,
-		const NuXFiles::Path &rootDir) {
-	return buildSnapshotSourceTag(SnapshotPathBridge::toNative(ivgPath), rootDir);
+        const NuXFiles::Path &rootDir) {
+    if (!ivgPath.isNull()) {
+        NuXFiles::Path withoutExtension(ivgPath);
+        if (ivgPath.hasExtension()) {
+            withoutExtension = ivgPath.withoutExtension();
+        }
+
+        std::string relative;
+        if (tryBuildRelativeSnapshotTag(rootDir, withoutExtension, relative)) {
+            return sanitizeFileComponent(relative);
+        }
+
+        const std::string canonical = SnapshotPathBridge::toNative(withoutExtension);
+        if (!canonical.empty()) {
+            std::string normalized = canonical;
+            for (size_t i = 0; i < normalized.size(); ++i) {
+                if (normalized[i] == '\\') {
+                    normalized[i] = '/';
+                }
+            }
+            return sanitizeFileComponent(normalized);
+        }
+    }
+
+    std::string fallback = SnapshotPathBridge::toNative(ivgPath);
+    for (size_t i = 0; i < fallback.size(); ++i) {
+        if (fallback[i] == '\\') {
+            fallback[i] = '/';
+        }
+    }
+    const size_t dot = fallback.find_last_of('.');
+    if (dot != std::string::npos) {
+        fallback.resize(dot);
+    }
+    return sanitizeFileComponent(fallback);
 }
 
 static std::string buildEntryIdentifier(const std::string &snapshotBase,
@@ -1281,17 +1274,6 @@ static std::string buildEntryIdentifier(const std::string &snapshotBase,
 	preferred internally; string adapters remain for tests and minimal
 	compatibility with older code that still emits native text.
 **/
-static bool fileExists(const std::string &path) {
-	if (path.empty()) {
-		return false;
-	}
-	const NuXFiles::Path filePath = SnapshotPathBridge::fromNative(path);
-	if (filePath.isNull()) {
-		return false;
-	}
-	return (filePath.exists() && filePath.isFile());
-}
-
 static bool fileExists(const NuXFiles::Path &path) {
 	if (path.isNull()) {
 		return false;
@@ -1299,23 +1281,7 @@ static bool fileExists(const NuXFiles::Path &path) {
 	return (path.exists() && path.isFile());
 }
 
-static bool directoryExists(const std::string &path) {
-	if (path.empty()) {
-		return false;
-	}
-	const NuXFiles::Path dirPath = SnapshotPathBridge::fromNative(path);
-	if (dirPath.isNull()) {
-		return false;
-	}
-	return (dirPath.exists() && dirPath.isDirectory());
-}
-
-static bool directoryExists(const NuXFiles::Path &path) {
-	if (path.isNull()) {
-		return false;
-	}
-	return (path.exists() && path.isDirectory());
-}
+// removed: legacy directoryExists() helpers; callers use Path API directly
 
 
 static bool hasIvgExtension(const std::string &path) {
@@ -1435,15 +1401,8 @@ static bool ensureDirectoryPath(const NuXFiles::Path &directory) {
 	return directory.exists() && directory.isDirectory();
 }
 
-static bool ensureDirectory(const std::string &path) {
-	if (path.empty()) {
-		return true;
-	}
-	return ensureDirectoryPath(SnapshotPathBridge::fromNative(path));
-}
-
 static bool ensureDirectory(const NuXFiles::Path &path) {
-	return ensureDirectoryPath(path);
+    return ensureDirectoryPath(path);
 }
 
 // removed: legacy ensureParentDirectory(std::string) overload. Prefer the
@@ -1454,22 +1413,6 @@ static bool ensureParentDirectory(const NuXFiles::Path &filePath) {
 		return true;
 	}
 	return ensureDirectoryPath(filePath.getParent());
-}
-
-static void removeFileIfExists(const std::string &path) {
-	if (path.empty()) {
-		return;
-	}
-	try {
-		const NuXFiles::Path filePath = SnapshotPathBridge::fromNative(path);
-		if (!filePath.isNull() && filePath.exists() && filePath.isFile()) {
-			filePath.erase();
-		}
-	} catch (const NuXFiles::Exception &) {
-		// Ignore failures to match previous behaviour.
-	} catch (const std::exception &) {
-		// Ignore failures to match previous behaviour.
-	}
 }
 
 static void removeFileIfExists(const NuXFiles::Path &path) {
@@ -1537,21 +1480,7 @@ static void collectOrphanGoldens(const std::set<std::string> &processedBases,
         }
 }
 
-// Backwards-compatible overload used by tests: accepts native-string roots
-// and forwards to the Path-based implementation.
-static void collectOrphanGoldens(const std::set<std::string> &processedBases,
-		const std::set<std::string> &auditRoots,
-		std::vector<std::string> &orphanGoldens)
-{
-	std::set<NuXFiles::Path> pathRoots;
-	for (std::set<std::string>::const_iterator it = auditRoots.begin(); it != auditRoots.end(); ++it) {
-		const NuXFiles::Path p = SnapshotPathBridge::fromNative(*it);
-		if (!p.isNull()) {
-			pathRoots.insert(p);
-		}
-	}
-	collectOrphanGoldens(processedBases, pathRoots, orphanGoldens);
-}
+// removed: legacy collectOrphanGoldens overload that accepted std::set<std::string> roots
 
 // removed: legacy renameFile(std::string, std::string, ...) overload. Prefer
 // the Path-based overload below.

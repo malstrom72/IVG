@@ -166,38 +166,43 @@
   - Verification
     - [x] Rebuild IVGSnapshot and `TestSnapshotPlan` after each conversion cluster; keep fixture text stable by centralizing stringification in bridge/reporting shims.
 
-- [ ] **Step 12 – Migrate tests to Path-only APIs**
+- [x] **Step 12 – Migrate tests to Path-only APIs**
   - Test scaffolding helpers (convert to Path)
-    - [ ] Change `RunListOnlyTool` to accept `const NuXFiles::Path&` and call `processFile(options, path)` and `logFileReport(path, run)` using Path overloads.
+    - [x] Change `RunListOnlyTool` to accept `const NuXFiles::Path&` and call `processFile(options, path)` and `logFileReport(path, run)` using Path overloads.
       - File: `tools/IVGSnapshot/tests/TestSnapshotPlan.cpp`
-    - [ ] Replace `JoinPath(const std::string&, const std::string&) -> std::string` with `JoinPathPath(const NuXFiles::Path&, const std::string&) -> NuXFiles::Path` using `SnapshotPathBridge::append`.
+    - [x] Replace `JoinPath(const std::string&, const std::string&) -> std::string` with `JoinPathPath(const NuXFiles::Path&, const std::string&) -> NuXFiles::Path` using `SnapshotPathBridge::append`.
       - Update all call sites to use the Path-returning helper.
-    - [ ] Add `ParentDirectory(const NuXFiles::Path&) -> NuXFiles::Path` using `getParent()` and remove the string-based `ParentDirectory(const std::string&)`.
-    - [ ] Add `WriteTemporaryIVGPath(const std::string& contents) -> NuXFiles::Path` (create native temp filename, then `SnapshotPathBridge::fromNative`); use when creating temporary `.ivg`/`.png` test files.
-    - [ ] Provide `OpenForWrite(const NuXFiles::Path&) -> std::ofstream` by stringifying once via `SnapshotPathBridge::toNative(path)` for standard IO only.
+    - [x] Add `ParentDirectory(const NuXFiles::Path&) -> NuXFiles::Path` using `getParent()` and remove the string-based `ParentDirectory(const std::string&)`.
+    - [x] Add `WriteTemporaryIVGPath(const std::string& contents) -> NuXFiles::Path` (create native temp filename, then `SnapshotPathBridge::fromNative`); use when creating temporary `.ivg`/`.png` test files.
+    - [x] Provide `OpenForWrite(const NuXFiles::Path&) -> std::ofstream` by stringifying once via `SnapshotPathBridge::toNative(path)` for standard IO only.
 
   - Replace string-based calls with Path overloads
-    - [ ] Replace all `processFile(options, std::string)` calls with `processFile(options, NuXFiles::Path)`.
-    - [ ] Replace all `logFileReport(std::string, ...)` calls with `logFileReport(NuXFiles::Path, ...)`.
-    - [ ] Replace `buildSnapshotSourceTag(std::string, rootPath)` with `buildSnapshotSourceTag(NuXFiles::Path, rootPath)`.
-    - [ ] Replace `ensureDirectory(std::string)` with `ensureDirectory(NuXFiles::Path)`.
-    - [ ] Replace `removeFileIfExists(std::string)` with `removeFileIfExists(NuXFiles::Path)`.
-    - [ ] Replace `fileExists(std::string)` with `fileExists(NuXFiles::Path)`.
-    - [ ] Replace `writeRasterToPng(std::string, ...)` and `loadPngRaster(std::string, ...)` with their Path overloads throughout tests.
+    - [x] Replace all `processFile(options, std::string)` calls with `processFile(options, NuXFiles::Path)`.
+    - [x] Replace all `logFileReport(std::string, ...)` calls with `logFileReport(NuXFiles::Path, ...)`.
+    - [x] Replace `buildSnapshotSourceTag(std::string, rootPath)` with `buildSnapshotSourceTag(NuXFiles::Path, rootPath)`.
+    - [x] Replace `ensureDirectory(std::string)` with `ensureDirectory(NuXFiles::Path)`.
+    - [x] Replace `removeFileIfExists(std::string)` with `removeFileIfExists(NuXFiles::Path)`.
+    - [x] Replace `fileExists(std::string)` with `fileExists(NuXFiles::Path)`.
+    - [x] Replace `writeRasterToPng(std::string, ...)` and `loadPngRaster(std::string, ...)` with their Path overloads throughout tests.
 
   - Update small helpers and usages
-    - [ ] Replace uses of `NativePath(entry.goldenPath)` etc. with direct Path arguments to Path-aware helpers; keep `NativePath` only where standard IO requires native strings (e.g., `std::ifstream`, `std::ofstream`).
+    - [x] Replace uses of `NativePath(entry.goldenPath)` etc. with direct Path arguments to Path-aware helpers; keep `NativePath` only where standard IO requires native strings (e.g., `std::ifstream`, `std::ofstream`).
     - [ ] Where a string literal path is used for fixture reads (e.g., expected text files), optionally build a Path via `SnapshotPathBridge::fromNative(literal)` for consistency, then stringify for std::ifstream.
 
   - Validation and grep sweep
-    - [ ] Grep for remaining string-based helper calls in tests and migrate them:
+    - [x] Grep for remaining string-based helper calls in tests and migrate them:
       - `processFile(.*std::string)`
       - `logFileReport\(.*std::string` (Path-only in tests)
       - `ensureDirectory\(.*std::string` / `ensureParentDirectory\(.*std::string` / `removeFileIfExists\(.*std::string` / `fileExists\(.*std::string`
       - `buildSnapshotSourceTag\(.*std::string`
       - `writeRasterToPng\(.*std::string` / `loadPngRaster\(.*std::string`
-    - [ ] Rebuild `TestSnapshotPlan` and run it; fix any missed conversions.
+    - [x] Rebuild `TestSnapshotPlan` and run it; fix any missed conversions.
 
   - Cleanup after tests are Path-only
-    - [ ] Remove string-only test adapters and helpers no longer used.
+    - [x] Remove string-only test adapters and helpers no longer used.
     - [ ] In production code, remove unused string-path overloads that were retained only for tests (e.g., `resolveSnapshotRoot(std::string, ...)`, `ensureParentDirectory(std::string)`, `renameFile(std::string, ...)`) once grep shows 0 references.
+
+## Current status
+
+- Test suite `output/TestSnapshotPlan` builds and runs using Path-only code paths in tests. Reporting uses repository-relative paths to keep fixtures stable.
+- Remaining: optional fixture-path literal cleanup in tests and eventual removal of legacy string overloads in production once external scripts are migrated.

@@ -78,6 +78,11 @@ struct CapturedIO {
         std::string err;
 };
 
+std::ofstream OpenForWrite(const NuXFiles::Path &path)
+{
+        return std::ofstream(SnapshotPathBridge::toNative(path).c_str(), std::ios::binary);
+}
+
 CapturedIO RunListOnlyTool(const NuXFiles::Path &path, SnapshotRunResult &outRun)
 {
         CommandLineOptions options;
@@ -363,7 +368,7 @@ void TestGoldenAuditWithSanitizedBases()
 
     const NuXFiles::Path ivgPathObj = JoinPathPath(beta, "sample.ivg");
     {
-        std::ofstream file(SnapshotPathBridge::toNative(ivgPathObj).c_str(), std::ios::binary);
+        std::ofstream file = OpenForWrite(ivgPathObj);
         if (!file.good()) {
             Fail(std::string("failed to write temporary IVG: ") + SnapshotPathBridge::toNative(ivgPathObj));
         }
@@ -378,7 +383,7 @@ void TestGoldenAuditWithSanitizedBases()
 
     const NuXFiles::Path goldenPathObj = JoinPathPath(beta, snapshotBase + "__document.png");
     {
-        std::ofstream golden(SnapshotPathBridge::toNative(goldenPathObj).c_str(), std::ios::binary);
+        std::ofstream golden = OpenForWrite(goldenPathObj);
         if (!golden.good()) {
             Fail(std::string("failed to write temporary golden: ") + SnapshotPathBridge::toNative(goldenPathObj));
         }
@@ -509,9 +514,9 @@ void TestRelativeSnapshotDirectory()
 	Expect(ensureDirectory(childDir), "create child directory");
 
 	const NuXFiles::Path ivgRelative = JoinPathPath(childDir, "relative.ivg");
-	{
-		std::ofstream file(SnapshotPathBridge::toNative(ivgRelative).c_str(), std::ios::binary);
-		Expect(file.good(), "open relative IVG for writing");
+    {
+        std::ofstream file = OpenForWrite(ivgRelative);
+        Expect(file.good(), "open relative IVG for writing");
 		file << "format ivg-3 uses:snapshot-1\n";
 		file << "bounds 0,0,1,1\n";
 		file << "meta snapshot scenario:document [ fill white ]\n";
