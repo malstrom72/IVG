@@ -1073,18 +1073,6 @@ struct SnapshotPathBridge {
 	}
 };
 
-// No string-based adapters here; tests and call sites should use Path helpers.
-
-// Legacy adapter; prefer the Path overload below. Retained for callers that
-// still pass native strings (e.g., string-based initializePaths).
-static NuXFiles::Path resolveSnapshotRoot(const std::string &ivgPath,
-        const CommandLineOptions &options) {
-        if (!options.snapshotDir.isNull()) {
-                return options.snapshotDir;
-        }
-        return SnapshotPathBridge::parentFromNative(ivgPath);
-}
-
 // Legacy adapter; prefer the Path overload below. Marked for deprecation
 // once all callers have migrated.
 // removed: legacy resolveSnapshotRoot(std::string, ...) overload. Prefer the
@@ -1537,22 +1525,6 @@ static void collectOrphanGoldens(const std::set<std::string> &processedBases,
         }
 }
 
-// Backwards-compatible overload used by tests: accepts native-string roots
-// and forwards to the Path-based implementation.
-static void collectOrphanGoldens(const std::set<std::string> &processedBases,
-		const std::set<std::string> &auditRoots,
-		std::vector<std::string> &orphanGoldens)
-{
-	std::set<NuXFiles::Path> pathRoots;
-	for (std::set<std::string>::const_iterator it = auditRoots.begin(); it != auditRoots.end(); ++it) {
-		const NuXFiles::Path p = SnapshotPathBridge::fromNative(*it);
-		if (!p.isNull()) {
-			pathRoots.insert(p);
-		}
-	}
-	collectOrphanGoldens(processedBases, pathRoots, orphanGoldens);
-}
-
 // removed: legacy renameFile(std::string, std::string, ...) overload. Prefer
 // the Path-based overload below.
 
@@ -1578,7 +1550,7 @@ static bool renameFile(const NuXFiles::Path &from, const NuXFiles::Path &to,
 static std::string abbreviatePathForDisplay(const std::string &path);
 
 static std::string abbreviatePathForDisplay(const NuXFiles::Path &path) {
-    return abbreviatePathForDisplay(SnapshotPathBridge::toNative(path));
+	return abbreviatePathForDisplay(SnapshotPathBridge::toNative(path));
 }
 
 static std::string abbreviatePathForDisplay(const std::string &path) {
@@ -1606,41 +1578,6 @@ static std::string abbreviatePathForDisplay(const std::string &path) {
 		}
 	}
 	return path;
-}
-
-// Prefer paths relative to current working directory for user-facing logs
-// to keep fixtures stable. Fall back to absolute native when not possible.
-static std::string displayPathRelativeToCwd(const NuXFiles::Path &path)
-{
-    if (path.isNull()) {
-        return std::string("<null>");
-    }
-    try {
-        const NuXFiles::Path cwd = NuXFiles::Path::getCurrentDirectoryPath();
-        std::wstring rel;
-        if (cwd.makeRelative(path, false, rel) && !rel.empty()) {
-            return pathStringFromWide(rel);
-        }
-    } catch (const std::exception &) {
-        // fall through to absolute
-    }
-    const std::string native = SnapshotPathBridge::toNative(path);
-    if (!native.empty()) {
-        const std::string cwdNative = SnapshotPathBridge::toNative(NuXFiles::Path::getCurrentDirectoryPath());
-        if (!cwdNative.empty()) {
-            std::string prefix = cwdNative;
-            if (!prefix.empty()) {
-                const char sep = '/';
-                if (prefix.back() != '/' && prefix.back() != '\\') {
-                    prefix.push_back(sep);
-                }
-            }
-            if (native.size() > prefix.size() && native.compare(0, prefix.size(), prefix) == 0) {
-                return native.substr(prefix.size());
-            }
-        }
-    }
-    return native.empty() ? std::string("<null>") : native;
 }
 
 static std::vector<std::string> splitLines(const std::string &text) {
@@ -1908,11 +1845,13 @@ static void logFileReport(const std::string &path, const SnapshotRunResult &run)
 // Path-based overloads for internal use. Stringifies only for display.
 static void logFileReport(const NuXFiles::Path &path, const SnapshotRunResult &run,
                           const CommandLineOptions &options) {
-    logFileReport(displayPathRelativeToCwd(path), run, options);
+    const std::string native = SnapshotPathBridge::toNative(path);
+    logFileReport(native.empty() ? std::string("<null>") : native, run, options);
 }
 
 static void logFileReport(const NuXFiles::Path &path, const SnapshotRunResult &run) {
-    logFileReport(displayPathRelativeToCwd(path), run);
+    const std::string native = SnapshotPathBridge::toNative(path);
+    logFileReport(native.empty() ? std::string("<null>") : native, run);
 }
 
 static void logTotalsSummary(const SnapshotTotals &totals) {
@@ -3448,7 +3387,8 @@ std::cout << snippetIndent << line << std::endl;
 
 static void printScenarioListing_PathShim(const NuXFiles::Path &path,
                                  const SnapshotProgress &progress) {
-    printScenarioListing(displayPathRelativeToCwd(path), progress);
+    const std::string native = SnapshotPathBridge::toNative(path);
+    printScenarioListing(native.empty() ? std::string("<null>") : native, progress);
 }
 
 static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
@@ -3782,12 +3722,9 @@ static SnapshotRunResult processFile(const CommandLineOptions &options,
 }
 
 static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
-                                             const NuXFiles::Path &path) {
+                                              const NuXFiles::Path &path) {
     const std::string native = SnapshotPathBridge::toNative(path);
-    SnapshotRunResult run = processFileIterative(options, native);
-    // Preserve the caller’s Path representation for display purposes
-    run.filePath = path;
-    return run;
+    return processFileIterative(options, native);
 }
 
 static SnapshotRunResult processFile(const CommandLineOptions &options,
