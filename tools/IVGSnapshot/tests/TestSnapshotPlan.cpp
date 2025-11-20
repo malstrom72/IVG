@@ -54,7 +54,7 @@ std::string ReadFile(const std::string &path)
 
 NuXFiles::Path JoinPathPath(const NuXFiles::Path &base, const std::string &component)
 {
-	return SnapshotPathBridge::append(base, component);
+    return base.getRelative(pathStringToWide(component));
 }
 
 NuXFiles::Path ParentDirectoryPath(const NuXFiles::Path &path)
@@ -65,7 +65,7 @@ NuXFiles::Path ParentDirectoryPath(const NuXFiles::Path &path)
 
 void SetSnapshotDirectory(CommandLineOptions &options, const std::string &native)
 {
-	const NuXFiles::Path directory = SnapshotPathBridge::fromNative(native);
+    const NuXFiles::Path directory(pathStringToWide(native));
 	if (directory.isNull()) {
 		Fail(std::string("failed to canonicalize snapshot directory: ") + native);
 	}
@@ -80,7 +80,7 @@ struct CapturedIO {
 
 std::ofstream OpenForWrite(const NuXFiles::Path &path)
 {
-        return std::ofstream(SnapshotPathBridge::toNative(path).c_str(), std::ios::binary);
+        return std::ofstream(pathStringFromWide(path.getFullPath()).c_str(), std::ios::binary);
 }
 
 CapturedIO RunListOnlyTool(const NuXFiles::Path &path, SnapshotRunResult &outRun)
@@ -111,7 +111,7 @@ CapturedIO RunListOnlyTool(const NuXFiles::Path &path, SnapshotRunResult &outRun
 
 void TestListOnlySample()
 {
-        const NuXFiles::Path ivgPath = SnapshotPathBridge::fromNative("tools/IVGSnapshot/tests/ListOnlySample.ivg");
+        const NuXFiles::Path ivgPath = NuXFiles::Path(pathStringToWide("tools/IVGSnapshot/tests/ListOnlySample.ivg"));
         SnapshotRunResult run;
         CapturedIO io = RunListOnlyTool(ivgPath, run);
 
@@ -125,7 +125,7 @@ void TestListOnlySample()
 
 void TestListScenarioVariants()
 {
-        const NuXFiles::Path ivgPath = SnapshotPathBridge::fromNative("tools/IVGSnapshot/tests/ListScenarioVariants.ivg");
+        const NuXFiles::Path ivgPath = NuXFiles::Path(pathStringToWide("tools/IVGSnapshot/tests/ListScenarioVariants.ivg"));
         SnapshotRunResult run;
         CapturedIO io = RunListOnlyTool(ivgPath, run);
 
@@ -138,7 +138,7 @@ void TestListScenarioVariants()
 
 void TestListVariableExpansion()
 {
-        const NuXFiles::Path ivgPath = SnapshotPathBridge::fromNative("tools/IVGSnapshot/tests/ListVariableExpansion.ivg");
+        const NuXFiles::Path ivgPath = NuXFiles::Path(pathStringToWide("tools/IVGSnapshot/tests/ListVariableExpansion.ivg"));
         SnapshotRunResult run;
         CapturedIO io = RunListOnlyTool(ivgPath, run);
 
@@ -151,7 +151,7 @@ void TestListVariableExpansion()
 
 void TestCommonBlockListOnly()
 {
-        const NuXFiles::Path ivgPath = SnapshotPathBridge::fromNative("tools/IVGSnapshot/tests/CommonBlock.ivg");
+        const NuXFiles::Path ivgPath = NuXFiles::Path(pathStringToWide("tools/IVGSnapshot/tests/CommonBlock.ivg"));
         SnapshotRunResult run;
         CapturedIO io = RunListOnlyTool(ivgPath, run);
 
@@ -224,7 +224,7 @@ NuXFiles::Path WriteTemporaryIVGPath(const std::string &contents)
         }
         const NuXFiles::Path cwd = NuXFiles::Path::getCurrentDirectoryPath();
         const NuXFiles::Path path = JoinPathPath(cwd, fileName);
-        const std::string native = SnapshotPathBridge::toNative(path);
+        const std::string native = pathStringFromWide(path.getFullPath());
         std::ofstream file(native.c_str(), std::ios::binary);
         if (!file.good()) {
                 Fail(std::string("failed to open temporary file: ") + native);
@@ -246,7 +246,7 @@ void TestImplicitSnapshotRendering()
         const NuXFiles::Path path = WriteTemporaryIVGPath(source);
 
 	CommandLineOptions options;
-	SetSnapshotDirectory(options, SnapshotPathBridge::toNative(ParentDirectoryPath(path)));
+    SetSnapshotDirectory(options, pathStringFromWide(ParentDirectoryPath(path).getFullPath()));
 	options.forceUpdate = true;
 
         SnapshotRunResult run = processFile(options, path);
@@ -314,7 +314,7 @@ void TestSnapshotSourceTags()
         ivgWide += L"alpha_beta";
         ivgWide = NuXFiles::Path::appendSeparator(ivgWide);
         ivgWide += L"gamma_delta.ivg";
-        const NuXFiles::Path ivgPath = SnapshotPathBridge::fromNative(pathStringFromWide(ivgWide));
+        const NuXFiles::Path ivgPath = NuXFiles::Path(ivgWide);
         const std::string relativeTag = buildSnapshotSourceTag(ivgPath, root);
         Expect(relativeTag == "alpha__beta_gamma__delta",
                 "root relative snapshot tag should escape underscores");
@@ -330,9 +330,9 @@ void TestSnapshotSourceTags()
         }
         std::wstring outsideWide = NuXFiles::Path::appendSeparator(parent.getFullPath());
         outsideWide += L"absolute_example.ivg";
-        const NuXFiles::Path outsidePath = SnapshotPathBridge::fromNative(pathStringFromWide(outsideWide));
+        const NuXFiles::Path outsidePath = NuXFiles::Path(outsideWide);
         const std::string absoluteTag = buildSnapshotSourceTag(outsidePath, root);
-        std::string normalized = SnapshotPathBridge::toNative(outsidePath);
+        std::string normalized = pathStringFromWide(outsidePath.getFullPath());
         for (size_t i = 0; i < normalized.size(); ++i) {
                 if (normalized[i] == '\\') {
                         normalized[i] = '/';
@@ -366,11 +366,11 @@ void TestGoldenAuditWithSanitizedBases()
     const NuXFiles::Path beta = JoinPathPath(alpha, "beta");
     Expect(ensureDirectory(beta), "create beta directory");
 
-    const NuXFiles::Path ivgPathObj = JoinPathPath(beta, "sample.ivg");
+        const NuXFiles::Path ivgPathObj = JoinPathPath(beta, "sample.ivg");
     {
         std::ofstream file = OpenForWrite(ivgPathObj);
         if (!file.good()) {
-            Fail(std::string("failed to write temporary IVG: ") + SnapshotPathBridge::toNative(ivgPathObj));
+            Fail(std::string("failed to write temporary IVG: ") + pathStringFromWide(ivgPathObj.getFullPath()));
         }
         file << "format ivg-3 uses:snapshot-1\n";
         file << "bounds 0,0,1,1\n";
@@ -385,7 +385,7 @@ void TestGoldenAuditWithSanitizedBases()
     {
         std::ofstream golden = OpenForWrite(goldenPathObj);
         if (!golden.good()) {
-            Fail(std::string("failed to write temporary golden: ") + SnapshotPathBridge::toNative(goldenPathObj));
+            Fail(std::string("failed to write temporary golden: ") + pathStringFromWide(goldenPathObj.getFullPath()));
         }
         golden.put('\0');
     }
@@ -409,10 +409,10 @@ void TestDraftValidateWorkflow()
         const char *tempEnv = std::getenv("TMPDIR");
 	const std::string tempRootStr =
                 (tempEnv != 0 && tempEnv[0] != '\0') ? std::string(tempEnv) : std::string("/tmp");
-    const NuXFiles::Path tempRoot = SnapshotPathBridge::fromNative(tempRootStr);
+    const NuXFiles::Path tempRoot = NuXFiles::Path(pathStringToWide(tempRootStr));
 
 	CommandLineOptions options;
-	SetSnapshotDirectory(options, SnapshotPathBridge::toNative(JoinPathPath(tempRoot, "IVGSnapshotWorkflowTest")));
+    SetSnapshotDirectory(options, pathStringFromWide(JoinPathPath(tempRoot, "IVGSnapshotWorkflowTest").getFullPath()));
 	options.forceUpdate = false;
 
         const String scenarioName("workflow");
@@ -508,7 +508,7 @@ void TestPngOffsetsRoundTrip()
 
 void TestRelativeSnapshotDirectory()
 {
-	const NuXFiles::Path baseDir = SnapshotPathBridge::fromNative("RelativeSnapshotTest");
+    const NuXFiles::Path baseDir = NuXFiles::Path(pathStringToWide("RelativeSnapshotTest"));
 	Expect(ensureDirectory(baseDir), "create base directory");
 	const NuXFiles::Path childDir = JoinPathPath(baseDir, "child");
 	Expect(ensureDirectory(childDir), "create child directory");
@@ -531,7 +531,7 @@ void TestRelativeSnapshotDirectory()
 		Fail("failed to canonicalize relative IVG path");
 	}
 
-    const std::string snapshotDirArgument = SnapshotPathBridge::toNative(JoinPathPath(childDir, ".."));
+    const std::string snapshotDirArgument = pathStringFromWide(JoinPathPath(childDir, "..").getFullPath());
 	std::vector<std::string> args;
 	args.push_back("IVGSnapshotTest");
 	args.push_back("--snapshot-dir");
@@ -597,7 +597,7 @@ void TestSnapshotValidationWithOffsets()
     Expect(ensureDirectory(root), "create snapshot directory");
 
 	CommandLineOptions options;
-    SetSnapshotDirectory(options, SnapshotPathBridge::toNative(root));
+    SetSnapshotDirectory(options, pathStringFromWide(root.getFullPath()));
 
 	SnapshotGolden golden("offset.ivg", "offset_base",
 		"offsetScenario", options);
@@ -652,7 +652,7 @@ void TestSnapshotDetectsOffsetMismatch()
     Expect(ensureDirectory(root), "create mismatch snapshot directory");
 
 	CommandLineOptions options;
-    SetSnapshotDirectory(options, SnapshotPathBridge::toNative(root));
+    SetSnapshotDirectory(options, pathStringFromWide(root.getFullPath()));
 
 	SnapshotGolden golden("mismatch.ivg", "offset_base",
 		"offsetScenario", options);
@@ -719,7 +719,7 @@ void TestSnapshotDetectsBoundsMismatch()
         "create bounds mismatch snapshot directory");
 
 	CommandLineOptions options;
-    SetSnapshotDirectory(options, SnapshotPathBridge::toNative(root));
+    SetSnapshotDirectory(options, pathStringFromWide(root.getFullPath()));
 
 	SnapshotGolden golden("bounds.ivg", "bounds_base",
 		"boundsScenario", options);
