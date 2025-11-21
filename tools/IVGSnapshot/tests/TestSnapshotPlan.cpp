@@ -416,7 +416,7 @@ void TestDraftValidateWorkflow()
 	options.forceUpdate = false;
 
         const String scenarioName("workflow");
-        SnapshotGolden golden("workflow.ivg", "workflow",
+        SnapshotGolden golden(NuXFiles::Path(pathStringToWide(std::string("workflow.ivg"))), "workflow",
                 stringFromIMPD(scenarioName), options);
 
         SnapshotEntryResult paths;
@@ -550,7 +550,7 @@ void TestRelativeSnapshotDirectory()
 	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> raster(
 		NuXPixels::IntRect(0, 0, 1, 1));
 	raster.getPixelPointer()[0] = 0xFFFFFFFFu;
-	SnapshotGolden golden(ivgPath, snapshotBase, "document", options);
+    SnapshotGolden golden(ivgPathObj, snapshotBase, "document", options);
 
 	SnapshotEntryResult updateResult;
 	Expect(golden.validate(raster, true, updateResult),
@@ -599,8 +599,8 @@ void TestSnapshotValidationWithOffsets()
 	CommandLineOptions options;
     SetSnapshotDirectory(options, pathStringFromWide(root.getFullPath()));
 
-	SnapshotGolden golden("offset.ivg", "offset_base",
-		"offsetScenario", options);
+    SnapshotGolden golden(NuXFiles::Path(pathStringToWide(std::string("offset.ivg"))), "offset_base",
+        "offsetScenario", options);
 
 	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> raster(
 		NuXPixels::IntRect(7, 9, 6, 5));
@@ -654,8 +654,8 @@ void TestSnapshotDetectsOffsetMismatch()
 	CommandLineOptions options;
     SetSnapshotDirectory(options, pathStringFromWide(root.getFullPath()));
 
-	SnapshotGolden golden("mismatch.ivg", "offset_base",
-		"offsetScenario", options);
+    SnapshotGolden golden(NuXFiles::Path(pathStringToWide(std::string("mismatch.ivg"))), "offset_base",
+        "offsetScenario", options);
 
 	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> baseline(
 		NuXPixels::IntRect(4, 6, 5, 4));
@@ -721,8 +721,8 @@ void TestSnapshotDetectsBoundsMismatch()
 	CommandLineOptions options;
     SetSnapshotDirectory(options, pathStringFromWide(root.getFullPath()));
 
-	SnapshotGolden golden("bounds.ivg", "bounds_base",
-		"boundsScenario", options);
+    SnapshotGolden golden(NuXFiles::Path(pathStringToWide(std::string("bounds.ivg"))), "bounds_base",
+        "boundsScenario", options);
 
 	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> baseline(
 		NuXPixels::IntRect(2, 3, 4, 4));

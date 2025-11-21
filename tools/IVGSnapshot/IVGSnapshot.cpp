@@ -1023,26 +1023,7 @@ std::wstring_convert<std::codecvt_utf8<wchar_t> > converter;
 **/
 // No string-based adapters: all path math uses NuXFiles::Path directly.
 
-// Legacy adapter; prefer the Path overload below. Retained for callers that
-// still pass native strings (e.g., string-based initializePaths).
-static NuXFiles::Path resolveSnapshotRoot(const std::string &ivgPath,
-        const CommandLineOptions &options) {
-        if (!options.snapshotDir.isNull()) {
-                return options.snapshotDir;
-        }
-        try {
-                const NuXFiles::Path p(pathStringToWide(ivgPath));
-                if (p.isNull() || p.isRoot()) return NuXFiles::Path();
-                return p.getParent();
-        } catch (const std::exception &) {
-                return NuXFiles::Path();
-        }
-}
-
-// Legacy adapter; prefer the Path overload below. Marked for deprecation
-// once all callers have migrated.
-// removed: legacy resolveSnapshotRoot(std::string, ...) overload. Prefer the
-// Path-based overload below.
+// Snapshot root resolution using Path-only API.
 
 static NuXFiles::Path resolveSnapshotRoot(const NuXFiles::Path &ivgPath,
         const CommandLineOptions &options) {
@@ -1058,7 +1039,6 @@ static NuXFiles::Path resolveSnapshotRoot(const NuXFiles::Path &ivgPath,
 // Returns true if there exists any golden PNG matching
 // the source tag for this IVG (regardless of scenario label).
 // Pattern: <snapshot-root>/<snapshotBase>__*.png
-// removed: legacy hasAnyGoldensForSource overload that accepted string ivgPath
 
 static bool hasAnyGoldensForSource(const NuXFiles::Path &ivgPath,
                         const std::string &snapshotBase,
@@ -1235,7 +1215,7 @@ static bool fileExists(const NuXFiles::Path &path) {
 	return (path.exists() && path.isFile());
 }
 
-// removed: legacy directoryExists() helpers; callers use Path API directly
+// Directory queries use Path API directly.
 
 
 static bool hasIvgExtension(const std::string &path) {
@@ -1359,8 +1339,7 @@ static bool ensureDirectory(const NuXFiles::Path &path) {
     return ensureDirectoryPath(path);
 }
 
-// removed: legacy ensureParentDirectory(std::string) overload. Prefer the
-// Path-based overload below and keep string adapter only in tests.
+// Parent directory creation uses Path API only.
 
 static bool ensureParentDirectory(const NuXFiles::Path &filePath) {
 	if (filePath.isNull() || filePath.isRoot()) {
@@ -1382,7 +1361,7 @@ static void removeFileIfExists(const NuXFiles::Path &path) {
 }
 
 
-// removed: legacy collectOrphanGoldens overload that accepted string roots
+// Collect orphan goldens from Path audit roots.
 
 static void collectOrphanGoldens(const std::set<std::string> &processedBases,
         const std::set<NuXFiles::Path> &auditRoots,
@@ -1434,10 +1413,7 @@ static void collectOrphanGoldens(const std::set<std::string> &processedBases,
         }
 }
 
-// removed: legacy collectOrphanGoldens overload that accepted std::set<std::string> roots
-
-// removed: legacy renameFile(std::string, std::string, ...) overload. Prefer
-// the Path-based overload below.
+// renameFile uses Path-only overload.
 
 static bool renameFile(const NuXFiles::Path &from, const NuXFiles::Path &to,
 					   std::string &error) {
@@ -1781,14 +1757,6 @@ static void logFileReport(const std::string &path, const SnapshotRunResult &run,
 	}
 }
 
-// Backwards-compatible overload used by internal tests and any
-// existing callers expecting the verbose, detailed report format.
-static void logFileReport(const std::string &path, const SnapshotRunResult &run) {
-    CommandLineOptions opts;
-    opts.verbose = true;
-    logFileReport(path, run, opts);
-}
-
 // Path-based overloads for internal use. Stringifies only for display.
 static void logFileReport(const NuXFiles::Path &path, const SnapshotRunResult &run,
                           const CommandLineOptions &options) {
@@ -1796,7 +1764,9 @@ static void logFileReport(const NuXFiles::Path &path, const SnapshotRunResult &r
 }
 
 static void logFileReport(const NuXFiles::Path &path, const SnapshotRunResult &run) {
-    logFileReport(displayPathRelativeToCwd(path), run);
+    CommandLineOptions opts;
+    opts.verbose = true;
+    logFileReport(path, run, opts);
 }
 
 static void logTotalsSummary(const SnapshotTotals &totals) {
@@ -1845,12 +1815,6 @@ static bool writeRasterToPng(
 **/
 class SnapshotGolden {
   public:
-        SnapshotGolden(const std::string &ivgPath, const std::string &snapshotBase,
-                                   const std::string &scenarioLabel,
-                                   const CommandLineOptions &options) {
-                initializePaths(ivgPath, snapshotBase, scenarioLabel, options);
-        }
-
         SnapshotGolden(const NuXFiles::Path &ivgPath, const std::string &snapshotBase,
                                    const std::string &scenarioLabel,
                                    const CommandLineOptions &options) {
@@ -2229,35 +2193,6 @@ class SnapshotGolden {
 	NuXFiles::Path backupPath;
 
   private:
-    void initializePaths(const std::string &ivgPath,
-        const std::string &snapshotBase,
-        const std::string &scenarioLabel,
-        const CommandLineOptions &options) {
-        const NuXFiles::Path root = resolveSnapshotRoot(ivgPath, options);
-        const std::string scenarioName = sanitizeFileComponent(scenarioLabel);
-        std::string fileStem = scenarioName;
-        if (!snapshotBase.empty()) {
-            fileStem = snapshotBase + "__" + fileStem;
-        }
-
-        const std::wstring stemWide = [&]() -> std::wstring {
-            if (root.isNull()) {
-                return pathStringToWide(fileStem);
-            }
-            const std::wstring rootWide = root.getFullPath();
-            if (fileStem.empty()) {
-                return rootWide;
-            }
-            return NuXFiles::Path::appendSeparator(rootWide) + pathStringToWide(fileStem);
-        }();
-
-        goldenPath = NuXFiles::Path(stemWide + std::wstring(L".png"));
-        oldPath = NuXFiles::Path(stemWide + std::wstring(L".png.old"));
-        actualPath = NuXFiles::Path(stemWide + std::wstring(L".actual.png"));
-        diffPath = NuXFiles::Path(stemWide + std::wstring(L".diff.png"));
-        backupPath = NuXFiles::Path(stemWide + std::wstring(L".png.bak"));
-    }
-
     void initializePaths(const NuXFiles::Path &ivgPath,
         const std::string &snapshotBase,
         const std::string &scenarioLabel,
@@ -2630,26 +2565,12 @@ static bool readFile(const NuXFiles::Path &path, String &contents);
 **/
 class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
   public:
-		SnapshotPlaybackExecutor(IVG::Canvas &canvas,
-				const CommandLineOptions &options,
-				const std::string &sourcePath,
-				const String &sourceText,
-				SharedResources &sharedResources,
-				SnapshotRoundState &roundState,
-				SnapshotProgress &snapshotProgress)
-				: IVG::IVGExecutor(canvas), includeDirs(options.includeDirs),
-				  fontDirs(options.fontDirs), imageDirs(options.imageDirs),
-                  sourcePath(sourcePath), sourcePathObj(NuXFiles::Path(pathStringToWide(sourcePath))), verbose(options.verbose),
-				  sharedResources(sharedResources), round(&roundState),
-				  progress(&snapshotProgress), sourceText(sourceText),
-				  scanOffset(0) {}
-
-		SnapshotPlaybackExecutor(IVG::Canvas &canvas,
-				const CommandLineOptions &options,
-				const NuXFiles::Path &sourcePath,
-				const String &sourceText,
-				SharedResources &sharedResources,
-				SnapshotRoundState &roundState,
+        SnapshotPlaybackExecutor(IVG::Canvas &canvas,
+                const CommandLineOptions &options,
+                const NuXFiles::Path &sourcePath,
+                const String &sourceText,
+                SharedResources &sharedResources,
+                SnapshotRoundState &roundState,
 				SnapshotProgress &snapshotProgress)
 				: IVG::IVGExecutor(canvas), includeDirs(options.includeDirs),
 				  fontDirs(options.fontDirs), imageDirs(options.imageDirs),
@@ -2670,8 +2591,8 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
                                 return true;
                         }
                 }
-                // Fallback to legacy string resolution
-                if (readFile(resolveRelativePath(utf8), contents)) {
+                // Fallback: resolve using string-based relative semantics via Path
+                if (readFile(resolveRelativePathPath(utf8), contents)) {
                         return true;
                 }
                 for (size_t i = 0; i < includeDirs.size(); ++i) {
@@ -3319,16 +3240,17 @@ static void printScenarioListing_PathShim(const NuXFiles::Path &path,
 }
 
 static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
-                                             const std::string &path) {
+                                             const NuXFiles::Path &path) {
     SnapshotRunResult run;
-    run.filePath = NuXFiles::Path(pathStringToWide(path));
-		CachedDocument document;
-    if (!document.loadFromFile(path)) {
+    run.filePath = path;
+    const std::string pathNative = pathStringFromWide(path.getFullPath());
+        CachedDocument document;
+    if (!document.loadFromFile(pathNative)) {
         run.fileFailed = true;
         run.exitCode = 1;
         run.fileError = "failed to read IVG file";
         if (options.verbose || options.listOnly) {
-            std::cerr << "failed to read IVG file: " << path << std::endl;
+            std::cerr << "failed to read IVG file: " << pathNative << std::endl;
         }
         return run;
     }
@@ -3346,8 +3268,8 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 		SnapshotRoundCoordinator coordinator;
 		SnapshotProgress &progress = coordinator.accessProgress();
 
-		if (options.verbose) {
-			std::cout << path << ": include dirs:";
+        if (options.verbose) {
+            std::cout << pathNative << ": include dirs:";
 			if (options.includeDirs.empty()) {
 				std::cout << " (none)";
 			} else {
@@ -3359,7 +3281,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
                 }
 			}
 			std::cout << std::endl;
-			std::cout << path << ": font dirs:";
+            std::cout << pathNative << ": font dirs:";
 			if (options.fontDirs.empty()) {
 				std::cout << " (none)";
 			} else {
@@ -3371,7 +3293,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
                 }
 			}
 			std::cout << std::endl;
-			std::cout << path << ": image dirs:";
+            std::cout << pathNative << ": image dirs:";
 			if (options.imageDirs.empty()) {
 				std::cout << " (none)";
 			} else {
@@ -3397,18 +3319,18 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 
 		try {
 			document.render(executor);
-		} catch (Exception &e) {
-			std::ostringstream message;
-			message << e.getError();
-			if (e.hasStatement()) {
-				message << " near \"" << e.getStatement() << "\"";
-			}
-			executionFailed = true;
-			executionError = message.str();
-		} catch (std::exception &e) {
-			executionFailed = true;
-			executionError = e.what();
-		}
+        } catch (Exception &e) {
+            std::ostringstream message;
+            message << e.getError();
+            if (e.hasStatement()) {
+                message << " near \"" << e.getStatement() << "\"";
+            }
+            executionFailed = true;
+            executionError = message.str();
+        } catch (std::exception &e) {
+            executionFailed = true;
+            executionError = e.what();
+        }
 
             bool implicitSnapshot = false;
             if (!round.hasPinned) {
@@ -3417,7 +3339,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
                         implicitSnapshot = true;
                     } else {
                         if (executionFailed && (options.verbose || options.listOnly)) {
-                            std::cerr << path << ": " << executionError
+                            std::cerr << pathNative << ": " << executionError
                                       << " (ignored: no snapshots executed)." << std::endl;
                         }
                         coordinator.completeRound(round);
@@ -3429,7 +3351,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
                         run.exitCode = 1;
                         run.fileError = executionError;
                         if (options.verbose || options.listOnly) {
-                            std::cerr << path << ": " << executionError << std::endl;
+                            std::cerr << pathNative << ": " << executionError << std::endl;
                         }
                     }
                     coordinator.completeRound(round);
@@ -3439,7 +3361,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 
             if (implicitSnapshot) {
                 SnapshotEntryResult result;
-        result.ivgPath = NuXFiles::Path(pathStringToWide(path));
+        result.ivgPath = run.filePath;
                 result.scenarioName = "document";
                 result.entryOrdinal = 1;
                 result.validate = true;
@@ -3456,7 +3378,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
                     run.exitCode = 1;
                     run.fileError = executionError;
                     if (options.verbose || options.listOnly) {
-                        std::cerr << path << ": scenario " << result.scenarioName
+                        std::cerr << pathNative << ": scenario " << result.scenarioName
                                   << ": " << result.message << std::endl;
                     }
                 } else {
@@ -3466,7 +3388,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
                         result.message = "did not execute all snapshot invocations";
                         result.success = false;
                         if (options.verbose || options.listOnly) {
-                            std::cerr << path << ": scenario " << result.scenarioName
+                            std::cerr << pathNative << ": scenario " << result.scenarioName
                                       << " did not execute all snapshot invocations."
                                       << std::endl;
                         }
@@ -3474,7 +3396,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
                         result.message = "rendered image is empty";
                         result.success = false;
                         if (options.verbose || options.listOnly) {
-                            std::cerr << path << ": scenario " << result.scenarioName
+                            std::cerr << pathNative << ": scenario " << result.scenarioName
                                       << " produced no raster output." << std::endl;
                         }
                     } else if (options.listOnly) {
@@ -3490,7 +3412,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
                                 result.message = "validation failed";
                             }
                             if (options.verbose || options.listOnly) {
-                                std::cerr << path << ": scenario "
+                                std::cerr << pathNative << ": scenario "
                                           << result.scenarioName << ": "
                                           << result.message << std::endl;
                             }
@@ -3524,7 +3446,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
                 break;
             }
                 SnapshotEntryResult result;
-        result.ivgPath = NuXFiles::Path(pathStringToWide(path));
+        result.ivgPath = run.filePath;
 		const std::string &registeredLabel =
 		        progress.lookupDisplayLabel(round.scenario, round.entryOrdinal);
 		const std::string effectiveLabel =
@@ -3546,26 +3468,26 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 			run.fileFailed = true;
 			run.exitCode = 1;
 			run.fileError = executionError;
-				if (options.verbose || options.listOnly) {
-					std::cerr << path << ": scenario " << result.scenarioName
-					                  << ": " << result.message << std::endl;
-				}
+                if (options.verbose || options.listOnly) {
+                    std::cerr << pathNative << ": scenario " << result.scenarioName
+                                      << ": " << result.message << std::endl;
+                }
 		} else {
 			NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> *raster =
 					canvas.accessRaster();
 			if (!executor.finished()) {
 				result.message = "did not execute all snapshot invocations";
 				result.success = false;
-					if (options.verbose || options.listOnly) {
-						std::cerr << path << ": scenario " << result.scenarioName
-						                  << " did not execute all snapshot invocations."
-						                  << std::endl;
-					}
+                    if (options.verbose || options.listOnly) {
+                        std::cerr << pathNative << ": scenario " << result.scenarioName
+                                      << " did not execute all snapshot invocations."
+                                      << std::endl;
+                    }
                 } else if (raster == 0) {
                     result.message = "rendered image is empty";
                     result.success = false;
                     if (options.verbose || options.listOnly) {
-                        std::cerr << path << ": scenario " << result.scenarioName
+                        std::cerr << pathNative << ": scenario " << result.scenarioName
                                       << " produced no raster output." << std::endl;
                     }
                 } else if (options.listOnly) {
@@ -3582,7 +3504,7 @@ options);
                                 result.message = "failed to write draft";
                             }
                             if (options.verbose || options.listOnly) {
-                                std::cerr << path << ": scenario "
+                                std::cerr << pathNative << ": scenario "
                                                   << result.scenarioName << ": "
                                                   << result.message << std::endl;
                             }
@@ -3592,7 +3514,7 @@ options);
                             result.message = "validation failed";
                         }
                         if (options.verbose || options.listOnly) {
-                            std::cerr << path << ": scenario " << result.scenarioName
+                            std::cerr << pathNative << ": scenario " << result.scenarioName
                                               << ": " << result.message << std::endl;
                         }
                     }
@@ -3636,23 +3558,7 @@ options);
         return run;
 }
 
-static SnapshotRunResult processFile(const CommandLineOptions &options,
-                                                                         const std::string &path) {
-        SnapshotRunResult run = processFileIterative(options, path);
-        if (run.exitCode == 0 && run.failedEntries > 0) {
-                run.exitCode = 1;
-        }
-        return run;
-}
-
-static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
-                                             const NuXFiles::Path &path) {
-    const std::string native = pathStringFromWide(path.getFullPath());
-    SnapshotRunResult run = processFileIterative(options, native);
-    // Preserve the caller’s Path representation for display purposes
-    run.filePath = path;
-    return run;
-}
+// processFile/processFileIterative accept Path arguments only.
 
 static SnapshotRunResult processFile(const CommandLineOptions &options,
                                      const NuXFiles::Path &path) {
