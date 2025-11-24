@@ -1043,31 +1043,27 @@ static NuXFiles::Path resolveSnapshotRoot(const NuXFiles::Path &ivgPath,
 static bool hasAnyGoldensForSource(const NuXFiles::Path &ivgPath,
                         const std::string &snapshotBase,
                         const CommandLineOptions &options) {
-        if (snapshotBase.empty()) {
-                return false;
-        }
+	if (snapshotBase.empty()) {
+			return false;
+	}
 
-        const NuXFiles::Path root = resolveSnapshotRoot(ivgPath, options);
-        if (root.isNull()) {
-                return false;
-        }
+	const NuXFiles::Path root = resolveSnapshotRoot(ivgPath, options);
+	if (root.isNull()) {
+			return false;
+	}
 
-        const std::wstring rootWide = root.getFullPath();
-        if (rootWide.empty()) {
-                return false;
-        }
+	const std::wstring rootWide = root.getFullPath();
+	if (rootWide.empty()) {
+			return false;
+	}
 
-        const std::wstring wildcardWide =
-                NuXFiles::Path::appendSeparator(rootWide)
-                        + pathStringToWide(snapshotBase + std::string("__*.png"));
+	const std::wstring wildcardWide =
+			NuXFiles::Path::appendSeparator(rootWide)
+					+ pathStringToWide(snapshotBase + std::string("__*.png"));
 
-        try {
-                std::vector<NuXFiles::Path> matches;
-                NuXFiles::Path::findPaths(matches, wildcardWide);
-                return !matches.empty();
-        } catch (...) {
-                return false;
-        }
+	std::vector<NuXFiles::Path> matches;
+	NuXFiles::Path::findPaths(matches, wildcardWide);
+	return !matches.empty();
 }
 
 static std::string sanitizeFileComponent(const std::string &name) {
@@ -1349,17 +1345,10 @@ static bool ensureParentDirectory(const NuXFiles::Path &filePath) {
 }
 
 static void removeFileIfExists(const NuXFiles::Path &path) {
-	try {
-		if (!path.isNull() && path.exists() && path.isFile()) {
-			path.erase();
-		}
-	} catch (const NuXFiles::Exception &) {
-		// Ignore failures to match previous behaviour.
-	} catch (const std::exception &) {
-		// Ignore failures to match previous behaviour.
+	if (!path.isNull() && path.exists() && path.isFile()) {
+		path.tryToErase();
 	}
 }
-
 
 // Collect orphan goldens from Path audit roots.
 
@@ -1377,39 +1366,34 @@ static void collectOrphanGoldens(const std::set<std::string> &processedBases,
                 if (rootWide.empty()) {
                         continue;
                 }
-                const std::wstring wildcardWide =
-                        NuXFiles::Path::appendSeparator(rootWide) + pathStringToWide("*__*.png");
-                try {
-                        std::vector<NuXFiles::Path> matches;
-                        NuXFiles::Path::findPaths(matches, wildcardWide);
-                        for (size_t k = 0; k < matches.size(); ++k) {
-                                const NuXFiles::Path &p = matches[k];
-                                const std::wstring name = p.getName();
-                                std::string narrow = pathStringFromWide(name);
-                                bool matchedBase = false;
-                                for (std::set<std::string>::const_iterator baseIt = processedBases.begin();
-                                     baseIt != processedBases.end(); ++baseIt) {
-                                        const std::string &base = *baseIt;
-                                        if (base.empty()) {
-                                                continue;
-                                        }
-                                        const size_t baseLength = base.size();
-                                        if (narrow.size() <= baseLength + 2) {
-                                                continue;
-                                        }
-                                        if (narrow.compare(0, baseLength, base) == 0 &&
-                                            narrow.compare(baseLength, 2, "__") == 0) {
-                                                matchedBase = true;
-                                                break;
-                                        }
-                                }
-                                if (!matchedBase) {
-                                        orphanGoldens.push_back(pathStringFromWide(p.getFullPath()));
-                                }
-                        }
-                } catch (...) {
-                        // Ignore listing errors; best-effort audit only.
-                }
+                const std::wstring wildcardWide = NuXFiles::Path::appendSeparator(rootWide) + pathStringToWide("*__*.png");
+				std::vector<NuXFiles::Path> matches;
+				NuXFiles::Path::findPaths(matches, wildcardWide);
+				for (size_t k = 0; k < matches.size(); ++k) {
+					const NuXFiles::Path &p = matches[k];
+					const std::wstring name = p.getName();
+					std::string narrow = pathStringFromWide(name);
+					bool matchedBase = false;
+					for (std::set<std::string>::const_iterator baseIt = processedBases.begin();
+						baseIt != processedBases.end(); ++baseIt) {
+						const std::string &base = *baseIt;
+						if (base.empty()) {
+							continue;
+						}
+						const size_t baseLength = base.size();
+						if (narrow.size() <= baseLength + 2) {
+							continue;
+						}
+						if (narrow.compare(0, baseLength, base) == 0 &&
+							narrow.compare(baseLength, 2, "__") == 0) {
+							matchedBase = true;
+							break;
+						}
+					}
+					if (!matchedBase) {
+							orphanGoldens.push_back(pathStringFromWide(p.getFullPath()));
+					}
+				}
         }
 }
 
@@ -1468,6 +1452,8 @@ static std::string abbreviatePathForDisplay(const std::string &path) {
 	return path;
 }
 
+// Prefer paths relative to current working directory for user-facing logs
+// to keep fixtures stable. Fall back to absolute native when not possible.
 // Prefer paths relative to current working directory for user-facing logs
 // to keep fixtures stable. Fall back to absolute native when not possible.
 static std::string displayPathRelativeToCwd(const NuXFiles::Path &path)
@@ -2919,17 +2905,13 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 	}
 
 	bool parseFont(const String &source, IVG::Font &font) {
-		try {
-			IVG::FontParser parser;
-			STLMapVariables variables;
-			FormatInfo formatInfo;
-			Interpreter interpreter(parser, variables, formatInfo);
-			interpreter.run(StringRange(source));
-			font = parser.finalizeFont();
-			return true;
-		} catch (...) {
-			return false;
-		}
+		IVG::FontParser parser;
+		STLMapVariables variables;
+		FormatInfo formatInfo;
+		Interpreter interpreter(parser, variables, formatInfo);
+		interpreter.run(StringRange(source));
+		font = parser.finalizeFont();
+		return true;
 	}
 
 		const CachedImage *resolveImage(const std::string &requested) {
@@ -2996,7 +2978,7 @@ static void printUsage(const char *program) {
 	std::cout << "\t--image-dir <path>\tAdd image search path." << std::endl;
 	std::cout << "\t--snapshot-dir <path>\tOverride snapshot directory."
 			  << std::endl;
-	std::cout << "\t--root-dir <path>\t\tRoot for snapshot name generation."
+	std::cout << "\t--root-dir <path>\tRoot for snapshot name generation."
 			  << std::endl;
 	std::cout << "\t--recursive\t\tScan directories recursively for IVG files."
 			  << std::endl;
@@ -3038,81 +3020,81 @@ static bool parseCommandLine(int argc, char **argv,
 		if (arg == "--help") {
 			printUsage(argv[0]);
 			return false;
-		} else if (arg == "--include-dir") {
-			if (i + 1 >= argc) {
-				std::cerr << "--include-dir requires a path." << std::endl;
-				return false;
-			}
-			const std::string includeArgument(argv[++i]);
+        } else if (arg == "--include-dir") {
+            if (i + 1 >= argc) {
+                std::cerr << "--include-dir requires a path." << std::endl;
+                return false;
+            }
+            const std::string includeArgument(argv[++i]);
             const NuXFiles::Path includePath(pathStringToWide(includeArgument));
-			if (includePath.isNull()) {
-				std::cerr << "failed to parse include directory: "
-						<< includeArgument << std::endl;
-				return false;
-			}
-			options.includeDirs.push_back(includePath);
-		} else if (arg == "--font-dir") {
-			if (i + 1 >= argc) {
-				std::cerr << "--font-dir requires a path." << std::endl;
-				return false;
-			}
-			const std::string fontArgument(argv[++i]);
+            if (includePath.isNull()) {
+                std::cerr << "failed to parse include directory: "
+                        << includeArgument << std::endl;
+                return false;
+            }
+            options.includeDirs.push_back(includePath);
+        } else if (arg == "--font-dir") {
+            if (i + 1 >= argc) {
+                std::cerr << "--font-dir requires a path." << std::endl;
+                return false;
+            }
+            const std::string fontArgument(argv[++i]);
             const NuXFiles::Path fontPath(pathStringToWide(fontArgument));
-			if (fontPath.isNull()) {
-				std::cerr << "failed to parse font directory: "
-						<< fontArgument << std::endl;
-				return false;
-			}
-			options.fontDirs.push_back(fontPath);
-		} else if (arg == "--image-dir") {
-			if (i + 1 >= argc) {
-				std::cerr << "--image-dir requires a path." << std::endl;
-				return false;
-			}
-			const std::string imageArgument(argv[++i]);
+            if (fontPath.isNull()) {
+                std::cerr << "failed to parse font directory: "
+                        << fontArgument << std::endl;
+                return false;
+            }
+            options.fontDirs.push_back(fontPath);
+        } else if (arg == "--image-dir") {
+            if (i + 1 >= argc) {
+                std::cerr << "--image-dir requires a path." << std::endl;
+                return false;
+            }
+            const std::string imageArgument(argv[++i]);
             const NuXFiles::Path imagePath(pathStringToWide(imageArgument));
-			if (imagePath.isNull()) {
-				std::cerr << "failed to parse image directory: "
-						<< imageArgument << std::endl;
-				return false;
-			}
-			options.imageDirs.push_back(imagePath);
-		} else if (arg == "--snapshot-dir") {
-			if (i + 1 >= argc) {
-				std::cerr << "--snapshot-dir requires a path." << std::endl;
-				return false;
-			}
-			const std::string snapshotArgument(argv[++i]);
+            if (imagePath.isNull()) {
+                std::cerr << "failed to parse image directory: "
+                        << imageArgument << std::endl;
+                return false;
+            }
+            options.imageDirs.push_back(imagePath);
+        } else if (arg == "--snapshot-dir") {
+            if (i + 1 >= argc) {
+                std::cerr << "--snapshot-dir requires a path." << std::endl;
+                return false;
+            }
+            const std::string snapshotArgument(argv[++i]);
             const NuXFiles::Path snapshotPath(pathStringToWide(snapshotArgument));
-			if (snapshotPath.isNull()) {
-				std::cerr << "failed to parse snapshot directory: "
-						<< snapshotArgument << std::endl;
-				return false;
-			}
-			try {
-				options.snapshotDir = snapshotPath;
-				options.snapshotDirDisplay =
-					pathStringFromWide(snapshotPath.getFullPath());
-			} catch (const std::exception &) {
-				std::cerr << "failed to resolve snapshot directory: "
-						<< snapshotArgument << std::endl;
-				return false;
-			}
-			if (options.snapshotDirDisplay.empty()) {
-				options.snapshotDirDisplay = snapshotArgument;
-			}
-		} else if (arg == "--root-dir") {
-			if (i + 1 >= argc) {
-				std::cerr << "--root-dir requires a path." << std::endl;
-				return false;
-			}
-			const std::string rootArgument(argv[++i]);
+            if (snapshotPath.isNull()) {
+                std::cerr << "failed to parse snapshot directory: "
+                        << snapshotArgument << std::endl;
+                return false;
+            }
+            try {
+                options.snapshotDir = snapshotPath;
+                options.snapshotDirDisplay =
+                    pathStringFromWide(snapshotPath.getFullPath());
+            } catch (const std::exception &) {
+                std::cerr << "failed to resolve snapshot directory: "
+                        << snapshotArgument << std::endl;
+                return false;
+            }
+            if (options.snapshotDirDisplay.empty()) {
+                options.snapshotDirDisplay = snapshotArgument;
+            }
+        } else if (arg == "--root-dir") {
+            if (i + 1 >= argc) {
+                std::cerr << "--root-dir requires a path." << std::endl;
+                return false;
+            }
+            const std::string rootArgument(argv[++i]);
             options.rootDir = NuXFiles::Path(pathStringToWide(rootArgument));
-			if (options.rootDir.isNull()) {
-				std::cerr << "failed to parse root directory: " << rootArgument
-						<< std::endl;
-				return false;
-			}
+            if (options.rootDir.isNull()) {
+                std::cerr << "failed to parse root directory: " << rootArgument
+                        << std::endl;
+                return false;
+            }
 		} else if (arg == "--recursive") {
 			options.recursive = true;
 		} else if (arg == "--force-update") {
@@ -3141,10 +3123,10 @@ static bool parseCommandLine(int argc, char **argv,
 			} else if (!arg.empty() && arg[0] == '-') {
 				std::cerr << "unrecognized option: " << arg << std::endl;
 				return false;
-		} else {
+        } else {
             const NuXFiles::Path ivg(pathStringToWide(arg));
-			options.ivgPaths.push_back(ivg);
-		}
+            options.ivgPaths.push_back(ivg);
+        }
 	}
 
 	if (options.ivgPaths.empty()) {
