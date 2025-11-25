@@ -714,7 +714,7 @@ static void strokeOneSide(Path& stroked, double direction, const StrokeSegment* 
 			v = (bdy * (ax0 - bx0) - bdx * (ay0 - by0)) / cross;
 			w = (ady * (ax0 - bx0) - adx * (ay0 - by0)) / cross;
 		}
-		if (v >= 0.0 && v <= al && w >= 0.0 && w <= bl) {	// Do the offset lines cross before segment ends?
+		if (!zeroCross && v >= 0.0 && v <= al && w >= 0.0 && w <= bl) {	// Do the offset lines cross before segment ends?
 			stroked.lineTo(ax0 + adx * v, ay0 + ady * v);
 		} else {											// If lines do not cross, resort to a safe romb that fills correctly
 			stroked.lineTo(ax1, ay1);
