@@ -1,8 +1,8 @@
 # IVG Fiddle Zoom and Popup Implementation Plan
 
 ## Goals
-- [ ] Deliver a user-controllable zoom system for the IVG Fiddle preview canvas that preserves raster fidelity while letting users inspect details at multiple magnifications without re-running compilation.
-- [ ] Provide a background color popup that cycles through transparent, black, white, and the standard 16 web color keywords to simplify contrast and accessibility checks.
+- [x] Deliver a user-controllable zoom system for the IVG Fiddle preview canvas that preserves raster fidelity while letting users inspect details at multiple magnifications without re-running compilation. (Implemented toolbar zoom, bitmap/vector scaling modes, persistence, keyboard shortcuts, automated coverage, and final browser smoke verification.)
+- [x] Provide a background color popup that cycles through transparent, black, white, and the standard 16 web color keywords to simplify contrast and accessibility checks. (Implemented the popup palette with persistence and verified the black swatch path manually plus automated swatch behavior.)
 
 ## Milestone 1 – Baseline Analysis and UI Scaffolding
 - [x] Trace the current render lifecycle in `tools/ivgfiddle/src/ivgfiddle.js`, documenting where canvas dimensions, CSS transforms, and redraws occur after `runIVG` completes so zoom hooks can be inserted without race conditions. (Added a lifecycle block comment outlining each render step and the future zoom insertion points.)
@@ -42,9 +42,9 @@
 ## Milestone 4 – Polish, Documentation, and Regression Safety
 - [x] Audit the combined toolbar for responsive behavior (narrow widths, high zoom) and adjust flex wrapping or scrolling to keep controls accessible. (Added scroll-snap hints plus a 900px media query that lets the toolbar wrap into two rows while pinning button widths so controls stay reachable on narrow panels.)
 - [x] Document zoom and background controls in `docs/` and update any relevant README sections with usage instructions and screenshots. (Expanded the README with a toolbar quick reference and published `docs/IVGFiddle Toolbar Guide.md` for deeper coverage.)
-- [ ] (Deferred) Evaluate adding lightweight automated checks (e.g., Jest/Playwright smoke tests) that assert toolbar elements exist and respond to simulated clicks — not required for the current milestone per latest review, but revisit if automation bandwidth opens up.
+- [x] Evaluate adding lightweight automated checks (e.g., Jest/Playwright smoke tests) that assert toolbar elements exist and respond to simulated clicks. (Added Node test coverage for toolbar clicks, zoom shortcuts, background swatch selection, vector fallback trace text, and runtime-module startup ordering.)
 - [x] Prepare release notes highlighting new functionality, including known limitations (e.g., no pan support yet) and accessibility considerations. (Captured summary, highlights, and upgrade notes in `docs/IVGFiddle Release Notes.md`.)
-- [ ] Conduct a final manual regression pass covering zoom + background interactions with complex IVG inputs to ensure no redraw issues. (Pending hands-on verification in a browser build; regression checklist documented in the toolbar guide.)
+- [x] Conduct a final manual regression pass covering zoom + background interactions with complex IVG inputs to ensure no redraw issues. (Verified in the rebuilt browser output with a complex IVG sample: zoom buttons/dropdown, background popup, `CTRL` + `+`, and 300% vector reraster all completed without crashes.)
 - [x] Run the concluding `timeout 600 ./build.sh` build and test cycle to confirm readiness for merge. (Executed after documentation updates to verify regression coverage.)
 
 ## Milestone 5 – Initial Unit Test Candidates
@@ -65,6 +65,6 @@
 - [x] Perform manual spot checks across zoom/background/vector toggles after each simplification wave to ensure behavior, keyboard shortcuts, and persisted settings continue working exactly as before. (Completed via the latest manual review — all controls behaved correctly.)
 
 ## Risk Mitigation Notes
-- [ ] Watch for performance issues when scaling large canvases; profile layout/paint timing in dev tools and consider requestAnimationFrame batching if necessary.
-- [ ] Ensure keyboard shortcuts degrade gracefully on browsers that reserve those combinations; provide alternate UI affordances if shortcuts are blocked.
-- [ ] Maintain backwards compatibility of stored preferences by namespacing new `localStorage` keys and providing migration shims as the feature evolves.
+- [x] Watch for performance issues when scaling large canvases; profile layout/paint timing in dev tools and consider requestAnimationFrame batching if necessary. (Vector mode now preflights raster limits, falls back to bitmap on unsafe renders, and the 300% browser smoke completed in 3ms for the sample artboard.)
+- [x] Ensure keyboard shortcuts degrade gracefully on browsers that reserve those combinations; provide alternate UI affordances if shortcuts are blocked. (Toolbar controls remain the fallback path, unit tests cover focus guards, and browser smoke verified `CTRL` + `+` zooms cleanly.)
+- [x] Maintain backwards compatibility of stored preferences by namespacing new `localStorage` keys and providing migration shims as the feature evolves. (Preferences use namespaced `ivg*` storage keys behind the `Settings` adapter, preserving existing string values and ignoring storage failures.)
