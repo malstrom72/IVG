@@ -9,7 +9,7 @@ IVGSnapshot scans IVG sources for `meta snapshot` directives, replays the captur
 The documentation targets contributors who maintain IVG sources, reviewers who inspect golden diffs, and tool developers integrating snapshot-aware previews.
 
 ## Source Layout and Build Artifacts
-The executable lives in `tools/IVGSnapshot/IVGSnapshot.cpp`, a single translation unit that contains the entire runtime. Core pieces include the document cache (`CachedDocument`) that avoids reparsing source text between rounds, `SnapshotRoundCoordinator`/`SnapshotProgress` which pick snapshot entries to execute, the single `SnapshotPlaybackExecutor` subclass of `IVG::IVGExecutor`, resource caches for fonts and images, and the PNG diff helpers (`SnapshotGolden`). The tool depends on the core IVG runtime (`src/IVG.cpp`), the ImpD interpreter (`src/IMPD.cpp`), and NuX filesystem/threading utilities (`externals/NuX`). Building the repository with `./build.sh` or the platform-specific wrappers emits `output/IVGSnapshot` (or `output/IVGSnapshot.exe` on Windows). Regression coverage for the tool resides under `tools/IVGSnapshot/tests/`, which includes list-only fixtures, a shell workflow that exercises draft/validation promotion, and unit tests for the metadata grammar (`TestSnapshotPlan.cpp`).
+The executable lives in `tools/IVGSnapshot/IVGSnapshot.cpp`, a single translation unit that contains the entire runtime. Core pieces include the document cache (`CachedDocument`) that avoids reparsing source text between rounds, `SnapshotRoundCoordinator`/`SnapshotProgress` which pick snapshot entries to execute, the single `SnapshotPlaybackExecutor` subclass of `IVG::IVGExecutor`, resource caches for fonts and images, and the PNG diff helpers (`SnapshotGolden`). The tool depends on the core IVG runtime (`src/IVG.cpp`), the ImpD interpreter (`src/IMPD.cpp`), and NuX filesystem/threading utilities (`externals/NuX`). Building the repository with `./build.sh` or the platform-specific wrappers emits `output/IVGSnapshot` (or `output/IVGSnapshot.exe` on Windows). When iterating exclusively on the snapshot tool, run `bash tools/IVGSnapshot/build-ivgsnapshot.sh` (or `tools\IVGSnapshot\build-ivgsnapshot.cmd`) to compile just this executable. Regression coverage for the tool resides under `tools/IVGSnapshot/tests/`, which includes list-only fixtures, a shell workflow that exercises draft/validation promotion, and unit tests for the metadata grammar (`TestSnapshotPlan.cpp`).
 
 ## Snapshot Metadata Grammar
 ### `meta snapshot` directive
@@ -48,6 +48,15 @@ IVGSnapshot derives the output stem by normalizing the IVG path relative to `--r
 - `<stem>.png.bak` – the previous golden retained when `--force-update` promotes a new render.
 
 When a run succeeds in validation mode the tool cleans up `.actual` and `.diff` files; failures keep them so reviewers can inspect the differences. Draft runs skip comparisons and leave the `.png.old` file in place until validation is enabled. When validation promotes a draft, IVGSnapshot writes a new golden from the current render and deletes the `.png.old` placeholder after confirming the promotion.
+
+## Canonical Path Handling
+IVGSnapshot persists filesystem state as `NuXFiles::Path` objects. Command-line arguments and environment-provided inputs convert through the shared `SnapshotPathBridge`, ensuring every call site performs consistent normalization and case handling before touching the disk. The bridge also exposes UTF-8 helpers so logs, JSON fixtures, and snapshot identifiers keep their previous wording even though the runtime no longer concatenates raw strings.
+
+Key touchpoints:
+
+- `CommandLineOptions` captures CLI values as native strings only long enough to echo them back before converting to `NuXFiles::Path` instances for execution.
+- `SnapshotGolden`, `SnapshotPlaybackExecutor`, and the filesystem helpers derive output paths directly from `NuXFiles::Path`, limiting stringification to user-facing diagnostics.
+- Reporting utilities (`buildSnapshotSourceTag`, `printScenarioListing`, etc.) call into the bridge when they need sanitized identifiers so fixtures remain stable while the runtime operates on canonical paths.
 
 ## Command-Line Interface
 ### Basic Usage
