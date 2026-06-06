@@ -150,10 +150,10 @@ function toggleClass(element, className, shouldHave) {
 }
 
 const Settings = (function createSettingsAdapter() {
-	function read(key, fallback) {
-		try {
-			const value = localStorage.getItem(key);
-			return value === null ? fallback : value;
+		function read(key, fallback) {
+				try {
+						const value = localStorage.getItem(key);
+						return value === null ? fallback : value;
 		} catch (error) {
 			return fallback;
 		}
@@ -171,10 +171,10 @@ const Settings = (function createSettingsAdapter() {
 		}
 	}
 
-	return {
-		read: read,
-		write: write,
-	};
+		return {
+				read: read,
+				write: write,
+		};
 })();
 
 const leftPanelElement = document.getElementById("leftPanel");
@@ -194,14 +194,74 @@ const backgroundOverlay = document.getElementById("backgroundOverlay");
 const backgroundDialog = document.getElementById("backgroundDialog");
 const backgroundCloseButton = document.getElementById("backgroundCloseButton");
 const backgroundSwatchContainer = document.getElementById("backgroundSwatchContainer");
+const snapshotToolbarGroup = document.getElementById("snapshotToolbarGroup");
+const snapshotScenarioSelect = document.getElementById("snapshotScenarioSelect");
 const ivgCanvas = document.getElementById("ivgCanvas");
 const ivgContext = ivgCanvas.getContext("2d");
 const MIN_LEFT_PANEL_WIDTH = 250;
+const heapTextDecoder = typeof TextDecoder !== "undefined" ? new TextDecoder("utf-8") : null;
 
-let rasterizeInProgress = false;
-let rerunQueuedWhileBusy = false;
-let rerunQueuedReason = "";
-let lastRasterizedSourceSignature = null;
+function readUtf8FromHeap(runtimeModule, offset, byteLength) {
+	if (
+		!runtimeModule
+		|| !runtimeModule.HEAPU8
+		|| !Number.isInteger(offset)
+		|| !Number.isInteger(byteLength)
+		|| byteLength <= 0
+	) {
+		return "";
+	}
+	if (typeof runtimeModule.UTF8ArrayToString === "function") {
+		return runtimeModule.UTF8ArrayToString(runtimeModule.HEAPU8, offset, byteLength);
+	}
+	if (typeof UTF8ArrayToString === "function") {
+		return UTF8ArrayToString(runtimeModule.HEAPU8, offset, byteLength);
+	}
+	const heap = runtimeModule.HEAPU8;
+	const end = offset + byteLength;
+	if (heapTextDecoder && typeof heap.subarray === "function") {
+		let decodeEnd = end;
+		for (let index = offset; index < end; ++index) {
+			if (heap[index] === 0) {
+				decodeEnd = index;
+				break;
+			}
+		}
+		return heapTextDecoder.decode(heap.subarray(offset, decodeEnd));
+	}
+	let result = "";
+	let index = offset;
+	while (index < end) {
+		let u0 = heap[index++];
+		if (u0 === 0) {
+			break;
+		}
+		if ((u0 & 0x80) === 0) {
+			result += String.fromCharCode(u0);
+			continue;
+		}
+		if ((u0 & 0xe0) === 0xc0 && index < end) {
+			const u1 = heap[index++] & 0x3f;
+			result += String.fromCharCode(((u0 & 0x1f) << 6) | u1);
+			continue;
+		}
+		if ((u0 & 0xf0) === 0xe0 && index + 1 < end) {
+			const u1 = heap[index++] & 0x3f;
+			const u2 = heap[index++] & 0x3f;
+			result += String.fromCharCode(((u0 & 0x0f) << 12) | (u1 << 6) | u2);
+			continue;
+		}
+		if (index + 2 < end) {
+			const u1 = heap[index++] & 0x3f;
+			const u2 = heap[index++] & 0x3f;
+			const u3 = heap[index++] & 0x3f;
+			let codePoint = ((u0 & 0x07) << 18) | (u1 << 12) | (u2 << 6) | u3;
+			codePoint -= 0x10000;
+			result += String.fromCharCode(0xd800 | (codePoint >> 10), 0xdc00 | (codePoint & 0x3ff));
+		}
+	}
+	return result;
+}
 
 const STORAGE_KEYS = Object.freeze({
 	SOURCE: "ivgSource",
@@ -209,7 +269,389 @@ const STORAGE_KEYS = Object.freeze({
 	ZOOM_LEVEL: "ivgZoomLevel",
 	BACKGROUND_COLOR: "ivgBackgroundColor",
 	VECTOR_SCALING: "ivgVectorScaling",
+	SNAPSHOT_SELECTION: "ivgSnapshotSelection",
 });
+
+const SnapshotController = (function createSnapshotController() {
+	let catalog = null;
+	let defaultSelection = null;
+	let activeSelection = null;
+	let activeSourceSignature = "";
+	const catalogCache = new Map();
+	const selectionCache = new Map();
+	let persistedKey = Settings.read(STORAGE_KEYS.SNAPSHOT_SELECTION, "");
+
+	function selectionKey(selection) {
+		if (!selection) {
+			return "";
+		}
+		return String(selection.scenarioIndex) + ":" + String(selection.entryOrdinal);
+	}
+
+	function selectionFromKey(key) {
+		if (typeof key !== "string" || key.length === 0) {
+			return null;
+		}
+		const parts = key.split(":");
+		if (parts.length !== 2) {
+			return null;
+		}
+		const scenarioIndex = parseInt(parts[0], 10);
+		const entryOrdinal = parseInt(parts[1], 10);
+		if (!Number.isInteger(scenarioIndex) || !Number.isInteger(entryOrdinal)) {
+			return null;
+		}
+		return { scenarioIndex: scenarioIndex, entryOrdinal: entryOrdinal };
+	}
+
+       function parseCatalog(jsonText) {
+               if (typeof jsonText !== "string" || jsonText.length === 0) {
+                       return null;
+               }
+               try {
+                       const parsed = JSON.parse(jsonText);
+                       if (!parsed || typeof parsed !== "object") {
+                               return null;
+                       }
+                       return parsed;
+               } catch (error) {
+                       return null;
+               }
+       }
+
+       function deriveImplicitGroupInfo(scenario, fallbackIndex) {
+               const name = typeof scenario.name === "string" ? scenario.name : "";
+               const patternMatch = name.match(/^(.*-\d+)-(\d+)$/);
+               if (patternMatch) {
+                       const parsedIndex = parseInt(patternMatch[2], 10);
+                       return {
+                               key: patternMatch[1],
+                               listIndex: Number.isFinite(parsedIndex) ? parsedIndex - 1 : null,
+                       };
+               }
+               if (name.length > 0) {
+                       return { key: name, listIndex: null };
+               }
+               return { key: "implicit-" + String(fallbackIndex), listIndex: null };
+       }
+
+       function prepareImplicitGroups(parsedCatalog) {
+               const groups = new Map();
+               if (!parsedCatalog || !Array.isArray(parsedCatalog.scenarios)) {
+                       return groups;
+               }
+               for (let i = 0; i < parsedCatalog.scenarios.length; ++i) {
+                       const scenario = parsedCatalog.scenarios[i];
+                       if (!scenario || !Array.isArray(scenario.entries) || scenario.entries.length === 0) {
+                               continue;
+                       }
+                       const hasScenarioName = typeof scenario.name === "string" && scenario.name.length > 0;
+                       const scenarioIsExplicit = scenario.explicit === true;
+                       if (scenarioIsExplicit && hasScenarioName) {
+                               continue;
+                       }
+                       const fallbackIndex = Number.isInteger(scenario.index) ? scenario.index : i;
+                       const info = deriveImplicitGroupInfo(scenario, fallbackIndex);
+                       let group = groups.get(info.key);
+                       if (!group) {
+                               group = { totalEntries: 0, firstPosition: i, ordinal: 0, processedEntries: 0 };
+                               groups.set(info.key, group);
+                       }
+                       group.totalEntries += scenario.entries.length;
+                       if (i < group.firstPosition) {
+                               group.firstPosition = i;
+                       }
+               }
+               const orderedGroups = Array.from(groups.values());
+               orderedGroups.sort((a, b) => a.firstPosition - b.firstPosition);
+               for (let index = 0; index < orderedGroups.length; ++index) {
+                       orderedGroups[index].ordinal = index + 1;
+                       orderedGroups[index].processedEntries = 0;
+               }
+               return groups;
+       }
+
+       function buildOptionLabel(baseLabel, entryCount, listIndex) {
+               if (!Number.isInteger(entryCount) || entryCount <= 1) {
+                       return baseLabel;
+               }
+               const normalizedIndex = Number.isInteger(listIndex) ? listIndex : 0;
+               return baseLabel + " #" + String(normalizedIndex);
+       }
+
+	function selectionsEqual(a, b) {
+		if (!a || !b) {
+			return false;
+		}
+		return a.scenarioIndex === b.scenarioIndex && a.entryOrdinal === b.entryOrdinal;
+	}
+
+       function buildOptions(parsedCatalog) {
+               const options = [];
+               if (!parsedCatalog || !Array.isArray(parsedCatalog.scenarios)) {
+                       return options;
+               }
+               const implicitGroups = prepareImplicitGroups(parsedCatalog);
+               for (let i = 0; i < parsedCatalog.scenarios.length; ++i) {
+                       const scenario = parsedCatalog.scenarios[i];
+                       if (!scenario || !Array.isArray(scenario.entries) || scenario.entries.length === 0) {
+                               continue;
+                       }
+                       const entries = scenario.entries;
+                       const hasScenarioName = typeof scenario.name === "string" && scenario.name.length > 0;
+                       const scenarioIsExplicit = scenario.explicit === true;
+                       if (scenarioIsExplicit && hasScenarioName) {
+                               for (let j = 0; j < entries.length; ++j) {
+                                       const entry = entries[j];
+                                       if (!entry) {
+                                               continue;
+                                       }
+                                       const explicitListIndex = Number.isInteger(entry.listIndex)
+                                               ? entry.listIndex
+                                               : Number.isInteger(entry.entryOrdinal)
+                                                       ? entry.entryOrdinal - 1
+                                                       : null;
+                                       options.push({
+                                               value: String(scenario.index) + ":" + String(entry.entryOrdinal),
+                                               label: buildOptionLabel(scenario.name, entries.length, explicitListIndex),
+                                               scenarioIndex: scenario.index,
+                                               entryOrdinal: entry.entryOrdinal,
+                                       });
+                               }
+                               continue;
+                       }
+                       const fallbackIndex = Number.isInteger(scenario.index) ? scenario.index : i;
+                       const info = deriveImplicitGroupInfo(scenario, fallbackIndex);
+                       const group = implicitGroups.get(info.key);
+                       const entryCount = group && group.totalEntries > 0 ? group.totalEntries : entries.length;
+                       const baseLabel = group && group.ordinal > 0 ? "unlabeled-" + String(group.ordinal) : "unlabeled";
+                       for (let j = 0; j < entries.length; ++j) {
+                               const entry = entries[j];
+                               if (!entry) {
+                                       continue;
+                               }
+                               let listIndex = null;
+                               if (entryCount > 1) {
+                                       if (entries.length === 1 && Number.isInteger(info.listIndex)) {
+                                               listIndex = info.listIndex;
+                                       } else if (Number.isInteger(entry.listIndex)) {
+                                               listIndex = entry.listIndex;
+                                       } else if (Number.isInteger(entry.entryOrdinal)) {
+                                               listIndex = entry.entryOrdinal - 1;
+                                       } else if (group && group.totalEntries > 1) {
+                                               listIndex = group.processedEntries;
+                                       }
+                               }
+                               options.push({
+                                       value: String(scenario.index) + ":" + String(entry.entryOrdinal),
+                                       label: buildOptionLabel(baseLabel, entryCount, listIndex),
+                                       scenarioIndex: scenario.index,
+                                       entryOrdinal: entry.entryOrdinal,
+                               });
+                               if (group) {
+                                       group.processedEntries += 1;
+                               }
+                       }
+               }
+               return options;
+       }
+
+	function selectionExists(options, selection) {
+		if (!selection || !options) {
+			return false;
+		}
+		for (let i = 0; i < options.length; ++i) {
+			if (options[i].scenarioIndex === selection.scenarioIndex && options[i].entryOrdinal === selection.entryOrdinal) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	function applyPersistedSelection(options) {
+		if (!persistedKey || options.length === 0) {
+			return null;
+		}
+		const persisted = selectionFromKey(persistedKey);
+		if (persisted === null) {
+			return null;
+		}
+		for (let i = 0; i < options.length; ++i) {
+			if (options[i].scenarioIndex === persisted.scenarioIndex && options[i].entryOrdinal === persisted.entryOrdinal) {
+				return persisted;
+			}
+		}
+		return null;
+	}
+
+	function updateToolbar(options) {
+		if (!snapshotToolbarGroup || !snapshotScenarioSelect) {
+			return;
+		}
+		if (!options || options.length === 0) {
+			snapshotToolbarGroup.classList.add("is-hidden");
+			snapshotScenarioSelect.disabled = true;
+			snapshotScenarioSelect.innerHTML = "";
+			return;
+		}
+		snapshotToolbarGroup.classList.remove("is-hidden");
+		snapshotScenarioSelect.disabled = false;
+		snapshotScenarioSelect.innerHTML = "";
+		for (let i = 0; i < options.length; ++i) {
+			const option = document.createElement("option");
+			option.value = options[i].value;
+			option.textContent = options[i].label;
+			snapshotScenarioSelect.appendChild(option);
+		}
+		const key = selectionKey(activeSelection);
+		if (key !== "") {
+			snapshotScenarioSelect.value = key;
+		} else if (options.length > 0) {
+			snapshotScenarioSelect.value = options[0].value;
+		}
+	}
+
+	function applyRenderResult(params) {
+		const parsed = parseCatalog(params.catalogJson);
+		catalog = parsed;
+		if (activeSourceSignature) {
+			catalogCache.set(activeSourceSignature, parsed);
+		}
+		const executedSelection = Number.isInteger(params.defaultScenarioIndex) && Number.isInteger(params.defaultEntryOrdinal) && params.defaultScenarioIndex >= 0 && params.defaultEntryOrdinal >= 0
+			? {
+				scenarioIndex: params.defaultScenarioIndex >>> 0,
+				entryOrdinal: params.defaultEntryOrdinal >>> 0,
+			}
+			: null;
+		const catalogDefault = parsed && Number.isInteger(parsed.defaultScenarioIndex) && Number.isInteger(parsed.defaultEntryOrdinal) && parsed.defaultScenarioIndex >= 0 && parsed.defaultEntryOrdinal >= 0
+			? {
+				scenarioIndex: parsed.defaultScenarioIndex >>> 0,
+				entryOrdinal: parsed.defaultEntryOrdinal >>> 0,
+			}
+			: null;
+		defaultSelection = executedSelection;
+
+		const options = buildOptions(parsed);
+		if (!selectionExists(options, activeSelection)) {
+			activeSelection = null;
+		}
+
+		let nextSelection = activeSelection;
+		if (!nextSelection && options.length > 0) {
+			const persisted = applyPersistedSelection(options);
+			if (persisted) {
+				nextSelection = persisted;
+			} else if (executedSelection && selectionExists(options, executedSelection)) {
+				nextSelection = executedSelection;
+			} else if (catalogDefault && selectionExists(options, catalogDefault)) {
+				nextSelection = catalogDefault;
+			}
+		}
+		activeSelection = nextSelection;
+		if (!activeSelection && activeSourceSignature) {
+			const cachedSelection = selectionCache.get(activeSourceSignature) || null;
+			if (cachedSelection && selectionExists(options, cachedSelection)) {
+				activeSelection = cachedSelection;
+			}
+		}
+		persistedKey = selectionKey(activeSelection);
+		Settings.write(STORAGE_KEYS.SNAPSHOT_SELECTION, persistedKey);
+		if (activeSourceSignature) {
+			selectionCache.set(activeSourceSignature, activeSelection);
+		}
+		const scenarioCount = parsed && Array.isArray(parsed.scenarios) ? parsed.scenarios.length : 0;
+		const entriesCount = options.length;
+		trace(
+			"Snapshot catalog: " +
+				scenarioCount +
+				" scenario" +
+				(scenarioCount === 1 ? "" : "s") +
+				", " +
+				entriesCount +
+				" entr" +
+				(entriesCount === 1 ? "y" : "ies"),
+		);
+		updateToolbar(options);
+	}
+
+	function handleSelectionChange(value) {
+		const next = selectionFromKey(value);
+		if (next === null) {
+			return false;
+		}
+		if (activeSelection && selectionsEqual(activeSelection, next)) {
+			return false;
+		}
+		activeSelection = next;
+		const key = selectionKey(activeSelection);
+		persistedKey = key;
+		Settings.write(STORAGE_KEYS.SNAPSHOT_SELECTION, persistedKey);
+		if (activeSourceSignature) {
+			selectionCache.set(activeSourceSignature, activeSelection);
+		}
+		if (
+			snapshotScenarioSelect &&
+			key !== "" &&
+			snapshotScenarioSelect.value !== key
+		) {
+			snapshotScenarioSelect.value = key;
+		}
+		trace(
+			"Snapshot selection changed to scenario " +
+				next.scenarioIndex +
+			", entry " +
+				next.entryOrdinal,
+		);
+		return true;
+	}
+
+	function prepareForRender(signature, changed) {
+		const normalizedSignature = typeof signature === "string" ? signature : "";
+		const effectiveChange = changed || activeSourceSignature !== normalizedSignature;
+		if (!effectiveChange) {
+			return;
+		}
+		activeSourceSignature = normalizedSignature;
+		catalog = catalogCache.get(activeSourceSignature) || null;
+		defaultSelection = null;
+		activeSelection = selectionCache.get(activeSourceSignature) || null;
+		if (activeSelection) {
+			trace(
+				"Snapshot source updated; reusing cached selection scenario " +
+					activeSelection.scenarioIndex +
+					", entry " +
+					activeSelection.entryOrdinal,
+			);
+		} else if (activeSourceSignature) {
+			trace("Snapshot source updated; awaiting catalog for signature " + activeSourceSignature + ".");
+		}
+	}
+
+	function getSelectionForRender() {
+		return activeSelection;
+	}
+
+	updateToolbar([]);
+	return {
+		applyRenderResult: applyRenderResult,
+		handleSelectionChange: handleSelectionChange,
+		prepareForRender: prepareForRender,
+		getSelectionForRender: getSelectionForRender,
+	};
+})();
+
+if (snapshotScenarioSelect !== null) {
+		snapshotScenarioSelect.addEventListener("change", function handleSnapshotChange() {
+				if (SnapshotController.handleSelectionChange(snapshotScenarioSelect.value)) {
+						runIVG("snapshot selection changed");
+				}
+		});
+}
+
+let rasterizeInProgress = false;
+let rerunQueuedWhileBusy = false;
+let rerunQueuedReason = "";
+let lastRasterizedSourceSignature = null;
 
 const BACKGROUND_COLORS = Object.freeze([
 	{ value: "black", label: "Black", preview: "#000000" },
@@ -649,8 +1091,11 @@ BackgroundController.init();
 
 const ZoomController = (function createZoomController() {
 	let currentZoom = ZOOM_CONSTANTS.DEFAULT;
-	let baseMetrics = null;
+	let displayMetrics = null;
+	let baselineMetrics = null;
 	let vectorScalingEnabled = false;
+	let vectorScalingPreferred = false;
+	let vectorScalingSuppressed = false;
 	let lastRenderZoom = 1;
 	let lastVectorRenderLimit = Infinity;
 	let rerenderRequestPending = false;
@@ -808,7 +1253,10 @@ const ZoomController = (function createZoomController() {
 	}
 
 	function persistVectorScaling() {
-		Settings.write(STORAGE_KEYS.VECTOR_SCALING, vectorScalingEnabled ? "1" : "0");
+		Settings.write(
+			STORAGE_KEYS.VECTOR_SCALING,
+			vectorScalingPreferred ? "1" : "0"
+		);
 	}
 
 	function scheduleVectorRerender(reason) {
@@ -843,9 +1291,10 @@ const ZoomController = (function createZoomController() {
 			return;
 		}
 		ivgCanvas.setAttribute("data-scaling-mode", vectorScalingEnabled ? "vector" : "bitmap");
-		// Safari currently ignores `image-rendering: pixelated`, so bitmap mode may still interpolate there.
-		if (baseMetrics === null) {
-			ivgCanvas.style.transformOrigin = "top left";
+		const metrics = displayMetrics;
+		const targetZoom = vectorScalingEnabled ? currentZoom : 1;
+		ivgCanvas.style.transformOrigin = "top left";
+		if (metrics === null) {
 			if (vectorScalingEnabled) {
 				ivgCanvas.style.transform = "translate(0px, 0px)";
 			} else {
@@ -853,11 +1302,8 @@ const ZoomController = (function createZoomController() {
 			}
 			return;
 		}
-		const metrics = baseMetrics;
-		const targetZoom = vectorScalingEnabled ? currentZoom : 1;
 		ivgCanvas.style.width = metrics.width * targetZoom + "px";
 		ivgCanvas.style.height = metrics.height * targetZoom + "px";
-		ivgCanvas.style.transformOrigin = "top left";
 		if (vectorScalingEnabled) {
 			ivgCanvas.style.transform = "translate(" + metrics.translateX * targetZoom + "px," + metrics.translateY * targetZoom + "px)";
 			if (Math.abs(lastRenderZoom - currentZoom) > ZOOM_EPSILON) {
@@ -938,11 +1384,28 @@ const ZoomController = (function createZoomController() {
 	function setVectorScalingEnabled(value, options) {
 		const settings = options || {};
 		const normalized = value === true;
+		if (settings.skipPreferenceUpdate !== true) {
+			vectorScalingPreferred = normalized;
+		}
 		if (normalized === vectorScalingEnabled && settings.force !== true) {
+			if (normalized) {
+				vectorScalingSuppressed = false;
+			} else if (settings.suppressPreference === true) {
+				vectorScalingSuppressed = true;
+			} else if (settings.skipPreferenceUpdate !== true) {
+				vectorScalingSuppressed = false;
+			}
 			reflectVectorScalingState();
 			return;
 		}
 		vectorScalingEnabled = normalized;
+		if (normalized) {
+			vectorScalingSuppressed = false;
+		} else if (settings.suppressPreference === true) {
+			vectorScalingSuppressed = true;
+		} else if (settings.skipPreferenceUpdate !== true) {
+			vectorScalingSuppressed = false;
+		}
 		if (!settings.skipPersist) {
 			persistVectorScaling();
 		}
@@ -958,6 +1421,20 @@ const ZoomController = (function createZoomController() {
 				runIVG("vector-toggle-disabled");
 			});
 		}
+	}
+
+	function restorePreferredVectorScaling() {
+		if (!vectorScalingPreferred) {
+			vectorScalingSuppressed = false;
+			return false;
+		}
+		if (!vectorScalingSuppressed || vectorScalingEnabled) {
+			return false;
+		}
+		setVectorScalingEnabled(true, {
+			skipPreferenceUpdate: true,
+		});
+		return true;
 	}
 
 	function bindUIEvents() {
@@ -998,13 +1475,7 @@ const ZoomController = (function createZoomController() {
 			lastRenderZoom = details.renderZoom;
 		}
 		invalidateBaseMetrics();
-		if (!vectorScalingEnabled) {
-			return false;
-		}
-		setVectorScalingEnabled(false, {
-			skipRerender: true,
-		});
-		return true;
+		return false;
 	}
 
 	function targetBlocksShortcut(element) {
@@ -1087,7 +1558,8 @@ const ZoomController = (function createZoomController() {
 
 	function setCanvasMetrics(metrics) {
 		if (metrics === null) {
-			baseMetrics = null;
+			displayMetrics = null;
+			baselineMetrics = null;
 			lastVectorRenderLimit = Infinity;
 			vectorBaselineReady = false;
 			applyZoom();
@@ -1096,11 +1568,17 @@ const ZoomController = (function createZoomController() {
 		const appliedZoom = metrics.zoomApplied || 1;
 		lastRenderZoom = appliedZoom;
 		lastVectorRenderLimit = Number.isFinite(metrics.vectorRenderLimit) ? metrics.vectorRenderLimit : Infinity;
-		baseMetrics = {
+		displayMetrics = {
 			width: metrics.width / appliedZoom,
 			height: metrics.height / appliedZoom,
 			translateX: metrics.translateX / appliedZoom,
 			translateY: metrics.translateY / appliedZoom,
+		};
+		baselineMetrics = {
+			width: displayMetrics.width,
+			height: displayMetrics.height,
+			translateX: displayMetrics.translateX,
+			translateY: displayMetrics.translateY,
 		};
 		vectorBaselineReady = true;
 		applyZoom();
@@ -1114,12 +1592,16 @@ const ZoomController = (function createZoomController() {
 		return vectorScalingEnabled;
 	}
 
+	function isVectorScalingPreferred() {
+		return vectorScalingPreferred;
+	}
+
 	function getBaseMetrics() {
-		return baseMetrics;
+		return baselineMetrics;
 	}
 
 	function invalidateBaseMetrics() {
-		baseMetrics = null;
+		baselineMetrics = null;
 		lastVectorRenderLimit = Infinity;
 		vectorBaselineReady = false;
 	}
@@ -1136,8 +1618,10 @@ const ZoomController = (function createZoomController() {
 		applyZoom: applyZoom,
 		setCanvasMetrics: setCanvasMetrics,
 		setVectorScalingEnabled: setVectorScalingEnabled,
+		restorePreferredVectorScaling: restorePreferredVectorScaling,
 		getZoom: getZoom,
 		isVectorScalingEnabled: isVectorScalingEnabled,
+		isVectorScalingPreferred: isVectorScalingPreferred,
 		getBaseMetrics: getBaseMetrics,
 		handleVectorRasterFailure: handleVectorRasterFailure,
 		invalidateBaseMetrics: invalidateBaseMetrics,
@@ -1201,11 +1685,13 @@ function trace(message) {
 }
 
 // Can't use cwrap to pass very long strings, as they are placed on the stackm and not the heap.
-const rasterizeIVG = function (runtimeModule, source, scaling) {
+const rasterizeIVG = function (runtimeModule, source, scaling, scenarioIndex, entryOrdinal) {
 	const size = runtimeModule.lengthBytesUTF8(source) + 1;
 	const stringPointer = runtimeModule._malloc(size);
 	runtimeModule.stringToUTF8(source, stringPointer, size);
-	const result = runtimeModule._rasterizeIVG(stringPointer, scaling);
+	const selectedScenarioIndex = Number.isInteger(scenarioIndex) ? scenarioIndex : -1;
+	const selectedEntryOrdinal = Number.isInteger(entryOrdinal) ? entryOrdinal : -1;
+	const result = runtimeModule._rasterizeIVG(stringPointer, scaling, selectedScenarioIndex, selectedEntryOrdinal);
 	runtimeModule._free(stringPointer);
 	return result;
 };
@@ -1262,6 +1748,7 @@ function runIVG(reason) {
 	let ok = false;
 	const zoomLevel = ZoomController.getZoom();
 	const vectorRescaleEnabled = ZoomController.isVectorScalingEnabled();
+	SnapshotController.prepareForRender(sourceSignature, sourceChanged);
 	if (sourceChanged) {
 		ZoomController.invalidateBaseMetrics();
 	}
@@ -1449,88 +1936,99 @@ function runIVG(reason) {
 			}
 		} else {
 			trace("Bitmap scaling active - requesting nearest-neighbor interpolation on the CSS transform.");
-		}
-		let rasterPointer = 0;
-		let end = Date.now();
-		const runtimeModule = skipVectorRaster ? null : requireRuntimeModule();
-		if (!skipVectorRaster) {
-			rasterPointer = rasterizeIVG(runtimeModule, sourceCode, rasterScale);
-			end = Date.now();
-		}
-		if (!skipVectorRaster && rasterPointer !== 0) {
-			const heap = heapU32(runtimeModule).buffer;
-			let dimensions = new Int32Array(heap, rasterPointer, 4);
-			const left = dimensions[0];
-			const top = dimensions[1];
-			const width = dimensions[2];
-			const height = dimensions[3];
-			dimensions = null;
-			let pixelData = new Uint8Array(heap, rasterPointer + 4 * 4, width * height * 4);
-			deallocatePixels(runtimeModule, rasterPointer);
-			ivgCanvas.width = width;
-			ivgCanvas.height = height;
-			const imageData = ivgContext.createImageData(width, height);
-			imageData.data.set(pixelData);
-			pixelData = null;
-			const cssWidth = width / pixelRatio;
-			const cssHeight = height / pixelRatio;
-			const translateX = left / pixelRatio;
-			const translateY = top / pixelRatio;
-			ZoomController.setCanvasMetrics({
-				width: cssWidth,
-				height: cssHeight,
-				translateX: translateX,
-				translateY: translateY,
-				zoomApplied: renderZoom,
-				vectorRenderLimit: vectorRenderLimit,
-			});
-			ivgContext.putImageData(imageData, 0, 0);
-			trace("Completed IVG");
-			trace("Time spent: " + (end - start) + "ms");
-			ok = true;
-			lastRasterizedSourceSignature = sourceSignature;
+			}
+			let rasterPointer = 0;
+			let end = Date.now();
+			const runtimeModule = skipVectorRaster ? null : requireRuntimeModule();
+			if (!skipVectorRaster) {
+				const snapshotSelection = SnapshotController.getSelectionForRender();
+				const selectionScenarioIndex =
+					snapshotSelection && Number.isInteger(snapshotSelection.scenarioIndex) ? snapshotSelection.scenarioIndex : -1;
+				const selectionEntryOrdinal =
+					snapshotSelection && Number.isInteger(snapshotSelection.entryOrdinal) ? snapshotSelection.entryOrdinal : -1;
+				rasterPointer = rasterizeIVG(runtimeModule, sourceCode, rasterScale, selectionScenarioIndex, selectionEntryOrdinal);
+				end = Date.now();
+			}
+			if (!skipVectorRaster && rasterPointer !== 0) {
+				const heapBuffer = heapU32(runtimeModule).buffer;
+				const headerSigned = new Int32Array(heapBuffer, rasterPointer, 4);
+				const left = headerSigned[0];
+				const top = headerSigned[1];
+				const width = headerSigned[2];
+				const height = headerSigned[3];
+				const header = new Uint32Array(heapBuffer, rasterPointer, 8);
+				const pixelBytes = header[4];
+				const catalogBytes = header[5];
+				const defaultScenarioIndex = header[6];
+				const defaultEntryOrdinal = header[7];
+				const pixelOffset = rasterPointer + 8 * 4;
+				const catalogOffset = pixelOffset + pixelBytes;
+				const pixelData = new Uint8Array(heapBuffer, pixelOffset, pixelBytes);
+				const snapshotCatalogJson = catalogBytes > 0 ? readUtf8FromHeap(runtimeModule, catalogOffset, catalogBytes) : "";
+				const DEFAULT_SELECTION_SENTINEL = 0xffffffff;
+				const normalizedScenarioIndex = defaultScenarioIndex === DEFAULT_SELECTION_SENTINEL ? -1 : defaultScenarioIndex;
+				const normalizedEntryOrdinal = defaultEntryOrdinal === DEFAULT_SELECTION_SENTINEL ? -1 : defaultEntryOrdinal;
+				ivgCanvas.width = width;
+				ivgCanvas.height = height;
+				const imageData = ivgContext.createImageData(width, height);
+				imageData.data.set(pixelData);
+				deallocatePixels(runtimeModule, rasterPointer);
+				const cssWidth = width / pixelRatio;
+				const cssHeight = height / pixelRatio;
+				const translateX = left / pixelRatio;
+				const translateY = top / pixelRatio;
+				ZoomController.setCanvasMetrics({
+					width: cssWidth,
+					height: cssHeight,
+					translateX: translateX,
+					translateY: translateY,
+					zoomApplied: renderZoom,
+					vectorRenderLimit: vectorRenderLimit,
+				});
+				SnapshotController.applyRenderResult({
+					catalogJson: snapshotCatalogJson,
+					defaultScenarioIndex: normalizedScenarioIndex,
+					defaultEntryOrdinal: normalizedEntryOrdinal,
+				});
+				ivgContext.putImageData(imageData, 0, 0);
+				trace("Completed IVG");
+				trace("Time spent: " + (end - start) + "ms");
+				ok = true;
+				lastRasterizedSourceSignature = sourceSignature;
 			if (vectorRescaleEnabled && baselineRender && targetRenderZoom > renderZoom + 0.0001) {
 				ZoomController.requestVectorRerender("vector-baseline");
 			}
-		} else if (!skipVectorRaster) {
-			trace("Aborted IVG");
-			if (vectorRescaleEnabled) {
-				const vectorDisabled = ZoomController.handleVectorRasterFailure({
-					renderZoom: renderZoom,
-					vectorRenderLimit: vectorRenderLimit,
-				});
-				if (vectorDisabled) {
-					trace("Vector rescale was disabled after a failed rasterization - falling back to bitmap zoom.");
-				}
-				ZoomController.queueBitmapFallback("vector-fallback");
-			}
-		} else {
-			ok = false;
-			if (vectorRescaleEnabled) {
-				const vectorDisabled = ZoomController.handleVectorRasterFailure({
-					renderZoom: renderZoom,
-					vectorRenderLimit: vectorRenderLimit,
-				});
-				if (vectorDisabled) {
-					trace("Vector rescale was disabled after exceeding the safe rasterization limits. Falling back to bitmap zoom.");
-				}
-				ZoomController.queueBitmapFallback("vector-preflight-limit");
-			}
+	} else if (!skipVectorRaster) {
+		trace("Aborted IVG");
+		if (vectorRescaleEnabled) {
+			ZoomController.handleVectorRasterFailure({
+				renderZoom: renderZoom,
+				vectorRenderLimit: vectorRenderLimit,
+			});
 		}
-		Settings.write(STORAGE_KEYS.RUN_ON_STARTUP, "true");
+	} else {
+		ok = false;
+		if (vectorRescaleEnabled) {
+			ZoomController.handleVectorRasterFailure({
+				renderZoom: renderZoom,
+				vectorRenderLimit: vectorRenderLimit,
+			});
+			trace("Vector preflight limits exceeded; retaining current zoom mode.");
+		}
+	}
+	Settings.write(STORAGE_KEYS.RUN_ON_STARTUP, "true");
 	} catch (e) {
 		trace("Rasterization crashed");
 		trace(e);
 		if (vectorRescaleEnabled) {
-			const vectorDisabled = ZoomController.handleVectorRasterFailure({
+			ZoomController.handleVectorRasterFailure({
 				renderZoom: renderZoom,
 				vectorRenderLimit: vectorRenderLimit,
 			});
-			if (vectorDisabled) {
-				trace("Vector rescale crashed - falling back to bitmap zoom.");
-			}
-			ZoomController.queueBitmapFallback("vector-fallback");
 		}
+	}
+	if (ok) {
+		ZoomController.restorePreferredVectorScaling();
 	}
 	if (!ok) {
 		ivgContext.beginPath();

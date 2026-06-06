@@ -1,0 +1,9 @@
+format ivg-3 uses:snapshot-1
+bounds 0,0,20,20
+meta snapshot scenario:alpha list:[ [ fill red ] [ pen blue width:2 ] ]
+meta snapshot scenario:alpha list:[ [ fill #ffd700 ] [ pen green width:3 ] ]
+meta snapshot validate:no [ pen black dash:4 width:2 ]
+meta snapshot list:[ [ fill #112233 ] [ fill #445566 ] ]
+meta snapshot [ fill #778899 ]
+meta snapshot scenario:beta validate:no [ fill black ]
+meta snapshot scenario:beta validate:no [ fill gray ]

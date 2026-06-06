@@ -6,7 +6,7 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-const { initializeIvfFiddleForTests, flushAnimationFrames } = require("./ivgfiddleTestHarness");
+const { initializeIvfFiddleForTests } = require("./ivgfiddleTestHarness");
 
 function setup() {
 	return initializeIvfFiddleForTests();
@@ -143,10 +143,10 @@ test("ZoomController clamps to maximum preset", () => {
 });
 
 test("Vector scaling toggle updates label and state", () => {
-	const context = setup();
-	const zoomController = context.exports.ZoomController;
-	const toggle = context.elements.vectorScalingToggle;
-	assert.equal(toggle.textContent, "Bitmap zoom");
+		const context = setup();
+		const zoomController = context.exports.ZoomController;
+		const toggle = context.elements.vectorScalingToggle;
+		assert.equal(toggle.textContent, "Bitmap zoom");
 	zoomController.setVectorScalingEnabled(true, { skipRerender: true });
 	assert.equal(toggle.textContent, "Vector zoom");
 	assert.equal(toggle.getAttribute("aria-pressed"), "true");
@@ -226,7 +226,106 @@ test("BackgroundController resets to none", () => {
 	assert.equal(context.elements.rightPanel.classList.contains("transparent"), true);
 	assert.equal(context.elements.screen.classList.contains("transparent"), true);
 	assert.equal(context.elements.ivgCanvas.style.backgroundColor || "", "");
-	assert.equal(context.elements.backgroundButton.getAttribute("aria-label"), "Change canvas background (current: None)");
+		assert.equal(context.elements.backgroundButton.getAttribute("aria-label"), "Change canvas background (current: None)");
+});
+
+test("Snapshot toolbar hidden without catalog", () => {
+				const context = setup();
+				const group = context.elements.snapshotToolbarGroup;
+				assert.ok(group.classList.contains("is-hidden"));
+				const select = context.elements.snapshotScenarioSelect;
+				assert.equal(select.disabled, true);
+});
+
+test("SnapshotController populates toolbar from catalog", () => {
+const context = setup();
+const controller = context.exports.SnapshotController;
+const group = context.elements.snapshotToolbarGroup;
+const select = context.elements.snapshotScenarioSelect;
+const catalog = {
+defaultScenarioIndex: 0,
+defaultEntryOrdinal: 1,
+scenarios: [
+{ index: 0, name: "Base", explicit: true, entries: [{ entryOrdinal: 1, listIndex: 0 }] },
+{ index: 1, name: "Alt", explicit: true, entries: [{ entryOrdinal: 1, listIndex: 0 }] },
+],
+};
+controller.applyRenderResult({
+catalogJson: JSON.stringify(catalog),
+defaultScenarioIndex: 0,
+defaultEntryOrdinal: 1,
+});
+assert.equal(group.classList.contains("is-hidden"), false);
+assert.equal(select.disabled, false);
+assert.equal(select.children.length, 2);
+assert.equal(select.value, "0:1");
+});
+
+test("SnapshotController falls back when selection missing", () => {
+const context = setup();
+const controller = context.exports.SnapshotController;
+const select = context.elements.snapshotScenarioSelect;
+const initialCatalog = {
+defaultScenarioIndex: 0,
+defaultEntryOrdinal: 1,
+scenarios: [
+{ index: 0, name: "Base", explicit: true, entries: [{ entryOrdinal: 1, listIndex: 0 }] },
+{ index: 1, name: "Variant", explicit: true, entries: [{ entryOrdinal: 1, listIndex: 0 }] },
+],
+};
+controller.applyRenderResult({
+catalogJson: JSON.stringify(initialCatalog),
+defaultScenarioIndex: 0,
+defaultEntryOrdinal: 1,
+});
+assert.equal(select.value, "0:1");
+assert.equal(controller.handleSelectionChange("1:1"), true);
+const fallbackCatalog = {
+defaultScenarioIndex: 0,
+defaultEntryOrdinal: 1,
+scenarios: [
+{ index: 0, name: "Base", explicit: true, entries: [{ entryOrdinal: 1, listIndex: 0 }] },
+],
+};
+controller.applyRenderResult({
+catalogJson: JSON.stringify(fallbackCatalog),
+defaultScenarioIndex: 0,
+defaultEntryOrdinal: 1,
+});
+assert.equal(select.children.length, 1);
+assert.equal(select.value, "0:1");
+});
+
+test("SnapshotController caches catalog and selection per signature", () => {
+	const context = setup();
+	const controller = context.exports.SnapshotController;
+	const select = context.elements.snapshotScenarioSelect;
+	const catalog = {
+		defaultScenarioIndex: 0,
+		defaultEntryOrdinal: 1,
+		scenarios: [
+			{ index: 0, name: "Base", explicit: true, entries: [{ entryOrdinal: 1, listIndex: 0 }] },
+			{ index: 1, name: "Variant", explicit: true, entries: [{ entryOrdinal: 1, listIndex: 0 }] },
+		],
+	};
+	controller.prepareForRender("10:123", true);
+	controller.applyRenderResult({
+		catalogJson: JSON.stringify(catalog),
+		defaultScenarioIndex: 0,
+		defaultEntryOrdinal: 1,
+	});
+	assert.equal(select.value, "0:1");
+	assert.equal(controller.handleSelectionChange("1:1"), true);
+	assert.equal(select.value, "1:1");
+	controller.prepareForRender("10:123", false);
+	controller.applyRenderResult({
+		catalogJson: JSON.stringify(catalog),
+		defaultScenarioIndex: 0,
+		defaultEntryOrdinal: 1,
+	});
+	assert.equal(select.value, "1:1");
+	controller.prepareForRender("11:456", true);
+	assert.equal(controller.getSelectionForRender(), null);
 });
 
 test("Vector scaling updates canvas attributes", () => {
@@ -243,17 +342,44 @@ test("Vector scaling updates canvas attributes", () => {
 	assert.ok(String(canvas.style.transform).includes("scale(2"));
 });
 
-test("Vector raster failure queues bitmap fallback", () => {
+test("Vector raster failure preserves zoom mode", () => {
 	const context = setup();
 	const zoomController = context.exports.ZoomController;
+	const storageKeys = context.exports.STORAGE_KEYS;
 	zoomController.setVectorScalingEnabled(true, { skipRerender: true });
+	assert.equal(context.window.localStorage.getItem(storageKeys.VECTOR_SCALING), "1");
 	const disabled = zoomController.handleVectorRasterFailure({ vectorRenderLimit: 1, renderZoom: 2 });
-	assert.equal(disabled, true);
-	assert.equal(zoomController.isVectorScalingEnabled(), false);
-	flushAnimationFrames(context.window);
+	assert.equal(disabled, false);
+	assert.equal(zoomController.isVectorScalingEnabled(), true);
+	assert.equal(context.window.localStorage.getItem(storageKeys.VECTOR_SCALING), "1");
 });
 
-test("Vector raster failure trace explains bitmap fallback", () => {
+test("Vector toggle keeps zoom after baseline reset", () => {
+	const context = setup();
+	const zoomController = context.exports.ZoomController;
+	const canvas = context.elements.ivgCanvas;
+	zoomController.setCanvasMetrics({
+		width: 400,
+		height: 200,
+		translateX: 8,
+		translateY: 16,
+		zoomApplied: 1,
+		vectorRenderLimit: Infinity,
+	});
+	zoomController.setZoom(0.25, { skipPersist: true, skipVectorRefresh: true });
+	assert.equal(canvas.style.transform, "translate(8px,16px) scale(0.25)");
+	zoomController.invalidateBaseMetrics();
+	assert.equal(zoomController.getBaseMetrics(), null);
+	assert.equal(canvas.style.transform, "translate(8px,16px) scale(0.25)");
+	zoomController.setVectorScalingEnabled(true, { skipRerender: true, skipPersist: true });
+	assert.equal(canvas.style.transform, "translate(2px,4px)");
+	assert.equal(canvas.style.width, "100px");
+	zoomController.setVectorScalingEnabled(false, { skipRerender: true, skipPersist: true });
+	assert.equal(canvas.style.transform, "translate(8px,16px) scale(0.25)");
+	assert.equal(canvas.style.width, "400px");
+});
+
+test("Vector raster failure preserves vector mode in trace path", () => {
 	const context = setup();
 	context.window.Module = {
 		HEAPU8: { buffer: new ArrayBuffer(64 * 1024 * 1024) },
@@ -274,8 +400,8 @@ test("Vector raster failure trace explains bitmap fallback", () => {
 	zoomController.setZoom(2, { skipPersist: true });
 	zoomController.setVectorScalingEnabled(true, { skipRerender: true });
 	context.exports.runIVG("unit-vector-failure");
-	assert.match(context.exports.getTraceText(), /Vector rescale was disabled after a failed rasterization - falling back to bitmap zoom\./);
-	assert.equal(zoomController.isVectorScalingEnabled(), false);
+	assert.match(context.exports.getTraceText(), /Aborted IVG/);
+	assert.equal(zoomController.isVectorScalingEnabled(), true);
 });
 
 test("runIVG uses captured runtime when Module is factory", () => {

@@ -206,18 +206,18 @@ wipe gradient:[linear 0,0,0,800 from:white to:silver]
 
 context [
 	font color:[gradient:[linear 0,0,100,300 from:green to:red]]
-	font size:150 outline:[blue width:5 miter-limit:1.2]
-	text at:20,100 [magnus\ ]
+	font size:150 outline:[blue width:5 joints:miter miter-limit:1.2]
+	text at:20,100 [magnus]
 ]
 offset 0,140
 context [
 	font color:[gradient:[linear 0,0,100,300 from:green to:red]]
 	font size:150 outline:[blue width:5 joints:bevel]
-	text at:20,100 [magnus\ ]
+	text at:20,100 [magnus]
 ]
 offset 0,140
 context [
 	font color:[gradient:[linear 0,0,100,300 from:green to:red]]
 	font size:150 outline:[blue width:5 joints:curve]
-	text at:20,100 [magnus\ ]
+	text at:20,100 [magnus]
 ]

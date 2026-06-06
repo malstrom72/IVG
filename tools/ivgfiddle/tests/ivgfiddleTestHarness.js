@@ -592,16 +592,21 @@ function buildDomStructure(document) {
 	rightPanel.appendChild(canvasToolbar);
 	const zoomOutButton = register(document.createElement("button"), "zoomOutButton");
 	const zoomInButton = register(document.createElement("button"), "zoomInButton");
-	const zoomResetButton = register(document.createElement("button"), "zoomResetButton");
-	const zoomLevelSelect = register(document.createElement("select"), "zoomLevelSelect");
-	const vectorScalingToggle = register(document.createElement("button"), "vectorScalingToggle");
-	const backgroundButton = register(document.createElement("button"), "backgroundButton");
-	canvasToolbar.appendChild(zoomOutButton);
-	canvasToolbar.appendChild(zoomInButton);
-	canvasToolbar.appendChild(zoomResetButton);
-	canvasToolbar.appendChild(zoomLevelSelect);
-	canvasToolbar.appendChild(vectorScalingToggle);
-	canvasToolbar.appendChild(backgroundButton);
+		const zoomResetButton = register(document.createElement("button"), "zoomResetButton");
+		const zoomLevelSelect = register(document.createElement("select"), "zoomLevelSelect");
+		const vectorScalingToggle = register(document.createElement("button"), "vectorScalingToggle");
+		const backgroundButton = register(document.createElement("button"), "backgroundButton");
+		const snapshotToolbarGroup = register(document.createElement("div"), "snapshotToolbarGroup");
+		snapshotToolbarGroup.classList.add("toolbar-group", "is-hidden");
+		const snapshotScenarioSelect = register(document.createElement("select"), "snapshotScenarioSelect");
+		snapshotToolbarGroup.appendChild(snapshotScenarioSelect);
+		canvasToolbar.appendChild(zoomOutButton);
+		canvasToolbar.appendChild(zoomInButton);
+		canvasToolbar.appendChild(zoomResetButton);
+		canvasToolbar.appendChild(zoomLevelSelect);
+		canvasToolbar.appendChild(vectorScalingToggle);
+		canvasToolbar.appendChild(backgroundButton);
+		canvasToolbar.appendChild(snapshotToolbarGroup);
 	const screen = register(document.createElement("div"), "screen");
 	rightPanel.appendChild(screen);
 	const ivgCanvas = register(document.createElement("canvas"), "ivgCanvas");
@@ -684,7 +689,7 @@ function initializeIvfFiddleForTests() {
 	const context = vm.createContext(windowObject);
 	const sourcePath = path.resolve(__dirname, "..", "src", "ivgfiddle.js");
 	const source = fs.readFileSync(sourcePath, "utf8");
-	const exportFooter = "\nwindow.__ivgTestExports = {\n\tZoomController: ZoomController,\n\tBackgroundController: BackgroundController,\n\tSTORAGE_KEYS: STORAGE_KEYS,\n\testimateVectorPixelBudget: estimateVectorPixelBudget,\n\tcomputeSourceSignature: computeSourceSignature,\n\trunIVG: runIVG,\n\tgetTraceText: function getTraceText() { return traceElement.textContent; }\n};\n";
+	const exportFooter = "\nwindow.__ivgTestExports = {\n\tZoomController: ZoomController,\n\tBackgroundController: BackgroundController,\n\tSnapshotController: SnapshotController,\n\tSTORAGE_KEYS: STORAGE_KEYS,\n\testimateVectorPixelBudget: estimateVectorPixelBudget,\n\tcomputeSourceSignature: computeSourceSignature,\n\trunIVG: runIVG,\n\tgetTraceText: function getTraceText() { return traceElement.textContent; }\n};\n";
 	vm.runInContext(source + exportFooter, context, { filename: "ivgfiddle.js" });
 	return {
 		window: windowObject,

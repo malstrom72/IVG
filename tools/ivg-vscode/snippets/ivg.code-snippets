@@ -1,0 +1,20 @@
+{
+"IVG Canvas Skeleton": {
+"scope": "ivg",
+"prefix": "ivg-basic",
+"body": [
+"ivg {",
+"\tsize: 512 512;",
+"\tbackground: rgba(18, 18, 18, 255);",
+"\tlayer main {",
+"\t\tshape rect {",
+"\t\t\torigin: 256 256;",
+"\t\t\tsize: 256 256;",
+"\t\t\tfill: rgba(255, 128, 0, 255);",
+"\t\t}",
+"\t}",
+"}"
+],
+"description": "Minimal IVG document with a centered rectangle for quick testing."
+}
+}
