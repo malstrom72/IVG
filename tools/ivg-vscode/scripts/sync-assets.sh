@@ -30,12 +30,19 @@ fi
 
 mkdir -p "${ext_dir}/media"
 
-if command -v rsync >/dev/null 2>&1; then
-	rsync -a --delete "${output_dir}/" "${ext_dir}/media/"
-else
-	rm -rf "${ext_dir}/media"
-	mkdir -p "${ext_dir}/media"
-	( cd "${output_dir}" && tar cf - . ) | ( cd "${ext_dir}/media" && tar xf - )
+cp "${output_dir}/rasterizeIVG.js" "${ext_dir}/media/rasterizeIVG.js"
+
+docs_source="${output_dir}/docs"
+docs_target="${ext_dir}/media/docs"
+if [[ -d "${docs_source}" ]]; then
+	mkdir -p "${docs_target}"
+	if command -v rsync >/dev/null 2>&1; then
+		rsync -a --delete "${docs_source}/" "${docs_target}/"
+	else
+		rm -rf "${docs_target}"
+		mkdir -p "${docs_target}"
+		( cd "${docs_source}" && tar cf - . ) | ( cd "${docs_target}" && tar xf - )
+	fi
 fi
 
-echo "Synchronized assets into ${ext_dir}/media" >&2
+echo "Updated IVGFiddle artifacts in ${ext_dir}/media" >&2

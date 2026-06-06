@@ -34,12 +34,16 @@ const ivgCanvas = document.getElementById("ivgCanvas");
 		const backgroundDialog = document.getElementById("backgroundDialog");
 		const backgroundCloseButton = document.getElementById("backgroundCloseButton");
 		const backgroundSwatchContainer = document.getElementById("backgroundSwatchContainer");
+		const snapshotToolbarGroup = document.getElementById("snapshotToolbarGroup");
+		const snapshotScenarioSelect = document.getElementById("snapshotScenarioSelect");
+		const heapTextDecoder = typeof TextDecoder !== "undefined" ? new TextDecoder("utf-8") : null;
 
 		const STORAGE_KEYS = Object.freeze({
 			SOURCE: "ivgSource",
 			ZOOM_LEVEL: "ivgZoomLevel",
 			VECTOR_SCALING: "ivgVectorScaling",
 			BACKGROUND_COLOR: "ivgBackgroundColor",
+			SNAPSHOT_SELECTION: "ivgSnapshotSelection",
 		});
 
 		function withElement(element, callback) {
@@ -74,6 +78,70 @@ const ivgCanvas = document.getElementById("ivgCanvas");
 			}
 		}
 
+		function computeSourceSignature(source) {
+			if (typeof source !== "string") {
+				return "0:0";
+			}
+			let hash = 0;
+			for (let index = 0; index < source.length; ++index) {
+				hash = (hash * 31 + source.charCodeAt(index)) | 0;
+			}
+			return source.length + ":" + (hash >>> 0);
+		}
+
+		function readUtf8FromHeap(module, offset, byteLength) {
+			if (!module || !module.HEAPU8 || !Number.isInteger(offset) || !Number.isInteger(byteLength) || byteLength <= 0) {
+				return "";
+			}
+			if (typeof module.UTF8ArrayToString === "function") {
+				return module.UTF8ArrayToString(module.HEAPU8, offset, byteLength);
+			}
+			if (typeof UTF8ArrayToString === "function") {
+				return UTF8ArrayToString(module.HEAPU8, offset, byteLength);
+			}
+			const heap = module.HEAPU8;
+			const end = offset + byteLength;
+			if (heapTextDecoder && typeof heap.subarray === "function") {
+				let decodeEnd = end;
+				for (let index = offset; index < end; ++index) {
+					if (heap[index] === 0) {
+						decodeEnd = index;
+						break;
+					}
+				}
+				return heapTextDecoder.decode(heap.subarray(offset, decodeEnd));
+			}
+			let result = "";
+			let index = offset;
+			while (index < end) {
+				let u0 = heap[index++];
+				if (u0 === 0) {
+					break;
+				}
+				if ((u0 & 0x80) === 0) {
+					result += String.fromCharCode(u0);
+					continue;
+				}
+				if ((u0 & 0xe0) === 0xc0) {
+					const u1 = heap[index++] & 0x3f;
+					result += String.fromCharCode(((u0 & 0x1f) << 6) | u1);
+					continue;
+				}
+				if ((u0 & 0xf0) === 0xe0) {
+					const u1 = heap[index++] & 0x3f;
+					const u2 = heap[index++] & 0x3f;
+					result += String.fromCharCode(((u0 & 0x0f) << 12) | (u1 << 6) | u2);
+					continue;
+				}
+				const u1 = heap[index++] & 0x3f;
+				const u2 = heap[index++] & 0x3f;
+				const u3 = heap[index++] & 0x3f;
+				const codePoint = ((u0 & 0x07) << 18) | (u1 << 12) | (u2 << 6) | u3;
+				result += String.fromCodePoint(codePoint);
+			}
+			return result;
+		}
+
 
 		const Settings = (function createSettingsAdapter() {
 			function read(key, fallback) {
@@ -102,6 +170,358 @@ const ivgCanvas = document.getElementById("ivgCanvas");
 				write: write,
 			};
 		})();
+
+		const SnapshotController = (function createSnapshotController() {
+let catalog = null;
+let defaultSelection = null;
+let activeSelection = null;
+let activeSourceSignature = "";
+let catalogHasCommon = false;
+let catalogHasCommonOnly = false;
+			const catalogCache = new Map();
+			const selectionCache = new Map();
+			let persistedKey = Settings.read(STORAGE_KEYS.SNAPSHOT_SELECTION, "");
+
+			function selectionKey(selection) {
+				if (!selection) {
+					return "";
+				}
+				return String(selection.scenarioIndex) + ":" + String(selection.entryOrdinal);
+			}
+
+			function selectionFromKey(key) {
+				if (typeof key !== "string" || key.length === 0) {
+					return null;
+				}
+				const parts = key.split(":");
+				if (parts.length !== 2) {
+					return null;
+				}
+				const scenarioIndex = parseInt(parts[0], 10);
+				const entryOrdinal = parseInt(parts[1], 10);
+				if (!Number.isInteger(scenarioIndex) || !Number.isInteger(entryOrdinal)) {
+					return null;
+				}
+				return { scenarioIndex: scenarioIndex, entryOrdinal: entryOrdinal };
+			}
+
+			function parseCatalog(jsonText) {
+				if (typeof jsonText !== "string" || jsonText.length === 0) {
+					return null;
+				}
+				try {
+					const parsed = JSON.parse(jsonText);
+					if (!parsed || typeof parsed !== "object") {
+						return null;
+					}
+					return parsed;
+				} catch (error) {
+					return null;
+				}
+			}
+
+			function deriveImplicitGroupInfo(scenario, fallbackIndex) {
+				const name = typeof scenario.name === "string" ? scenario.name : "";
+				const patternMatch = name.match(/^(.*-\d+)-(\d+)$/);
+				if (patternMatch) {
+					const parsedIndex = parseInt(patternMatch[2], 10);
+					return {
+						key: patternMatch[1],
+						listIndex: Number.isFinite(parsedIndex) ? parsedIndex - 1 : null,
+					};
+				}
+				if (name.length > 0) {
+					return { key: name, listIndex: null };
+				}
+				return { key: "implicit-" + String(fallbackIndex), listIndex: null };
+			}
+
+			function prepareImplicitGroups(parsedCatalog) {
+				const groups = new Map();
+				if (!parsedCatalog || !Array.isArray(parsedCatalog.scenarios)) {
+					return groups;
+				}
+				for (let i = 0; i < parsedCatalog.scenarios.length; ++i) {
+					const scenario = parsedCatalog.scenarios[i];
+					if (!scenario || !Array.isArray(scenario.entries) || scenario.entries.length === 0) {
+						continue;
+					}
+					const hasScenarioName = typeof scenario.name === "string" && scenario.name.length > 0;
+					const scenarioIsExplicit = scenario.explicit === true;
+					if (scenarioIsExplicit && hasScenarioName) {
+						continue;
+					}
+					const fallbackIndex = Number.isInteger(scenario.index) ? scenario.index : i;
+					const info = deriveImplicitGroupInfo(scenario, fallbackIndex);
+					let group = groups.get(info.key);
+					if (!group) {
+						group = { totalEntries: 0, firstPosition: i, ordinal: 0, processedEntries: 0 };
+						groups.set(info.key, group);
+					}
+					group.totalEntries += scenario.entries.length;
+					if (i < group.firstPosition) {
+						group.firstPosition = i;
+					}
+				}
+				const orderedGroups = Array.from(groups.values());
+				orderedGroups.sort((a, b) => a.firstPosition - b.firstPosition);
+				for (let index = 0; index < orderedGroups.length; ++index) {
+					orderedGroups[index].ordinal = index + 1;
+					orderedGroups[index].processedEntries = 0;
+				}
+				return groups;
+			}
+
+			function buildOptionLabel(baseLabel, entryCount, listIndex) {
+				if (!Number.isInteger(entryCount) || entryCount <= 1) {
+					return baseLabel;
+				}
+				const normalizedIndex = Number.isInteger(listIndex) ? listIndex : 0;
+				return baseLabel + " #" + String(normalizedIndex);
+			}
+
+			function selectionsEqual(a, b) {
+				if (!a || !b) {
+					return false;
+				}
+				return a.scenarioIndex === b.scenarioIndex && a.entryOrdinal === b.entryOrdinal;
+			}
+
+			function buildOptions(parsedCatalog) {
+				const options = [];
+				if (!parsedCatalog || !Array.isArray(parsedCatalog.scenarios)) {
+					return options;
+				}
+				const implicitGroups = prepareImplicitGroups(parsedCatalog);
+				for (let i = 0; i < parsedCatalog.scenarios.length; ++i) {
+					const scenario = parsedCatalog.scenarios[i];
+					if (!scenario || !Array.isArray(scenario.entries) || scenario.entries.length === 0) {
+						continue;
+					}
+					const entries = scenario.entries;
+					const hasScenarioName = typeof scenario.name === "string" && scenario.name.length > 0;
+					const scenarioIsExplicit = scenario.explicit === true;
+					if (scenarioIsExplicit && hasScenarioName) {
+						for (let j = 0; j < entries.length; ++j) {
+							const entry = entries[j];
+							if (!entry) {
+								continue;
+							}
+							const explicitListIndex = Number.isInteger(entry.listIndex) ? entry.listIndex : Number.isInteger(entry.entryOrdinal) ? entry.entryOrdinal - 1 : null;
+							options.push({
+								value: String(scenario.index) + ":" + String(entry.entryOrdinal),
+								label: buildOptionLabel(scenario.name, entries.length, explicitListIndex),
+								scenarioIndex: scenario.index,
+								entryOrdinal: entry.entryOrdinal,
+							});
+						}
+						continue;
+					}
+					const fallbackIndex = Number.isInteger(scenario.index) ? scenario.index : i;
+					const info = deriveImplicitGroupInfo(scenario, fallbackIndex);
+					const group = implicitGroups.get(info.key);
+					const entryCount = group && group.totalEntries > 0 ? group.totalEntries : entries.length;
+					const baseLabel = group && group.ordinal > 0 ? "unlabeled-" + String(group.ordinal) : "unlabeled";
+					for (let j = 0; j < entries.length; ++j) {
+						const entry = entries[j];
+						if (!entry) {
+							continue;
+						}
+						let listIndex = null;
+						if (entryCount > 1) {
+							if (entries.length === 1 && Number.isInteger(info.listIndex)) {
+								listIndex = info.listIndex;
+							} else if (Number.isInteger(entry.listIndex)) {
+								listIndex = entry.listIndex;
+							} else if (Number.isInteger(entry.entryOrdinal)) {
+								listIndex = entry.entryOrdinal - 1;
+							} else if (group && group.totalEntries > 1) {
+								listIndex = group.processedEntries;
+							}
+						}
+						options.push({
+							value: String(scenario.index) + ":" + String(entry.entryOrdinal),
+							label: buildOptionLabel(baseLabel, entryCount, listIndex),
+							scenarioIndex: scenario.index,
+							entryOrdinal: entry.entryOrdinal,
+						});
+						if (group) {
+							group.processedEntries += 1;
+						}
+					}
+				}
+				return options;
+			}
+
+			function selectionExists(options, selection) {
+				if (!selection || !options) {
+					return false;
+				}
+				for (let i = 0; i < options.length; ++i) {
+					if (options[i].scenarioIndex === selection.scenarioIndex && options[i].entryOrdinal === selection.entryOrdinal) {
+						return true;
+					}
+				}
+				return false;
+			}
+
+			function applyPersistedSelection(options) {
+				if (!persistedKey || options.length === 0) {
+					return null;
+				}
+				const persisted = selectionFromKey(persistedKey);
+				if (persisted === null) {
+					return null;
+				}
+				for (let i = 0; i < options.length; ++i) {
+					if (options[i].scenarioIndex === persisted.scenarioIndex && options[i].entryOrdinal === persisted.entryOrdinal) {
+						return persisted;
+					}
+				}
+				return null;
+			}
+
+			function updateToolbar(options) {
+				if (!snapshotToolbarGroup || !snapshotScenarioSelect) {
+					return;
+				}
+				if (!options || options.length === 0) {
+					snapshotToolbarGroup.classList.add("is-hidden");
+					snapshotScenarioSelect.disabled = true;
+					snapshotScenarioSelect.innerHTML = "";
+					return;
+				}
+				snapshotToolbarGroup.classList.remove("is-hidden");
+				snapshotScenarioSelect.disabled = false;
+				snapshotScenarioSelect.innerHTML = "";
+				for (let i = 0; i < options.length; ++i) {
+					const option = document.createElement("option");
+					option.value = options[i].value;
+					option.textContent = options[i].label;
+					snapshotScenarioSelect.appendChild(option);
+				}
+				const key = selectionKey(activeSelection);
+				if (key !== "") {
+					snapshotScenarioSelect.value = key;
+				} else if (options.length > 0) {
+					snapshotScenarioSelect.value = options[0].value;
+				}
+			}
+
+			function applyRenderResult(params) {
+				const parsed = parseCatalog(params.catalogJson);
+				catalog = parsed;
+				if (activeSourceSignature) {
+					catalogCache.set(activeSourceSignature, parsed);
+				}
+				catalogHasCommon = !!(parsed && parsed.hasCommon === true);
+				catalogHasCommonOnly = !!(parsed && parsed.hasCommonOnly === true);
+				const executedSelection = Number.isInteger(params.defaultScenarioIndex) && Number.isInteger(params.defaultEntryOrdinal) && params.defaultScenarioIndex >= 0 && params.defaultEntryOrdinal >= 0 ? {
+					scenarioIndex: params.defaultScenarioIndex >>> 0,
+					entryOrdinal: params.defaultEntryOrdinal >>> 0,
+				} : null;
+				const catalogDefault = parsed && Number.isInteger(parsed.defaultScenarioIndex) && Number.isInteger(parsed.defaultEntryOrdinal) && parsed.defaultScenarioIndex >= 0 && parsed.defaultEntryOrdinal >= 0 ? {
+					scenarioIndex: parsed.defaultScenarioIndex >>> 0,
+					entryOrdinal: parsed.defaultEntryOrdinal >>> 0,
+				} : null;
+				defaultSelection = executedSelection;
+				const options = buildOptions(parsed);
+				if (!selectionExists(options, activeSelection)) {
+					activeSelection = null;
+				}
+				let nextSelection = activeSelection;
+				if (!nextSelection && options.length > 0) {
+					const persisted = applyPersistedSelection(options);
+					if (persisted) {
+						nextSelection = persisted;
+					} else if (executedSelection && selectionExists(options, executedSelection)) {
+					nextSelection = executedSelection;
+				} else if (catalogDefault && selectionExists(options, catalogDefault)) {
+				nextSelection = catalogDefault;
+			}
+			}
+				activeSelection = nextSelection;
+				if (!activeSelection && activeSourceSignature) {
+					const cachedSelection = selectionCache.get(activeSourceSignature) || null;
+					if (cachedSelection && selectionExists(options, cachedSelection)) {
+						activeSelection = cachedSelection;
+					}
+				}
+				persistedKey = selectionKey(activeSelection);
+				Settings.write(STORAGE_KEYS.SNAPSHOT_SELECTION, persistedKey);
+				if (activeSourceSignature) {
+					selectionCache.set(activeSourceSignature, activeSelection);
+				}
+				const scenarioCount = parsed && Array.isArray(parsed.scenarios) ? parsed.scenarios.length : 0;
+				const entriesCount = options.length;
+				let catalogSummary = "Snapshot catalog: " + scenarioCount + " scenario" + (scenarioCount === 1 ? "" : "s") + ", " + entriesCount + " entr" + (entriesCount === 1 ? "y" : "ies");
+				if (catalogHasCommon) {
+					catalogSummary += catalogHasCommonOnly ? " (shared common setup only)" : " (shared common setup present)";
+				}
+				trace(catalogSummary);
+				updateToolbar(options);
+			}
+
+			function handleSelectionChange(value) {
+				const next = selectionFromKey(value);
+				if (next === null) {
+					return false;
+				}
+				if (activeSelection && selectionsEqual(activeSelection, next)) {
+					return false;
+				}
+				activeSelection = next;
+				const key = selectionKey(activeSelection);
+				persistedKey = key;
+				Settings.write(STORAGE_KEYS.SNAPSHOT_SELECTION, persistedKey);
+				if (activeSourceSignature) {
+					selectionCache.set(activeSourceSignature, activeSelection);
+				}
+				if (snapshotScenarioSelect && key !== "" && snapshotScenarioSelect.value !== key) {
+					snapshotScenarioSelect.value = key;
+				}
+				trace("Snapshot selection changed to scenario " + next.scenarioIndex + ", entry " + next.entryOrdinal);
+				return true;
+			}
+
+			function prepareForRender(signature, changed) {
+				const normalizedSignature = typeof signature === "string" ? signature : "";
+				const effectiveChange = changed || activeSourceSignature !== normalizedSignature;
+				if (!effectiveChange) {
+					return;
+				}
+				activeSourceSignature = normalizedSignature;
+				catalog = catalogCache.get(activeSourceSignature) || null;
+				defaultSelection = null;
+				activeSelection = selectionCache.get(activeSourceSignature) || null;
+				if (activeSelection) {
+					trace("Snapshot source updated; reusing cached selection scenario " + activeSelection.scenarioIndex + ", entry " + activeSelection.entryOrdinal);
+				} else if (activeSourceSignature) {
+					trace("Snapshot source updated; awaiting catalog for signature " + activeSourceSignature + ".");
+				}
+			}
+
+			function getSelectionForRender() {
+				return activeSelection;
+			}
+
+			updateToolbar([]);
+			return {
+				applyRenderResult: applyRenderResult,
+				handleSelectionChange: handleSelectionChange,
+				prepareForRender: prepareForRender,
+				getSelectionForRender: getSelectionForRender,
+			};
+		})();
+
+		if (snapshotScenarioSelect !== null) {
+			snapshotScenarioSelect.addEventListener("change", function handleSnapshotChange() {
+				if (SnapshotController.handleSelectionChange(snapshotScenarioSelect.value)) {
+					setStatus("Re-rendering current IVG…", { level: "info", notify: false });
+					renderCurrentSource();
+				}
+			});
+		}
 
 		const BACKGROUND_COLORS = Object.freeze([
 			{ value: "black", label: "Black", preview: "#000000" },
@@ -789,17 +1209,390 @@ const ivgCanvas = document.getElementById("ivgCanvas");
 let allLogLines = "";
 let traceLinesCount = 0;
 let traceDisplayLines = [];
-		let lastLogLine = null;
-		let repeatingLogLineCount = 0;
-		let moduleReady = false;
-		let currentSource = "";
-		let pendingSource = null;
-		let pendingUri = null;
-		let hasSuccessfulRender = false;
-		let currentDocumentUri = null;
-		let lastSuccessfulRenderUri = null;
-		let moduleRecoveryPromise = null;
-		let suppressFailureStatus = false;
+let lastLogLine = null;
+let repeatingLogLineCount = 0;
+let moduleReady = false;
+let currentSource = "";
+let pendingSource = null;
+let pendingUri = null;
+let hasSuccessfulRender = false;
+let lastRasterizedSourceSignature = "";
+let currentDocumentUri = null;
+let lastSuccessfulRenderUri = null;
+let moduleRecoveryPromise = null;
+let suppressFailureStatus = false;
+let renderInProgress = false;
+let rerenderQueued = false;
+
+const IncludeBundleController = (function createIncludeBundleController() {
+const INCLUDE_ROOT = "/__ivg/includes";
+const includeState = {
+staged: null,
+mountedRevision: null,
+mountedRelativePaths: [],
+mountError: null,
+missingWarnings: new Set(),
+};
+
+function stageBundle(message) {
+const bundle = normalizeBundle(message);
+includeState.staged = bundle;
+includeState.mountError = null;
+includeState.missingWarnings.clear();
+return { revision: bundle.revision, entryCount: bundle.entries.length };
+}
+
+function ensureMounted(module) {
+if (!module || !module.FS) {
+throw new Error("IVG renderer is not ready to mount include bundles.");
+}
+const fs = module.FS;
+let changed = false;
+if (!includeState.staged) {
+if (includeState.mountedRelativePaths.length > 0) {
+removeMountedPaths(fs, includeState.mountedRelativePaths);
+includeState.mountedRelativePaths = [];
+includeState.mountedRevision = null;
+changed = true;
+}
+includeState.mountError = null;
+removeIncludeRootIfEmpty(fs);
+return { changed, revision: includeState.mountedRevision, entryCount: 0 };
+}
+if (
+includeState.mountedRevision === includeState.staged.revision &&
+includeState.mountedRelativePaths.length === includeState.staged.entries.length
+) {
+includeState.mountError = null;
+return {
+changed: false,
+revision: includeState.mountedRevision,
+entryCount: includeState.staged.entries.length,
+};
+}
+removeMountedPaths(fs, includeState.mountedRelativePaths);
+ensureIncludeRoot(fs);
+const createdDirs = new Set();
+for (let index = 0; index < includeState.staged.entries.length; ++index) {
+const entry = includeState.staged.entries[index];
+const targetPath = buildIncludePath(entry.relativePath);
+ensureDirectory(fs, parentDirectory(targetPath), createdDirs);
+fs.writeFile(targetPath, entry.data, { canOwn: true });
+try {
+fs.chmod(targetPath, 0o444);
+} catch (error) {
+// Ignore inability to change permissions in the sandbox.
+}
+}
+includeState.mountedRelativePaths = includeState.staged.entries.map((entry) => entry.relativePath);
+includeState.mountedRevision = includeState.staged.revision;
+includeState.mountError = null;
+includeState.missingWarnings.clear();
+changed = true;
+return {
+changed: true,
+revision: includeState.mountedRevision,
+entryCount: includeState.staged.entries.length,
+};
+}
+
+function handleTraceLine(line) {
+const prefix = "[IVGFiddle] Include missing:";
+if (typeof line !== "string" || line.indexOf(prefix) !== 0) {
+return;
+}
+const revision = includeState.mountedRevision || "unknown";
+const key = revision + ":" + line;
+if (includeState.missingWarnings.has(key)) {
+return;
+}
+includeState.missingWarnings.add(key);
+setStatus(line, { level: "warning" });
+}
+
+function recordMountFailure(message) {
+includeState.mountError = typeof message === "string" ? message : String(message || "");
+}
+
+function getDiagnostics() {
+return {
+stagedRevision: includeState.staged ? includeState.staged.revision : null,
+stagedEntryCount: includeState.staged ? includeState.staged.entries.length : 0,
+mountedRevision: includeState.mountedRevision,
+mountedEntryCount: includeState.mountedRelativePaths.length,
+mountError: includeState.mountError || null,
+};
+}
+
+function normalizeBundle(message) {
+if (!message || typeof message !== "object") {
+throw new Error("Include bundle payload missing.");
+}
+const revision =
+typeof message.revision === "string" && message.revision.length > 0 ? message.revision : "rev-unknown";
+const manifest = message.manifest;
+if (!manifest || typeof manifest !== "object" || !Array.isArray(manifest.entries)) {
+throw new Error("Include bundle manifest is missing entries.");
+}
+const assets = Array.isArray(message.assets) ? message.assets : [];
+const assetMap = new Map();
+for (let index = 0; index < assets.length; ++index) {
+const asset = assets[index];
+if (!asset || typeof asset !== "object") {
+continue;
+}
+const relativePath = normalizeRelativePath(asset.path);
+assetMap.set(relativePath, asset);
+}
+const normalizedEntries = [];
+const entries = manifest.entries;
+for (let index = 0; index < entries.length; ++index) {
+const entry = entries[index];
+if (!entry || typeof entry !== "object") {
+continue;
+}
+const relativePath = normalizeRelativePath(entry.mountPath);
+const asset = assetMap.get(relativePath);
+if (!asset) {
+throw new Error(`Include bundle is missing data for ${relativePath}.`);
+}
+const data = decodeAssetData(asset.data);
+const byteLength = Number(entry.byteLength) || 0;
+if (byteLength !== data.byteLength) {
+throw new Error(
+`Include asset ${relativePath} byte length mismatch (expected ${byteLength}, received ${data.byteLength}).`,
+);
+}
+normalizedEntries.push({
+relativePath: relativePath,
+mountPath: "/" + relativePath,
+byteLength: byteLength,
+checksum: typeof entry.checksum === "string" ? entry.checksum : "",
+mimeType: typeof entry.mimeType === "string" ? entry.mimeType : "application/octet-stream",
+data: data,
+});
+}
+normalizedEntries.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+return {
+revision: revision,
+entries: normalizedEntries,
+};
+}
+
+function normalizeRelativePath(candidate) {
+if (typeof candidate !== "string") {
+throw new Error("Include manifest entry is missing a mount path.");
+}
+let normalized = candidate.replace(/\\/g, "/");
+normalized = normalized.replace(/\/+/g, "/");
+if (normalized.startsWith("/")) {
+normalized = normalized.slice(1);
+}
+const parts = normalized.split("/");
+const segments = [];
+for (let index = 0; index < parts.length; ++index) {
+const part = parts[index];
+if (!part || part === ".") {
+continue;
+}
+if (part === "..") {
+throw new Error(`Include path ${candidate} escapes the workspace root.`);
+}
+segments.push(part);
+}
+if (segments.length === 0) {
+throw new Error("Include manifest entry resolved to an empty path.");
+}
+return segments.join("/");
+}
+
+function decodeAssetData(data) {
+const base64 = typeof data === "string" ? data : "";
+if (!base64) {
+return new Uint8Array(0);
+}
+if (typeof atob === "function") {
+const binary = atob(base64);
+const buffer = new Uint8Array(binary.length);
+for (let index = 0; index < binary.length; ++index) {
+buffer[index] = binary.charCodeAt(index);
+}
+return buffer;
+}
+if (typeof Buffer === "function") {
+const buffer = Buffer.from(base64, "base64");
+return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+}
+throw new Error("Include bundles cannot be decoded: base64 helper unavailable.");
+}
+
+function ensureIncludeRoot(fs) {
+	if (!fs) {
+		return;
+	}
+	if (typeof fs.mkdirTree === "function") {
+		try {
+			fs.mkdirTree(INCLUDE_ROOT);
+			return;
+		} catch (error) {
+			if (typeof fs.analyzePath === "function") {
+				try {
+					const info = fs.analyzePath(INCLUDE_ROOT);
+					if (info && info.exists) {
+						return;
+					}
+				} catch (analysisError) {
+					// Fall through to manual directory creation.
+				}
+			}
+		}
+	}
+	const segments = INCLUDE_ROOT.split("/").filter(Boolean);
+	let current = "";
+	for (let index = 0; index < segments.length; ++index) {
+		const segment = segments[index];
+		current = current ? `${current}/${segment}` : `/${segment}`;
+		try {
+			fs.mkdir(current);
+			continue;
+		} catch (error) {
+			if (typeof fs.analyzePath === "function") {
+				try {
+					const info = fs.analyzePath(current);
+					if (info && info.exists) {
+						continue;
+					}
+				} catch (analysisError) {
+					// Ignore analyzePath failures and rethrow the original error.
+				}
+			}
+			throw error;
+		}
+	}
+}
+function buildIncludePath(relativePath) {
+return `${INCLUDE_ROOT}/${relativePath}`;
+}
+
+function removeMountedPaths(fs, relativePaths) {
+if (!relativePaths || relativePaths.length === 0) {
+return;
+}
+const directories = new Set();
+for (let index = 0; index < relativePaths.length; ++index) {
+const relative = relativePaths[index];
+if (typeof relative !== "string" || relative.length === 0) {
+continue;
+}
+const target = buildIncludePath(relative);
+try {
+fs.unlink(target);
+} catch (error) {
+try {
+fs.rmdir(target);
+} catch (removeError) {
+// Ignore removal failures; stale entries will be replaced.
+}
+}
+const dir = parentDirectory(target);
+if (dir && dir !== INCLUDE_ROOT) {
+directories.add(dir);
+}
+}
+if (directories.size === 0) {
+return;
+}
+const sorted = Array.from(directories).sort((a, b) => b.length - a.length);
+for (let index = 0; index < sorted.length; ++index) {
+const dir = sorted[index];
+try {
+if (isDirectoryEmpty(fs, dir)) {
+fs.rmdir(dir);
+}
+} catch (error) {
+// Ignore cleanup failures.
+}
+}
+}
+
+function removeIncludeRootIfEmpty(fs) {
+try {
+if (isDirectoryEmpty(fs, INCLUDE_ROOT)) {
+fs.rmdir(INCLUDE_ROOT);
+}
+} catch (error) {
+// Ignore cleanup failures.
+}
+}
+
+function ensureDirectory(fs, directory, created) {
+if (!directory || directory === "/" || directory === INCLUDE_ROOT) {
+return;
+}
+const segments = directory.split("/");
+let current = "";
+for (let index = 0; index < segments.length; ++index) {
+const segment = segments[index];
+if (!segment) {
+continue;
+}
+current = current ? `${current}/${segment}` : `/${segment}`;
+if (current === INCLUDE_ROOT) {
+continue;
+}
+if (created.has(current)) {
+continue;
+}
+try {
+const info = fs.analyzePath(current);
+if (!info || !info.exists) {
+fs.mkdir(current);
+}
+} catch (error) {
+fs.mkdir(current);
+}
+created.add(current);
+}
+}
+
+function parentDirectory(path) {
+if (typeof path !== "string" || path.length === 0) {
+return null;
+}
+const index = path.lastIndexOf("/");
+if (index <= 0) {
+return "/";
+}
+return path.slice(0, index);
+}
+
+function isDirectoryEmpty(fs, directory) {
+try {
+const entries = fs.readdir(directory);
+if (!entries) {
+return true;
+}
+for (let index = 0; index < entries.length; ++index) {
+const entry = entries[index];
+if (entry === "." || entry === "..") {
+continue;
+}
+return false;
+}
+return true;
+} catch (error) {
+return false;
+}
+}
+
+return {
+stageBundle: stageBundle,
+ensureMounted: ensureMounted,
+handleTraceLine: handleTraceLine,
+recordMountFailure: recordMountFailure,
+getDiagnostics: getDiagnostics,
+};
+})();
 
 		function notifyHost(level, message, options) {
 			const text = typeof message === "string" ? message : "";
@@ -895,12 +1688,13 @@ let traceDisplayLines = [];
 			host.emitTrace({ action: "clear" });
 		}
 
-		function trace(message) {
-			const line = typeof message === "string" ? message : String(message);
-			if (!line) {
-				return;
-			}
-			let trimmed = false;
+function trace(message) {
+const line = typeof message === "string" ? message : String(message);
+if (!line) {
+return;
+}
+IncludeBundleController.handleTraceLine(line);
+let trimmed = false;
 			while (allLogLines.length > MAX_LOG_SIZE || traceLinesCount >= MAX_LOG_LINES) {
 				const offset = allLogLines.indexOf("\n");
 				if (offset < 0) {
@@ -1026,96 +1820,164 @@ let traceDisplayLines = [];
 			throw new Error("WebAssembly heap view missing");
 		}
 
-		const rasterizeIVG = function rasterizeIVG(source, scaling) {
+		const rasterizeIVG = function rasterizeIVG(source, scaling, scenarioIndex, entryOrdinal) {
 			const size = global.Module.lengthBytesUTF8(source) + 1;
 			const stringPointer = global.Module._malloc(size);
 			global.Module.stringToUTF8(source, stringPointer, size);
-			const result = global.Module._rasterizeIVG(stringPointer, scaling);
+			const selectedScenarioIndex = Number.isInteger(scenarioIndex) ? scenarioIndex : -1;
+			const selectedEntryOrdinal = Number.isInteger(entryOrdinal) ? entryOrdinal : -1;
+			const result = global.Module._rasterizeIVG(stringPointer, scaling, selectedScenarioIndex, selectedEntryOrdinal);
 			global.Module._free(stringPointer);
 			return result;
 		};
 
-		function renderCurrentSource() {
-			if (!global.Module || !ivgCanvas || !ivgContext) {
-				return;
-			}
-			clearTrace();
-			const start = window.performance.now();
-			let ok = false;
-			try {
-				const devicePixelRatio = window.devicePixelRatio || 1;
-				const usesVectorScaling = ZoomController.usesVectorScaling();
-				const currentZoom = ZoomController.getZoom();
-				const rasterScale = usesVectorScaling ? currentZoom * devicePixelRatio : ZoomController.getRasterScale(devicePixelRatio);
-			const result = rasterizeIVG(currentSource, rasterScale);
-			if (result !== 0) {
-				const module = global.Module;
-				const left = readInt32(module, result + 0);
-				const top = readInt32(module, result + 4);
-				const width = readInt32(module, result + 8);
-				const height = readInt32(module, result + 12);
-				const byteLength = width * height * 4;
-				const heapU8 = getHeapView(module, "HEAPU8");
-				if (!heapU8) {
-					throw new Error("WebAssembly heap unavailable");
-				}
-				const pixelOffset = result + 16;
-				const pixelData = heapU8.slice(pixelOffset, pixelOffset + byteLength);
-				module._deallocatePixels(result);
-				if (width > 0 && height > 0 && pixelData.length === byteLength) {
-					if (ivgCanvas.width !== width || ivgCanvas.height !== height) {
-						ivgCanvas.width = width;
-						ivgCanvas.height = height;
-					}
-					const imageData = ivgContext.createImageData(width, height);
-					imageData.data.set(pixelData);
-					ivgContext.putImageData(imageData, 0, 0);
-					ZoomController.applyRenderMetrics({
-						width: width,
-						height: height,
-						left: left,
-						top: top,
-						rasterScale: rasterScale,
-						renderZoom: usesVectorScaling ? currentZoom : 1,
-					});
-					const end = window.performance.now();
-					const durationMs = end - start;
-					trace("--- IVG completed in " + durationMs + "ms ---");
-					setStatus("Preview updated in " + durationMs + " ms.", {
-						level: "info",
-						durationMs: durationMs,
-					});
-					ok = true;
-					hasSuccessfulRender = true;
-					lastSuccessfulRenderUri = currentDocumentUri;
-				} else {
-					trace("Rasterization returned no data");
-				}
-			}
-			} catch (error) {
-				trace("Rasterization crashed");
-				const errorMessage = describeError(error);
-				trace(errorMessage);
-				if (isOutOfMemoryError(errorMessage)) {
-					recoverFromOutOfMemory(errorMessage);
-				}
-			}
-			if (ok) {
-				ZoomController.restorePreferredVectorScaling();
-			}
-			if (!ok) {
-				const preserveImage = hasSuccessfulRender && isSameDocumentUri(currentDocumentUri, lastSuccessfulRenderUri);
-				if (!preserveImage) {
-					ZoomController.clearMetrics();
-				}
-				drawFailureCross({ preserveImage: preserveImage });
-				if (!suppressFailureStatus) {
-					setStatus("Rendering failed. Check trace output for details.", {
-						level: "error",
-					});
-				}
-			}
-		}
+function renderCurrentSource() {
+if (!global.Module || !ivgCanvas || !ivgContext) {
+return;
+}
+if (renderInProgress) {
+rerenderQueued = true;
+return;
+}
+renderInProgress = true;
+rerenderQueued = false;
+let ok = false;
+let start = 0;
+try {
+const module = global.Module;
+let includeResult = null;
+try {
+includeResult = IncludeBundleController.ensureMounted(module);
+} catch (includeError) {
+const includeMessage = describeError(includeError);
+IncludeBundleController.recordMountFailure(includeMessage);
+trace("Failed to mount include bundle: " + includeMessage);
+setStatus("Failed to mount include bundle: " + includeMessage, { level: "error" });
+throw includeError;
+}
+if (includeResult && includeResult.changed) {
+const count = includeResult.entryCount;
+const revision = includeResult.revision || "unknown";
+const summary = count === 1 ? "1 asset" : count + " assets";
+trace("Include bundle revision " + revision + " mounted (" + summary + ").");
+}
+clearTrace();
+start = window.performance.now();
+const devicePixelRatio = window.devicePixelRatio || 1;
+const usesVectorScaling = ZoomController.usesVectorScaling();
+const currentZoom = ZoomController.getZoom();
+const rasterScale = usesVectorScaling ? currentZoom * devicePixelRatio : ZoomController.getRasterScale(devicePixelRatio);
+const sourceSignature = computeSourceSignature(currentSource);
+const sourceChanged = sourceSignature !== lastRasterizedSourceSignature;
+SnapshotController.prepareForRender(sourceSignature, sourceChanged);
+const snapshotSelection = SnapshotController.getSelectionForRender();
+const selectionScenarioIndex =
+snapshotSelection && Number.isInteger(snapshotSelection.scenarioIndex)
+? snapshotSelection.scenarioIndex
+: -1;
+const selectionEntryOrdinal =
+snapshotSelection && Number.isInteger(snapshotSelection.entryOrdinal)
+? snapshotSelection.entryOrdinal
+: -1;
+const result = rasterizeIVG(currentSource, rasterScale, selectionScenarioIndex, selectionEntryOrdinal);
+if (result !== 0) {
+const heapU8 = getHeapView(module, "HEAPU8");
+if (!heapU8) {
+module._deallocatePixels(result);
+throw new Error("WebAssembly heap unavailable");
+}
+const heapBuffer = heapU8.buffer;
+const headerSigned = new Int32Array(heapBuffer, result, 4);
+const left = headerSigned[0];
+const top = headerSigned[1];
+const width = headerSigned[2];
+const height = headerSigned[3];
+const header = new Uint32Array(heapBuffer, result, 8);
+const pixelBytes = header[4];
+const catalogBytes = header[5];
+const defaultScenarioIndex = header[6];
+const defaultEntryOrdinal = header[7];
+const pixelOffset = result + 8 * 4;
+const catalogOffset = pixelOffset + pixelBytes;
+const pixelSlice = heapU8.subarray(pixelOffset, pixelOffset + pixelBytes);
+const pixelData = new Uint8ClampedArray(pixelSlice);
+const snapshotCatalogJson =
+catalogBytes > 0 ? readUtf8FromHeap(module, catalogOffset, catalogBytes) : "";
+module._deallocatePixels(result);
+if (width > 0 && height > 0 && pixelData.length === pixelBytes) {
+if (ivgCanvas.width !== width || ivgCanvas.height !== height) {
+ivgCanvas.width = width;
+ivgCanvas.height = height;
+}
+const imageData = ivgContext.createImageData(width, height);
+imageData.data.set(pixelData);
+ZoomController.applyRenderMetrics({
+width: width,
+height: height,
+left: left,
+top: top,
+rasterScale: rasterScale,
+renderZoom: usesVectorScaling ? currentZoom : 1,
+});
+const DEFAULT_SELECTION_SENTINEL = 0xffffffff;
+const normalizedScenarioIndex =
+defaultScenarioIndex === DEFAULT_SELECTION_SENTINEL ? -1 : defaultScenarioIndex;
+const normalizedEntryOrdinal =
+defaultEntryOrdinal === DEFAULT_SELECTION_SENTINEL ? -1 : defaultEntryOrdinal;
+SnapshotController.applyRenderResult({
+catalogJson: snapshotCatalogJson,
+defaultScenarioIndex: normalizedScenarioIndex,
+defaultEntryOrdinal: normalizedEntryOrdinal,
+});
+ivgContext.putImageData(imageData, 0, 0);
+const end = window.performance.now();
+const durationMs = end - start;
+trace("--- IVG completed in " + durationMs + "ms ---");
+setStatus("Preview updated in " + durationMs + " ms.", {
+level: "info",
+durationMs: durationMs,
+});
+ok = true;
+hasSuccessfulRender = true;
+lastSuccessfulRenderUri = currentDocumentUri;
+lastRasterizedSourceSignature = sourceSignature;
+} else {
+trace("Rasterization returned no data");
+}
+}
+} catch (error) {
+trace("Rasterization crashed");
+const errorMessage = describeError(error);
+trace(errorMessage);
+if (isOutOfMemoryError(errorMessage)) {
+recoverFromOutOfMemory(errorMessage);
+}
+} finally {
+renderInProgress = false;
+}
+if (ok) {
+ZoomController.restorePreferredVectorScaling();
+}
+if (!ok) {
+const preserveImage = hasSuccessfulRender && isSameDocumentUri(currentDocumentUri, lastSuccessfulRenderUri);
+if (!preserveImage) {
+ZoomController.clearMetrics();
+}
+drawFailureCross({ preserveImage: preserveImage });
+if (!suppressFailureStatus) {
+setStatus("Rendering failed. Check trace output for details.", {
+level: "error",
+});
+}
+}
+if (rerenderQueued) {
+const shouldRerender = rerenderQueued;
+rerenderQueued = false;
+if (shouldRerender) {
+renderCurrentSource();
+}
+}
+}
 
 		function setSource(newSource, options) {
 			const opts = options || {};
@@ -1136,38 +1998,78 @@ let traceDisplayLines = [];
 			renderCurrentSource();
 		}
 
-		function handleHostCommand(message) {
-			if (!message || typeof message !== "object") {
-				return;
-			}
-			switch (message.type) {
-				case "setSource":
-					if (!moduleReady) {
-						pendingSource = typeof message.source === "string" ? message.source : "";
-						pendingUri = normalizeDocumentUri(message.uri);
-					} else {
-						setSource(message.source, { persist: false, uri: normalizeDocumentUri(message.uri) });
-					}
-					if (typeof message.status === "string") {
-						setStatus(message.status, { notify: false });
-					} else if (moduleReady) {
-						setStatus("Preview updated.", { notify: false });
-					}
-					break;
-				case "clearTrace":
-					clearTrace();
-					setStatus("Preview trace cleared.", { level: "info" });
-					break;
-				case "rerender":
-					if (moduleReady) {
-						setStatus("Re-rendering current IVG…", { level: "info" });
-						renderCurrentSource();
-					}
-					break;
-				default:
-					break;
-			}
-		}
+function handleHostCommand(message) {
+if (!message || typeof message !== "object") {
+return;
+}
+switch (message.type) {
+case "setSource":
+if (!moduleReady) {
+pendingSource = typeof message.source === "string" ? message.source : "";
+pendingUri = normalizeDocumentUri(message.uri);
+} else {
+setSource(message.source, { persist: false, uri: normalizeDocumentUri(message.uri) });
+}
+if (typeof message.status === "string") {
+setStatus(message.status, { notify: false });
+} else if (moduleReady) {
+setStatus("Preview updated.", { notify: false });
+}
+break;
+case "clearTrace":
+clearTrace();
+setStatus("Preview trace cleared.", { level: "info" });
+break;
+case "rerender":
+if (moduleReady) {
+setStatus("Re-rendering current IVG…", { level: "info" });
+renderCurrentSource();
+}
+break;
+case "setIncludeBundle": {
+let summary;
+try {
+summary = IncludeBundleController.stageBundle(message);
+} catch (stageError) {
+const stageMessage = describeError(stageError);
+IncludeBundleController.recordMountFailure(stageMessage);
+trace("Failed to process include bundle: " + stageMessage);
+setStatus("Failed to process include bundle: " + stageMessage, { level: "error" });
+break;
+}
+const stagedCount = summary.entryCount;
+const stagedRevision = summary.revision || "unknown";
+const stagedSummary = stagedCount === 1 ? "1 asset" : stagedCount + " assets";
+trace("Include bundle revision " + stagedRevision + " staged (" + stagedSummary + ").");
+if (moduleReady && global.Module && global.Module.FS) {
+try {
+const mountResult = IncludeBundleController.ensureMounted(global.Module);
+if (mountResult && mountResult.changed) {
+const mountCount = mountResult.entryCount;
+const mountRevision = mountResult.revision || stagedRevision;
+const mountSummary = mountCount === 1 ? "1 asset" : mountCount + " assets";
+trace("Include bundle revision " + mountRevision + " mounted (" + mountSummary + ").");
+}
+renderCurrentSource();
+} catch (mountError) {
+const mountMessage = describeError(mountError);
+IncludeBundleController.recordMountFailure(mountMessage);
+trace("Failed to mount include bundle: " + mountMessage);
+setStatus("Failed to mount include bundle: " + mountMessage, { level: "error" });
+}
+} else {
+trace(
+"Renderer not ready; include bundle revision " +
+stagedRevision +
+" will mount when the preview reconnects.",
+);
+}
+break;
+}
+default:
+break;
+}
+}
 
 		function initialize() {
 			BackgroundController.init();
@@ -1213,15 +2115,16 @@ let traceDisplayLines = [];
 			host.onReady();
 		}
 
-		return {
-			initialize: initialize,
-			handleModuleInitialized: handleModuleInitialized,
-			handleHostCommand: handleHostCommand,
-			setSource: setSource,
-			clearTrace: clearTrace,
-			renderCurrentSource: renderCurrentSource,
-		};
-	}
+return {
+initialize: initialize,
+handleModuleInitialized: handleModuleInitialized,
+handleHostCommand: handleHostCommand,
+setSource: setSource,
+clearTrace: clearTrace,
+renderCurrentSource: renderCurrentSource,
+getIncludeDiagnostics: IncludeBundleController.getDiagnostics,
+};
+}
 
 	global.IVGFiddlePreview = {
 		create: createPreview,

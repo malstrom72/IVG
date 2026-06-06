@@ -143,10 +143,18 @@ overflow: auto;
                         border-color: rgba(255, 255, 255, 0.35);
                         outline: none;
                 }
-                .toolbar-button[aria-pressed="true"] {
-                        background: rgba(255, 255, 255, 0.2);
-                        border-color: rgba(255, 255, 255, 0.5);
-                }
+               .toolbar-button[aria-pressed="true"] {
+                       background: rgba(255, 255, 255, 0.2);
+                       border-color: rgba(255, 255, 255, 0.5);
+               }
+               .toolbar-group {
+                       display: inline-flex;
+                       align-items: center;
+                       gap: 8px;
+               }
+               .toolbar-group.is-hidden {
+                       display: none !important;
+               }
                #vectorScalingToggle {
                        min-width: 120px;
                }
@@ -156,10 +164,11 @@ overflow: auto;
                         text-transform: uppercase;
                         opacity: 0.75;
                 }
-                #zoomLevelSelect {
-                        min-width: 84px;
-                        height: 28px;
-                        border-radius: 3px;
+               #zoomLevelSelect,
+               #snapshotScenarioSelect {
+                       min-width: 84px;
+                       height: 28px;
+                       border-radius: 3px;
                         border: 1px solid rgba(255, 255, 255, 0.2);
                         background: rgba(0, 0, 0, 0.5);
                         color: inherit;
@@ -375,7 +384,11 @@ image-rendering: pixelated;
                                         <button id="zoomInButton" class="toolbar-button" type="button" aria-label="Zoom in">+</button>
                                        <button id="vectorScalingToggle" class="toolbar-button" type="button" aria-pressed="false">Bitmap zoom</button>
                                         <button id="zoomResetButton" class="toolbar-button" type="button">Reset</button>
-                                        <button id="backgroundButton" class="toolbar-button" type="button" aria-haspopup="dialog" aria-controls="backgroundDialog">Background</button>
+                                       <button id="backgroundButton" class="toolbar-button" type="button" aria-haspopup="dialog" aria-controls="backgroundDialog">Background</button>
+                                       <div id="snapshotToolbarGroup" class="toolbar-group is-hidden">
+                                               <label id="snapshotScenarioLabel" class="toolbar-label" for="snapshotScenarioSelect">Snapshot</label>
+                                               <select id="snapshotScenarioSelect" aria-labelledby="snapshotScenarioLabel"></select>
+                                       </div>
                                         <span id="zoomKeyboardHints" aria-hidden="true">Ctrl/Cmd + / &minus; / 0</span>
                                 </div>
                                 <div id="backgroundOverlay" class="background-overlay is-hidden" aria-hidden="true">

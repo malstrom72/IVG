@@ -3,6 +3,8 @@ set -e -o pipefail -u
 
 cd "$(dirname "$0")"/..
 
+bash scripts/sync-assets.sh --build
+
 npm install --no-audit --no-fund
 
 npm run compile

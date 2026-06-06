@@ -28,11 +28,15 @@
 						<option value="1000">1000%</option>
 					</select>
 					<button id="zoomInButton" class="toolbar-button" type="button" aria-label="Zoom in">+</button>
-					<button id="vectorScalingToggle" class="toolbar-button" type="button" aria-pressed="false">Bitmap zoom</button>
-					<button id="zoomResetButton" class="toolbar-button" type="button">Reset</button>
-					<button id="backgroundButton" class="toolbar-button" type="button" aria-haspopup="dialog" aria-controls="backgroundDialog">Background</button>
-					<span id="zoomKeyboardHints" aria-hidden="true">Ctrl/Cmd + / &minus; / 0</span>
-				</div>
+                                        <button id="vectorScalingToggle" class="toolbar-button" type="button" aria-pressed="false">Bitmap zoom</button>
+                                        <button id="zoomResetButton" class="toolbar-button" type="button">Reset</button>
+                                        <button id="backgroundButton" class="toolbar-button" type="button" aria-haspopup="dialog" aria-controls="backgroundDialog">Background</button>
+                                        <div id="snapshotToolbarGroup" class="toolbar-group is-hidden">
+                                                <label id="snapshotScenarioLabel" class="toolbar-label" for="snapshotScenarioSelect">Snapshot</label>
+                                                <select id="snapshotScenarioSelect" aria-labelledby="snapshotScenarioLabel"></select>
+                                        </div>
+                                        <span id="zoomKeyboardHints" aria-hidden="true">Ctrl/Cmd + / &minus; / 0</span>
+                                </div>
 				<div id="backgroundOverlay" class="background-overlay is-hidden" aria-hidden="true">
 					<div id="backgroundDialog" class="background-dialog" role="dialog" aria-modal="true" aria-labelledby="backgroundDialogTitle" aria-describedby="backgroundDialogDescription" tabindex="-1">
 						<div class="background-dialog__header">

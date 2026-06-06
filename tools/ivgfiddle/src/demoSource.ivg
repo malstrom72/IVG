@@ -97,7 +97,7 @@ call $drawDial 20 180 45
 call $drawDial 180 180 135
 
 // Set the font to serif. The shear transformation creates a slant and the tracking value increases the space between letters
-// IVG in itself has no built-in fonts, but "serif", "sans-serif" and "code" are included in ivgfiddle
+// IVG in itself has no built-in fonts, but "serif", "sans-serif" and "monospace" are included in ivgfiddle
 font serif size:12 color:white outline:black transform:[shear -0.2,0] tracking:0.1
 
 // Draw centered text around position (100, 45), store the final x position in the variable "x"

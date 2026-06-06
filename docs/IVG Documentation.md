@@ -611,7 +611,7 @@ Demonstration:
     /*
         The shear transformation creates a slant, and the tracking value increases the space
         between letters. IVG in itself has no built-in fonts, but "serif", "sans-serif" and
-        "code" are used when creating this documentation (and they are included in ivgfiddle).
+        "monospace" are used when creating this documentation (and they are included in ivgfiddle).
     */
     font serif size:$size color:hsv(0.47,0.3,0.9) outline:black
         .. transform:[shear -0.3,0] tracking:0.1

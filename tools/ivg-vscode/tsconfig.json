@@ -9,7 +9,7 @@
 		"esModuleInterop": true,
 		"skipLibCheck": true,
 		"moduleResolution": "node",
-		"types": ["vscode"]
+		"types": ["vscode", "node"]
 	},
 	"include": [
 		"src"

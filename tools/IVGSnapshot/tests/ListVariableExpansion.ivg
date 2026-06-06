@@ -1,0 +1,6 @@
+format ivg-3 uses:snapshot-1
+bounds 0,0,16,16
+color=red
+meta snapshot list:[ [ fill $color ] [ pen $color width:2 ] ]
+color=blue
+meta snapshot list:[ [ fill $color ] [ pen $color width:2 ] ]
