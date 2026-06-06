@@ -23,6 +23,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -201,7 +202,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 #ifndef LIBFUZZ
 int main(int argc, const char* argv[]) {
 	try {
-		const char* usage = "Usage: IVG2PNG [--fonts <dir>] [--images <dir>] [--background <color>] <input.ivg> <output.png>\n";
+		const char* usage = "Usage: IVG2PNG [--fonts <dir>] [--images <dir>] [--background <color>] [--scale <factor>] <input.ivg> <output.png>\n";
 		const char* inputPath = 0;
 		const char* outputPath = 0;
 		ARGB32::Pixel background = 0;
@@ -210,6 +211,7 @@ int main(int argc, const char* argv[]) {
 		int compressionLevel = Z_BEST_COMPRESSION;
 		bool fast = false;
 		std::string imagePath;
+		double scale = 1.0;
 		for (int i = 1; i < argc; ++i) {
 			std::string arg(argv[i]);
 			if (arg == "--fast") {
@@ -225,6 +227,13 @@ int main(int argc, const char* argv[]) {
 				if (++i == argc) { std::cerr << usage; return 1; }
 				background = parseColor(argv[i]);
 				haveBackground = true;
+			} else if (arg == "--scale") {
+				if (++i == argc) { std::cerr << usage; return 1; }
+				scale = Interpreter::toDouble(String(argv[i]));
+				if (!std::isfinite(scale) || scale <= 0.0) {
+					std::cerr << "Scale factor must be a positive finite number." << std::endl;
+					return 1;
+				}
 			} else if (inputPath == 0) {
 				inputPath = argv[i];
 			} else if (outputPath == 0) {
@@ -249,10 +258,10 @@ int main(int argc, const char* argv[]) {
 		}
 		std::cerr << "Read source IVG..." << std::endl;
 
-		SelfContainedARGB32Canvas canvas;
+		SelfContainedARGB32Canvas canvas(scale);
 		{
 			STLMapVariables topVars;
-			IVGExecutorWithExternalFiles ivgExecutor(canvas, fontPath, imagePath);
+			IVGExecutorWithExternalFiles ivgExecutor(canvas, fontPath, imagePath, AffineTransformation().scale(scale));
 			FormatInfo formatInfo;
 			Interpreter impd(ivgExecutor, topVars, formatInfo);
 			impd.run(ivgContents);
