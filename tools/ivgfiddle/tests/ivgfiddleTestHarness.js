@@ -202,6 +202,10 @@ function matchesSelector(element, selector) {
 			if (!element.classList.contains(className)) {
 				return false;
 			}
+		} else if (base.charAt(0) === "#") {
+			if (element.getAttribute("id") !== base.slice(1)) {
+				return false;
+			}
 		} else if (base !== "*") {
 			if (element.tagName && element.tagName.toLowerCase() !== base.toLowerCase()) {
 				return false;
@@ -685,7 +689,7 @@ function initializeIvfFiddleForTests() {
 	const context = vm.createContext(windowObject);
 	const sourcePath = path.resolve(__dirname, "..", "src", "ivgfiddle.js");
 	const source = fs.readFileSync(sourcePath, "utf8");
-const exportFooter = "\nwindow.__ivgTestExports = {\n\tZoomController: ZoomController,\n\tBackgroundController: BackgroundController,\n\tSnapshotController: SnapshotController,\n\tSTORAGE_KEYS: STORAGE_KEYS,\n\testimateVectorPixelBudget: estimateVectorPixelBudget,\n\tcomputeSourceSignature: computeSourceSignature\n};\n";
+	const exportFooter = "\nwindow.__ivgTestExports = {\n\tZoomController: ZoomController,\n\tBackgroundController: BackgroundController,\n\tSnapshotController: SnapshotController,\n\tSTORAGE_KEYS: STORAGE_KEYS,\n\testimateVectorPixelBudget: estimateVectorPixelBudget,\n\tcomputeSourceSignature: computeSourceSignature,\n\trunIVG: runIVG,\n\tgetTraceText: function getTraceText() { return traceElement.textContent; }\n};\n";
 	vm.runInContext(source + exportFooter, context, { filename: "ivgfiddle.js" });
 	return {
 		window: windowObject,

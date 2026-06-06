@@ -6,19 +6,51 @@ const MAX_VECTOR_RASTER_DIMENSION = 8192;
 const MAX_VECTOR_RASTER_PIXELS = MAX_VECTOR_RASTER_DIMENSION * MAX_VECTOR_RASTER_DIMENSION;
 const VECTOR_MEMORY_RESERVE_BYTES = 12 * 1024 * 1024;
 
+function readRuntimeModule() {
+	if (typeof window === "object" && window !== null) {
+		if (typeof window.ivgRuntimeModule === "object" && window.ivgRuntimeModule !== null) {
+			return window.ivgRuntimeModule;
+		}
+		if (typeof window.Module === "object" && window.Module !== null) {
+			return window.Module;
+		}
+	}
+	if (typeof Module === "object" && Module !== null) {
+		return Module;
+	}
+	return null;
+}
+
+function requireRuntimeModule() {
+	const runtimeModule = readRuntimeModule();
+	if (
+		runtimeModule === null
+		|| typeof runtimeModule.lengthBytesUTF8 !== "function"
+		|| typeof runtimeModule.stringToUTF8 !== "function"
+		|| typeof runtimeModule._malloc !== "function"
+		|| typeof runtimeModule._free !== "function"
+		|| typeof runtimeModule._rasterizeIVG !== "function"
+		|| typeof runtimeModule._deallocatePixels !== "function"
+	) {
+		throw new Error("WebAssembly rasterizer is not initialized");
+	}
+	return runtimeModule;
+}
+
 function readHeapByteLength() {
-	if (typeof Module !== "object" || Module === null) {
+	const runtimeModule = readRuntimeModule();
+	if (runtimeModule === null) {
 		return 0;
 	}
 	const heaps = [];
-	if (Module.HEAPU8 && Module.HEAPU8.buffer) {
-		heaps.push(Module.HEAPU8.buffer.byteLength);
+	if (runtimeModule.HEAPU8 && runtimeModule.HEAPU8.buffer) {
+		heaps.push(runtimeModule.HEAPU8.buffer.byteLength);
 	}
-	if (Module.HEAP8 && Module.HEAP8.buffer) {
-		heaps.push(Module.HEAP8.buffer.byteLength);
+	if (runtimeModule.HEAP8 && runtimeModule.HEAP8.buffer) {
+		heaps.push(runtimeModule.HEAP8.buffer.byteLength);
 	}
-	if (Module.wasmMemory && Module.wasmMemory.buffer) {
-		heaps.push(Module.wasmMemory.buffer.byteLength);
+	if (runtimeModule.wasmMemory && runtimeModule.wasmMemory.buffer) {
+		heaps.push(runtimeModule.wasmMemory.buffer.byteLength);
 	}
 	if (heaps.length === 0) {
 		return 0;
@@ -34,12 +66,13 @@ function readHeapByteLength() {
 }
 
 function readFreeHeapByteLength() {
-	if (typeof Module !== "object" || Module === null) {
+	const runtimeModule = readRuntimeModule();
+	if (runtimeModule === null) {
 		return 0;
 	}
-	if (typeof Module._getFreeHeapBytes === "function") {
+	if (typeof runtimeModule._getFreeHeapBytes === "function") {
 		try {
-			const freeBytes = Module._getFreeHeapBytes();
+			const freeBytes = runtimeModule._getFreeHeapBytes();
 			if (Number.isFinite(freeBytes) && freeBytes > 0) {
 				return freeBytes;
 			}
@@ -168,17 +201,23 @@ const ivgContext = ivgCanvas.getContext("2d");
 const MIN_LEFT_PANEL_WIDTH = 250;
 const heapTextDecoder = typeof TextDecoder !== "undefined" ? new TextDecoder("utf-8") : null;
 
-function readUtf8FromHeap(offset, byteLength) {
-	if (!Module || !Module.HEAPU8 || !Number.isInteger(offset) || !Number.isInteger(byteLength) || byteLength <= 0) {
+function readUtf8FromHeap(runtimeModule, offset, byteLength) {
+	if (
+		!runtimeModule
+		|| !runtimeModule.HEAPU8
+		|| !Number.isInteger(offset)
+		|| !Number.isInteger(byteLength)
+		|| byteLength <= 0
+	) {
 		return "";
 	}
-	if (typeof Module.UTF8ArrayToString === "function") {
-		return Module.UTF8ArrayToString(Module.HEAPU8, offset, byteLength);
+	if (typeof runtimeModule.UTF8ArrayToString === "function") {
+		return runtimeModule.UTF8ArrayToString(runtimeModule.HEAPU8, offset, byteLength);
 	}
 	if (typeof UTF8ArrayToString === "function") {
-		return UTF8ArrayToString(Module.HEAPU8, offset, byteLength);
+		return UTF8ArrayToString(runtimeModule.HEAPU8, offset, byteLength);
 	}
-	const heap = Module.HEAPU8;
+	const heap = runtimeModule.HEAPU8;
 	const end = offset + byteLength;
 	if (heapTextDecoder && typeof heap.subarray === "function") {
 		let decodeEnd = end;
@@ -1646,18 +1685,25 @@ function trace(message) {
 }
 
 // Can't use cwrap to pass very long strings, as they are placed on the stackm and not the heap.
-const rasterizeIVG = function (source, scaling, scenarioIndex, entryOrdinal) {
-		const size = Module.lengthBytesUTF8(source) + 1;
-		const stringPointer = Module._malloc(size);
-		Module.stringToUTF8(source, stringPointer, size);
-		const selectedScenarioIndex = Number.isInteger(scenarioIndex) ? scenarioIndex : -1;
-		const selectedEntryOrdinal = Number.isInteger(entryOrdinal) ? entryOrdinal : -1;
-		const result = Module._rasterizeIVG(stringPointer, scaling, selectedScenarioIndex, selectedEntryOrdinal);
-		Module._free(stringPointer);
-		return result;
+const rasterizeIVG = function (runtimeModule, source, scaling, scenarioIndex, entryOrdinal) {
+	const size = runtimeModule.lengthBytesUTF8(source) + 1;
+	const stringPointer = runtimeModule._malloc(size);
+	runtimeModule.stringToUTF8(source, stringPointer, size);
+	const selectedScenarioIndex = Number.isInteger(scenarioIndex) ? scenarioIndex : -1;
+	const selectedEntryOrdinal = Number.isInteger(entryOrdinal) ? entryOrdinal : -1;
+	const result = runtimeModule._rasterizeIVG(stringPointer, scaling, selectedScenarioIndex, selectedEntryOrdinal);
+	runtimeModule._free(stringPointer);
+	return result;
 };
-function deallocatePixels(pixelsPointer) {
-	Module._deallocatePixels(pixelsPointer);
+function deallocatePixels(runtimeModule, pixelsPointer) {
+	runtimeModule._deallocatePixels(pixelsPointer);
+}
+
+function heapU32(runtimeModule) {
+	if (runtimeModule.HEAPU32) return runtimeModule.HEAPU32;
+	const mem = runtimeModule.wasmMemory || (runtimeModule.asm && runtimeModule.asm.memory) || runtimeModule.memory;
+	if (!mem) throw new Error("No wasm memory found on Module");
+	return new Uint32Array(mem.buffer);
 }
 
 /**
@@ -1890,62 +1936,65 @@ function runIVG(reason) {
 			}
 		} else {
 			trace("Bitmap scaling active - requesting nearest-neighbor interpolation on the CSS transform.");
-		}
-		let rasterPointer = 0;
-		let end = Date.now();
-				if (!skipVectorRaster) {
-						const snapshotSelection = SnapshotController.getSelectionForRender();
-						const selectionScenarioIndex = snapshotSelection && Number.isInteger(snapshotSelection.scenarioIndex) ? snapshotSelection.scenarioIndex : -1;
-						const selectionEntryOrdinal = snapshotSelection && Number.isInteger(snapshotSelection.entryOrdinal) ? snapshotSelection.entryOrdinal : -1;
-						rasterPointer = rasterizeIVG(sourceCode, rasterScale, selectionScenarioIndex, selectionEntryOrdinal);
-						end = Date.now();
-				}
-				if (!skipVectorRaster && rasterPointer !== 0) {
-						const heapBuffer = Module.HEAPU8.buffer;
-						const headerSigned = new Int32Array(heapBuffer, rasterPointer, 4);
-						const left = headerSigned[0];
-						const top = headerSigned[1];
-						const width = headerSigned[2];
-						const height = headerSigned[3];
-						const header = new Uint32Array(heapBuffer, rasterPointer, 8);
-						const pixelBytes = header[4];
-						const catalogBytes = header[5];
-						const defaultScenarioIndex = header[6];
-						const defaultEntryOrdinal = header[7];
-						const pixelOffset = rasterPointer + 8 * 4;
-						const catalogOffset = pixelOffset + pixelBytes;
-						const pixelData = new Uint8Array(heapBuffer, pixelOffset, pixelBytes);
-						const snapshotCatalogJson = catalogBytes > 0 ? readUtf8FromHeap(catalogOffset, catalogBytes) : "";
-						const DEFAULT_SELECTION_SENTINEL = 0xffffffff;
-						const normalizedScenarioIndex = defaultScenarioIndex === DEFAULT_SELECTION_SENTINEL ? -1 : defaultScenarioIndex;
-						const normalizedEntryOrdinal = defaultEntryOrdinal === DEFAULT_SELECTION_SENTINEL ? -1 : defaultEntryOrdinal;
-						ivgCanvas.width = width;
-						ivgCanvas.height = height;
-						const imageData = ivgContext.createImageData(width, height);
-						imageData.data.set(pixelData);
-						deallocatePixels(rasterPointer);
-						const cssWidth = width / pixelRatio;
-						const cssHeight = height / pixelRatio;
-						const translateX = left / pixelRatio;
-						const translateY = top / pixelRatio;
-						ZoomController.setCanvasMetrics({
-								width: cssWidth,
-								height: cssHeight,
-								translateX: translateX,
-								translateY: translateY,
-								zoomApplied: renderZoom,
-								vectorRenderLimit: vectorRenderLimit,
-						});
-						SnapshotController.applyRenderResult({
-								catalogJson: snapshotCatalogJson,
-								defaultScenarioIndex: normalizedScenarioIndex,
-								defaultEntryOrdinal: normalizedEntryOrdinal,
-						});
-						ivgContext.putImageData(imageData, 0, 0);
-			trace("Completed IVG");
-			trace("Time spent: " + (end - start) + "ms");
-			ok = true;
-			lastRasterizedSourceSignature = sourceSignature;
+			}
+			let rasterPointer = 0;
+			let end = Date.now();
+			const runtimeModule = skipVectorRaster ? null : requireRuntimeModule();
+			if (!skipVectorRaster) {
+				const snapshotSelection = SnapshotController.getSelectionForRender();
+				const selectionScenarioIndex =
+					snapshotSelection && Number.isInteger(snapshotSelection.scenarioIndex) ? snapshotSelection.scenarioIndex : -1;
+				const selectionEntryOrdinal =
+					snapshotSelection && Number.isInteger(snapshotSelection.entryOrdinal) ? snapshotSelection.entryOrdinal : -1;
+				rasterPointer = rasterizeIVG(runtimeModule, sourceCode, rasterScale, selectionScenarioIndex, selectionEntryOrdinal);
+				end = Date.now();
+			}
+			if (!skipVectorRaster && rasterPointer !== 0) {
+				const heapBuffer = heapU32(runtimeModule).buffer;
+				const headerSigned = new Int32Array(heapBuffer, rasterPointer, 4);
+				const left = headerSigned[0];
+				const top = headerSigned[1];
+				const width = headerSigned[2];
+				const height = headerSigned[3];
+				const header = new Uint32Array(heapBuffer, rasterPointer, 8);
+				const pixelBytes = header[4];
+				const catalogBytes = header[5];
+				const defaultScenarioIndex = header[6];
+				const defaultEntryOrdinal = header[7];
+				const pixelOffset = rasterPointer + 8 * 4;
+				const catalogOffset = pixelOffset + pixelBytes;
+				const pixelData = new Uint8Array(heapBuffer, pixelOffset, pixelBytes);
+				const snapshotCatalogJson = catalogBytes > 0 ? readUtf8FromHeap(runtimeModule, catalogOffset, catalogBytes) : "";
+				const DEFAULT_SELECTION_SENTINEL = 0xffffffff;
+				const normalizedScenarioIndex = defaultScenarioIndex === DEFAULT_SELECTION_SENTINEL ? -1 : defaultScenarioIndex;
+				const normalizedEntryOrdinal = defaultEntryOrdinal === DEFAULT_SELECTION_SENTINEL ? -1 : defaultEntryOrdinal;
+				ivgCanvas.width = width;
+				ivgCanvas.height = height;
+				const imageData = ivgContext.createImageData(width, height);
+				imageData.data.set(pixelData);
+				deallocatePixels(runtimeModule, rasterPointer);
+				const cssWidth = width / pixelRatio;
+				const cssHeight = height / pixelRatio;
+				const translateX = left / pixelRatio;
+				const translateY = top / pixelRatio;
+				ZoomController.setCanvasMetrics({
+					width: cssWidth,
+					height: cssHeight,
+					translateX: translateX,
+					translateY: translateY,
+					zoomApplied: renderZoom,
+					vectorRenderLimit: vectorRenderLimit,
+				});
+				SnapshotController.applyRenderResult({
+					catalogJson: snapshotCatalogJson,
+					defaultScenarioIndex: normalizedScenarioIndex,
+					defaultEntryOrdinal: normalizedEntryOrdinal,
+				});
+				ivgContext.putImageData(imageData, 0, 0);
+				trace("Completed IVG");
+				trace("Time spent: " + (end - start) + "ms");
+				ok = true;
+				lastRasterizedSourceSignature = sourceSignature;
 			if (vectorRescaleEnabled && baselineRender && targetRenderZoom > renderZoom + 0.0001) {
 				ZoomController.requestVectorRerender("vector-baseline");
 			}
