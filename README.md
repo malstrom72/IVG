@@ -145,6 +145,35 @@ under different magnifications and contrast settings without leaving the editor.
 Refer to [docs/IVGFiddle Toolbar Guide.md](docs/IVGFiddle%20Toolbar%20Guide.md) for additional tips
 and known limitations.
 
+## VS Code Preview Extension
+
+The SDK includes a packaged Visual Studio Code extension that embeds the IVGFiddle preview in a
+VS Code webview. Install the bundled `.vsix` when you want live `.ivg` previews, syntax highlighting,
+snippets, include-asset tooling, and snapshot scenario selection directly in VS Code.
+
+- Extension package: `tools/ivg-vscode/ivg-vscode-0.0.1.vsix`
+
+Install from the command line:
+
+```bash
+code --install-extension tools/ivg-vscode/ivg-vscode-0.0.1.vsix
+```
+
+Or install from VS Code:
+
+1. Open the **Extensions** view.
+2. Open the `...` menu.
+3. Choose **Install from VSIX...**.
+4. Select `tools/ivg-vscode/ivg-vscode-0.0.1.vsix` from the SDK checkout.
+
+After installation, open an `.ivg` file and run **IVG Preview: Open Preview** from the Command
+Palette or the editor/explorer context menu. Files that contain `meta snapshot` entries show a
+**Snapshot** dropdown in the preview toolbar so you can switch between recorded scenarios without
+editing the source.
+
+Developers who need to rebuild or package the extension should see
+[`tools/ivg-vscode/README.md`](tools/ivg-vscode/README.md).
+
 ## Fonts
 
 The repository includes several `.ivgfont` files converted from the following open-source fonts:

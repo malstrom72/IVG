@@ -36,7 +36,32 @@ A reusable snippet named **IVG Canvas Skeleton** is available under the `ivg` la
 - `snippets/` – language snippets contributed to VS Code.
 - `scripts/` – helper scripts for asset synchronization and packaging.
 
-## Installation and Local Build
+## Install from the SDK
+
+The IVG SDK includes a prebuilt extension package:
+
+```text
+tools/ivg-vscode/ivg-vscode-0.0.1.vsix
+```
+
+Install it from the command line:
+
+```bash
+code --install-extension tools/ivg-vscode/ivg-vscode-0.0.1.vsix
+```
+
+Or install it inside VS Code:
+
+1. Open the **Extensions** view.
+2. Open the `...` menu.
+3. Choose **Install from VSIX...**.
+4. Select `tools/ivg-vscode/ivg-vscode-0.0.1.vsix` from the SDK checkout.
+
+After installation, open an `.ivg` file and run **IVG Preview: Open Preview** from the Command
+Palette or the `.ivg` file context menu. Snapshot-aware files show a **Snapshot** dropdown in the
+preview toolbar so you can switch between `meta snapshot` scenarios.
+
+## Local Build for Extension Development
 
 1. Open a terminal in the repository root and switch to the extension folder:
    ```bash
@@ -74,13 +99,13 @@ bash scripts/package.sh
 
 The script checks for `vsce` on your `PATH` and falls back to `npx vsce package` when necessary. The resulting archive appears in the extension folder.
 
-### Manual Packaging or Installation Alternatives
+### Manual Packaging or Development Alternatives
 
 - Package directly with `npx`:
   ```bash
   npx vsce package
   ```
-- Install a built package locally:
+- Install a package built in this folder:
   ```bash
   code --install-extension ivg-vscode-0.0.1.vsix
   ```
