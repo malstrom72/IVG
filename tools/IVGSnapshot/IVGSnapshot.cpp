@@ -35,7 +35,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
@@ -71,6 +70,46 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "tools/IVGSnapshot/BuiltInFonts.h"
 
 using namespace IMPD;
+
+static std::vector<unsigned char> readPathBytes(const NuXFiles::Path &path) {
+	if (path.isNull()) {
+		throw std::invalid_argument("null path");
+	}
+
+	NuXFiles::ReadOnlyFile file(path);
+	const NuXFiles::Int64 size = file.getSize();
+	if (!size.is32Bit() || size.toInt32() < 0) {
+		throw std::runtime_error("file is too large");
+	}
+
+	const int byteCount = size.toInt32();
+	std::vector<unsigned char> bytes(static_cast<size_t>(byteCount));
+	if (byteCount > 0) {
+		file.read(NuXFiles::Int64(0), byteCount, &bytes[0]);
+	}
+	return bytes;
+}
+
+static std::string readPathString(const NuXFiles::Path &path) {
+	const std::vector<unsigned char> bytes = readPathBytes(path);
+	return std::string(bytes.begin(), bytes.end());
+}
+
+static void writePathString(const NuXFiles::Path &path, const std::string &contents) {
+	if (path.isNull()) {
+		throw std::invalid_argument("null path");
+	}
+	if (contents.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
+		throw std::runtime_error("file is too large");
+	}
+
+	NuXFiles::ReadWriteFile file(path, NuXFiles::PathAttributes(), true);
+	if (!contents.empty()) {
+		file.write(NuXFiles::Int64(0), static_cast<int>(contents.size()),
+				reinterpret_cast<const unsigned char *>(contents.data()));
+	}
+	file.flush();
+}
 
 /**
 	Captures CLI options while keeping raw strings only for echoing back to
@@ -115,20 +154,12 @@ struct CommandLineOptions {
 		playback can reuse parsed scripts without touching the core library.
 **/
 class CachedDocument {
-  public:
+	public:
 	CachedDocument() {}
 
-	bool loadFromFile(const std::string &path) {
-		std::ifstream stream(path.c_str(), std::ios::binary);
-		if (!stream.good()) {
-			source.clear();
-			return false;
-		}
-
-		const std::string buffer((std::istreambuf_iterator<char>(stream)),
-								 std::istreambuf_iterator<char>());
+	void loadFromFile(const NuXFiles::Path &path) {
+		const std::string buffer = readPathString(path);
 		source.assign(buffer.begin(), buffer.end());
-		return true;
 	}
 
 	void setSource(const IMPD::String &newSource) { source = newSource; }
@@ -142,7 +173,7 @@ class CachedDocument {
 		interpreter.run(IMPD::StringRange(source));
 	}
 
-  private:
+	private:
 	IMPD::String source;
 };
 
@@ -195,11 +226,11 @@ class SnapshotFormatDetector : public IMPD::Executor {
 		}
 
 		struct FormatDetected : public std::exception {
-			const char *what() const noexcept override { return "format detected"; }
+			const char *what() const throw() { return "format detected"; }
 		};
 
 		struct MissingFormat : public std::exception {
-			const char *what() const noexcept override { return "format missing"; }
+			const char *what() const throw() { return "format missing"; }
 		};
 
 		bool sawFormat;
@@ -248,96 +279,98 @@ static FormatDetectionResult detectSnapshotFormat(const String &source) {
 }
 
 enum SnapshotInvocationKind {
-SNAPSHOT_INVOCATION_SCENARIO,
-SNAPSHOT_INVOCATION_COMMON
+	SNAPSHOT_INVOCATION_SCENARIO,
+	SNAPSHOT_INVOCATION_COMMON
 };
 
 struct SnapshotInvocation {
-SnapshotInvocation() : kind(SNAPSHOT_INVOCATION_SCENARIO), blockIndex(0), sourceLine(0), entryOrdinal(0) {}
+	SnapshotInvocation()
+		: kind(SNAPSHOT_INVOCATION_SCENARIO), blockIndex(0), sourceLine(0), entryOrdinal(0) {}
 
-SnapshotInvocationKind kind;
-uint32_t blockIndex;
-uint32_t sourceLine;
-uint32_t entryOrdinal;
-String statements;
+	SnapshotInvocationKind kind;
+	uint32_t blockIndex;
+	uint32_t sourceLine;
+	uint32_t entryOrdinal;
+	String statements;
 };
+
 struct SnapshotRoundState {
-        SnapshotRoundState() { reset(); }
+	SnapshotRoundState() { reset(); }
 
-void reset() {
-hasPinned = false;
-scenario.clear();
-entryOrdinal = 0;
-validate = false;
-blockOrdinalCursor = 0;
-moreRemaining = false;
-explicitScenario = false;
-firstSourceLine = 0;
-executedCommonBlock = false;
-invocations.clear();
-}
+	void reset() {
+		hasPinned = false;
+		scenario.clear();
+		entryOrdinal = 0;
+		validate = false;
+		blockOrdinalCursor = 0;
+		moreRemaining = false;
+		explicitScenario = false;
+		firstSourceLine = 0;
+		executedCommonBlock = false;
+		invocations.clear();
+	}
 
-void pin(const String &scenarioName, uint32_t ordinal, bool shouldValidate,
-          bool explicitLabel) {
-hasPinned = true;
-scenario = scenarioName;
-entryOrdinal = ordinal;
-validate = shouldValidate;
-explicitScenario = explicitLabel;
-firstSourceLine = 0;
-}
+	void pin(const String &scenarioName, uint32_t ordinal, bool shouldValidate,
+			bool explicitLabel) {
+		hasPinned = true;
+		scenario = scenarioName;
+		entryOrdinal = ordinal;
+		validate = shouldValidate;
+		explicitScenario = explicitLabel;
+		firstSourceLine = 0;
+	}
 
-        void advanceBlockCursor() { ++blockOrdinalCursor; }
+	void advanceBlockCursor() { ++blockOrdinalCursor; }
 
-        bool matchesSelection(const String &scenarioName, uint32_t ordinal) const {
-                return hasPinned && scenario == scenarioName && entryOrdinal == ordinal;
-        }
+	bool matchesSelection(const String &scenarioName, uint32_t ordinal) const {
+		return hasPinned && scenario == scenarioName && entryOrdinal == ordinal;
+	}
 
-SnapshotInvocation *findInvocation(uint32_t blockIndex,
-                                                          uint32_t entryOrdinal,
-                                                          SnapshotInvocationKind kind) {
-for (size_t i = 0; i < invocations.size(); ++i) {
-SnapshotInvocation &invocation = invocations[i];
-if (invocation.blockIndex == blockIndex &&
-        invocation.entryOrdinal == entryOrdinal &&
-        invocation.kind == kind) {
-return &invocation;
-}
-}
-return 0;
-}
+	SnapshotInvocation *findInvocation(uint32_t blockIndex,
+			uint32_t entryOrdinal,
+			SnapshotInvocationKind kind) {
+		for (size_t i = 0; i < invocations.size(); ++i) {
+			SnapshotInvocation &invocation = invocations[i];
+			if (invocation.blockIndex == blockIndex &&
+					invocation.entryOrdinal == entryOrdinal &&
+					invocation.kind == kind) {
+				return &invocation;
+			}
+		}
+		return 0;
+	}
 
-void recordInvocation(uint32_t blockIndex, uint32_t sourceLine,
-                                              uint32_t entryOrdinal,
-                                              SnapshotInvocationKind kind,
-                                              const String &statementBody) {
-SnapshotInvocation invocation;
-invocation.kind = kind;
-invocation.blockIndex = blockIndex;
-invocation.sourceLine = sourceLine;
-invocation.entryOrdinal = entryOrdinal;
-invocation.statements = statementBody;
-invocations.push_back(invocation);
-}
+	void recordInvocation(uint32_t blockIndex, uint32_t sourceLine,
+			uint32_t entryOrdinal,
+			SnapshotInvocationKind kind,
+			const String &statementBody) {
+		SnapshotInvocation invocation;
+		invocation.kind = kind;
+		invocation.blockIndex = blockIndex;
+		invocation.sourceLine = sourceLine;
+		invocation.entryOrdinal = entryOrdinal;
+		invocation.statements = statementBody;
+		invocations.push_back(invocation);
+	}
 
-bool hasPinned;
-String scenario;
-uint32_t entryOrdinal;
-bool validate;
-uint32_t blockOrdinalCursor;
-bool moreRemaining;
-bool explicitScenario;
-uint32_t firstSourceLine;
-bool executedCommonBlock;
-std::vector<SnapshotInvocation> invocations;
+	bool hasPinned;
+	String scenario;
+	uint32_t entryOrdinal;
+	bool validate;
+	uint32_t blockOrdinalCursor;
+	bool moreRemaining;
+	bool explicitScenario;
+	uint32_t firstSourceLine;
+	bool executedCommonBlock;
+	std::vector<SnapshotInvocation> invocations;
 };
 
 struct ScenarioEntryMetadata {
-        ScenarioEntryMetadata() : hasDetails(false), firstSourceLine(0) {}
+	ScenarioEntryMetadata() : hasDetails(false), firstSourceLine(0) {}
 
-        bool hasDetails;
-        uint32_t firstSourceLine;
-        std::vector<SnapshotInvocation> invocations;
+	bool hasDetails;
+	uint32_t firstSourceLine;
+	std::vector<SnapshotInvocation> invocations;
 };
 
 static bool parseUnsigned(const std::string &text, uint32_t &value);
@@ -353,29 +386,29 @@ static std::string toLowerAscii(const std::string &text) {
 }
 
 struct SeenScenario {
-        SeenScenario()
-                : explicitLabel(false), validate(false), maxOrdinal(0) {}
+	SeenScenario()
+		: explicitLabel(false), validate(false), maxOrdinal(0) {}
 
-        void ensureCapacity(uint32_t ordinal) {
-                if (ordinal == 0) {
-                        return;
-                }
+	void ensureCapacity(uint32_t ordinal) {
+		if (ordinal == 0) {
+			return;
+		}
 
-                if (ordinal > maxOrdinal) {
-                        maxOrdinal = ordinal;
-                }
+		if (ordinal > maxOrdinal) {
+			maxOrdinal = ordinal;
+		}
 
-                if (processed.size() < maxOrdinal) {
-                        processed.resize(maxOrdinal, false);
-                }
+		if (processed.size() < maxOrdinal) {
+			processed.resize(maxOrdinal, false);
+		}
 
-                if (entryDetails.size() < maxOrdinal) {
-                        entryDetails.resize(maxOrdinal);
-                }
-        }
+		if (entryDetails.size() < maxOrdinal) {
+			entryDetails.resize(maxOrdinal);
+		}
+	}
 
-        bool isProcessed(uint32_t ordinal) const {
-                if (ordinal == 0) {
+	bool isProcessed(uint32_t ordinal) const {
+		if (ordinal == 0) {
 			return true;
 		}
 
@@ -392,103 +425,103 @@ struct SeenScenario {
 			return;
 		}
 
-                processed[ordinal - 1] = true;
-        }
+		processed[ordinal - 1] = true;
+	}
 
-        ScenarioEntryMetadata &accessEntryMetadata(uint32_t ordinal) {
-                ensureCapacity(ordinal);
-                if (ordinal == 0) {
-                        throw std::runtime_error("entry ordinal must be >= 1");
-                }
-                return entryDetails[ordinal - 1];
-        }
+	ScenarioEntryMetadata &accessEntryMetadata(uint32_t ordinal) {
+		ensureCapacity(ordinal);
+		if (ordinal == 0) {
+			throw std::runtime_error("entry ordinal must be >= 1");
+		}
+		return entryDetails[ordinal - 1];
+	}
 
-        const ScenarioEntryMetadata *getEntryMetadata(uint32_t ordinal) const {
-                if (ordinal == 0) {
-                        return 0;
-                }
-                if (ordinal > entryDetails.size()) {
-                        return 0;
-                }
-                return &entryDetails[ordinal - 1];
-        }
+	const ScenarioEntryMetadata *getEntryMetadata(uint32_t ordinal) const {
+		if (ordinal == 0) {
+			return 0;
+		}
+		if (ordinal > entryDetails.size()) {
+			return 0;
+		}
+		return &entryDetails[ordinal - 1];
+	}
 
-        String name;
-        bool explicitLabel;
-        bool validate;
-        uint32_t maxOrdinal;
-        std::vector<bool> processed;
-        std::vector<ScenarioEntryMetadata> entryDetails;
+	String name;
+	bool explicitLabel;
+	bool validate;
+	uint32_t maxOrdinal;
+	std::vector<bool> processed;
+	std::vector<ScenarioEntryMetadata> entryDetails;
 };
 
 struct ImplicitLabelGroup {
-        ImplicitLabelGroup()
-                : ordinal(0), totalEntries(0), processedEntries(0), preferredIndex(-1) {}
+	ImplicitLabelGroup()
+		: ordinal(0), totalEntries(0), processedEntries(0), preferredIndex(-1) {}
 
-        uint32_t ordinal;
-        uint32_t totalEntries;
-        uint32_t processedEntries;
-        int32_t preferredIndex;
+	uint32_t ordinal;
+	uint32_t totalEntries;
+	uint32_t processedEntries;
+	int32_t preferredIndex;
 };
 
 struct ImplicitGroupKey {
-        ImplicitGroupKey() : key(), preferredIndex(-1) {}
+	ImplicitGroupKey() : key(), preferredIndex(-1) {}
 
-        std::string key;
-        int32_t preferredIndex;
+	std::string key;
+	int32_t preferredIndex;
 };
 
 static ImplicitGroupKey deriveImplicitGroupKey(const std::string &scenarioName,
-                                                                                 uint32_t fallbackIndex) {
-        ImplicitGroupKey info;
-        if (!scenarioName.empty()) {
-                const size_t lastHyphen = scenarioName.find_last_of('-');
-                if (lastHyphen != std::string::npos && lastHyphen + 1 < scenarioName.size()) {
-                        bool trailingDigits = true;
-                        for (size_t i = lastHyphen + 1; i < scenarioName.size(); ++i) {
-                                if (!isDigit(scenarioName[i])) {
-                                        trailingDigits = false;
-                                        break;
-                                }
-                        }
-                        if (trailingDigits) {
-                                const std::string prefix = scenarioName.substr(0, lastHyphen);
-                                const size_t prefixHyphen = prefix.find_last_of('-');
-                                if (prefixHyphen != std::string::npos && prefixHyphen + 1 < prefix.size()) {
-                                        bool prefixDigits = true;
-                                        for (size_t i = prefixHyphen + 1; i < prefix.size(); ++i) {
-                                                if (!isDigit(prefix[i])) {
-                                                        prefixDigits = false;
-                                                        break;
-                                                }
-                                        }
-                                        if (prefixDigits) {
-                                                uint32_t parsed = 0;
-                                                if (parseUnsigned(scenarioName.substr(lastHyphen + 1), parsed)) {
-                                                        info.preferredIndex =
-                                                                (parsed > 0 ? static_cast<int32_t>(parsed - 1) : 0);
-                                                }
-                                                info.key = prefix;
-                                                if (!info.key.empty()) {
-                                                        return info;
-                                                }
-                                        }
-                                }
-                        }
-                }
+		uint32_t fallbackIndex) {
+	ImplicitGroupKey info;
+	if (!scenarioName.empty()) {
+		const size_t lastHyphen = scenarioName.find_last_of('-');
+		if (lastHyphen != std::string::npos && lastHyphen + 1 < scenarioName.size()) {
+			bool trailingDigits = true;
+			for (size_t i = lastHyphen + 1; i < scenarioName.size(); ++i) {
+				if (!isDigit(scenarioName[i])) {
+					trailingDigits = false;
+					break;
+				}
+			}
+			if (trailingDigits) {
+				const std::string prefix = scenarioName.substr(0, lastHyphen);
+				const size_t prefixHyphen = prefix.find_last_of('-');
+				if (prefixHyphen != std::string::npos && prefixHyphen + 1 < prefix.size()) {
+					bool prefixDigits = true;
+					for (size_t i = prefixHyphen + 1; i < prefix.size(); ++i) {
+						if (!isDigit(prefix[i])) {
+							prefixDigits = false;
+							break;
+						}
+					}
+					if (prefixDigits) {
+						uint32_t parsed = 0;
+						if (parseUnsigned(scenarioName.substr(lastHyphen + 1), parsed)) {
+							info.preferredIndex =
+								(parsed > 0 ? static_cast<int32_t>(parsed - 1) : 0);
+						}
+						info.key = prefix;
+						if (!info.key.empty()) {
+							return info;
+						}
+					}
+				}
+			}
+		}
 
-                info.key = scenarioName;
-                return info;
-        }
+		info.key = scenarioName;
+		return info;
+	}
 
-        std::ostringstream fallback;
-        fallback << "implicit-" << fallbackIndex;
-        info.key = fallback.str();
-        return info;
+	std::ostringstream fallback;
+	fallback << "implicit-" << fallbackIndex;
+	info.key = fallback.str();
+	return info;
 }
 
 class SnapshotProgress {
-  public:
+	public:
 	struct Target {
 		Target()
 			: entryOrdinal(0), validate(false), explicitLabel(false) {}
@@ -509,48 +542,48 @@ class SnapshotProgress {
 		nextImplicitOrdinal = 1;
 		hasPendingTarget = false;
 		pendingTarget = Target();
-}
+	}
 
 	bool empty() const { return seenScenarios.empty(); }
 
-        bool observeScenarioEntry(SnapshotRoundState &round,
-                const String &scenarioName,
-                bool explicitLabel, bool validate,
-                uint32_t entryOrdinal) {
-                if (entryOrdinal == 0) {
-                        throw std::runtime_error("snapshot entry ordinal must be >= 1");
-                }
+	bool observeScenarioEntry(SnapshotRoundState &round,
+			const String &scenarioName,
+			bool explicitLabel, bool validate,
+			uint32_t entryOrdinal) {
+		if (entryOrdinal == 0) {
+			throw std::runtime_error("snapshot entry ordinal must be >= 1");
+		}
 
-                const uint32_t normalizedOrdinal = (explicitLabel ? entryOrdinal : 1);
+		const uint32_t normalizedOrdinal = (explicitLabel ? entryOrdinal : 1);
 
-                SeenScenario &scenario = upsertScenarioRecord(scenarioName, explicitLabel,
-                                validate);
-                scenario.ensureCapacity(normalizedOrdinal);
+		SeenScenario &scenario = upsertScenarioRecord(scenarioName, explicitLabel,
+			validate);
+		scenario.ensureCapacity(normalizedOrdinal);
 
-                const bool alreadyProcessed = scenario.isProcessed(normalizedOrdinal);
+		const bool alreadyProcessed = scenario.isProcessed(normalizedOrdinal);
 
-                if (!round.hasPinned) {
-                        if (!alreadyProcessed) {
-                                round.pin(scenarioName, normalizedOrdinal, validate,
-                                                explicitLabel);
-                                return true;
-                        }
-                        return false;
-                }
+		if (!round.hasPinned) {
+			if (!alreadyProcessed) {
+				round.pin(scenarioName, normalizedOrdinal, validate,
+					explicitLabel);
+				return true;
+			}
+			return false;
+		}
 
-                if (!round.matchesSelection(scenarioName, normalizedOrdinal)) {
-                        if (!alreadyProcessed) {
-                                round.moreRemaining = true;
-                        }
-                        return false;
-                }
+		if (!round.matchesSelection(scenarioName, normalizedOrdinal)) {
+			if (!alreadyProcessed) {
+				round.moreRemaining = true;
+			}
+			return false;
+		}
 
-                if (round.validate != validate) {
-                        throw std::runtime_error("validate flag mismatch for scenario");
-                }
+		if (round.validate != validate) {
+			throw std::runtime_error("validate flag mismatch for scenario");
+		}
 
-                return !alreadyProcessed;
-        }
+		return !alreadyProcessed;
+	}
 
 	bool hasNextTarget() const {
 		if (hasPendingTarget) {
@@ -576,7 +609,7 @@ class SnapshotProgress {
 	}
 
 	void setNextTarget(const String &scenarioName, uint32_t entryOrdinal,
-		          bool validate, bool explicitLabel) {
+			bool validate, bool explicitLabel) {
 		hasPendingTarget = true;
 		pendingTarget.scenario = scenarioName;
 		pendingTarget.entryOrdinal = entryOrdinal;
@@ -584,51 +617,53 @@ class SnapshotProgress {
 		pendingTarget.explicitLabel = explicitLabel;
 	}
 
-        void markProcessed(const String &scenarioName, uint32_t entryOrdinal) {
-                const auto lookupIterator = scenarioLookup.find(scenarioName);
-                if (lookupIterator == scenarioLookup.end()) {
-                        throw std::runtime_error("unknown scenario while marking processed");
-                }
+	void markProcessed(const String &scenarioName, uint32_t entryOrdinal) {
+		const std::map<String, size_t>::iterator lookupIterator =
+			scenarioLookup.find(scenarioName);
+		if (lookupIterator == scenarioLookup.end()) {
+			throw std::runtime_error("unknown scenario while marking processed");
+		}
 
-                SeenScenario &scenario = seenScenarios[lookupIterator->second];
-                scenario.markProcessed(entryOrdinal);
-        }
+		SeenScenario &scenario = seenScenarios[lookupIterator->second];
+		scenario.markProcessed(entryOrdinal);
+	}
 
-        void recordRoundDetails(const SnapshotRoundState &round) {
-                if (!round.hasPinned) {
-                        return;
-                }
+	void recordRoundDetails(const SnapshotRoundState &round) {
+		if (!round.hasPinned) {
+			return;
+		}
 
-                const auto lookupIterator = scenarioLookup.find(round.scenario);
-                if (lookupIterator == scenarioLookup.end()) {
-                        throw std::runtime_error(
-                                "unknown scenario while recording round details");
-                }
+		const std::map<String, size_t>::iterator lookupIterator =
+			scenarioLookup.find(round.scenario);
+		if (lookupIterator == scenarioLookup.end()) {
+			throw std::runtime_error("unknown scenario while recording round details");
+		}
 
-                SeenScenario &scenario = seenScenarios[lookupIterator->second];
-                ScenarioEntryMetadata &metadata =
-                        scenario.accessEntryMetadata(round.entryOrdinal);
-                metadata.hasDetails = true;
-                metadata.firstSourceLine = round.firstSourceLine;
-                metadata.invocations = round.invocations;
-        }
+		SeenScenario &scenario = seenScenarios[lookupIterator->second];
+		ScenarioEntryMetadata &metadata =
+			scenario.accessEntryMetadata(round.entryOrdinal);
+		metadata.hasDetails = true;
+		metadata.firstSourceLine = round.firstSourceLine;
+		metadata.invocations = round.invocations;
+	}
 
-        const SeenScenario *findScenarioRecord(const String &scenarioName) const {
-                const auto lookupIterator = scenarioLookup.find(scenarioName);
-                if (lookupIterator == scenarioLookup.end()) {
-                        return 0;
-                }
-                return &seenScenarios[lookupIterator->second];
-        }
+	const SeenScenario *findScenarioRecord(const String &scenarioName) const {
+		const std::map<String, size_t>::const_iterator lookupIterator =
+			scenarioLookup.find(scenarioName);
+		if (lookupIterator == scenarioLookup.end()) {
+			return 0;
+		}
+		return &seenScenarios[lookupIterator->second];
+	}
 
-        bool hasUnprocessedEntries() const {
-                Target target;
-                return findNextUnprocessedTarget(target);
-        }
+	bool hasUnprocessedEntries() const {
+		Target target;
+		return findNextUnprocessedTarget(target);
+	}
 
-        const std::vector<SeenScenario> &getSeenScenarios() const {
-                return seenScenarios;
-        }
+	const std::vector<SeenScenario> &getSeenScenarios() const {
+		return seenScenarios;
+	}
 
 	std::string ensureDisplayLabel(const String &scenarioName, bool explicitLabel,
 		const String *explicitScenarioLabel, uint32_t blockOrdinal,
@@ -636,7 +671,8 @@ class SnapshotProgress {
 		uint32_t entryCount, bool firstEntryOfScenario)
 	{
 		const LabelKey key(stringFromIMPD(scenarioName), normalizedOrdinal);
-		const auto existing = displayLabels.find(key);
+		const std::map<LabelKey, std::string>::iterator existing =
+			displayLabels.find(key);
 		if (existing != displayLabels.end()) {
 			return existing->second;
 		}
@@ -663,14 +699,15 @@ class SnapshotProgress {
 	{
 		static const std::string EMPTY;
 		const LabelKey key(stringFromIMPD(scenarioName), normalizedOrdinal);
-		const auto it = displayLabels.find(key);
+		const std::map<LabelKey, std::string>::const_iterator it =
+			displayLabels.find(key);
 		if (it != displayLabels.end()) {
 			return it->second;
 		}
 		return EMPTY;
 	}
 
-private:
+	private:
 	bool findNextUnprocessedTarget(Target &target) const {
 		for (size_t i = 0; i < seenScenarios.size(); ++i) {
 			const SeenScenario &scenario = seenScenarios[i];
@@ -691,7 +728,8 @@ private:
 	SeenScenario &upsertScenarioRecord(const String &scenarioName,
 			bool explicitLabel,
 			bool validate) {
-		const auto lookupIterator = scenarioLookup.find(scenarioName);
+		const std::map<String, size_t>::iterator lookupIterator =
+			scenarioLookup.find(scenarioName);
 		if (lookupIterator == scenarioLookup.end()) {
 			const size_t index = seenScenarios.size();
 			scenarioLookup.insert(std::make_pair(scenarioName, index));
@@ -772,7 +810,7 @@ private:
 		if (totalEntries > 1) {
 			const int32_t normalizedIndex =
 				(listIndex >= 0 ? listIndex
-				       : static_cast<int32_t>(group.processedEntries));
+					: static_cast<int32_t>(group.processedEntries));
 			stream << " #" << normalizedIndex;
 		}
 
@@ -790,7 +828,7 @@ private:
 };
 
 class SnapshotRoundCoordinator {
-  public:
+	public:
 	SnapshotRoundCoordinator() { reset(); }
 
 	void reset() {
@@ -804,10 +842,10 @@ class SnapshotRoundCoordinator {
 		round.reset();
 		activeTarget = progress.makeRound();
 		hasActiveTarget = (activeTarget.entryOrdinal != 0);
-                if (hasActiveTarget) {
-                        round.pin(activeTarget.scenario, activeTarget.entryOrdinal,
-                                activeTarget.validate, activeTarget.explicitLabel);
-                }
+		if (hasActiveTarget) {
+			round.pin(activeTarget.scenario, activeTarget.entryOrdinal,
+				activeTarget.validate, activeTarget.explicitLabel);
+		}
 		return round;
 	}
 
@@ -836,15 +874,16 @@ class SnapshotRoundCoordinator {
 		return (hasActiveTarget ? &activeTarget : 0);
 	}
 
-  private:
+	private:
 	SnapshotProgress progress;
 	bool hasActiveTarget;
 	SnapshotProgress::Target activeTarget;
 };
+
 struct CachedImage {
-        NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> raster;
-        double xResolution;
-        double yResolution;
+	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> raster;
+	double xResolution;
+	double yResolution;
 };
 
 struct SharedResources {
@@ -909,18 +948,18 @@ struct SnapshotEntryResult {
 	preserve fixture stability and human-readable logging.
 **/
 struct SnapshotRunResult {
-    SnapshotRunResult()
-            : totalEntries(0), draftEntries(0), validatedEntries(0),
-              updatedEntries(0), failedEntries(0), diffFailures(0), exitCode(0),
-              fileFailed(false), ignored(false) {}
+	SnapshotRunResult()
+		: totalEntries(0), draftEntries(0), validatedEntries(0),
+		  updatedEntries(0), failedEntries(0), diffFailures(0), exitCode(0),
+		  fileFailed(false), ignored(false) {}
 
-    std::vector<SnapshotEntryResult> entries;
-    NuXFiles::Path filePath;
-    uint32_t totalEntries;
-    uint32_t draftEntries;
-    uint32_t validatedEntries;
-    uint32_t updatedEntries;
-    uint32_t failedEntries;
+	std::vector<SnapshotEntryResult> entries;
+	NuXFiles::Path filePath;
+	uint32_t totalEntries;
+	uint32_t draftEntries;
+	uint32_t validatedEntries;
+	uint32_t updatedEntries;
+	uint32_t failedEntries;
 	uint32_t diffFailures;
 	int exitCode;
 	bool fileFailed;
@@ -968,9 +1007,9 @@ static std::string stringFromIMPD(const String &value) {
 }
 
 static std::wstring pathStringToWide(const std::string &path) {
-        if (path.empty()) {
-                return std::wstring();
-        }
+	if (path.empty()) {
+		return std::wstring();
+	}
 #if defined(_WIN32)
 	const int sourceLength = static_cast<int>(path.size());
 	const int wideLength =
@@ -986,8 +1025,8 @@ static std::wstring pathStringToWide(const std::string &path) {
 	}
 	return wide;
 #else
-std::wstring_convert<std::codecvt_utf8<wchar_t> > converter;
-        return converter.from_bytes(path);
+	std::wstring_convert<std::codecvt_utf8<wchar_t> > converter;
+	return converter.from_bytes(path);
 #endif
 }
 
@@ -1012,7 +1051,7 @@ static std::string pathStringFromWide(const std::wstring &path) {
 	}
 	return narrow;
 #else
-std::wstring_convert<std::codecvt_utf8<wchar_t> > converter;
+	std::wstring_convert<std::codecvt_utf8<wchar_t> > converter;
 	return converter.to_bytes(path);
 #endif
 }
@@ -1021,19 +1060,46 @@ std::wstring_convert<std::codecvt_utf8<wchar_t> > converter;
 	objects. The bridge exposes helpers so IVGSnapshot can store canonical paths
 	while still emitting UTF-8 strings for logging, CLI echoing, and test fixtures.
 **/
-// No string-based adapters: all path math uses NuXFiles::Path directly.
+struct SnapshotPathBridge {
+	static NuXFiles::Path fromNative(const std::string &path) {
+		return NuXFiles::Path(pathStringToWide(path));
+	}
+
+	static std::string toNative(const NuXFiles::Path &path) {
+		if (path.isNull()) {
+			return std::string();
+		}
+		return pathStringFromWide(path.getFullPath());
+	}
+
+	static NuXFiles::Path append(const NuXFiles::Path &base,
+			const std::string &component) {
+		if (base.isNull()) {
+			return fromNative(component);
+		}
+		return base.getRelative(pathStringToWide(component));
+	}
+
+	static NuXFiles::Path append(const NuXFiles::Path &base,
+			const std::wstring &component) {
+		if (base.isNull()) {
+			return NuXFiles::Path(component);
+		}
+		return base.getRelative(component);
+	}
+};
 
 // Snapshot root resolution using Path-only API.
 
 static NuXFiles::Path resolveSnapshotRoot(const NuXFiles::Path &ivgPath,
-        const CommandLineOptions &options) {
-        if (!options.snapshotDir.isNull()) {
-                return options.snapshotDir;
-        }
-        if (ivgPath.isNull() || ivgPath.isRoot()) {
-                return NuXFiles::Path();
-        }
-        return ivgPath.getParent();
+		const CommandLineOptions &options) {
+	if (!options.snapshotDir.isNull()) {
+		return options.snapshotDir;
+	}
+	if (ivgPath.isNull() || ivgPath.isRoot()) {
+		return NuXFiles::Path();
+	}
+	return ivgPath.getParent();
 }
 
 // Returns true if there exists any golden PNG matching
@@ -1041,20 +1107,20 @@ static NuXFiles::Path resolveSnapshotRoot(const NuXFiles::Path &ivgPath,
 // Pattern: <snapshot-root>/<snapshotBase>__*.png
 
 static bool hasAnyGoldensForSource(const NuXFiles::Path &ivgPath,
-                        const std::string &snapshotBase,
-                        const CommandLineOptions &options) {
+		const std::string &snapshotBase,
+		const CommandLineOptions &options) {
 	if (snapshotBase.empty()) {
-			return false;
+		return false;
 	}
 
 	const NuXFiles::Path root = resolveSnapshotRoot(ivgPath, options);
 	if (root.isNull()) {
-			return false;
+		return false;
 	}
 
 	const std::wstring rootWide = root.getFullPath();
 	if (rootWide.empty()) {
-			return false;
+		return false;
 	}
 
 	const std::wstring wildcardWide =
@@ -1150,41 +1216,41 @@ static bool tryBuildRelativeSnapshotTag(const NuXFiles::Path &rootDir,
 	falling back to native strings when no normalized form is available.
 **/
 static std::string buildSnapshotSourceTag(const NuXFiles::Path &ivgPath,
-        const NuXFiles::Path &rootDir) {
-    if (!ivgPath.isNull()) {
-        NuXFiles::Path withoutExtension(ivgPath);
-        if (ivgPath.hasExtension()) {
-            withoutExtension = ivgPath.withoutExtension();
-        }
+		const NuXFiles::Path &rootDir) {
+	if (!ivgPath.isNull()) {
+		NuXFiles::Path withoutExtension(ivgPath);
+		if (ivgPath.hasExtension()) {
+			withoutExtension = ivgPath.withoutExtension();
+		}
 
-        std::string relative;
-        if (tryBuildRelativeSnapshotTag(rootDir, withoutExtension, relative)) {
-            return sanitizeFileComponent(relative);
-        }
+		std::string relative;
+		if (tryBuildRelativeSnapshotTag(rootDir, withoutExtension, relative)) {
+			return sanitizeFileComponent(relative);
+		}
 
-        const std::string canonical = pathStringFromWide(withoutExtension.getFullPath());
-        if (!canonical.empty()) {
-            std::string normalized = canonical;
-            for (size_t i = 0; i < normalized.size(); ++i) {
-                if (normalized[i] == '\\') {
-                    normalized[i] = '/';
-                }
-            }
-            return sanitizeFileComponent(normalized);
-        }
-    }
+		const std::string canonical = SnapshotPathBridge::toNative(withoutExtension);
+		if (!canonical.empty()) {
+			std::string normalized = canonical;
+			for (size_t i = 0; i < normalized.size(); ++i) {
+				if (normalized[i] == '\\') {
+					normalized[i] = '/';
+				}
+			}
+			return sanitizeFileComponent(normalized);
+		}
+	}
 
-    std::string fallback = pathStringFromWide(ivgPath.getFullPath());
-    for (size_t i = 0; i < fallback.size(); ++i) {
-        if (fallback[i] == '\\') {
-            fallback[i] = '/';
-        }
-    }
-    const size_t dot = fallback.find_last_of('.');
-    if (dot != std::string::npos) {
-        fallback.resize(dot);
-    }
-    return sanitizeFileComponent(fallback);
+	std::string fallback = SnapshotPathBridge::toNative(ivgPath);
+	for (size_t i = 0; i < fallback.size(); ++i) {
+		if (fallback[i] == '\\') {
+			fallback[i] = '/';
+		}
+	}
+	const size_t dot = fallback.find_last_of('.');
+	if (dot != std::string::npos) {
+		fallback.resize(dot);
+	}
+	return sanitizeFileComponent(fallback);
 }
 
 static std::string buildEntryIdentifier(const std::string &snapshotBase,
@@ -1224,20 +1290,27 @@ static bool hasIvgExtension(const std::string &path) {
 }
 
 static bool hasIvgExtension(const NuXFiles::Path &path) {
-    const std::string native = pathStringFromWide(path.getFullPath());
-    if (native.empty()) {
-        return false;
-    }
-    return hasIvgExtension(native);
+	const std::string native = SnapshotPathBridge::toNative(path);
+	if (native.empty()) {
+		return false;
+	}
+	return hasIvgExtension(native);
 }
+
+struct SnapshotPathLess {
+	bool operator()(const NuXFiles::Path &a, const NuXFiles::Path &b) const {
+		return SnapshotPathBridge::toNative(a) < SnapshotPathBridge::toNative(b);
+	}
+};
 
 static bool collectDirectoryIvgFiles(const NuXFiles::Path &directory, bool recursive,
 		std::vector<NuXFiles::Path> &files) {
-    if (directory.isNull() || !directory.exists() || !directory.isDirectory()) {
-        const std::string native = pathStringFromWide(directory.getFullPath());
-        std::cerr << "not a directory: " << (native.empty() ? std::string("<null>") : native) << std::endl;
-        return false;
-    }
+	if (directory.isNull() || !directory.exists() || !directory.isDirectory()) {
+		const std::string native = SnapshotPathBridge::toNative(directory);
+		std::cerr << "not a directory: "
+				<< (native.empty() ? std::string("<null>") : native) << std::endl;
+		return false;
+	}
 
 	std::vector<NuXFiles::Path> pending(1, directory);
 	while (!pending.empty()) {
@@ -1263,16 +1336,14 @@ static bool collectDirectoryIvgFiles(const NuXFiles::Path &directory, bool recur
 		}
 	}
 
-    if (files.empty()) {
-        const std::string native = pathStringFromWide(directory.getFullPath());
-        std::cerr << "no IVG files found under directory: "
-                  << (native.empty() ? std::string("<null>") : native) << std::endl;
-        return false;
-    }
+	if (files.empty()) {
+		const std::string native = SnapshotPathBridge::toNative(directory);
+		std::cerr << "no IVG files found under directory: "
+				<< (native.empty() ? std::string("<null>") : native) << std::endl;
+		return false;
+	}
 
-    std::sort(files.begin(), files.end(), [](const NuXFiles::Path &a, const NuXFiles::Path &b){
-        return pathStringFromWide(a.getFullPath()) < pathStringFromWide(b.getFullPath());
-    });
+	std::sort(files.begin(), files.end(), SnapshotPathLess());
 	return true;
 }
 
@@ -1319,7 +1390,7 @@ static bool ensureDirectoryPath(const NuXFiles::Path &directory) {
 	}
 
 	for (std::vector<NuXFiles::Path>::reverse_iterator it = toCreate.rbegin();
-	     it != toCreate.rend(); ++it) {
+			it != toCreate.rend(); ++it) {
 		if (it->isRoot()) {
 			continue;
 		}
@@ -1332,7 +1403,7 @@ static bool ensureDirectoryPath(const NuXFiles::Path &directory) {
 }
 
 static bool ensureDirectory(const NuXFiles::Path &path) {
-    return ensureDirectoryPath(path);
+	return ensureDirectoryPath(path);
 }
 
 // Parent directory creation uses Path API only.
@@ -1353,48 +1424,49 @@ static void removeFileIfExists(const NuXFiles::Path &path) {
 // Collect orphan goldens from Path audit roots.
 
 static void collectOrphanGoldens(const std::set<std::string> &processedBases,
-        const std::set<NuXFiles::Path> &auditRoots,
-        std::vector<std::string> &orphanGoldens) {
-        orphanGoldens.clear();
-        for (std::set<NuXFiles::Path>::const_iterator it = auditRoots.begin();
-             it != auditRoots.end(); ++it) {
-                const NuXFiles::Path &rootPath = *it;
-                if (rootPath.isNull()) {
-                        continue;
-                }
-                const std::wstring rootWide = rootPath.getFullPath();
-                if (rootWide.empty()) {
-                        continue;
-                }
-                const std::wstring wildcardWide = NuXFiles::Path::appendSeparator(rootWide) + pathStringToWide("*__*.png");
-				std::vector<NuXFiles::Path> matches;
-				NuXFiles::Path::findPaths(matches, wildcardWide);
-				for (size_t k = 0; k < matches.size(); ++k) {
-					const NuXFiles::Path &p = matches[k];
-					const std::wstring name = p.getName();
-					std::string narrow = pathStringFromWide(name);
-					bool matchedBase = false;
-					for (std::set<std::string>::const_iterator baseIt = processedBases.begin();
-						baseIt != processedBases.end(); ++baseIt) {
-						const std::string &base = *baseIt;
-						if (base.empty()) {
-							continue;
-						}
-						const size_t baseLength = base.size();
-						if (narrow.size() <= baseLength + 2) {
-							continue;
-						}
-						if (narrow.compare(0, baseLength, base) == 0 &&
-							narrow.compare(baseLength, 2, "__") == 0) {
-							matchedBase = true;
-							break;
-						}
-					}
-					if (!matchedBase) {
-							orphanGoldens.push_back(pathStringFromWide(p.getFullPath()));
-					}
+		const std::set<NuXFiles::Path> &auditRoots,
+		std::vector<std::string> &orphanGoldens) {
+	orphanGoldens.clear();
+	for (std::set<NuXFiles::Path>::const_iterator it = auditRoots.begin();
+			it != auditRoots.end(); ++it) {
+		const NuXFiles::Path &rootPath = *it;
+		if (rootPath.isNull()) {
+			continue;
+		}
+		const std::wstring rootWide = rootPath.getFullPath();
+		if (rootWide.empty()) {
+			continue;
+		}
+		const std::wstring wildcardWide =
+			NuXFiles::Path::appendSeparator(rootWide) + pathStringToWide("*__*.png");
+		std::vector<NuXFiles::Path> matches;
+		NuXFiles::Path::findPaths(matches, wildcardWide);
+		for (size_t k = 0; k < matches.size(); ++k) {
+			const NuXFiles::Path &p = matches[k];
+			const std::wstring name = p.getName();
+			std::string narrow = pathStringFromWide(name);
+			bool matchedBase = false;
+			for (std::set<std::string>::const_iterator baseIt = processedBases.begin();
+					baseIt != processedBases.end(); ++baseIt) {
+				const std::string &base = *baseIt;
+				if (base.empty()) {
+					continue;
 				}
-        }
+				const size_t baseLength = base.size();
+				if (narrow.size() <= baseLength + 2) {
+					continue;
+				}
+				if (narrow.compare(0, baseLength, base) == 0 &&
+						narrow.compare(baseLength, 2, "__") == 0) {
+					matchedBase = true;
+					break;
+				}
+			}
+			if (!matchedBase) {
+				orphanGoldens.push_back(SnapshotPathBridge::toNative(p));
+			}
+		}
+	}
 }
 
 // renameFile uses Path-only overload.
@@ -1421,8 +1493,8 @@ static bool renameFile(const NuXFiles::Path &from, const NuXFiles::Path &to,
 static std::string abbreviatePathForDisplay(const std::string &path);
 
 static std::string abbreviatePathForDisplay(const NuXFiles::Path &path) {
-    if (path.isNull()) return std::string();
-    return abbreviatePathForDisplay(pathStringFromWide(path.getFullPath()));
+	if (path.isNull()) return std::string();
+	return abbreviatePathForDisplay(SnapshotPathBridge::toNative(path));
 }
 
 static std::string abbreviatePathForDisplay(const std::string &path) {
@@ -1458,35 +1530,36 @@ static std::string abbreviatePathForDisplay(const std::string &path) {
 // to keep fixtures stable. Fall back to absolute native when not possible.
 static std::string displayPathRelativeToCwd(const NuXFiles::Path &path)
 {
-    if (path.isNull()) {
-        return std::string("<null>");
-    }
-    try {
-        const NuXFiles::Path cwd = NuXFiles::Path::getCurrentDirectoryPath();
-        std::wstring rel;
-        if (cwd.makeRelative(path, false, rel) && !rel.empty()) {
-            return pathStringFromWide(rel);
-        }
-    } catch (const std::exception &) {
-        // fall through to absolute
-    }
-    const std::string native = pathStringFromWide(path.getFullPath());
-    if (!native.empty()) {
-        const std::string cwdNative = pathStringFromWide(NuXFiles::Path::getCurrentDirectoryPath().getFullPath());
-        if (!cwdNative.empty()) {
-            std::string prefix = cwdNative;
-            if (!prefix.empty()) {
-                const char sep = '/';
-                if (prefix.back() != '/' && prefix.back() != '\\') {
-                    prefix.push_back(sep);
-                }
-            }
-            if (native.size() > prefix.size() && native.compare(0, prefix.size(), prefix) == 0) {
-                return native.substr(prefix.size());
-            }
-        }
-    }
-    return native.empty() ? std::string("<null>") : native;
+	if (path.isNull()) {
+		return std::string("<null>");
+	}
+	try {
+		const NuXFiles::Path cwd = NuXFiles::Path::getCurrentDirectoryPath();
+		std::wstring rel;
+		if (cwd.makeRelative(path, false, rel) && !rel.empty()) {
+			return pathStringFromWide(rel);
+		}
+	} catch (const std::exception &) {
+		// fall through to absolute
+	}
+	const std::string native = SnapshotPathBridge::toNative(path);
+	if (!native.empty()) {
+		const std::string cwdNative = pathStringFromWide(
+			NuXFiles::Path::getCurrentDirectoryPath().getFullPath());
+		if (!cwdNative.empty()) {
+			std::string prefix = cwdNative;
+			if (!prefix.empty()) {
+				const char sep = '/';
+				if (prefix.back() != '/' && prefix.back() != '\\') {
+					prefix.push_back(sep);
+				}
+			}
+			if (native.size() > prefix.size() && native.compare(0, prefix.size(), prefix) == 0) {
+				return native.substr(prefix.size());
+			}
+		}
+	}
+	return native.empty() ? std::string("<null>") : native;
 }
 
 static std::vector<std::string> splitLines(const std::string &text) {
@@ -1580,10 +1653,10 @@ static void printDetail(const std::string &label, const std::string &value) {
 }
 
 static void printPathDetail(const std::string &label, const NuXFiles::Path &path) {
-    if (path.isNull()) {
-        return;
-    }
-    printDetailLines(label, std::vector<std::string>(1, abbreviatePathForDisplay(path)));
+	if (path.isNull()) {
+		return;
+	}
+	printDetailLines(label, std::vector<std::string>(1, abbreviatePathForDisplay(path)));
 }
 
 static void printEntryReport(const SnapshotEntryResult &result) {
@@ -1640,7 +1713,7 @@ static void printSummaryLine(const std::string &label, const std::string &value)
 }
 
 static void logFileReport(const std::string &path, const SnapshotRunResult &run,
-                                      const CommandLineOptions &options) {
+		const CommandLineOptions &options) {
 	const bool showDetails = (options.verbose || options.listOnly);
 
 	// In concise mode, suppress noise for ignored and fully passing files.
@@ -1667,7 +1740,7 @@ static void logFileReport(const std::string &path, const SnapshotRunResult &run,
 		return;
 	}
 
-    if (options.verbose || options.listOnly) {
+	if (options.verbose || options.listOnly) {
 		bool printedSection = false;
 		if (!run.entries.empty()) {
 			std::string previousScenario;
@@ -1745,14 +1818,14 @@ static void logFileReport(const std::string &path, const SnapshotRunResult &run,
 
 // Path-based overloads for internal use. Stringifies only for display.
 static void logFileReport(const NuXFiles::Path &path, const SnapshotRunResult &run,
-                          const CommandLineOptions &options) {
-    logFileReport(displayPathRelativeToCwd(path), run, options);
+		const CommandLineOptions &options) {
+	logFileReport(displayPathRelativeToCwd(path), run, options);
 }
 
 static void logFileReport(const NuXFiles::Path &path, const SnapshotRunResult &run) {
-    CommandLineOptions opts;
-    opts.verbose = true;
-    logFileReport(path, run, opts);
+	CommandLineOptions opts;
+	opts.verbose = true;
+	logFileReport(path, run, opts);
 }
 
 static void logTotalsSummary(const SnapshotTotals &totals) {
@@ -1774,24 +1847,24 @@ static void logTotalsSummary(const SnapshotTotals &totals) {
 }
 static bool
 loadPngRaster(const std::string &path,
-                          NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &outRaster);
+		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &outRaster);
 static bool writeRasterToPng(
-        const std::string &path,
-        const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &raster,
-        std::string &error);
+		const std::string &path,
+		const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &raster,
+		std::string &error);
 // Path-based overloads that stringify once at the boundary
 static bool
 loadPngRaster(const NuXFiles::Path &path,
-                          NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &outRaster) {
-    const std::string native = pathStringFromWide(path.getFullPath());
-    return loadPngRaster(native, outRaster);
+		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &outRaster) {
+	const std::string native = SnapshotPathBridge::toNative(path);
+	return loadPngRaster(native, outRaster);
 }
 static bool writeRasterToPng(
-        const NuXFiles::Path &path,
-        const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &raster,
-        std::string &error) {
-    const std::string native = pathStringFromWide(path.getFullPath());
-    return writeRasterToPng(native, raster, error);
+		const NuXFiles::Path &path,
+		const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &raster,
+		std::string &error) {
+	const std::string native = SnapshotPathBridge::toNative(path);
+	return writeRasterToPng(native, raster, error);
 }
 /**
 	Encapsulates golden/draft/actual/diff/backup PNG paths for a single
@@ -1800,12 +1873,12 @@ static bool writeRasterToPng(
 	emitting messages to the user.
 **/
 class SnapshotGolden {
-  public:
-        SnapshotGolden(const NuXFiles::Path &ivgPath, const std::string &snapshotBase,
-                                   const std::string &scenarioLabel,
-                                   const CommandLineOptions &options) {
-                initializePaths(ivgPath, snapshotBase, scenarioLabel, options);
-        }
+	public:
+	SnapshotGolden(const NuXFiles::Path &ivgPath, const std::string &snapshotBase,
+			const std::string &scenarioLabel,
+			const CommandLineOptions &options) {
+		initializePaths(ivgPath, snapshotBase, scenarioLabel, options);
+	}
 
 	void populateResult(SnapshotEntryResult &result) const {
 		result.goldenPath = goldenPath;
@@ -1815,168 +1888,158 @@ class SnapshotGolden {
 		result.backupPath = backupPath;
 	}
 
-	bool
-        writeDraft(const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &raster,
-                           SnapshotEntryResult &result) const {
-                populateResult(result);
-                result.skipped = true;
+	bool writeDraft(const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &raster,
+			SnapshotEntryResult &result) const {
+		populateResult(result);
+		result.skipped = true;
 		result.updated = false;
 		result.diffed = false;
 		result.hasDiffStats = false;
-                result.success = true;
+		result.success = true;
 
-                const std::string goldenNative = pathStringFromWide(goldenPath.getFullPath());
-                const std::string oldNative = pathStringFromWide(oldPath.getFullPath());
-                const std::string actualNative = pathStringFromWide(actualPath.getFullPath());
-                const std::string diffNative = pathStringFromWide(diffPath.getFullPath());
+		const std::string oldNative = SnapshotPathBridge::toNative(oldPath);
 
-                const NuXPixels::IntRect bounds = raster.calcBounds();
-                if (bounds.width <= 0 || bounds.height <= 0) {
-                        removeFileIfExists(oldPath);
-                        removeFileIfExists(actualPath);
-                        removeFileIfExists(diffPath);
-                        removeFileIfExists(goldenPath);
-                        return true;
-                }
+		const NuXPixels::IntRect bounds = raster.calcBounds();
+		if (bounds.width <= 0 || bounds.height <= 0) {
+			removeFileIfExists(oldPath);
+			removeFileIfExists(actualPath);
+			removeFileIfExists(diffPath);
+			removeFileIfExists(goldenPath);
+			return true;
+		}
 
-                if (!ensureParentDirectory(oldPath)) {
-                        result.success = false;
-                        result.message = std::string("failed to prepare directory for ") +
-                                                         oldNative + ": " + std::strerror(errno);
-                        return false;
-                }
+		if (!ensureParentDirectory(oldPath)) {
+			result.success = false;
+			result.message = std::string("failed to prepare directory for ") +
+				oldNative + ": " + std::strerror(errno);
+			return false;
+		}
 
-                if (fileExists(goldenPath)) {
-                        std::string renameError;
-                        if (!renameFile(goldenPath, oldPath, renameError)) {
-                                result.success = false;
-                                result.message = renameError;
-                                return false;
-                        }
-                }
+		if (fileExists(goldenPath)) {
+			std::string renameError;
+			if (!renameFile(goldenPath, oldPath, renameError)) {
+				result.success = false;
+				result.message = renameError;
+				return false;
+			}
+		}
 
-                std::string error;
-                if (!writeRasterToPng(oldPath, raster, error)) {
-                        result.success = false;
-                        result.message = error;
-                        return false;
-                }
-                removeFileIfExists(actualPath);
-                removeFileIfExists(diffPath);
-                removeFileIfExists(goldenPath);
-                return true;
-        }
+		std::string error;
+		if (!writeRasterToPng(oldPath, raster, error)) {
+			result.success = false;
+			result.message = error;
+			return false;
+		}
+		removeFileIfExists(actualPath);
+		removeFileIfExists(diffPath);
+		removeFileIfExists(goldenPath);
+		return true;
+	}
 
-        bool
-        validate(const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &raster,
-                         bool forceUpdate, SnapshotEntryResult &result) const {
-                populateResult(result);
-                result.skipped = false;
+	bool validate(const NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &raster,
+			bool forceUpdate, SnapshotEntryResult &result) const {
+		populateResult(result);
+		result.skipped = false;
 		result.diffed = false;
-                result.updated = false;
-                result.hasDiffStats = false;
+		result.updated = false;
+		result.hasDiffStats = false;
 
-                std::string error;
-                const std::string goldenNative = pathStringFromWide(goldenPath.getFullPath());
-                const std::string oldNative = pathStringFromWide(oldPath.getFullPath());
-                const std::string actualNative = pathStringFromWide(actualPath.getFullPath());
-                const std::string diffNative = pathStringFromWide(diffPath.getFullPath());
-                const std::string backupNative = pathStringFromWide(backupPath.getFullPath());
+		std::string error;
+		const std::string goldenNative = SnapshotPathBridge::toNative(goldenPath);
 
-                if (!ensureParentDirectory(goldenPath)) {
-                        result.success = false;
-                        result.message = std::string("failed to prepare directory for ") +
-                                                         goldenNative + ": " + std::strerror(errno);
-                        return false;
-                }
+		if (!ensureParentDirectory(goldenPath)) {
+			result.success = false;
+			result.message = std::string("failed to prepare directory for ") +
+				goldenNative + ": " + std::strerror(errno);
+			return false;
+		}
 
-                const bool goldenExists = fileExists(goldenPath);
-                const bool oldExists = fileExists(oldPath);
+		const bool goldenExists = fileExists(goldenPath);
+		const bool oldExists = fileExists(oldPath);
 
 		if (forceUpdate) {
 			const NuXPixels::IntRect bounds = raster.calcBounds();
 			if (bounds.width <= 0 || bounds.height <= 0) {
-                                removeFileIfExists(goldenPath);
-                                removeFileIfExists(oldPath);
-                                removeFileIfExists(actualPath);
-                                removeFileIfExists(diffPath);
-                                removeFileIfExists(backupPath);
-                                result.updated = true;
-                                result.success = true;
-                                return true;
-                        }
+				removeFileIfExists(goldenPath);
+				removeFileIfExists(oldPath);
+				removeFileIfExists(actualPath);
+				removeFileIfExists(diffPath);
+				removeFileIfExists(backupPath);
+				result.updated = true;
+				result.success = true;
+				return true;
+			}
 
-                        if (goldenExists) {
-                                if (!renameFile(goldenPath, backupPath, error)) {
-                                        result.success = false;
-                                        result.message = error;
-                                        return false;
-                                }
-                        } else if (oldExists) {
-                                if (!renameFile(oldPath, backupPath, error)) {
-                                        result.success = false;
-                                        result.message = error;
-                                        return false;
-                                }
-                        }
+			if (goldenExists) {
+				if (!renameFile(goldenPath, backupPath, error)) {
+					result.success = false;
+					result.message = error;
+					return false;
+				}
+			} else if (oldExists) {
+				if (!renameFile(oldPath, backupPath, error)) {
+					result.success = false;
+					result.message = error;
+					return false;
+				}
+			}
 
-                        removeFileIfExists(actualPath);
-                        removeFileIfExists(diffPath);
-                        if (!writeRasterToPng(goldenPath, raster, error)) {
-                            result.success = false;
-                            result.message = error;
-                            return false;
-                        }
-                        removeFileIfExists(oldPath);
-                        result.updated = true;
-                        result.success = true;
-                        return true;
-                }
+			removeFileIfExists(actualPath);
+			removeFileIfExists(diffPath);
+			if (!writeRasterToPng(goldenPath, raster, error)) {
+				result.success = false;
+				result.message = error;
+				return false;
+			}
+			removeFileIfExists(oldPath);
+			result.updated = true;
+			result.success = true;
+			return true;
+		}
 
 		if (!goldenExists) {
-                        if (!oldExists) {
-                                result.success = false;
-                                result.message = std::string("missing golden: ") + goldenNative +
-                                                                 " (no .old fallback present)";
-                                return false;
-                        }
+			if (!oldExists) {
+				result.success = false;
+				result.message = std::string("missing golden: ") + goldenNative +
+					" (no .old fallback present)";
+				return false;
+			}
 
 			const NuXPixels::IntRect bounds = raster.calcBounds();
 			if (bounds.width <= 0 || bounds.height <= 0) {
-                                removeFileIfExists(goldenPath);
-                                removeFileIfExists(oldPath);
-                                removeFileIfExists(actualPath);
-                                removeFileIfExists(diffPath);
-                                result.updated = true;
-                                result.success = true;
-                                result.message =
-                                        std::string("promoted draft image to golden: ") +
-                                        goldenNative + '.';
-                                return true;
-                        }
+				removeFileIfExists(goldenPath);
+				removeFileIfExists(oldPath);
+				removeFileIfExists(actualPath);
+				removeFileIfExists(diffPath);
+				result.updated = true;
+				result.success = true;
+				result.message =
+					std::string("promoted draft image to golden: ") + goldenNative + '.';
+				return true;
+			}
 
-                        if (!writeRasterToPng(goldenPath, raster, error)) {
-                            result.success = false;
-                            result.message = error;
-                            return false;
-                        }
-                        removeFileIfExists(oldPath);
-                        removeFileIfExists(actualPath);
-                        removeFileIfExists(diffPath);
-                        result.updated = true;
-                        result.success = true;
-                        result.message = std::string("promoted draft image to golden: ") +
-                                                         goldenNative + '.';
-                        return true;
-                }
+			if (!writeRasterToPng(goldenPath, raster, error)) {
+				result.success = false;
+				result.message = error;
+				return false;
+			}
+			removeFileIfExists(oldPath);
+			removeFileIfExists(actualPath);
+			removeFileIfExists(diffPath);
+			result.updated = true;
+			result.success = true;
+			result.message =
+				std::string("promoted draft image to golden: ") + goldenNative + '.';
+			return true;
+		}
 
-                NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> goldenRaster;
-                if (!loadPngRaster(goldenPath, goldenRaster)) {
-                        result.success = false;
-                        result.message =
-                                std::string("failed to read golden PNG: ") + goldenNative;
-                        return false;
-                }
+		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> goldenRaster;
+		if (!loadPngRaster(goldenPath, goldenRaster)) {
+			result.success = false;
+			result.message =
+				std::string("failed to read golden PNG: ") + goldenNative;
+			return false;
+		}
 
 		const NuXPixels::IntRect actualBounds = raster.calcBounds();
 		const NuXPixels::IntRect goldenBounds = goldenRaster.calcBounds();
@@ -2000,10 +2063,10 @@ class SnapshotGolden {
 
 		if (width <= 0 || height <= 0) {
 			result.success = true;
-                        removeFileIfExists(actualPath);
-                        removeFileIfExists(diffPath);
-                        return true;
-                }
+			removeFileIfExists(actualPath);
+			removeFileIfExists(diffPath);
+			return true;
+		}
 
 		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> diffRaster(
 			NuXPixels::IntRect(left, top, width, height));
@@ -2133,12 +2196,12 @@ class SnapshotGolden {
 			stats.meanBlueDiff = static_cast<double>(sumBlue) / pixelCount;
 		}
 
-                if (match) {
-                        result.success = true;
-                        removeFileIfExists(actualPath);
-                        removeFileIfExists(diffPath);
-                        return true;
-                }
+		if (match) {
+			result.success = true;
+			removeFileIfExists(actualPath);
+			removeFileIfExists(diffPath);
+			return true;
+		}
 
 		result.success = false;
 		result.diffed = true;
@@ -2157,56 +2220,56 @@ class SnapshotGolden {
 		}
 		result.message = summary.str();
 
-                removeFileIfExists(actualPath);
-                removeFileIfExists(diffPath);
-                if (!writeRasterToPng(actualPath, raster, error)) {
-                        result.message = error;
-                        return false;
-                }
-                if (!writeRasterToPng(diffPath, diffRaster, error)) {
-                        result.message = error;
-                        return false;
-                }
+		removeFileIfExists(actualPath);
+		removeFileIfExists(diffPath);
+		if (!writeRasterToPng(actualPath, raster, error)) {
+			result.message = error;
+			return false;
+		}
+		if (!writeRasterToPng(diffPath, diffRaster, error)) {
+			result.message = error;
+			return false;
+		}
 
 		return false;
 	}
 
-  private:
+	private:
 	NuXFiles::Path goldenPath;
 	NuXFiles::Path oldPath;
 	NuXFiles::Path actualPath;
 	NuXFiles::Path diffPath;
 	NuXFiles::Path backupPath;
 
-  private:
-    void initializePaths(const NuXFiles::Path &ivgPath,
-        const std::string &snapshotBase,
-        const std::string &scenarioLabel,
-        const CommandLineOptions &options) {
-        const NuXFiles::Path root = resolveSnapshotRoot(ivgPath, options);
-        const std::string scenarioName = sanitizeFileComponent(scenarioLabel);
-        std::string fileStem = scenarioName;
-        if (!snapshotBase.empty()) {
-            fileStem = snapshotBase + "__" + fileStem;
-        }
+	void initializePaths(const NuXFiles::Path &ivgPath,
+			const std::string &snapshotBase,
+			const std::string &scenarioLabel,
+			const CommandLineOptions &options) {
+		const NuXFiles::Path root = resolveSnapshotRoot(ivgPath, options);
+		const std::string scenarioName = sanitizeFileComponent(scenarioLabel);
+		std::string fileStem = scenarioName;
+		if (!snapshotBase.empty()) {
+			fileStem = snapshotBase + "__" + fileStem;
+		}
 
-        const std::wstring stemWide = [&]() -> std::wstring {
-            if (root.isNull()) {
-                return pathStringToWide(fileStem);
-            }
-            const std::wstring rootWide = root.getFullPath();
-            if (fileStem.empty()) {
-                return rootWide;
-            }
-            return NuXFiles::Path::appendSeparator(rootWide) + pathStringToWide(fileStem);
-        }();
+		std::wstring stemWide;
+		if (root.isNull()) {
+			stemWide = pathStringToWide(fileStem);
+		} else {
+			const std::wstring rootWide = root.getFullPath();
+			if (fileStem.empty()) {
+				stemWide = rootWide;
+			} else {
+				stemWide = NuXFiles::Path::appendSeparator(rootWide) + pathStringToWide(fileStem);
+			}
+		}
 
-        goldenPath = NuXFiles::Path(stemWide + std::wstring(L".png"));
-        oldPath = NuXFiles::Path(stemWide + std::wstring(L".png.old"));
-        actualPath = NuXFiles::Path(stemWide + std::wstring(L".actual.png"));
-        diffPath = NuXFiles::Path(stemWide + std::wstring(L".diff.png"));
-        backupPath = NuXFiles::Path(stemWide + std::wstring(L".png.bak"));
-    }
+		goldenPath = NuXFiles::Path(stemWide + std::wstring(L".png"));
+		oldPath = NuXFiles::Path(stemWide + std::wstring(L".png.old"));
+		actualPath = NuXFiles::Path(stemWide + std::wstring(L".actual.png"));
+		diffPath = NuXFiles::Path(stemWide + std::wstring(L".diff.png"));
+		backupPath = NuXFiles::Path(stemWide + std::wstring(L".png.bak"));
+	}
 };
 
 static void PNGAPI snapshotPNGError(png_structp png, png_const_charp message) {
@@ -2479,12 +2542,12 @@ struct SnapshotBodies {
 };
 
 static SnapshotBodies parseSnapshotBodies(Interpreter &interpreter,
-                                                        ArgumentsContainer &args) {
-        SnapshotBodies bodies;
-        const String *commonArg = args.fetchOptional("common", false);
-        if (commonArg != 0) {
-                bodies.common = *commonArg;
-        }
+		ArgumentsContainer &args) {
+	SnapshotBodies bodies;
+	const String *commonArg = args.fetchOptional("common", false);
+	if (commonArg != 0) {
+		bodies.common = *commonArg;
+	}
 
 	const String *listArg = args.fetchOptional("list", false);
 	if (listArg != 0) {
@@ -2496,50 +2559,59 @@ static SnapshotBodies parseSnapshotBodies(Interpreter &interpreter,
 	const String *single = args.fetchOptional(0, false);
 	if (single != 0) {
 		bodies.statements.push_back(*single);
-        }
-        return bodies;
+	}
+	return bodies;
 }
 
 #if defined(IVG_SNAPSHOT_TESTING)
 static void testRecordSnapshotBodies(SnapshotRoundState &round,
-        uint32_t blockOrdinal, const SnapshotBodies &bodies)
+		uint32_t blockOrdinal, const SnapshotBodies &bodies)
 {
-        const bool hasCommon = !bodies.common.empty();
-        if (hasCommon) {
-                SnapshotInvocation *existingCommon =
-                        round.findInvocation(blockOrdinal, 0, SNAPSHOT_INVOCATION_COMMON);
-                if (existingCommon != 0) {
-                        if (existingCommon->statements != bodies.common) {
-                                throw std::runtime_error(
-                                        "snapshot common block changed within iterative round.");
-                        }
-                } else {
-                        round.recordInvocation(blockOrdinal, 0, 0,
-                                SNAPSHOT_INVOCATION_COMMON, bodies.common);
-                }
-                round.executedCommonBlock = true;
-        }
+	const bool hasCommon = !bodies.common.empty();
+	if (hasCommon) {
+		SnapshotInvocation *existingCommon =
+			round.findInvocation(blockOrdinal, 0, SNAPSHOT_INVOCATION_COMMON);
+		if (existingCommon != 0) {
+			if (existingCommon->statements != bodies.common) {
+				throw std::runtime_error(
+					"snapshot common block changed within iterative round.");
+			}
+		} else {
+			round.recordInvocation(blockOrdinal, 0, 0,
+				SNAPSHOT_INVOCATION_COMMON, bodies.common);
+		}
+		round.executedCommonBlock = true;
+	}
 
-        for (uint32_t i = 0; i < bodies.statements.size(); ++i) {
-                const uint32_t entryOrdinal = i + 1;
-                SnapshotInvocation *existing = round.findInvocation(blockOrdinal,
-                        entryOrdinal, SNAPSHOT_INVOCATION_SCENARIO);
-                const String &statementBody = bodies.statements[i];
-                if (existing != 0) {
-                        if (existing->statements != statementBody) {
-                                throw std::runtime_error(
-                                        "snapshot statements changed within iterative round.");
-                        }
-                } else {
-                        round.recordInvocation(blockOrdinal, 0, entryOrdinal,
-                                SNAPSHOT_INVOCATION_SCENARIO, statementBody);
-                }
-        }
+	for (uint32_t i = 0; i < bodies.statements.size(); ++i) {
+		const uint32_t entryOrdinal = i + 1;
+		SnapshotInvocation *existing = round.findInvocation(blockOrdinal,
+			entryOrdinal, SNAPSHOT_INVOCATION_SCENARIO);
+		const String &statementBody = bodies.statements[i];
+		if (existing != 0) {
+			if (existing->statements != statementBody) {
+				throw std::runtime_error(
+					"snapshot statements changed within iterative round.");
+			}
+		} else {
+			round.recordInvocation(blockOrdinal, 0, entryOrdinal,
+				SNAPSHOT_INVOCATION_SCENARIO, statementBody);
+		}
+	}
 }
 #endif
 
-static bool readFile(const std::string &path, String &contents);
-static bool readFile(const NuXFiles::Path &path, String &contents);
+static String readFile(const NuXFiles::Path &path);
+
+static bool tryReadFile(const NuXFiles::Path &path, String &contents) {
+	try {
+		contents = readFile(path);
+		return true;
+	} catch (const std::exception &) {
+		contents.clear();
+		return false;
+	}
+}
 
 /**
 	Executes snapshot blocks while resolving includes, fonts and images.
@@ -2550,45 +2622,44 @@ static bool readFile(const NuXFiles::Path &path, String &contents);
 	form cannot be produced (to preserve legacy behavior for odd inputs).
 **/
 class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
-  public:
-        SnapshotPlaybackExecutor(IVG::Canvas &canvas,
-                const CommandLineOptions &options,
-                const NuXFiles::Path &sourcePath,
-                const String &sourceText,
-                SharedResources &sharedResources,
-                SnapshotRoundState &roundState,
-				SnapshotProgress &snapshotProgress)
-				: IVG::IVGExecutor(canvas), includeDirs(options.includeDirs),
-				  fontDirs(options.fontDirs), imageDirs(options.imageDirs),
-                  sourcePath(pathStringFromWide(sourcePath.getFullPath())), sourcePathObj(sourcePath), verbose(options.verbose),
-				  sharedResources(sharedResources), round(&roundState),
-				  progress(&snapshotProgress), sourceText(sourceText),
-				  scanOffset(0) {}
+	public:
+	SnapshotPlaybackExecutor(IVG::Canvas &canvas,
+			const CommandLineOptions &options,
+			const NuXFiles::Path &sourcePath,
+			const String &sourceText,
+			SharedResources &sharedResources,
+			SnapshotRoundState &roundState,
+			SnapshotProgress &snapshotProgress)
+			: IVG::IVGExecutor(canvas),
+			  includeDirs(options.includeDirs), fontDirs(options.fontDirs),
+			  imageDirs(options.imageDirs), sourcePath(SnapshotPathBridge::toNative(sourcePath)),
+			  sourcePathObj(sourcePath), verbose(options.verbose),
+			  sharedResources(sharedResources), round(&roundState), progress(&snapshotProgress),
+			  sourceText(sourceText), scanOffset(0) {}
 
-        bool load(Interpreter &interpreter, const WideString &filename,
-                          String &contents) {
-                (void)interpreter;
-                const std::string utf8(filename.begin(), filename.end());
-                // Prefer Path-based resolution from the current source directory
-                if (!sourcePathObj.isNull() && !sourcePathObj.isRoot()) {
-                        const NuXFiles::Path parent = sourcePathObj.getParent();
-                        const NuXFiles::Path candidate = parent.getRelative(pathStringToWide(utf8));
-                        if (readFile(candidate, contents)) {
-                                return true;
-                        }
-                }
-                // Fallback: resolve using string-based relative semantics via Path
-                if (readFile(resolveRelativePathPath(utf8), contents)) {
-                        return true;
-                }
-                for (size_t i = 0; i < includeDirs.size(); ++i) {
-                        const NuXFiles::Path candidate = includeDirs[i].getRelative(pathStringToWide(utf8));
-                        if (readFile(candidate, contents)) {
-                                return true;
-                        }
-                }
-                return false;
-        }
+	bool load(Interpreter &interpreter, const WideString &filename,
+			String &contents) {
+		(void)interpreter;
+		const std::string utf8(filename.begin(), filename.end());
+		// Prefer Path-based resolution from the current source directory.
+		if (!sourcePathObj.isNull() && !sourcePathObj.isRoot()) {
+			const NuXFiles::Path parent = sourcePathObj.getParent();
+			const NuXFiles::Path candidate = parent.getRelative(pathStringToWide(utf8));
+			if (tryReadFile(candidate, contents)) {
+				return true;
+			}
+		}
+		if (tryReadFile(resolveRelativePathPath(utf8), contents)) {
+			return true;
+		}
+		for (size_t i = 0; i < includeDirs.size(); ++i) {
+			const NuXFiles::Path candidate = includeDirs[i].getRelative(pathStringToWide(utf8));
+			if (tryReadFile(candidate, contents)) {
+				return true;
+			}
+		}
+		return false;
+	}
 
 	std::vector<const IVG::Font *>
 	lookupFonts(Interpreter &interpreter, const WideString &fontName,
@@ -2650,222 +2721,220 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 	}
 
 	bool meta(Interpreter &interpreter, const String &key,
-                          const String &arguments) {
-                static const String SNAPSHOT_KEY("snapshot-1");
-                if (key != SNAPSHOT_KEY) {
-                        return false;
-                }
+			const String &arguments) {
+		static const String SNAPSHOT_KEY("snapshot-1");
+		if (key != SNAPSHOT_KEY) {
+			return false;
+		}
 
-                if (round == 0 || progress == 0) {
-                        Interpreter::throwBadSyntax(
-                                "snapshot playback executor missing round context.");
-                }
+		if (round == 0 || progress == 0) {
+			Interpreter::throwBadSyntax(
+				"snapshot playback executor missing round context.");
+		}
 
-                ArgumentsContainer args(
-                        ArgumentsContainer::parse(interpreter, StringRange(arguments)));
-                return handleRoundMeta(interpreter, args);
-        }
+		ArgumentsContainer args(
+			ArgumentsContainer::parse(interpreter, StringRange(arguments)));
+		return handleRoundMeta(interpreter, args);
+	}
 
-        bool finished() const { return true; }
+	bool finished() const { return true; }
 
-  private:
+	private:
+	bool handleRoundMeta(Interpreter &interpreter, ArgumentsContainer &args) {
+		const String *validateFlag = args.fetchOptional("validate");
+		const bool blockValidate =
+			parseValidateFlag(interpreter, validateFlag);
+		const String *scenarioLabel = args.fetchOptional("scenario");
+		const bool explicitLabel = (scenarioLabel != 0);
 
-        bool handleRoundMeta(Interpreter &interpreter, ArgumentsContainer &args) {
-                const String *validateFlag = args.fetchOptional("validate");
-                const bool blockValidate =
-                        parseValidateFlag(interpreter, validateFlag);
-                const String *scenarioLabel = args.fetchOptional("scenario");
-                const bool explicitLabel = (scenarioLabel != 0);
+		const uint32_t blockOrdinal = round->blockOrdinalCursor + 1;
+		round->advanceBlockCursor();
 
-                const uint32_t blockOrdinal = round->blockOrdinalCursor + 1;
-                round->advanceBlockCursor();
+		SnapshotBodies bodies = parseSnapshotBodies(interpreter, args);
+		args.throwIfAnyUnfetched();
 
-                SnapshotBodies bodies = parseSnapshotBodies(interpreter, args);
-                args.throwIfAnyUnfetched();
+		if (bodies.common.empty() && bodies.statements.empty()) {
+			Interpreter::throwBadSyntax("snapshot meta requires at least one statement or common block.");
+		}
 
-                if (bodies.common.empty() && bodies.statements.empty()) {
-                        Interpreter::throwBadSyntax("snapshot meta requires at least one statement or common block.");
-                }
+		const uint32_t sourceLine = locateRoundMetaLine();
+		const bool hasCommon = !bodies.common.empty();
+		const StringVector &statements = bodies.statements;
+		const bool multipleEntries = (statements.size() > 1);
+		const uint32_t entryCount = static_cast<uint32_t>(statements.size());
 
-                const uint32_t sourceLine = locateRoundMetaLine();
-                const bool hasCommon = !bodies.common.empty();
-                const StringVector &statements = bodies.statements;
-                const bool multipleEntries = (statements.size() > 1);
-                const uint32_t entryCount = static_cast<uint32_t>(statements.size());
+		if (hasCommon) {
+			SnapshotInvocation *existingCommon =
+				round->findInvocation(blockOrdinal, 0, SNAPSHOT_INVOCATION_COMMON);
+			if (existingCommon != 0) {
+				if (existingCommon->statements != bodies.common) {
+					Interpreter::throwBadSyntax(
+						"snapshot common block changed within iterative round.");
+				}
+			} else {
+				round->recordInvocation(blockOrdinal, sourceLine, 0,
+					SNAPSHOT_INVOCATION_COMMON, bodies.common);
+			}
 
-                if (hasCommon) {
-                        SnapshotInvocation *existingCommon =
-                                round->findInvocation(blockOrdinal, 0, SNAPSHOT_INVOCATION_COMMON);
-                        if (existingCommon != 0) {
-                                if (existingCommon->statements != bodies.common) {
-                                        Interpreter::throwBadSyntax(
-                                                "snapshot common block changed within iterative round.");
-                                }
-                        } else {
-                                round->recordInvocation(blockOrdinal, sourceLine, 0,
-                                        SNAPSHOT_INVOCATION_COMMON, bodies.common);
-                        }
+			round->executedCommonBlock = true;
+			if (round->firstSourceLine == 0) {
+				round->firstSourceLine = sourceLine;
+			}
+			if (verbose) {
+				std::cout << sourcePath << ": block "
+					<< blockOrdinal << " common setup" << std::endl;
+			}
 
-                        round->executedCommonBlock = true;
-                        if (round->firstSourceLine == 0) {
-                                round->firstSourceLine = sourceLine;
-                        }
-                        if (verbose) {
-                                std::cout << sourcePath << ": block "
-                                                  << blockOrdinal << " common setup" << std::endl;
-                        }
+			IVG::Context commonContext(
+				currentContext->accessCanvas(), *currentContext);
+			runInNewContext(interpreter, commonContext, bodies.common);
+		}
 
-                        IVG::Context commonContext(
-                                currentContext->accessCanvas(), *currentContext);
-                        runInNewContext(interpreter, commonContext, bodies.common);
-                }
+		bool sawPinnedEntry = false;
+		bool executedPinnedEntry = false;
 
-                bool sawPinnedEntry = false;
-                bool executedPinnedEntry = false;
+		for (uint32_t i = 0; i < statements.size(); ++i) {
+			const uint32_t entryOrdinal = i + 1;
+			const uint32_t scenarioOrdinal =
+				(explicitLabel ? entryOrdinal : 1);
+			const String scenarioName =
+				(explicitLabel
+					? *scenarioLabel
+					: buildImplicitScenarioName(blockOrdinal,
+						entryOrdinal, multipleEntries));
 
-                for (uint32_t i = 0; i < statements.size(); ++i) {
-                        const uint32_t entryOrdinal = i + 1;
-                        const uint32_t scenarioOrdinal =
-                                (explicitLabel ? entryOrdinal : 1);
-                        const String scenarioName =
-                                (explicitLabel
-                                         ? *scenarioLabel
-                                         : buildImplicitScenarioName(blockOrdinal,
-                                                 entryOrdinal, multipleEntries));
+			progress->ensureDisplayLabel(scenarioName, explicitLabel,
+				scenarioLabel, blockOrdinal, entryOrdinal, scenarioOrdinal,
+				entryCount, (i == 0));
 
-                        progress->ensureDisplayLabel(scenarioName, explicitLabel,
-                                scenarioLabel, blockOrdinal, entryOrdinal, scenarioOrdinal,
-                                entryCount, (i == 0));
+			const bool shouldExecute = progress->observeScenarioEntry(
+				*round, scenarioName, explicitLabel, blockValidate, entryOrdinal);
 
-                        const bool shouldExecute = progress->observeScenarioEntry(
-                                *round, scenarioName, explicitLabel, blockValidate,
-                                entryOrdinal);
+			const bool matchesPinned = round->matchesSelection(
+				scenarioName, scenarioOrdinal);
+			if (matchesPinned) {
+				sawPinnedEntry = true;
+			}
 
-                        const bool matchesPinned = round->matchesSelection(
-                                scenarioName, scenarioOrdinal);
-                        if (matchesPinned) {
-                                sawPinnedEntry = true;
-                        }
+			if (!shouldExecute) {
+				continue;
+			}
 
-                        if (!shouldExecute) {
-                                continue;
-                        }
+			if (!matchesPinned) {
+				Interpreter::throwBadSyntax(
+					"snapshot round selection changed mid-execution.");
+			}
 
-                        if (!matchesPinned) {
-                                Interpreter::throwBadSyntax(
-                                        "snapshot round selection changed mid-execution.");
-                        }
+			executedPinnedEntry = true;
+			if (round->firstSourceLine == 0) {
+				round->firstSourceLine = sourceLine;
+			}
 
-                        executedPinnedEntry = true;
-                        if (round->firstSourceLine == 0) {
-                                round->firstSourceLine = sourceLine;
-                        }
+			SnapshotInvocation *existing =
+				round->findInvocation(blockOrdinal, entryOrdinal,
+					SNAPSHOT_INVOCATION_SCENARIO);
+			const String &statementBody = statements[i];
+			if (existing != 0) {
+				if (existing->statements != statementBody) {
+					Interpreter::throwBadSyntax(
+						"snapshot statements changed within iterative round.");
+				}
+			} else {
+				round->recordInvocation(blockOrdinal, sourceLine,
+					entryOrdinal, SNAPSHOT_INVOCATION_SCENARIO, statementBody);
+			}
 
-                        SnapshotInvocation *existing =
-                                round->findInvocation(blockOrdinal, entryOrdinal,
-                                        SNAPSHOT_INVOCATION_SCENARIO);
-                        const String &statementBody = statements[i];
-                        if (existing != 0) {
-                                if (existing->statements != statementBody) {
-                                        Interpreter::throwBadSyntax(
-                                                "snapshot statements changed within iterative round.");
-                                }
-                        } else {
-                                round->recordInvocation(blockOrdinal, sourceLine,
-                                        entryOrdinal, SNAPSHOT_INVOCATION_SCENARIO, statementBody);
-                        }
+			if (verbose) {
+				std::cout << sourcePath << ": scenario "
+					<< round->scenario << " entry "
+					<< round->entryOrdinal << " block "
+					<< blockOrdinal << " (block entry "
+					<< entryOrdinal << ")" << std::endl;
+			}
 
-                        if (verbose) {
-                                std::cout << sourcePath << ": scenario "
-                                                  << round->scenario << " entry "
-                                                  << round->entryOrdinal << " block "
-                                                  << blockOrdinal << " (block entry "
-                                                  << entryOrdinal << ")" << std::endl;
-                        }
+			IVG::Context invocationContext(
+				currentContext->accessCanvas(), *currentContext);
+			runInNewContext(interpreter, invocationContext, statementBody);
+		}
+		if (sawPinnedEntry && !executedPinnedEntry) {
+			Interpreter::throwBadSyntax(
+				"selected snapshot entry missing from scenario block.");
+		}
 
-                        IVG::Context invocationContext(
-                                currentContext->accessCanvas(), *currentContext);
-                        runInNewContext(interpreter, invocationContext, statementBody);
-                }
-                if (sawPinnedEntry && !executedPinnedEntry) {
-                        Interpreter::throwBadSyntax(
-                                "selected snapshot entry missing from scenario block.");
-                }
+		return true;
+	}
 
-                return true;
-        }
+	String buildImplicitScenarioName(uint32_t blockOrdinal,
+			uint32_t entryOrdinal,
+			bool multipleEntries) const {
+		String name("implicit-");
+		name += Interpreter::toString(
+			static_cast<int32_t>(blockOrdinal));
+		if (multipleEntries) {
+			name += '-';
+			name += Interpreter::toString(
+				static_cast<int32_t>(entryOrdinal));
+		}
+		return name;
+	}
 
-        String buildImplicitScenarioName(uint32_t blockOrdinal,
-                                                                  uint32_t entryOrdinal,
-                                                                  bool multipleEntries) const {
-                String name("implicit-");
-                name += Interpreter::toString(
-                        static_cast<int32_t>(blockOrdinal));
-                if (multipleEntries) {
-                        name += '-';
-                        name += Interpreter::toString(
-                                static_cast<int32_t>(entryOrdinal));
-                }
-                return name;
-        }
+	uint32_t locateRoundMetaLine() {
+		if (sourceText.empty()) {
+			return 0;
+		}
 
-        uint32_t locateRoundMetaLine() {
-                if (sourceText.empty()) {
-                        return 0;
-                }
+		static const String TOKEN("meta snapshot");
+		const size_t position = sourceText.find(TOKEN, scanOffset);
+		if (position == String::npos) {
+			return 0;
+		}
 
-                static const String TOKEN("meta snapshot");
-                const size_t position = sourceText.find(TOKEN, scanOffset);
-                if (position == String::npos) {
-                        return 0;
-                }
+		scanOffset = position + TOKEN.size();
+		uint32_t line = 1;
+		for (size_t i = 0; i < position; ++i) {
+			if (sourceText[i] == '\n') {
+				++line;
+			}
+		}
+		return line;
+	}
 
-                scanOffset = position + TOKEN.size();
-                uint32_t line = 1;
-                for (size_t i = 0; i < position; ++i) {
-                        if (sourceText[i] == '\n') {
-                                ++line;
-                        }
-                }
-                return line;
-        }
+		std::string resolveRelativePath(const std::string &requested) const {
+			if (!sourcePathObj.isNull() && !sourcePathObj.isRoot()) {
+				const NuXFiles::Path parent = sourcePathObj.getParent();
+				const NuXFiles::Path candidate = parent.getRelative(pathStringToWide(requested));
+				const std::string native = SnapshotPathBridge::toNative(candidate);
+				if (!native.empty()) {
+					return native;
+				}
+			}
 
-		        std::string resolveRelativePath(const std::string &requested) const {
-	                if (!sourcePathObj.isNull() && !sourcePathObj.isRoot()) {
-                    const NuXFiles::Path parent = sourcePathObj.getParent();
-                    const NuXFiles::Path candidate = parent.getRelative(pathStringToWide(requested));
-                    const std::string native = pathStringFromWide(candidate.getFullPath());
-                    if (!native.empty()) {
-                            return native;
-                    }
-	                }
-
-	                const size_t slash = sourcePath.find_last_of("/\\");
-	                if (slash == std::string::npos) {
-	                        return requested;
-	                }
+			const size_t slash = sourcePath.find_last_of("/\\");
+			if (slash == std::string::npos) {
+				return requested;
+			}
 			return sourcePath.substr(0, slash + 1) + requested;
-			}
+		}
 
-			NuXFiles::Path resolveRelativePathPath(const std::string &requested) const {
-                if (!sourcePathObj.isNull() && !sourcePathObj.isRoot()) {
-                    const NuXFiles::Path parent = sourcePathObj.getParent();
-                    return parent.getRelative(pathStringToWide(requested));
-                }
-                return NuXFiles::Path(pathStringToWide(resolveRelativePath(requested)));
+		NuXFiles::Path resolveRelativePathPath(const std::string &requested) const {
+			if (!sourcePathObj.isNull() && !sourcePathObj.isRoot()) {
+				const NuXFiles::Path parent = sourcePathObj.getParent();
+				return parent.getRelative(pathStringToWide(requested));
 			}
+			return NuXFiles::Path(pathStringToWide(resolveRelativePath(requested)));
+		}
 
-			const std::vector<NuXFiles::Path> &includeDirs;
-			const std::vector<NuXFiles::Path> &fontDirs;
-			const std::vector<NuXFiles::Path> &imageDirs;
-	        std::string sourcePath;
+		const std::vector<NuXFiles::Path> &includeDirs;
+		const std::vector<NuXFiles::Path> &fontDirs;
+		const std::vector<NuXFiles::Path> &imageDirs;
+		std::string sourcePath;
 		NuXFiles::Path sourcePathObj;
-        bool verbose;
-        SharedResources &sharedResources;
-        SnapshotRoundState *round;
-        SnapshotProgress *progress;
-        String sourceText;
-        size_t scanOffset;
+		bool verbose;
+		SharedResources &sharedResources;
+		SnapshotRoundState *round;
+		SnapshotProgress *progress;
+		String sourceText;
+		size_t scanOffset;
 
 	bool loadExternalFont(const WideString &fontName, IVG::Font &font) {
 		const std::string fontName8(fontName.begin(), fontName.end());
@@ -2875,7 +2944,7 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		if (loadBuiltInFont(fontName8, contents)) {
 			return parseFont(contents, font);
 		}
-		if (readFile(resolveRelativePath(fileName), contents) ||
+		if (tryReadFile(resolveRelativePathPath(fileName), contents) ||
 				loadFromDirectories(fontDirs, fileName, contents)) {
 			return parseFont(contents, font);
 		}
@@ -2883,15 +2952,15 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 	}
 
 		bool loadFromDirectories(const std::vector<NuXFiles::Path> &dirs,
-			const std::string &name, String &contents) const {
-            for (size_t i = 0; i < dirs.size(); ++i) {
-                const NuXFiles::Path candidate = dirs[i].getRelative(pathStringToWide(name));
-                if (readFile(candidate, contents)) {
-                    return true;
-                }
-            }
-            return false;
-        }
+				const std::string &name, String &contents) const {
+			for (size_t i = 0; i < dirs.size(); ++i) {
+				const NuXFiles::Path candidate = dirs[i].getRelative(pathStringToWide(name));
+				if (tryReadFile(candidate, contents)) {
+					return true;
+				}
+			}
+			return false;
+		}
 
 	bool loadBuiltInFont(const std::string &fontName, String &contents) const {
 		const std::string normalized = toLowerAscii(fontName);
@@ -2915,30 +2984,30 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 	}
 
 		const CachedImage *resolveImage(const std::string &requested) {
-				const NuXFiles::Path localPath = resolveRelativePathPath(requested);
+			const NuXFiles::Path localPath = resolveRelativePathPath(requested);
 			const CachedImage *cached = loadImageFromPath(localPath);
 			if (cached != 0) {
 				return cached;
 			}
 
-        for (size_t i = 0; i < imageDirs.size(); ++i) {
-            const NuXFiles::Path candidate = imageDirs[i].getRelative(pathStringToWide(requested));
-            cached = loadImageFromPath(candidate);
-            if (cached != 0) {
-                return cached;
-            }
-        }
-            return 0;
-        }
+			for (size_t i = 0; i < imageDirs.size(); ++i) {
+				const NuXFiles::Path candidate = imageDirs[i].getRelative(pathStringToWide(requested));
+				cached = loadImageFromPath(candidate);
+				if (cached != 0) {
+					return cached;
+				}
+			}
+			return 0;
+		}
 
 		const CachedImage *loadImageFromPath(const NuXFiles::Path &path) {
 			// Normalize to a canonical native path so the image cache doesn't
 			// duplicate entries for the same file referenced via different
 			// relative strings.
-            const std::string key = pathStringFromWide(path.getFullPath());
-            if (key.empty()) {
-                return 0;
-            }
+			const std::string key = SnapshotPathBridge::toNative(path);
+			if (key.empty()) {
+				return 0;
+			}
 			{
 				NuXThreads::MutexLock lock(sharedResources.imageMutex);
 				const std::map<std::string, CachedImage>::iterator it =
@@ -2948,12 +3017,12 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 				}
 			}
 
-			CachedImage cached;
-            if (!loadPngRaster(path, cached.raster)) {
-                return 0;
-            }
-			cached.xResolution = 1.0;
-			cached.yResolution = 1.0;
+				CachedImage cached;
+				if (!loadPngRaster(path, cached.raster)) {
+					return 0;
+				}
+				cached.xResolution = 1.0;
+				cached.yResolution = 1.0;
 
 			NuXThreads::MutexLock lock(sharedResources.imageMutex);
 			const std::map<std::string, CachedImage>::iterator existing =
@@ -3020,81 +3089,80 @@ static bool parseCommandLine(int argc, char **argv,
 		if (arg == "--help") {
 			printUsage(argv[0]);
 			return false;
-        } else if (arg == "--include-dir") {
-            if (i + 1 >= argc) {
-                std::cerr << "--include-dir requires a path." << std::endl;
-                return false;
-            }
-            const std::string includeArgument(argv[++i]);
-            const NuXFiles::Path includePath(pathStringToWide(includeArgument));
-            if (includePath.isNull()) {
-                std::cerr << "failed to parse include directory: "
-                        << includeArgument << std::endl;
-                return false;
-            }
-            options.includeDirs.push_back(includePath);
-        } else if (arg == "--font-dir") {
-            if (i + 1 >= argc) {
-                std::cerr << "--font-dir requires a path." << std::endl;
-                return false;
-            }
-            const std::string fontArgument(argv[++i]);
-            const NuXFiles::Path fontPath(pathStringToWide(fontArgument));
-            if (fontPath.isNull()) {
-                std::cerr << "failed to parse font directory: "
-                        << fontArgument << std::endl;
-                return false;
-            }
-            options.fontDirs.push_back(fontPath);
-        } else if (arg == "--image-dir") {
-            if (i + 1 >= argc) {
-                std::cerr << "--image-dir requires a path." << std::endl;
-                return false;
-            }
-            const std::string imageArgument(argv[++i]);
-            const NuXFiles::Path imagePath(pathStringToWide(imageArgument));
-            if (imagePath.isNull()) {
-                std::cerr << "failed to parse image directory: "
-                        << imageArgument << std::endl;
-                return false;
-            }
-            options.imageDirs.push_back(imagePath);
-        } else if (arg == "--snapshot-dir") {
-            if (i + 1 >= argc) {
-                std::cerr << "--snapshot-dir requires a path." << std::endl;
-                return false;
-            }
-            const std::string snapshotArgument(argv[++i]);
-            const NuXFiles::Path snapshotPath(pathStringToWide(snapshotArgument));
-            if (snapshotPath.isNull()) {
-                std::cerr << "failed to parse snapshot directory: "
-                        << snapshotArgument << std::endl;
-                return false;
-            }
-            try {
-                options.snapshotDir = snapshotPath;
-                options.snapshotDirDisplay =
-                    pathStringFromWide(snapshotPath.getFullPath());
-            } catch (const std::exception &) {
-                std::cerr << "failed to resolve snapshot directory: "
-                        << snapshotArgument << std::endl;
-                return false;
-            }
-            if (options.snapshotDirDisplay.empty()) {
-                options.snapshotDirDisplay = snapshotArgument;
-            }
-        } else if (arg == "--root-dir") {
-            if (i + 1 >= argc) {
-                std::cerr << "--root-dir requires a path." << std::endl;
-                return false;
-            }
-            const std::string rootArgument(argv[++i]);
-            options.rootDir = NuXFiles::Path(pathStringToWide(rootArgument));
-            if (options.rootDir.isNull()) {
-                std::cerr << "failed to parse root directory: " << rootArgument
-                        << std::endl;
-                return false;
-            }
+		} else if (arg == "--include-dir") {
+			if (i + 1 >= argc) {
+				std::cerr << "--include-dir requires a path." << std::endl;
+				return false;
+			}
+			const std::string includeArgument(argv[++i]);
+			const NuXFiles::Path includePath(pathStringToWide(includeArgument));
+			if (includePath.isNull()) {
+				std::cerr << "failed to parse include directory: "
+					<< includeArgument << std::endl;
+				return false;
+			}
+			options.includeDirs.push_back(includePath);
+		} else if (arg == "--font-dir") {
+			if (i + 1 >= argc) {
+				std::cerr << "--font-dir requires a path." << std::endl;
+				return false;
+			}
+			const std::string fontArgument(argv[++i]);
+			const NuXFiles::Path fontPath(pathStringToWide(fontArgument));
+			if (fontPath.isNull()) {
+				std::cerr << "failed to parse font directory: "
+					<< fontArgument << std::endl;
+				return false;
+			}
+			options.fontDirs.push_back(fontPath);
+		} else if (arg == "--image-dir") {
+			if (i + 1 >= argc) {
+				std::cerr << "--image-dir requires a path." << std::endl;
+				return false;
+			}
+			const std::string imageArgument(argv[++i]);
+			const NuXFiles::Path imagePath(pathStringToWide(imageArgument));
+			if (imagePath.isNull()) {
+				std::cerr << "failed to parse image directory: "
+					<< imageArgument << std::endl;
+				return false;
+			}
+			options.imageDirs.push_back(imagePath);
+		} else if (arg == "--snapshot-dir") {
+			if (i + 1 >= argc) {
+				std::cerr << "--snapshot-dir requires a path." << std::endl;
+				return false;
+			}
+			const std::string snapshotArgument(argv[++i]);
+			const NuXFiles::Path snapshotPath(pathStringToWide(snapshotArgument));
+			if (snapshotPath.isNull()) {
+				std::cerr << "failed to parse snapshot directory: "
+					<< snapshotArgument << std::endl;
+				return false;
+			}
+			try {
+				options.snapshotDir = snapshotPath;
+				options.snapshotDirDisplay = SnapshotPathBridge::toNative(snapshotPath);
+			} catch (const std::exception &) {
+				std::cerr << "failed to resolve snapshot directory: "
+					<< snapshotArgument << std::endl;
+				return false;
+			}
+			if (options.snapshotDirDisplay.empty()) {
+				options.snapshotDirDisplay = snapshotArgument;
+			}
+		} else if (arg == "--root-dir") {
+			if (i + 1 >= argc) {
+				std::cerr << "--root-dir requires a path." << std::endl;
+				return false;
+			}
+			const std::string rootArgument(argv[++i]);
+			options.rootDir = NuXFiles::Path(pathStringToWide(rootArgument));
+			if (options.rootDir.isNull()) {
+				std::cerr << "failed to parse root directory: " << rootArgument
+					<< std::endl;
+				return false;
+			}
 		} else if (arg == "--recursive") {
 			options.recursive = true;
 		} else if (arg == "--force-update") {
@@ -3112,21 +3180,21 @@ static bool parseCommandLine(int argc, char **argv,
 			}
 			options.threads = threads;
 			++i;
-			} else if (arg == "--list-only") {
-				options.listOnly = true;
-			} else if (arg == "--verbose") {
-				options.verbose = true;
-			} else if (arg == "--exit-on-first-failure") {
-				options.exitOnFirstFailure = true;
-			} else if (arg == "--no-golden-audit") {
-				options.goldenAudit = false;
-			} else if (!arg.empty() && arg[0] == '-') {
-				std::cerr << "unrecognized option: " << arg << std::endl;
-				return false;
-        } else {
-            const NuXFiles::Path ivg(pathStringToWide(arg));
-            options.ivgPaths.push_back(ivg);
-        }
+		} else if (arg == "--list-only") {
+			options.listOnly = true;
+		} else if (arg == "--verbose") {
+			options.verbose = true;
+		} else if (arg == "--exit-on-first-failure") {
+			options.exitOnFirstFailure = true;
+		} else if (arg == "--no-golden-audit") {
+			options.goldenAudit = false;
+		} else if (!arg.empty() && arg[0] == '-') {
+			std::cerr << "unrecognized option: " << arg << std::endl;
+			return false;
+		} else {
+			const NuXFiles::Path ivg(pathStringToWide(arg));
+			options.ivgPaths.push_back(ivg);
+		}
 	}
 
 	if (options.ivgPaths.empty()) {
@@ -3140,20 +3208,9 @@ static bool parseCommandLine(int argc, char **argv,
 	return true;
 }
 
-static bool readFile(const std::string &path, String &contents) {
-        std::ifstream stream(path.c_str(), std::ios::binary);
-        if (!stream.good()) {
-                return false;
-        }
-        std::string buffer((std::istreambuf_iterator<char>(stream)),
-                                           std::istreambuf_iterator<char>());
-        contents.assign(buffer.begin(), buffer.end());
-        return true;
-}
-
-static bool readFile(const NuXFiles::Path &path, String &contents) {
-    const std::string native = pathStringFromWide(path.getFullPath());
-    return readFile(native, contents);
+static String readFile(const NuXFiles::Path &path) {
+	const std::string buffer = readPathString(path);
+	return String(buffer.begin(), buffer.end());
 }
 
 /**
@@ -3163,286 +3220,289 @@ static bool readFile(const NuXFiles::Path &path, String &contents) {
 	parts of the log are sanitized echoes versus canonical filesystem paths.
 **/
 static void printScenarioListing(const std::string &path,
-                                 const SnapshotProgress &progress) {
-        static const char scenarioIndent[] = "  ";
-        static const char entryIndent[] = "    ";
-        static const char blockIndent[] = "      ";
-        static const char snippetIndent[] = "        ";
+		const SnapshotProgress &progress) {
+	static const char scenarioIndent[] = "  ";
+	static const char entryIndent[] = "    ";
+	static const char blockIndent[] = "      ";
+	static const char snippetIndent[] = "        ";
 
-        std::cout << path << std::endl;
-        const std::vector<SeenScenario> &scenarios = progress.getSeenScenarios();
-        for (size_t i = 0; i < scenarios.size(); ++i) {
-                const SeenScenario &scenario = scenarios[i];
-                std::cout << scenarioIndent << "Scenario "
-                          << stringFromIMPD(scenario.name)
-                          << " (validate: " << (scenario.validate ? "yes" : "no")
-                          << ")" << std::endl;
-                for (uint32_t ordinal = 1; ordinal <= scenario.maxOrdinal; ++ordinal) {
-                        if (!scenario.isProcessed(ordinal)) {
-                                continue;
-                        }
+	std::cout << path << std::endl;
+	const std::vector<SeenScenario> &scenarios = progress.getSeenScenarios();
+	for (size_t i = 0; i < scenarios.size(); ++i) {
+		const SeenScenario &scenario = scenarios[i];
+		std::cout << scenarioIndent << "Scenario "
+			<< stringFromIMPD(scenario.name)
+			<< " (validate: " << (scenario.validate ? "yes" : "no")
+			<< ")" << std::endl;
+		for (uint32_t ordinal = 1; ordinal <= scenario.maxOrdinal; ++ordinal) {
+			if (!scenario.isProcessed(ordinal)) {
+				continue;
+			}
 
-                        std::cout << entryIndent << "Scenario entry #" << ordinal
-                                  << std::endl;
-                        const ScenarioEntryMetadata *metadata =
-                                scenario.getEntryMetadata(ordinal);
-                        if (metadata == 0) {
-                                continue;
-                        }
+			std::cout << entryIndent << "Scenario entry #" << ordinal
+				<< std::endl;
+			const ScenarioEntryMetadata *metadata =
+				scenario.getEntryMetadata(ordinal);
+			if (metadata == 0) {
+				continue;
+			}
 
-for (size_t k = 0; k < metadata->invocations.size(); ++k) {
-const SnapshotInvocation &invocation =
-metadata->invocations[k];
-std::cout << blockIndent << "Snapshot block #"
-<< invocation.blockIndex;
-if (invocation.kind == SNAPSHOT_INVOCATION_COMMON) {
-std::cout << " (common setup, source line "
-  << invocation.sourceLine << ")" << std::endl;
-} else {
-std::cout << " (block entry #"
-  << invocation.entryOrdinal
-  << ", source line "
-  << invocation.sourceLine << ")" << std::endl;
-}
+			for (size_t k = 0; k < metadata->invocations.size(); ++k) {
+				const SnapshotInvocation &invocation =
+					metadata->invocations[k];
+				std::cout << blockIndent << "Snapshot block #"
+					<< invocation.blockIndex;
+				if (invocation.kind == SNAPSHOT_INVOCATION_COMMON) {
+					std::cout << " (common setup, source line "
+						<< invocation.sourceLine << ")" << std::endl;
+				} else {
+					std::cout << " (block entry #"
+						<< invocation.entryOrdinal
+						<< ", source line "
+						<< invocation.sourceLine << ")" << std::endl;
+				}
 
-std::istringstream snippet(
-stringFromIMPD(invocation.statements));
-std::string line;
-while (std::getline(snippet, line)) {
-std::cout << snippetIndent << line << std::endl;
-}
-}
-                }
-        }
+				std::istringstream snippet(
+					stringFromIMPD(invocation.statements));
+				std::string line;
+				while (std::getline(snippet, line)) {
+					std::cout << snippetIndent << line << std::endl;
+				}
+			}
+		}
+	}
 }
 
 static void printScenarioListing_PathShim(const NuXFiles::Path &path,
-                                 const SnapshotProgress &progress) {
-    printScenarioListing(displayPathRelativeToCwd(path), progress);
+		const SnapshotProgress &progress) {
+	printScenarioListing(displayPathRelativeToCwd(path), progress);
 }
 
 static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
-                                             const NuXFiles::Path &path) {
-    SnapshotRunResult run;
-    run.filePath = path;
-    const std::string pathNative = pathStringFromWide(path.getFullPath());
-        CachedDocument document;
-    if (!document.loadFromFile(pathNative)) {
-        run.fileFailed = true;
-        run.exitCode = 1;
-        run.fileError = "failed to read IVG file";
-        if (options.verbose || options.listOnly) {
-            std::cerr << "failed to read IVG file: " << pathNative << std::endl;
-        }
-        return run;
-    }
+		const NuXFiles::Path &path) {
+	SnapshotRunResult run;
+	run.filePath = path;
+	const std::string pathNative = SnapshotPathBridge::toNative(path);
+	CachedDocument document;
+	try {
+		document.loadFromFile(path);
+	} catch (const std::exception &e) {
+		run.fileFailed = true;
+		run.exitCode = 1;
+		run.fileError = "failed to read IVG file";
+		if (options.verbose || options.listOnly) {
+			std::cerr << "failed to read IVG file: " << pathNative << ": " << e.what() << std::endl;
+		}
+		return run;
+	}
 
 	const String &source = document.getSource();
-		const FormatDetectionResult formatDetection = detectSnapshotFormat(source);
-		if (formatDetection.determined && !formatDetection.supportsSnapshot) {
-			run.ignored = true;
-			run.ignoreReason = "format missing uses:snapshot-1";
-			return run;
-		}
-		const std::string snapshotBase = buildSnapshotSourceTag(run.filePath, options.rootDir);
-        const bool goldensExist = hasAnyGoldensForSource(run.filePath, snapshotBase, options);
-		SharedResources sharedResources;
-		SnapshotRoundCoordinator coordinator;
-		SnapshotProgress &progress = coordinator.accessProgress();
+	const FormatDetectionResult formatDetection = detectSnapshotFormat(source);
+	if (formatDetection.determined && !formatDetection.supportsSnapshot) {
+		run.ignored = true;
+		run.ignoreReason = "format missing uses:snapshot-1";
+		return run;
+	}
+	const std::string snapshotBase = buildSnapshotSourceTag(run.filePath, options.rootDir);
+	const bool goldensExist = hasAnyGoldensForSource(run.filePath, snapshotBase, options);
+	SharedResources sharedResources;
+	SnapshotRoundCoordinator coordinator;
+	SnapshotProgress &progress = coordinator.accessProgress();
 
-        if (options.verbose) {
-            std::cout << pathNative << ": include dirs:";
-			if (options.includeDirs.empty()) {
-				std::cout << " (none)";
-			} else {
-                for (size_t i = 0; i < options.includeDirs.size(); ++i) {
-                    const std::string native = pathStringFromWide(options.includeDirs[i].getFullPath());
-                    if (!native.empty()) {
-                        std::cout << ' ' << native;
-                    }
-                }
+	if (options.verbose) {
+		std::cout << pathNative << ": include dirs:";
+		if (options.includeDirs.empty()) {
+			std::cout << " (none)";
+		} else {
+			for (size_t i = 0; i < options.includeDirs.size(); ++i) {
+				const std::string native = SnapshotPathBridge::toNative(options.includeDirs[i]);
+				if (!native.empty()) {
+					std::cout << ' ' << native;
+				}
 			}
-			std::cout << std::endl;
-            std::cout << pathNative << ": font dirs:";
-			if (options.fontDirs.empty()) {
-				std::cout << " (none)";
-			} else {
-                for (size_t i = 0; i < options.fontDirs.size(); ++i) {
-                    const std::string native = pathStringFromWide(options.fontDirs[i].getFullPath());
-                    if (!native.empty()) {
-                        std::cout << ' ' << native;
-                    }
-                }
-			}
-			std::cout << std::endl;
-            std::cout << pathNative << ": image dirs:";
-			if (options.imageDirs.empty()) {
-				std::cout << " (none)";
-			} else {
-                for (size_t i = 0; i < options.imageDirs.size(); ++i) {
-                    const std::string native = pathStringFromWide(options.imageDirs[i].getFullPath());
-                    if (!native.empty()) {
-                        std::cout << ' ' << native;
-                    }
-                }
-			}
-			std::cout << std::endl;
 		}
+		std::cout << std::endl;
+		std::cout << pathNative << ": font dirs:";
+		if (options.fontDirs.empty()) {
+			std::cout << " (none)";
+		} else {
+			for (size_t i = 0; i < options.fontDirs.size(); ++i) {
+				const std::string native = SnapshotPathBridge::toNative(options.fontDirs[i]);
+				if (!native.empty()) {
+					std::cout << ' ' << native;
+				}
+			}
+		}
+		std::cout << std::endl;
+		std::cout << pathNative << ": image dirs:";
+		if (options.imageDirs.empty()) {
+			std::cout << " (none)";
+		} else {
+			for (size_t i = 0; i < options.imageDirs.size(); ++i) {
+				const std::string native = SnapshotPathBridge::toNative(options.imageDirs[i]);
+				if (!native.empty()) {
+					std::cout << ' ' << native;
+				}
+			}
+		}
+		std::cout << std::endl;
+	}
 
 	bool stopAfterFailure = false;
 	while (!stopAfterFailure) {
-        SnapshotRoundState round = coordinator.beginRound();
-        IVG::SelfContainedARGB32Canvas canvas;
-        SnapshotPlaybackExecutor executor(canvas, options, run.filePath, source,
-                        sharedResources, round, progress);
+		SnapshotRoundState round = coordinator.beginRound();
+		IVG::SelfContainedARGB32Canvas canvas;
+		SnapshotPlaybackExecutor executor(canvas, options, run.filePath, source,
+			sharedResources, round, progress);
 
 		bool executionFailed = false;
 		std::string executionError;
 
 		try {
 			document.render(executor);
-        } catch (Exception &e) {
-            std::ostringstream message;
-            message << e.getError();
-            if (e.hasStatement()) {
-                message << " near \"" << e.getStatement() << "\"";
-            }
-            executionFailed = true;
-            executionError = message.str();
-        } catch (std::exception &e) {
-            executionFailed = true;
-            executionError = e.what();
-        }
+		} catch (Exception &e) {
+			std::ostringstream message;
+			message << e.getError();
+			if (e.hasStatement()) {
+				message << " near \"" << e.getStatement() << "\"";
+			}
+			executionFailed = true;
+			executionError = message.str();
+		} catch (std::exception &e) {
+			executionFailed = true;
+			executionError = e.what();
+		}
 
-            bool implicitSnapshot = false;
-            if (!round.hasPinned) {
-                if (!round.executedCommonBlock) {
-                    if (formatDetection.supportsSnapshot || goldensExist) {
-                        implicitSnapshot = true;
-                    } else {
-                        if (executionFailed && (options.verbose || options.listOnly)) {
-                            std::cerr << pathNative << ": " << executionError
-                                      << " (ignored: no snapshots executed)." << std::endl;
-                        }
-                        coordinator.completeRound(round);
-                        break;
-                    }
-                } else {
-                    if (executionFailed) {
-                        run.fileFailed = true;
-                        run.exitCode = 1;
-                        run.fileError = executionError;
-                        if (options.verbose || options.listOnly) {
-                            std::cerr << pathNative << ": " << executionError << std::endl;
-                        }
-                    }
-                    coordinator.completeRound(round);
-                    break;
-                }
-            }
+		bool implicitSnapshot = false;
+		if (!round.hasPinned) {
+			if (!round.executedCommonBlock) {
+				if (formatDetection.supportsSnapshot || goldensExist) {
+					implicitSnapshot = true;
+				} else {
+					if (executionFailed && (options.verbose || options.listOnly)) {
+						std::cerr << pathNative << ": " << executionError
+							<< " (ignored: no snapshots executed)." << std::endl;
+					}
+					coordinator.completeRound(round);
+					break;
+				}
+			} else {
+				if (executionFailed) {
+					run.fileFailed = true;
+					run.exitCode = 1;
+					run.fileError = executionError;
+					if (options.verbose || options.listOnly) {
+						std::cerr << pathNative << ": " << executionError << std::endl;
+					}
+				}
+				coordinator.completeRound(round);
+				break;
+			}
+		}
 
-            if (implicitSnapshot) {
-                SnapshotEntryResult result;
-        result.ivgPath = run.filePath;
-                result.scenarioName = "document";
-                result.entryOrdinal = 1;
-                result.validate = true;
-                result.planOrdinal = static_cast<uint32_t>(run.entries.size());
-                result.blockIndex = 0;
-                result.identifier =
-                                buildEntryIdentifier(snapshotBase, result.scenarioName,
-                                        result.blockIndex, result.entryOrdinal);
+		if (implicitSnapshot) {
+			SnapshotEntryResult result;
+			result.ivgPath = run.filePath;
+			result.scenarioName = "document";
+			result.entryOrdinal = 1;
+			result.validate = true;
+			result.planOrdinal = static_cast<uint32_t>(run.entries.size());
+			result.blockIndex = 0;
+			result.identifier =
+				buildEntryIdentifier(snapshotBase, result.scenarioName,
+					result.blockIndex, result.entryOrdinal);
 
-                if (executionFailed) {
-                    result.message = executionError;
-                    result.success = false;
-                    run.fileFailed = true;
-                    run.exitCode = 1;
-                    run.fileError = executionError;
-                    if (options.verbose || options.listOnly) {
-                        std::cerr << pathNative << ": scenario " << result.scenarioName
-                                  << ": " << result.message << std::endl;
-                    }
-                } else {
-                    NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> *raster =
-                                    canvas.accessRaster();
-                    if (!executor.finished()) {
-                        result.message = "did not execute all snapshot invocations";
-                        result.success = false;
-                        if (options.verbose || options.listOnly) {
-                            std::cerr << pathNative << ": scenario " << result.scenarioName
-                                      << " did not execute all snapshot invocations."
-                                      << std::endl;
-                        }
-                    } else if (raster == 0) {
-                        result.message = "rendered image is empty";
-                        result.success = false;
-                        if (options.verbose || options.listOnly) {
-                            std::cerr << pathNative << ": scenario " << result.scenarioName
-                                      << " produced no raster output." << std::endl;
-                        }
-                    } else if (options.listOnly) {
-                        result.rendered = false;
-                        result.skipped = true;
-                        result.success = true;
-                    } else {
-                        result.rendered = true;
-                        SnapshotGolden golden(run.filePath, snapshotBase, result.scenarioName,
-                                        options);
-                        if (!golden.validate(*raster, options.forceUpdate, result)) {
-                            if (result.message.empty()) {
-                                result.message = "validation failed";
-                            }
-                            if (options.verbose || options.listOnly) {
-                                std::cerr << pathNative << ": scenario "
-                                          << result.scenarioName << ": "
-                                          << result.message << std::endl;
-                            }
-                        }
-                    }
-                }
+			if (executionFailed) {
+				result.message = executionError;
+				result.success = false;
+				run.fileFailed = true;
+				run.exitCode = 1;
+				run.fileError = executionError;
+				if (options.verbose || options.listOnly) {
+					std::cerr << pathNative << ": scenario " << result.scenarioName
+						<< ": " << result.message << std::endl;
+				}
+			} else {
+				NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> *raster =
+					canvas.accessRaster();
+				if (!executor.finished()) {
+					result.message = "did not execute all snapshot invocations";
+					result.success = false;
+					if (options.verbose || options.listOnly) {
+						std::cerr << pathNative << ": scenario " << result.scenarioName
+							<< " did not execute all snapshot invocations."
+							<< std::endl;
+					}
+				} else if (raster == 0) {
+					result.message = "rendered image is empty";
+					result.success = false;
+					if (options.verbose || options.listOnly) {
+						std::cerr << pathNative << ": scenario " << result.scenarioName
+							<< " produced no raster output." << std::endl;
+					}
+				} else if (options.listOnly) {
+					result.rendered = false;
+					result.skipped = true;
+					result.success = true;
+				} else {
+					result.rendered = true;
+					SnapshotGolden golden(run.filePath, snapshotBase, result.scenarioName,
+						options);
+					if (!golden.validate(*raster, options.forceUpdate, result)) {
+						if (result.message.empty()) {
+							result.message = "validation failed";
+						}
+						if (options.verbose || options.listOnly) {
+							std::cerr << pathNative << ": scenario "
+								<< result.scenarioName << ": "
+								<< result.message << std::endl;
+						}
+					}
+				}
+			}
 
-                if (!result.success) {
-                    run.failedEntries++;
-                    if (result.diffed) {
-                        run.diffFailures++;
-                    }
-                    run.exitCode = 1;
-                    if (options.exitOnFirstFailure) {
-                        stopAfterFailure = true;
-                    }
-                }
+			if (!result.success) {
+				run.failedEntries++;
+				if (result.diffed) {
+					run.diffFailures++;
+				}
+				run.exitCode = 1;
+				if (options.exitOnFirstFailure) {
+					stopAfterFailure = true;
+				}
+			}
 
-                if (result.validate) {
-                    ++run.validatedEntries;
-                } else {
-                    ++run.draftEntries;
-                }
-                if (result.updated) {
-                    ++run.updatedEntries;
-                }
-                ++run.totalEntries;
+			if (result.validate) {
+				++run.validatedEntries;
+			} else {
+				++run.draftEntries;
+			}
+			if (result.updated) {
+				++run.updatedEntries;
+			}
+			++run.totalEntries;
 
-                run.entries.push_back(result);
-                coordinator.completeRound(round);
-                break;
-            }
-                SnapshotEntryResult result;
-        result.ivgPath = run.filePath;
+			run.entries.push_back(result);
+			coordinator.completeRound(round);
+			break;
+		}
+
+		SnapshotEntryResult result;
+		result.ivgPath = run.filePath;
 		const std::string &registeredLabel =
-		        progress.lookupDisplayLabel(round.scenario, round.entryOrdinal);
+			progress.lookupDisplayLabel(round.scenario, round.entryOrdinal);
 		const std::string effectiveLabel =
-		        (registeredLabel.empty() ? stringFromIMPD(round.scenario)
-		                               : registeredLabel);
+			(registeredLabel.empty() ? stringFromIMPD(round.scenario)
+				: registeredLabel);
 
 		result.scenarioName = effectiveLabel;
 		result.entryOrdinal = round.entryOrdinal;
 		result.validate = round.validate;
 		result.planOrdinal = static_cast<uint32_t>(run.entries.size());
 		result.blockIndex =
-		        (round.invocations.empty() ? 0 : round.invocations[0].blockIndex);
+			(round.invocations.empty() ? 0 : round.invocations[0].blockIndex);
 		result.identifier = buildEntryIdentifier(snapshotBase, effectiveLabel,
-		        result.blockIndex, round.entryOrdinal);
+			result.blockIndex, round.entryOrdinal);
 
 		if (executionFailed) {
 			result.message = executionError;
@@ -3450,57 +3510,57 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 			run.fileFailed = true;
 			run.exitCode = 1;
 			run.fileError = executionError;
-                if (options.verbose || options.listOnly) {
-                    std::cerr << pathNative << ": scenario " << result.scenarioName
-                                      << ": " << result.message << std::endl;
-                }
+			if (options.verbose || options.listOnly) {
+				std::cerr << pathNative << ": scenario " << result.scenarioName
+					<< ": " << result.message << std::endl;
+			}
 		} else {
 			NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> *raster =
-					canvas.accessRaster();
+				canvas.accessRaster();
 			if (!executor.finished()) {
 				result.message = "did not execute all snapshot invocations";
 				result.success = false;
-                    if (options.verbose || options.listOnly) {
-                        std::cerr << pathNative << ": scenario " << result.scenarioName
-                                      << " did not execute all snapshot invocations."
-                                      << std::endl;
-                    }
-                } else if (raster == 0) {
-                    result.message = "rendered image is empty";
-                    result.success = false;
-                    if (options.verbose || options.listOnly) {
-                        std::cerr << pathNative << ": scenario " << result.scenarioName
-                                      << " produced no raster output." << std::endl;
-                    }
-                } else if (options.listOnly) {
+				if (options.verbose || options.listOnly) {
+					std::cerr << pathNative << ": scenario " << result.scenarioName
+						<< " did not execute all snapshot invocations."
+						<< std::endl;
+				}
+			} else if (raster == 0) {
+				result.message = "rendered image is empty";
+				result.success = false;
+				if (options.verbose || options.listOnly) {
+					std::cerr << pathNative << ": scenario " << result.scenarioName
+						<< " produced no raster output." << std::endl;
+				}
+			} else if (options.listOnly) {
 				result.rendered = false;
 				result.skipped = true;
 				result.success = true;
-} else {
-result.rendered = true;
-SnapshotGolden golden(run.filePath, snapshotBase, effectiveLabel,
-options);
+			} else {
+				result.rendered = true;
+				SnapshotGolden golden(run.filePath, snapshotBase, effectiveLabel,
+					options);
 				if (!round.validate) {
-                        if (!golden.writeDraft(*raster, result)) {
-                            if (result.message.empty()) {
-                                result.message = "failed to write draft";
-                            }
-                            if (options.verbose || options.listOnly) {
-                                std::cerr << pathNative << ": scenario "
-                                                  << result.scenarioName << ": "
-                                                  << result.message << std::endl;
-                            }
-                        }
-                    } else if (!golden.validate(*raster, options.forceUpdate, result)) {
-                        if (result.message.empty()) {
-                            result.message = "validation failed";
-                        }
-                        if (options.verbose || options.listOnly) {
-                            std::cerr << pathNative << ": scenario " << result.scenarioName
-                                              << ": " << result.message << std::endl;
-                        }
-                    }
-                }
+					if (!golden.writeDraft(*raster, result)) {
+						if (result.message.empty()) {
+							result.message = "failed to write draft";
+						}
+						if (options.verbose || options.listOnly) {
+							std::cerr << pathNative << ": scenario "
+								<< result.scenarioName << ": "
+								<< result.message << std::endl;
+						}
+					}
+				} else if (!golden.validate(*raster, options.forceUpdate, result)) {
+					if (result.message.empty()) {
+						result.message = "validation failed";
+					}
+					if (options.verbose || options.listOnly) {
+						std::cerr << pathNative << ": scenario " << result.scenarioName
+							<< ": " << result.message << std::endl;
+					}
+				}
+			}
 		}
 
 		if (!result.success) {
@@ -3524,58 +3584,58 @@ options);
 		}
 		++run.totalEntries;
 
-                run.entries.push_back(result);
+		run.entries.push_back(result);
 
-                progress.recordRoundDetails(round);
-                coordinator.completeRound(round);
-                if (!stopAfterFailure && !coordinator.needsAnotherRound(round)) {
-                        break;
-                }
-        }
+		progress.recordRoundDetails(round);
+		coordinator.completeRound(round);
+		if (!stopAfterFailure && !coordinator.needsAnotherRound(round)) {
+			break;
+		}
+	}
 
-        if (options.listOnly || options.verbose) {
-                printScenarioListing_PathShim(run.filePath, progress);
-        }
+	if (options.listOnly || options.verbose) {
+		printScenarioListing_PathShim(run.filePath, progress);
+	}
 
-        return run;
+	return run;
 }
 
 // processFile/processFileIterative accept Path arguments only.
 
 static SnapshotRunResult processFile(const CommandLineOptions &options,
-                                     const NuXFiles::Path &path) {
-    SnapshotRunResult run = processFileIterative(options, path);
-    if (run.exitCode == 0 && run.failedEntries > 0) {
-        run.exitCode = 1;
-    }
-    return run;
+		const NuXFiles::Path &path) {
+	SnapshotRunResult run = processFileIterative(options, path);
+	if (run.exitCode == 0 && run.failedEntries > 0) {
+		run.exitCode = 1;
+	}
+	return run;
 }
 
 static uint32_t determineThreadCount(const CommandLineOptions &options,
-                                                                        size_t jobCount) {
-        if (jobCount == 0) {
-                return 1;
-        }
+		size_t jobCount) {
+	if (jobCount == 0) {
+		return 1;
+	}
 
-        if (options.exitOnFirstFailure) {
-                return 1;
-        }
+	if (options.exitOnFirstFailure) {
+		return 1;
+	}
 
-        uint32_t threads = options.threads;
-        if (threads == 0) {
-                const unsigned int hardware = std::thread::hardware_concurrency();
-                threads = (hardware > 0 ? hardware : 1);
-        }
+	uint32_t threads = options.threads;
+	if (threads == 0) {
+		const unsigned int hardware = std::thread::hardware_concurrency();
+		threads = (hardware > 0 ? hardware : 1);
+	}
 
-        if (threads == 0) {
-                threads = 1;
-        }
+	if (threads == 0) {
+		threads = 1;
+	}
 
-        if (threads > jobCount) {
-                threads = static_cast<uint32_t>(jobCount);
-        }
+	if (threads > jobCount) {
+		threads = static_cast<uint32_t>(jobCount);
+	}
 
-        return (threads == 0 ? 1 : threads);
+	return (threads == 0 ? 1 : threads);
 }
 
 #if !defined(IVG_SNAPSHOT_TESTING)
@@ -3594,10 +3654,10 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-        SnapshotTotals totals;
-        int exitCode = 0;
-        const size_t fileCount = options.ivgPaths.size();
-        const uint32_t threadCount = determineThreadCount(options, fileCount);
+	SnapshotTotals totals;
+	int exitCode = 0;
+	const size_t fileCount = options.ivgPaths.size();
+	const uint32_t threadCount = determineThreadCount(options, fileCount);
 
 	std::vector<SnapshotRunResult> runs(fileCount);
 	std::vector<uint8_t> processed(fileCount, 0);
@@ -3624,46 +3684,46 @@ int main(int argc, char **argv) {
 				return false;
 			}
 
-        const std::string path = pathStringFromWide(options.ivgPaths[fileIndex].getFullPath());
+			const std::string path = SnapshotPathBridge::toNative(options.ivgPaths[fileIndex]);
 			SnapshotRunResult run;
 			bool shouldStop = false;
 
 			try {
-                run = processFile(options, options.ivgPaths[fileIndex]);
+				run = processFile(options, options.ivgPaths[fileIndex]);
 				if (options.exitOnFirstFailure &&
 						(run.exitCode != 0 || run.fileFailed)) {
 					shouldStop = true;
 				}
-                } catch (Exception &e) {
-                    std::ostringstream message;
-                    message << path << ": " << e.getError();
-                    if (e.hasStatement()) {
-                        message << " near \"" << e.getStatement() << "\"";
-                    }
-                    run.fileFailed = true;
-                    run.exitCode = 1;
-                    run.fileError = message.str();
-                    if (options.verbose || options.listOnly) {
-                        std::cerr << message.str() << std::endl;
-                    }
-                    shouldStop = options.exitOnFirstFailure;
-                } catch (std::exception &e) {
-                    run.fileFailed = true;
-                    run.exitCode = 1;
-                    run.fileError = e.what();
-                    if (options.verbose || options.listOnly) {
-                        std::cerr << path << ": " << e.what() << std::endl;
-                    }
-                    shouldStop = options.exitOnFirstFailure;
-                } catch (...) {
-                    run.fileFailed = true;
-                    run.exitCode = 1;
-                    run.fileError = "unknown exception";
-                    if (options.verbose || options.listOnly) {
-                        std::cerr << path << ": unknown exception" << std::endl;
-                    }
-                    shouldStop = options.exitOnFirstFailure;
-                }
+			} catch (Exception &e) {
+				std::ostringstream message;
+				message << path << ": " << e.getError();
+				if (e.hasStatement()) {
+					message << " near \"" << e.getStatement() << "\"";
+				}
+				run.fileFailed = true;
+				run.exitCode = 1;
+				run.fileError = message.str();
+				if (options.verbose || options.listOnly) {
+					std::cerr << message.str() << std::endl;
+				}
+				shouldStop = options.exitOnFirstFailure;
+			} catch (std::exception &e) {
+				run.fileFailed = true;
+				run.exitCode = 1;
+				run.fileError = e.what();
+				if (options.verbose || options.listOnly) {
+					std::cerr << path << ": " << e.what() << std::endl;
+				}
+				shouldStop = options.exitOnFirstFailure;
+			} catch (...) {
+				run.fileFailed = true;
+				run.exitCode = 1;
+				run.fileError = "unknown exception";
+				if (options.verbose || options.listOnly) {
+					std::cerr << path << ": unknown exception" << std::endl;
+				}
+				shouldStop = options.exitOnFirstFailure;
+			}
 
 			runs[fileIndex] = run;
 			processed[fileIndex] = 1;
@@ -3689,68 +3749,66 @@ int main(int argc, char **argv) {
 				static_cast<int>(threadCount));
 	}
 
-		for (size_t i = 0; i < fileCount; ++i) {
-			if (!processed[i]) {
-				continue;
-			}
-
-        const std::string path = pathStringFromWide(options.ivgPaths[i].getFullPath());
-        SnapshotRunResult &run = runs[i];
-        totals.accumulate(run);
-            logFileReport(options.ivgPaths[i], run, options);
-			if (run.exitCode != 0 || run.fileFailed) {
-				if (exitCode == 0) {
-					exitCode = (run.exitCode != 0 ? run.exitCode : 1);
-				}
-				if (options.exitOnFirstFailure) {
-					break;
-				}
-			}
+	for (size_t i = 0; i < fileCount; ++i) {
+		if (!processed[i]) {
+			continue;
 		}
 
-		// Global golden audit: ensure that any golden PNG present under the
-		// snapshot directories correspond to at least one IVG source included
-		// in this run (by matching the sanitized snapshot base).
-		if (!options.listOnly && options.goldenAudit) {
-			std::set<std::string> processedBases;
-			processedBases.clear();
+		SnapshotRunResult &run = runs[i];
+		totals.accumulate(run);
+		logFileReport(options.ivgPaths[i], run, options);
+		if (run.exitCode != 0 || run.fileFailed) {
+			if (exitCode == 0) {
+				exitCode = (run.exitCode != 0 ? run.exitCode : 1);
+			}
+			if (options.exitOnFirstFailure) {
+				break;
+			}
+		}
+	}
+
+	// Global golden audit: ensure that any golden PNG present under the
+	// snapshot directories correspond to at least one IVG source included
+	// in this run (by matching the sanitized snapshot base).
+	if (!options.listOnly && options.goldenAudit) {
+		std::set<std::string> processedBases;
+		processedBases.clear();
+		for (size_t i = 0; i < options.ivgPaths.size(); ++i) {
+			processedBases.insert(buildSnapshotSourceTag(options.ivgPaths[i], options.rootDir));
+		}
+
+		std::set<NuXFiles::Path> auditRoots;
+		if (!options.snapshotDir.isNull()) {
+			auditRoots.insert(options.snapshotDir);
+		} else {
 			for (size_t i = 0; i < options.ivgPaths.size(); ++i) {
-				processedBases.insert(buildSnapshotSourceTag(options.ivgPaths[i], options.rootDir));
-			}
-
-
-			std::set<NuXFiles::Path> auditRoots;
-			if (!options.snapshotDir.isNull()) {
-				auditRoots.insert(options.snapshotDir);
-			} else {
-				for (size_t i = 0; i < options.ivgPaths.size(); ++i) {
-					const NuXFiles::Path &ivg = options.ivgPaths[i];
-					NuXFiles::Path parent;
-					if (!ivg.isNull() && !ivg.isRoot()) {
-						parent = ivg.getParent();
-					}
-					if (!parent.isNull()) {
-						auditRoots.insert(parent);
-					}
+				const NuXFiles::Path &ivg = options.ivgPaths[i];
+				NuXFiles::Path parent;
+				if (!ivg.isNull() && !ivg.isRoot()) {
+					parent = ivg.getParent();
 				}
-			}
-
-			std::vector<std::string> orphanGoldens;
-			collectOrphanGoldens(processedBases, auditRoots, orphanGoldens);
-
-			if (!orphanGoldens.empty()) {
-				for (size_t i = 0; i < orphanGoldens.size(); ++i) {
-					std::cerr << "orphan golden PNG without IVG in run: "
-					          << orphanGoldens[i] << std::endl;
-				}
-				if (exitCode == 0) {
-					exitCode = 1;
+				if (!parent.isNull()) {
+					auditRoots.insert(parent);
 				}
 			}
 		}
 
-	        logTotalsSummary(totals);
-	        return exitCode;
+		std::vector<std::string> orphanGoldens;
+		collectOrphanGoldens(processedBases, auditRoots, orphanGoldens);
+
+		if (!orphanGoldens.empty()) {
+			for (size_t i = 0; i < orphanGoldens.size(); ++i) {
+				std::cerr << "orphan golden PNG without IVG in run: "
+					<< orphanGoldens[i] << std::endl;
+			}
+			if (exitCode == 0) {
+				exitCode = 1;
+			}
+		}
+	}
+
+	logTotalsSummary(totals);
+	return exitCode;
 }
 
 #endif // !defined(IVG_SNAPSHOT_TESTING)
