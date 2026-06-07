@@ -1863,7 +1863,10 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			}
 			buildPath(impd, svgArgument, definitionArgument, transformArgument, builtPath);
 			args.throwIfAnyUnfetched();
-			if (builtPath.empty() || builtPath.begin()->first != Path::MOVE) {
+			if (builtPath.empty()) {
+				break;
+			}
+			if (builtPath.begin()->first != Path::MOVE) {
 				Interpreter::throwRunTimeError(String("Invalid first path instruction \"") + instruction + "\".");
 			}
 			currentContext->draw(builtPath);

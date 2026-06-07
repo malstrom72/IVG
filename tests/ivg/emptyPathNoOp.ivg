@@ -2,7 +2,7 @@ format IVG-3 requires:IMPD-1
 bounds 0,0,220,120
 
 // Verifies: "An empty PATH or one without drawable segments is a no-op."
-// Insert a PATH with only a move-to (no segments). Then draw two visible squares.
+// Insert empty native and SVG paths. Then draw two visible squares.
 
 WIPE white
 fill none
@@ -17,7 +17,9 @@ PATH [
 
 // Empty PATH: only a move-to (no drawable segments). Make pen none here to avoid any stroke end-cap dot.
 pen none
+PATH []
 PATH [ move-to 100,60 ]
+PATH svg:[]
 
 // Right square (visible)
 pen black width:4
@@ -26,4 +28,3 @@ PATH [
 	line-to 150,30,150,70,110,70
 	close
 ]
-
