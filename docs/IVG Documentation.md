@@ -389,7 +389,7 @@ Demonstration:
     /*
         The shear transformation creates a slant, and the tracking value increases the space
         between letters. IVG in itself has no built-in fonts, but "serif", "sans-serif" and
-        "code" are used when creating this documentation (and they are included in ivgfiddle).
+        "monospace" are used when creating this documentation (and they are included in ivgfiddle).
     */
     font serif size:$size color:hsv(0.47,0.3,0.9) outline:black
         .. transform:[shear -0.3,0] tracking:0.1
@@ -962,6 +962,13 @@ specifying a color is as follows:
               | none
               | ( aqua|black|blue|fuchsia|gray|green|lime|maroon
                   |navy|olive|purple|red|silver|teal|white|yellow )
+
+-   `rgb(...)` and `hsv(...)` color literals must reach IVG as one argument. In ordinary unquoted IVG source, write
+    their components comma-separated with no internal whitespace, such as `hsv(0.6,0.2,1.0)`, not
+    `hsv(0.6, 0.2, 1.0)`, because ImpD splits arguments on whitespace before IVG parses the color. If you want spaces,
+    keep the color literal in one ImpD argument with quotes, brackets, or escaped spaces, for example
+    `pen "hsv(0.6, 0.2, 1.0)"` or `pen [hsv(0.6, 0.2, 1.0)]`. Use `{...}` for per-component expressions, such as
+    `hsv(0.6,{0.2+0.55*$t},1.0)`.
 
 -   The `rgb` alternative specifies the color using the red, green, and blue components. The values for `<r>`, `<g>`,
     and `<b>` are decimal numbers between 0 and 1, representing the intensity of each component. The optional
