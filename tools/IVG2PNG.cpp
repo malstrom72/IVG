@@ -22,11 +22,12 @@
 **/
 
 #include <iostream>
-#include <fstream>
 #include <cmath>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include "externals/NuX/NuXFiles.h"
 #include "src/IVG.h"
 #include "png.h"
 #include "zlib.h"
@@ -53,56 +54,92 @@ static bool isLittleEndian() {
 	}
 }
 
-static bool isAbsolutePath(const std::string& path) {
-	return !path.empty() && (path[0] == '/' || path[0] == '\\' || (path.size() >= 2 && path[1] == ':'));
+static std::wstring pathStringToWide(const std::string& path) {
+	return std::wstring(path.begin(), path.end());
 }
 
-static std::string getDirectory(const std::string& path) {
-	const std::string::size_type slash = path.find_last_of("/\\");
-	return (slash == std::string::npos ? std::string() : path.substr(0, slash));
+static bool isAbsolutePath(const WideString& path) {
+	return !path.empty() && (path[0] == L'/' || path[0] == L'\\' || (path.size() >= 2 && path[1] == L':'));
 }
 
-static std::string joinPath(const std::string& dir, const std::string& filename) {
-	if (dir.empty()) return filename;
-	if (*dir.rbegin() == '/' || *dir.rbegin() == '\\') return dir + filename;
-	return dir + "/" + filename;
+static NuXFiles::Path pathFromUserArgument(const std::string& path) {
+	const WideString wide = pathStringToWide(path);
+	return isAbsolutePath(wide) ? NuXFiles::Path(wide) : NuXFiles::Path::getCurrentDirectoryPath().getRelative(wide);
 }
 
-static bool readTextFile(const std::string& path, String& contents) {
-	std::ifstream fileStream(path.c_str());
-	if (!fileStream.good()) return false;
-	fileStream.exceptions(std::ios_base::badbit);
-	const std::istreambuf_iterator<Char> it(fileStream);
-	const std::istreambuf_iterator<Char> end;
-	contents = std::string(it, end);
-	return true;
+static std::vector<unsigned char> readFileBytes(const NuXFiles::Path& path) {
+	NuXFiles::ReadOnlyFile file(path);
+	const NuXFiles::Int64 size = file.getSize();
+	if (!size.is32Bit() || size.toInt32() < 0) {
+		throw std::runtime_error("File is too large.");
+	}
+	const int byteCount = size.toInt32();
+	std::vector<unsigned char> bytes(static_cast<size_t>(byteCount));
+	if (byteCount > 0) {
+		file.read(NuXFiles::Int64(0), byteCount, &bytes[0]);
+	}
+	return bytes;
+}
+
+static void readTextFile(const NuXFiles::Path& path, String& contents) {
+	const std::vector<unsigned char> bytes = readFileBytes(path);
+	contents.assign(bytes.begin(), bytes.end());
+}
+
+struct PNGReadContext {
+	const unsigned char* bytes;
+	size_t size;
+	size_t offset;
+};
+
+static void PNGAPI myPNGReadFunction(png_structp png_ptr, png_bytep data, png_size_t length) {
+	PNGReadContext* context = static_cast<PNGReadContext*>(png_get_io_ptr(png_ptr));
+	if (context == 0 || length > context->size - context->offset) {
+		png_error(png_ptr, "Read past end of PNG image");
+	}
+	std::memcpy(data, context->bytes + context->offset, length);
+	context->offset += length;
+}
+
+struct PNGWriteContext {
+	NuXFiles::ReadWriteFile* file;
+	NuXFiles::Int64 offset;
+};
+
+static void PNGAPI myPNGWriteFunction(png_structp png_ptr, png_bytep data, png_size_t length) {
+	PNGWriteContext* context = static_cast<PNGWriteContext*>(png_get_io_ptr(png_ptr));
+	if (context == 0 || context->file == 0 || length > static_cast<png_size_t>(0x7FFFFFFF)) {
+		png_error(png_ptr, "Error writing PNG image");
+	}
+	context->file->write(context->offset, static_cast<int>(length), data);
+	context->offset += static_cast<int>(length);
+}
+
+static void PNGAPI myPNGFlushFunction(png_structp png_ptr) {
+	PNGWriteContext* context = static_cast<PNGWriteContext*>(png_get_io_ptr(png_ptr));
+	if (context != 0 && context->file != 0) {
+		context->file->flush();
+	}
 }
 
 class IVGExecutorWithExternalFiles : public IVGExecutor {
 	public:
-		IVGExecutorWithExternalFiles(Canvas& canvas, const std::string& fontPath, const std::string& imagePath
-				, const std::string& includePath, const std::string& inputPath
+		IVGExecutorWithExternalFiles(Canvas& canvas, const NuXFiles::Path& fontPath
+				, const NuXFiles::Path& imagePath, const NuXFiles::Path& includePath
+				, const NuXFiles::Path& inputPath
 				, const AffineTransformation& xform = AffineTransformation())
 				: IVGExecutor(canvas, xform), fontPath(fontPath), imagePath(imagePath), includePath(includePath)
-				, inputDirectory(getDirectory(inputPath)) {
+				, inputDirectory(inputPath.isRoot() ? NuXFiles::Path() : inputPath.getParent()) {
 		}
 		virtual std::vector<const Font*> lookupFonts(IMPD::Interpreter& interpreter, const IMPD::WideString& fontName
 				, const IMPD::UniString& forString) {
 			(void)interpreter;
 			std::pair< FontMap::iterator, bool > insertResult = loadedFonts.insert(std::make_pair(fontName, Font()));
 			if (insertResult.second) {
-				const std::string fontName8Bit(fontName.begin(), fontName.end());
+				const WideString fileName = fontName + L".ivgfont";
 				String fontCode;
-				{
-					std::string path = fontPath.empty() ? (fontName8Bit + ".ivgfont") : (fontPath + "/" + fontName8Bit + ".ivgfont");
-					std::ifstream fileStream(path.c_str());
-					if (!fileStream.good()) {
-						return std::vector<const Font*>();
-					}
-					fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-					const std::istreambuf_iterator<Char> it(fileStream);
-					const std::istreambuf_iterator<Char> end;
-					fontCode = std::string(it, end);
+				if (!loadResource(fileName, fontPath, fontCode)) {
+					return std::vector<const Font*>();
 				}
 				std::wcerr << "parsing external font " << fontName << std::endl;
 				FontParser fontParser(this);
@@ -124,10 +161,13 @@ class IVGExecutorWithExternalFiles : public IVGExecutor {
 			(void)xSizeIsRelative;
 			(void)forYSize;
 			(void)ySizeIsRelative;
-			const std::string imageName8Bit(imageSource.begin(), imageSource.end());
-			std::string path = imagePath.empty() ? imageName8Bit : (imagePath + "/" + imageName8Bit);
-			FILE* f = fopen(path.c_str(), "rb");
-			if (f == 0) return Image();
+			NuXFiles::Path path;
+			if (!resolveResourcePath(imageSource, imagePath, path)) {
+				return Image();
+			}
+			const std::vector<unsigned char> imageBytes = readFileBytes(path);
+			if (imageBytes.empty()) return Image();
+			PNGReadContext readContext = { &imageBytes[0], imageBytes.size(), 0 };
 			png_structp png_ptr = 0;
 			png_infop info_ptr = 0;
 			try {
@@ -135,7 +175,7 @@ class IVGExecutorWithExternalFiles : public IVGExecutor {
 				if (png_ptr == 0) throw std::runtime_error("Error reading PNG image : could not initialize");
 				info_ptr = png_create_info_struct(png_ptr);
 				if (info_ptr == 0) throw std::runtime_error("Error reading PNG image : could not initialize");
-				png_init_io(png_ptr, f);
+				png_set_read_fn(png_ptr, &readContext, myPNGReadFunction);
 				png_set_add_alpha(png_ptr, 0xFF, PNG_FILLER_AFTER);
 				if (isLittleEndian()) {
 					png_set_bgr(png_ptr);
@@ -164,8 +204,6 @@ class IVGExecutorWithExternalFiles : public IVGExecutor {
 					}
 				}
 				png_destroy_read_struct(&png_ptr, &info_ptr, 0);
-				fclose(f);
-				f = 0;
 				Image img;
 				img.raster = &loadedImage;
 				img.xResolution = 1.0;
@@ -173,24 +211,58 @@ class IVGExecutorWithExternalFiles : public IVGExecutor {
 				return img;
 			} catch (...) {
 				png_destroy_read_struct(&png_ptr, &info_ptr, 0);
-				if (f != 0) fclose(f);
 				return Image();
 			}
 		}
 		virtual bool load(IMPD::Interpreter& interpreter, const IMPD::WideString& filename, String& contents) {
 			(void)interpreter;
-			const std::string filename8Bit(filename.begin(), filename.end());
-			if (isAbsolutePath(filename8Bit)) return readTextFile(filename8Bit, contents);
-			if (!inputDirectory.empty() && readTextFile(joinPath(inputDirectory, filename8Bit), contents)) return true;
-			if (!includePath.empty() && readTextFile(joinPath(includePath, filename8Bit), contents)) return true;
-			return readTextFile(filename8Bit, contents);
+			return loadResource(filename, includePath, contents);
 		}
 	protected:
+		bool resolveResourcePath(const WideString& filename, const NuXFiles::Path& assetPath
+				, NuXFiles::Path& resolvedPath) const {
+			if (isAbsolutePath(filename)) {
+				const NuXFiles::Path candidate(filename);
+				if (candidate.isFile()) {
+					resolvedPath = candidate;
+					return true;
+				}
+				return false;
+			}
+			if (!inputDirectory.isNull()) {
+				const NuXFiles::Path candidate = inputDirectory.getRelative(filename);
+				if (candidate.isFile()) {
+					resolvedPath = candidate;
+					return true;
+				}
+			}
+			if (!assetPath.isNull()) {
+				const NuXFiles::Path candidate = assetPath.getRelative(filename);
+				if (candidate.isFile()) {
+					resolvedPath = candidate;
+					return true;
+				}
+			}
+			const NuXFiles::Path candidate = NuXFiles::Path::getCurrentDirectoryPath().getRelative(filename);
+			if (candidate.isFile()) {
+				resolvedPath = candidate;
+				return true;
+			}
+			return false;
+		}
+		bool loadResource(const WideString& filename, const NuXFiles::Path& assetPath, String& contents) const {
+			NuXFiles::Path path;
+			if (!resolveResourcePath(filename, assetPath, path)) {
+				return false;
+			}
+			readTextFile(path, contents);
+			return true;
+		}
 		FontMap loadedFonts;
-		std::string fontPath;
-		std::string imagePath;
-		std::string includePath;
-		std::string inputDirectory;
+		NuXFiles::Path fontPath;
+		NuXFiles::Path imagePath;
+		NuXFiles::Path includePath;
+		NuXFiles::Path inputDirectory;
 		SelfContainedRaster<ARGB32> loadedImage;
 };
 
@@ -245,11 +317,11 @@ int main(int argc, const char* argv[]) {
 		const char* outputPath = 0;
 		ARGB32::Pixel background = 0;
 		bool haveBackground = false;
-		std::string fontPath;
+		NuXFiles::Path fontPath;
 		int compressionLevel = Z_BEST_COMPRESSION;
 		bool fast = false;
-		std::string imagePath;
-		std::string includePath;
+		NuXFiles::Path imagePath;
+		NuXFiles::Path includePath;
 		double scale = 1.0;
 		for (int i = 1; i < argc; ++i) {
 			std::string arg(argv[i]);
@@ -258,13 +330,13 @@ int main(int argc, const char* argv[]) {
 				compressionLevel = Z_BEST_SPEED;
 			} else if (arg == "--fonts") {
 				if (++i == argc) { std::cerr << usage; return 1; }
-				fontPath = argv[i];
+				fontPath = pathFromUserArgument(argv[i]);
 			} else if (arg == "--images") {
 				if (++i == argc) { std::cerr << usage; return 1; }
-				imagePath = argv[i];
+				imagePath = pathFromUserArgument(argv[i]);
 			} else if (arg == "--includes") {
 				if (++i == argc) { std::cerr << usage; return 1; }
-				includePath = argv[i];
+				includePath = pathFromUserArgument(argv[i]);
 			} else if (arg == "--background") {
 				if (++i == argc) { std::cerr << usage; return 1; }
 				background = parseColor(argv[i]);
@@ -290,20 +362,16 @@ int main(int argc, const char* argv[]) {
 			return 1;
 		}
 
+		const NuXFiles::Path inputFilePath(pathFromUserArgument(inputPath));
+		const NuXFiles::Path outputFilePath(pathFromUserArgument(outputPath));
 		std::string ivgContents;
-		{
-			std::ifstream inStream(inputPath);
-			if (!inStream.good()) throw std::runtime_error("Could not open input IVG file");
-			ivgContents.assign(std::istreambuf_iterator<char>(inStream), std::istreambuf_iterator<char>());
-			if (!inStream.good()) throw std::runtime_error("Could not read input IVG file");
-			inStream.close();
-		}
+		readTextFile(inputFilePath, ivgContents);
 		std::cerr << "Read source IVG..." << std::endl;
 
 		SelfContainedARGB32Canvas canvas(scale);
 		{
 			STLMapVariables topVars;
-			IVGExecutorWithExternalFiles ivgExecutor(canvas, fontPath, imagePath, includePath, inputPath
+			IVGExecutorWithExternalFiles ivgExecutor(canvas, fontPath, imagePath, includePath, inputFilePath
 					, AffineTransformation().scale(scale));
 			FormatInfo formatInfo;
 			Interpreter impd(ivgExecutor, topVars, formatInfo);
@@ -347,14 +415,12 @@ int main(int argc, const char* argv[]) {
 		std::cerr << "Converted to non-premultiplied alpha..." << std::endl;
 
 		{
-			FILE* f = NULL;
+			NuXFiles::ReadWriteFile outputFile(outputFilePath, NuXFiles::PathAttributes(), true);
+			PNGWriteContext writeContext = { &outputFile, NuXFiles::Int64(0) };
 			png_structp png_ptr = 0;
 			png_infop info_ptr = 0;
 		
 			try {
-				f = fopen(outputPath, "wb");
-				if (f == NULL) throw std::runtime_error("Could not open output PNG file");
-
 				png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, myPNGErrorFunction, 0);
 				if (png_ptr == 0) throw std::runtime_error("Error writing PNG image : could not initialize");
 
@@ -363,7 +429,7 @@ int main(int argc, const char* argv[]) {
 
 				png_set_compression_level(png_ptr, compressionLevel);
 				if (fast) png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, PNG_FILTER_NONE);
-				png_init_io(png_ptr, f);
+				png_set_write_fn(png_ptr, &writeContext, myPNGWriteFunction, myPNGFlushFunction);
 
 				png_set_IHDR(png_ptr, info_ptr, bounds.width, bounds.height, 8, PNG_COLOR_TYPE_RGB_ALPHA
 						, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
@@ -377,15 +443,10 @@ int main(int argc, const char* argv[]) {
 				png_write_png(png_ptr, info_ptr, (isLittleEndian() ? PNG_TRANSFORM_BGR : PNG_TRANSFORM_SWAP_ALPHA), NULL);
 
 				png_destroy_write_struct(&png_ptr, &info_ptr);
-				fclose(f);
-				f = NULL;
+				outputFile.flush();
 			}
 			catch (...) {
 				png_destroy_write_struct(&png_ptr, &info_ptr);
-				if (f != NULL) {
-					fclose(f);
-					f = NULL;
-				}
 				throw;
 			}
 		}

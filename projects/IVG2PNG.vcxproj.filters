@@ -88,6 +88,12 @@
     <ClCompile Include="..\externals\NuX\NuXPixels.cpp">
       <Filter>nux</Filter>
     </ClCompile>
+    <ClCompile Include="..\externals\NuX\NuXFiles.cpp">
+      <Filter>nux</Filter>
+    </ClCompile>
+    <ClCompile Include="..\externals\NuX\NuXFilesWin32.cpp">
+      <Filter>nux</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\IMPD.h" />
@@ -148,6 +154,12 @@
     </ClInclude>
     <ClInclude Include="..\externals\zlib\zutil.h">
       <Filter>zlib</Filter>
+    </ClInclude>
+    <ClInclude Include="..\externals\NuX\NuXFiles.h">
+      <Filter>nux</Filter>
+    </ClInclude>
+    <ClInclude Include="..\externals\NuX\NuXFilesWin32.h">
+      <Filter>nux</Filter>
     </ClInclude>
     <ClInclude Include="..\externals\NuX\NuXPixels.h">
       <Filter>nux</Filter>

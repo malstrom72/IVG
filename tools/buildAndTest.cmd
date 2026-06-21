@@ -56,6 +56,7 @@ FOR %%f IN (
 CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVG2PNG "-DNUXPIXELS_SIMD=%simd%" ^
 		/I"." /I"externals" /I"externals\libpng" /I"externals\zlib" ^
 		.\tools\IVG2PNG.cpp .\src\IVG.cpp .\src\IMPD.cpp .\externals\NuX\NuXPixels.cpp ^
+		.\externals\NuX\NuXFiles.cpp .\externals\NuX\NuXFilesWin32.cpp ^
 		%CSOURCES% || EXIT /B 1
 
 CALL .\tools\BuildCpp.cmd %1 %2 .\output\InvalidIVGTest ^

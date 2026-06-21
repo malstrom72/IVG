@@ -37,6 +37,8 @@
 		F7E0030917295EA200455EEC /* IMPD.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F7E0030517295EA200455EEC /* IMPD.cpp */; };
 		F7E0030A17295EA200455EEC /* IVG.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F7E0030717295EA200455EEC /* IVG.cpp */; };
 		F7E934E716D411E200C7AEC3 /* IVG2PNG.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F7E934E416D411E200C7AEC3 /* IVG2PNG.cpp */; };
+		F7E9354C16D4126B00C7AEC3 /* NuXFiles.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F7E9354916D4126B00C7AEC3 /* NuXFiles.cpp */; };
+		F7E9354D16D4126B00C7AEC3 /* NuXFilesPosix.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F7E9354A16D4126B00C7AEC3 /* NuXFilesPosix.cpp */; };
 		F7E9355316D4126B00C7AEC3 /* NuXPixels.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F7E9355016D4126B00C7AEC3 /* NuXPixels.cpp */; };
 /* End PBXBuildFile section */
 
@@ -105,6 +107,9 @@
 		F7E0030817295EA200455EEC /* IVG.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = IVG.h; sourceTree = "<group>"; };
 		F7E934E416D411E200C7AEC3 /* IVG2PNG.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = IVG2PNG.cpp; path = ../tools/IVG2PNG.cpp; sourceTree = "<group>"; };
 		F7E934E816D411E200C7AEC3 /* IVG2PNG */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = IVG2PNG; sourceTree = BUILT_PRODUCTS_DIR; };
+		F7E9354916D4126B00C7AEC3 /* NuXFiles.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = NuXFiles.cpp; path = ../externals/NuX/NuXFiles.cpp; sourceTree = "<group>"; };
+		F7E9354A16D4126B00C7AEC3 /* NuXFilesPosix.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = NuXFilesPosix.cpp; path = ../externals/NuX/NuXFilesPosix.cpp; sourceTree = "<group>"; };
+		F7E9354B16D4126B00C7AEC3 /* NuXFiles.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = NuXFiles.h; path = ../externals/NuX/NuXFiles.h; sourceTree = "<group>"; };
 		F7E9355016D4126B00C7AEC3 /* NuXPixels.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = NuXPixels.cpp; path = ../externals/NuX/NuXPixels.cpp; sourceTree = "<group>"; };
 		F7E9355116D4126B00C7AEC3 /* NuXPixels.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = NuXPixels.h; path = ../externals/NuX/NuXPixels.h; sourceTree = "<group>"; };
 		F7E9355216D4126B00C7AEC3 /* NuXPixelsImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = NuXPixelsImpl.h; path = ../externals/NuX/NuXPixelsImpl.h; sourceTree = "<group>"; };
@@ -128,6 +133,9 @@
 				F745AF532B0CED3A002A2B09 /* libpng */,
 				F7E0030417295EA200455EEC /* src */,
 				F7E934E416D411E200C7AEC3 /* IVG2PNG.cpp */,
+				F7E9354916D4126B00C7AEC3 /* NuXFiles.cpp */,
+				F7E9354A16D4126B00C7AEC3 /* NuXFilesPosix.cpp */,
+				F7E9354B16D4126B00C7AEC3 /* NuXFiles.h */,
 				F7E9355016D4126B00C7AEC3 /* NuXPixels.cpp */,
 				F7E9355116D4126B00C7AEC3 /* NuXPixels.h */,
 				F7E9355216D4126B00C7AEC3 /* NuXPixelsImpl.h */,
@@ -278,6 +286,7 @@
 				F745AF9E2B0CEDB1002A2B09 /* uncompr.c in Sources */,
 				F745AF7B2B0CED3A002A2B09 /* pngpread.c in Sources */,
 				F745AF7C2B0CED3A002A2B09 /* pngread.c in Sources */,
+				F7E9354D16D4126B00C7AEC3 /* NuXFilesPosix.cpp in Sources */,
 				F745AFA32B0CEDB1002A2B09 /* inffast.c in Sources */,
 				F745AF7F2B0CED3A002A2B09 /* png.c in Sources */,
 				F745AF822B0CED3A002A2B09 /* pngset.c in Sources */,
@@ -298,6 +307,7 @@
 				F745AFA22B0CEDB1002A2B09 /* infback.c in Sources */,
 				F745AFA42B0CEDB1002A2B09 /* inftrees.c in Sources */,
 				F7E9355316D4126B00C7AEC3 /* NuXPixels.cpp in Sources */,
+				F7E9354C16D4126B00C7AEC3 /* NuXFiles.cpp in Sources */,
 				F745AF7D2B0CED3A002A2B09 /* pngmem.c in Sources */,
 				F7E0030917295EA200455EEC /* IMPD.cpp in Sources */,
 				F745AF812B0CED3A002A2B09 /* pngrutil.c in Sources */,

@@ -27,6 +27,8 @@
     <ClCompile Include="..\externals\libpng\pngwrite.c" />
     <ClCompile Include="..\externals\libpng\pngwtran.c" />
     <ClCompile Include="..\externals\libpng\pngwutil.c" />
+    <ClCompile Include="..\externals\NuX\NuXFiles.cpp" />
+    <ClCompile Include="..\externals\NuX\NuXFilesWin32.cpp" />
     <ClCompile Include="..\externals\NuX\NuXPixels.cpp" />
     <ClCompile Include="..\externals\zlib\adler32.c" />
     <ClCompile Include="..\externals\zlib\compress.c" />
@@ -51,6 +53,8 @@
     <ClInclude Include="..\externals\libpng\pnglibconf.h" />
     <ClInclude Include="..\externals\libpng\pngpriv.h" />
     <ClInclude Include="..\externals\libpng\pngstruct.h" />
+    <ClInclude Include="..\externals\NuX\NuXFiles.h" />
+    <ClInclude Include="..\externals\NuX\NuXFilesWin32.h" />
     <ClInclude Include="..\externals\NuX\NuXPixels.h" />
     <ClInclude Include="..\externals\NuX\NuXPixelsImpl.h" />
     <ClInclude Include="..\externals\zlib\crc32.h" />
