@@ -53,11 +53,38 @@ static bool isLittleEndian() {
 	}
 }
 
+static bool isAbsolutePath(const std::string& path) {
+	return !path.empty() && (path[0] == '/' || path[0] == '\\' || (path.size() >= 2 && path[1] == ':'));
+}
+
+static std::string getDirectory(const std::string& path) {
+	const std::string::size_type slash = path.find_last_of("/\\");
+	return (slash == std::string::npos ? std::string() : path.substr(0, slash));
+}
+
+static std::string joinPath(const std::string& dir, const std::string& filename) {
+	if (dir.empty()) return filename;
+	if (*dir.rbegin() == '/' || *dir.rbegin() == '\\') return dir + filename;
+	return dir + "/" + filename;
+}
+
+static bool readTextFile(const std::string& path, String& contents) {
+	std::ifstream fileStream(path.c_str());
+	if (!fileStream.good()) return false;
+	fileStream.exceptions(std::ios_base::badbit);
+	const std::istreambuf_iterator<Char> it(fileStream);
+	const std::istreambuf_iterator<Char> end;
+	contents = std::string(it, end);
+	return true;
+}
+
 class IVGExecutorWithExternalFiles : public IVGExecutor {
 	public:
 		IVGExecutorWithExternalFiles(Canvas& canvas, const std::string& fontPath, const std::string& imagePath
+				, const std::string& includePath, const std::string& inputPath
 				, const AffineTransformation& xform = AffineTransformation())
-				: IVGExecutor(canvas, xform), fontPath(fontPath), imagePath(imagePath) {
+				: IVGExecutor(canvas, xform), fontPath(fontPath), imagePath(imagePath), includePath(includePath)
+				, inputDirectory(getDirectory(inputPath)) {
 		}
 		virtual std::vector<const Font*> lookupFonts(IMPD::Interpreter& interpreter, const IMPD::WideString& fontName
 				, const IMPD::UniString& forString) {
@@ -78,7 +105,7 @@ class IVGExecutorWithExternalFiles : public IVGExecutor {
 					fontCode = std::string(it, end);
 				}
 				std::wcerr << "parsing external font " << fontName << std::endl;
-				FontParser fontParser;
+				FontParser fontParser(this);
 				STLMapVariables vars;
 			    FormatInfo formatInfo;
 				Interpreter impd(fontParser, vars, formatInfo);
@@ -150,10 +177,20 @@ class IVGExecutorWithExternalFiles : public IVGExecutor {
 				return Image();
 			}
 		}
+		virtual bool load(IMPD::Interpreter& interpreter, const IMPD::WideString& filename, String& contents) {
+			(void)interpreter;
+			const std::string filename8Bit(filename.begin(), filename.end());
+			if (isAbsolutePath(filename8Bit)) return readTextFile(filename8Bit, contents);
+			if (!inputDirectory.empty() && readTextFile(joinPath(inputDirectory, filename8Bit), contents)) return true;
+			if (!includePath.empty() && readTextFile(joinPath(includePath, filename8Bit), contents)) return true;
+			return readTextFile(filename8Bit, contents);
+		}
 	protected:
 		FontMap loadedFonts;
 		std::string fontPath;
 		std::string imagePath;
+		std::string includePath;
+		std::string inputDirectory;
 		SelfContainedRaster<ARGB32> loadedImage;
 };
 
@@ -202,7 +239,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 #ifndef LIBFUZZ
 int main(int argc, const char* argv[]) {
 	try {
-		const char* usage = "Usage: IVG2PNG [--fonts <dir>] [--images <dir>] [--background <color>] [--scale <factor>] <input.ivg> <output.png>\n";
+		const char* usage = "Usage: IVG2PNG [--fonts <dir>] [--images <dir>] [--includes <dir>]"
+				" [--background <color>] [--scale <factor>] <input.ivg> <output.png>\n";
 		const char* inputPath = 0;
 		const char* outputPath = 0;
 		ARGB32::Pixel background = 0;
@@ -211,6 +249,7 @@ int main(int argc, const char* argv[]) {
 		int compressionLevel = Z_BEST_COMPRESSION;
 		bool fast = false;
 		std::string imagePath;
+		std::string includePath;
 		double scale = 1.0;
 		for (int i = 1; i < argc; ++i) {
 			std::string arg(argv[i]);
@@ -223,6 +262,9 @@ int main(int argc, const char* argv[]) {
 			} else if (arg == "--images") {
 				if (++i == argc) { std::cerr << usage; return 1; }
 				imagePath = argv[i];
+			} else if (arg == "--includes") {
+				if (++i == argc) { std::cerr << usage; return 1; }
+				includePath = argv[i];
 			} else if (arg == "--background") {
 				if (++i == argc) { std::cerr << usage; return 1; }
 				background = parseColor(argv[i]);
@@ -261,7 +303,8 @@ int main(int argc, const char* argv[]) {
 		SelfContainedARGB32Canvas canvas(scale);
 		{
 			STLMapVariables topVars;
-			IVGExecutorWithExternalFiles ivgExecutor(canvas, fontPath, imagePath, AffineTransformation().scale(scale));
+			IVGExecutorWithExternalFiles ivgExecutor(canvas, fontPath, imagePath, includePath, inputPath
+					, AffineTransformation().scale(scale));
 			FormatInfo formatInfo;
 			Interpreter impd(ivgExecutor, topVars, formatInfo);
 			impd.run(ivgContents);
