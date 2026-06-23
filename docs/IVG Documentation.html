@@ -1440,8 +1440,8 @@ and <a href="#font"><code>font</code></a>. The syntax for specifying a
 color is as follows:</p>
 <pre><code>&lt;color&gt; = rgb(&lt;r&gt;,&lt;g&gt;,&lt;b&gt;[,&lt;opacity&gt;])
         | hsv(&lt;h&gt;,&lt;s&gt;,&lt;v&gt;[,&lt;opacity&gt;])
-        | #&lt;hex&gt;&lt;hex&gt;&lt;hex&gt;
-        | #&lt;hex&gt;&lt;hex&gt;&lt;hex&gt;&lt;hex&gt;
+        | #RRGGBB
+        | #AARRGGBB
         | none
         | ( aqua|black|blue|fuchsia|gray|green|lime|maroon
             |navy|olive|purple|red|silver|teal|white|yellow )</code></pre>
@@ -1471,18 +1471,19 @@ hue, saturation, and value components. The values for
 the intensity of each component. The optional
 <code>&lt;opacity&gt;</code> value is also a decimal number between 0
 and 1, where 0 is full transparency and 1 is full opacity</p></li>
-<li><p>The <code>#&lt;hex&gt;&lt;hex&gt;&lt;hex&gt;</code> alternative
-specifies the color using a hexadecimal RGB value, where each color
-component is between <code>#00</code> and <code>#FF</code>. This is a
-common way to specify colors on the web.</p></li>
-<li><p>The <code>#&lt;hex&gt;&lt;hex&gt;&lt;hex&gt;&lt;hex&gt;</code>
-alternative specifies the color using a hexadecimal AARRGGBB value where
-the RGB values must be pre-multiplied with the alpha value:
+<li><p>The <code>#RRGGBB</code> alternative specifies the color using a
+six-digit hexadecimal RGB value, where each color component is between
+<code>#00</code> and <code>#FF</code>.</p></li>
+<li><p>The <code>#AARRGGBB</code> alternative specifies the color using
+an eight-digit hexadecimal AARRGGBB value where the RGB values must be
+pre-multiplied with the alpha value:
 <code>rgb' = round(rgb * alpha / 255)</code>. For example, the color
 yellow <code>#FFFF00</code> with a transparency of 0.75 (decimal
 equivalent of <code>#C0</code>) becomes <code>#C0C0C000</code>. A color
 <code>#4080C0</code> at 50% (<code>#80</code>) becomes
 <code>#80204060</code>.</p></li>
+<li><p>CSS-style shorthand forms such as <code>#RGB</code> and
+<code>#RGBA</code> are not supported.</p></li>
 <li><p><code>none</code> is a special color, meaning that no color will
 be used; it will be invisible.</p></li>
 <li><p>The last alternative specifies the color using one of the

@@ -1248,8 +1248,8 @@ specifying a color is as follows:
 
     <color> = rgb(<r>,<g>,<b>[,<opacity>])
             | hsv(<h>,<s>,<v>[,<opacity>])
-            | #<hex><hex><hex>
-            | #<hex><hex><hex><hex>
+            | #RRGGBB
+            | #AARRGGBB
             | none
             | ( aqua|black|blue|fuchsia|gray|green|lime|maroon
                 |navy|olive|purple|red|silver|teal|white|yellow )
@@ -1269,13 +1269,15 @@ specifying a color is as follows:
     `<s>`, and `<v>` are decimal numbers between 0 and 1, representing the intensity of each component. The optional
     `<opacity>` value is also a decimal number between 0 and 1, where 0 is full transparency and 1 is full opacity
 
--   The `#<hex><hex><hex>` alternative specifies the color using a hexadecimal RGB value, where each color component is
-    between `#00` and `#FF`. This is a common way to specify colors on the web.
+-   The `#RRGGBB` alternative specifies the color using a six-digit hexadecimal RGB value, where each color component is
+    between `#00` and `#FF`.
 
--   The `#<hex><hex><hex><hex>` alternative specifies the color using a hexadecimal AARRGGBB value where the RGB values
+-   The `#AARRGGBB` alternative specifies the color using an eight-digit hexadecimal AARRGGBB value where the RGB values
     must be pre-multiplied with the alpha value: `rgb' = round(rgb * alpha / 255)`. For example, the color yellow
     `#FFFF00` with a transparency of 0.75 (decimal equivalent of `#C0`) becomes `#C0C0C000`. A color `#4080C0` at
     50% (`#80`) becomes `#80204060`.
+
+-   CSS-style shorthand forms such as `#RGB` and `#RGBA` are not supported.
 
 -   `none` is a special color, meaning that no color will be used; it will be invisible.
 
