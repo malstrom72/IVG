@@ -179,6 +179,94 @@ Explicitly *not* proposed: an abstract multi-backend device interface threaded t
 `IVGExecutor`. Backends-as-virtual-dispatch is the unmaintainable version of this project; the
 flat format is the backend interface.
 
+## Feasibility investigation (current code)
+
+A close reading of the render pipeline (2026-07) to answer: *how hard is flattening, given that
+IVG calls back into ImpD to interpret stored blocks?* Verdict up front: **no fundamental
+blockers.** The nested-interpretation concern dissolves on inspection; the real work is
+creating a draw-op seam that does not exist yet, plus three known feature areas (curves,
+define-time rasterization, masks).
+
+### Why nested interpretation is NOT the problem
+
+Everything in IVG is **eagerly evaluated during the single interpretation pass** — the same
+pass the flattener performs. There is no lazy re-interpretation of stored source after the
+fact:
+
+- ImpD control flow (`if`, `repeat`, `for`, `call`, `include`) runs nested blocks against the
+  *same* executor and current `Context` (`IMPD.cpp` ~1423–1511), so a recorder automatically
+  sees the fully unrolled draw stream.
+- All nested-interpretation sites bottom out in ordinary draw/state calls on a `Context`:
+  transform blocks (`parseTransformationBlock`, `IVG.cpp:903`), path blocks
+  (`PathInstructionExecutor`, `IVG.cpp:1438`, may recurse via the `path` sub-instruction),
+  font documents (`FontParser`, fresh interpreter, `IVG.cpp:1332`), and the four
+  nested-content sites below. All flow through one choke point,
+  `IVGExecutor::runInNewContext` (`IVG.cpp:1238`), or construct a fresh `Interpreter` locally.
+- **No instruction stores source for later re-interpretation.** `define path` stores a built
+  `NuXPixels::Path` (`IVG.cpp:1373`); `define image` stores a pre-rendered raster
+  (`IVG.cpp:1358`); `define pattern` stores a pre-rendered tile (`IVG.cpp:1387`). The one
+  string kept around is glyph outlines (`Font::Glyph::svgPath`, `IVG.cpp:2353`) — and that is
+  SVG path data, not ImpD, parsed by a standalone mini-parser (`buildPathFromSVG`).
+- One coupling to know about: `text` writes the advanced caret back into an ImpD variable
+  (`IVG.cpp:2098`), so drawing feeds interpretation. Harmless for a flattener (it runs the
+  real interpreter), fatal for any hypothetical static translator — further confirmation that
+  execute-and-record is the only correct architecture.
+
+### The actual gaps, ranked
+
+1. **No draw-op seam exists.** `Context` is a concrete class; `fill`/`stroke`/`draw`
+   (`IVG.cpp:1105/1080/1121`) are non-virtual, and by the time `Canvas::blendWith*` is called
+   the path/paint information has been erased into lazy pixel-renderer pipelines. The seam
+   must be introduced. Good news: geometry arrives at `Context::fill`/`stroke` in **user
+   space** (CTM applied inside, `IVG.cpp:1096/1112`) and stroke/dash parameters are still
+   symbolic at entry — so the hook point is exactly right once it exists. Full set of
+   interception sites: `Context::fill`/`stroke`/`draw`, the `wipe` direct paint
+   (`IVG.cpp:1907`), and the `image` blend (`IVG.cpp:1646`) — about eight surgical changes.
+2. **Define-time rasterization.** `define image` renders its block to an ARGB32 raster at
+   define time (`IVG.cpp:1352–1358`); `define pattern` and inline `pattern:[...]` render to a
+   tile raster (`IVG.cpp:1385`, `parsePaintOfType`); `mask [...]` renders to a `Mask8` RLE
+   raster (`IVG.cpp:1993–2005`). The vector content is discarded. Fix: the executor chooses
+   which `Canvas` to construct at these four sites — route them through a factory (raster
+   device returns today's `MaskMakerCanvas`/`PatternPainter`/`SelfContainedARGB32Canvas`;
+   recording device returns recorders that capture the sub-scene as vectors). The nesting
+   machinery itself (`runInNewContext`, child `Context` state copy) is canvas-agnostic and
+   needs no change.
+3. **Curve flattening** (already known, confirmed wider than paths): `NuXPixels::Path` is
+   `MOVE/LINE/CLOSE` only; arcs flatten directly to line segments (`arcSweep`), so the
+   curve-preserving path type needs arc→bézier conversion. Touches all shape builders,
+   `buildPathFromSVG`, `PathInstructionExecutor`, glyph parsing, and `define path` storage.
+   Wide but mechanical.
+4. **Mask model.** Masks are raster *state* with algebra — new mask multiplies into current
+   (`IVG.cpp:2015`), `inverse`/`inverted` variants (`IVG.cpp:2006–2013`), `mask invert`
+   (`IVG.cpp:1965`), `mask reset` (`IVG.cpp:1975`) — applied per-draw via `CombinedMask`, not
+   scoped to groups. Recording is easy (capture each mask block's vector content plus the
+   algebra op as a state event); the design work is the flat representation (mask blocks +
+   algebra ops, compiled by emitters into nested group masks; inversion in SVG = luminance
+   trick: white canvas rect with content in black). Note mask content uses grayscale paints
+   (`Mask8` painters — gradients/patterns are legal inside masks).
+5. **Paint is fully symbolic at parse time** — no gap, just confirmation: `GradientSpec`
+   (`IVG.cpp:917`) holds type, coords (radial = center + rx/ry, elliptical, *no focal point*,
+   stops reversed internally), stop list; `parsePaint` is already virtual per-`Canvas`, so a
+   recording canvas captures specs instead of building pixel painters. The `relative` +
+   paint-`transform` math (e.g. `PatternPainter::doPaint`, `IVG.h:566–587`) must be either
+   replicated by emitters or baked per-use by the flattener (source bounds are known at
+   record time).
+6. **External resources via host hooks.** `loadImage` and `lookupFonts` (`IVG.cpp:1282/1290`)
+   are virtuals the host overrides. External fonts are unproblematic (`Font` objects carry
+   glyph SVG strings — serializable back into `define font`). External images are **rasters
+   only** — the flat format needs a raster story (see open questions).
+
+### Revised difficulty estimate
+
+| Work item | Size | Nature |
+|---|---|---|
+| Draw-op seam (device interface or virtual `Context`) | ~8 sites | Careful but small; goldens must not move |
+| Canvas factory for nested content (mask/pattern/image) | 4 sites | Small |
+| Curve-preserving path type + arc→bézier | Wide | Mechanical; largest diff |
+| Recording canvases + flat serializer | New code | Isolated, testable via render-and-diff |
+| Mask/pattern flat representation | Design | The genuine thinking work |
+| External-image embedding | Design | Open question below |
+
 ## Emitters
 
 Each emitter is one file, plain JS, dependency-free, NuXJS-compatible (conservative JS level,
@@ -240,6 +328,12 @@ no Node APIs in core logic, string in → string out, I/O at the edges). Suggest
 7. **Miter-limit and dash-phase dialects.** Definitions differ slightly across targets
    (e.g. miter limit conventions); the flat spec should define IVG's semantics precisely and
    emitters compensate.
+8. **External raster images in flat files.** Host-loaded images (`loadImage`) are rasters with
+   no vector source. Options: embed as base64 PNG in a new `define image` form, keep the
+   name reference and require a sidecar, or exclude external images from the flat profile.
+9. **Grayscale paints inside masks.** Mask content may use gradients/patterns as coverage
+   (`Mask8` painters). The flat mask representation and each emitter's mask mapping must
+   support this (SVG luminance masks do naturally).
 
 ## Suggested work order
 
