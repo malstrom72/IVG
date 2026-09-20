@@ -1,0 +1,29 @@
+// Regression test: a linear gradient whose transformed axis has no direction must paint the first stop
+// solid instead of feeding a NaN into LinearAscend's double-to-int conversion. Covers a zero-length
+// axis, a relative gradient on a zero-height path, and an axis collapsed by a singular transform.
+FORMAT IVG-3 requires:IMPD-1
+BOUNDS 0,0,80,20
+
+// zero-length axis -- must render solid red, not garbage
+pen none
+fill gradient:[linear 10,10,10,10 from:red to:blue]
+rect 0,0,20,20
+
+// relative gradient whose perpendicular is collapsed by a zero-height path -- must render solid lime
+pen gradient:[linear 0,0,0,1 from:lime to:blue] relative:yes width:12
+fill none
+line 26,10,34,10
+
+// axis collapsed by a singular transform; the shape collapses with it, so this draws nothing,
+// but it still exercises the guard
+context [
+	pen none
+	scale 0,1
+	fill gradient:[linear 0,0,20,0 from:yellow to:blue]
+	rect 40,0,20,20
+]
+
+// a working gradient, for contrast
+pen none
+fill gradient:[linear 60,0,80,0 from:red to:blue]
+rect 60,0,20,20

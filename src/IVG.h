@@ -489,9 +489,22 @@ template<class PIXEL_TYPE> class LinearGradientPainter : public GradientPainter<
 					NuXPixels::Vertex xfEnd90 = xf.transform(Vertex(start.x - end.y + start.y, start.y + end.x - start.x));
 					double dx = xfEnd90.x - xfStart.x;
 					double dy = xfEnd90.y - xfStart.y;
-					double l = fabs((xfEnd.y - xfStart.y) * dx - (xfEnd.x - xfStart.x) * dy) / (dx * dx + dy * dy);
-					xfEnd = NuXPixels::Vertex(xfStart.x + dy * l, xfStart.y - dx * l);
-					
+					const double dSquared = dx * dx + dy * dy;
+					if (dSquared != 0) {
+						double l = fabs((xfEnd.y - xfStart.y) * dx - (xfEnd.x - xfStart.x) * dy) / dSquared;
+						xfEnd = NuXPixels::Vertex(xfStart.x + dy * l, xfStart.y - dx * l);
+					}
+
+					// A zero-length axis, or a transformation that collapses it, leaves no direction to
+					// interpolate along. `LinearAscend` guards an exactly zero length but not a NaN, which it
+					// would convert to `int`, so paint the first stop solid instead -- as `RadialGradientPainter`
+					// does for a degenerate radius. (`v != v` is a NaN test; `std::isfinite` needs C++11.)
+					if (dSquared == 0 || xfEnd.x != xfEnd.x || xfEnd.y != xfEnd.y) {
+						inContext.accessCanvas().blend(NuXPixels::Solid<PIXEL_TYPE>
+								(PIXEL_TYPE::multiply(this->gradient[0], withPaint.opacity)) * mask);
+						return;
+					}
+
 					inContext.accessCanvas().blend(this->gradient[NuXPixels::LinearAscend(xfStart.x, xfStart.y, xfEnd.x, xfEnd.y)]
 							* static_cast<const NuXPixels::Renderer<NuXPixels::Mask8>&>(FadedMask(mask, withPaint.opacity)));
 				}
