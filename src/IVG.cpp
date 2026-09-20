@@ -68,6 +68,28 @@ void checkBounds(const IntRect& bounds) {
 	}
 }
 
+/* Applies the `checkBounds` limits while the rectangle is still `double`. Rescaling can push a perfectly
+   valid rectangle far outside the `int` range, and converting an out-of-range `double` to `int` is
+   undefined, so the range has to be rejected before the conversion rather than after it. */
+static void checkBoundsBeforeScaling(double left, double top, double width, double height) {
+	if (left < -32768.0 || left > 32767.0) {
+		Interpreter::throwRunTimeError(String("Rescaled \"bounds\" left \"")
+				+ Interpreter::toString(left) + "\" out of range [-32768..32767].");
+	}
+	if (top < -32768.0 || top > 32767.0) {
+		Interpreter::throwRunTimeError(String("Rescaled \"bounds\" top \"")
+				+ Interpreter::toString(top) + "\" out of range [-32768..32767].");
+	}
+	if (width < 1.0 || width > 32767.0) {
+		Interpreter::throwRunTimeError(String("Rescaled \"bounds\" width \"")
+				+ Interpreter::toString(width) + "\" out of range [1..32767].");
+	}
+	if (height < 1.0 || height > 32767.0) {
+		Interpreter::throwRunTimeError(String("Rescaled \"bounds\" height \"")
+				+ Interpreter::toString(height) + "\" out of range [1..32767].");
+	}
+}
+
 static StringIt eatSpace(StringIt p, const StringIt& e) {
 	while (p != e && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')) ++p;
 	return p;
@@ -1150,7 +1172,14 @@ int Context::calcPatternScale() const {
 	const AffineTransformation& xf = state.transformation;
 	const double scale = sqrt(max(square(xf.matrix[0][0]) + square(xf.matrix[1][0])
 			, square(xf.matrix[0][1]) + square(xf.matrix[1][1])));
-	return static_cast<int>(max(ceil(scale * state.options.patternResolution - 0.0001), 1.0));
+	const double scaled = ceil(scale * state.options.patternResolution - 0.0001);
+	// A pattern raster is its bounds times this scale, and `checkBounds` caps that at the maximum canvas
+	// dimension, so a larger factor can never produce a usable pattern. Clamping keeps the conversion to
+	// `int` defined and lets `defineBounds` report the real range error instead of a wrapped one.
+	if (!isfinite(scaled) || scaled > 32767.0) {
+		return 32767;
+	}
+	return static_cast<int>(max(scaled, 1.0));
 }
 
 enum IVGInstruction {
@@ -1346,8 +1375,11 @@ void IVGExecutor::executeDefine(Interpreter& impd, const String& instruction, co
 		const String& definition = args.fetchRequired(2, false);
 		const String* s = args.fetchOptional("resolution");
 		const double resolution = (s != 0 ? impd.toDouble(*s) : 1.0);
-		if (resolution < 0.0001) {
-			impd.throwRunTimeError(String("\"resolution\" value \"") + impd.toString(resolution) + "\" out of range [0.0001..infinity).");
+		// The rescaled bounds must still fit `checkBounds`, so a factor above the maximum canvas dimension
+		// can never produce a usable image and would only overflow the conversion to `int`.
+		if (resolution < 0.0001 || resolution > 32767.0) {
+			impd.throwRunTimeError(String("\"resolution\" value \"") + impd.toString(resolution)
+					+ "\" out of range [0.0001..32767].");
 		}
 		args.throwIfAnyUnfetched();
 
@@ -1534,11 +1566,17 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	}
 	if ((s = args.fetchOptional("clip")) != 0) {
 		parseNumberList(impd, *s, numbers, 4, 4);
+		for (int i = 0; i < 4; ++i) {
+			if (fabs(numbers[i]) > COORDINATE_LIMIT) {
+				impd.throwRunTimeError(String("Clip value \"") + impd.toString(numbers[i])
+						+ "\" out of range [-1000000..1000000].");
+			}
+		}
 		if (numbers[2] < 0.0) {
 			impd.throwRunTimeError(String("Negative clip width \"") + impd.toString(numbers[2]) + "\".");
 		}
 		if (numbers[3] < 0.0) {
-			impd.throwRunTimeError(String("Negative clip height \"") + impd.toString(numbers[2]) + "\".");
+			impd.throwRunTimeError(String("Negative clip height \"") + impd.toString(numbers[3]) + "\".");
 		}
 		sourceRectangle = IntRect(static_cast<int>(floor(numbers[0]))
 				, static_cast<int>(floor(numbers[1]))
@@ -2167,8 +2205,12 @@ void SelfContainedARGB32Canvas::checkBoundsDeclared() const {
 void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
 	IntRect scaledBounds = newBounds;
 	if (rescaleBounds != 1.0) {
-		scaledBounds = expandToIntRect(Rect<double>(newBounds.left * rescaleBounds
-				, newBounds.top * rescaleBounds, newBounds.width * rescaleBounds, newBounds.height * rescaleBounds));
+		const double left = newBounds.left * rescaleBounds;
+		const double top = newBounds.top * rescaleBounds;
+		const double width = newBounds.width * rescaleBounds;
+		const double height = newBounds.height * rescaleBounds;
+		checkBoundsBeforeScaling(left, top, width, height);
+		scaledBounds = expandToIntRect(Rect<double>(left, top, width, height));
 	}
         if (raster.get() != 0) Interpreter::throwRunTimeError("Multiple \"bounds\" declarations.");
 	checkBounds(scaledBounds);
