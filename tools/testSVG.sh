@@ -16,6 +16,7 @@ echo Using temporary dir: "$TMP"
 fail=0
 set +e
 for NAME in circle rect ellipse line path group color-names stroke-fill viewbox multi-path polygon polyline units \
+				viewbox-offset \
 				percentage transform skew matrix gradient gradient-stops gradient-radial gradient-transform defs-use opacity \
 				text text-stroke resvg_tests_shapes_rect_em-values resvg_tests_shapes_rect_vw-and-vh-values \
 				resvg_tests_painting_color_inherit resvg_tests_masking_clipPath_clipPathUnits=objectBoundingBox \

@@ -145,9 +145,8 @@ function parseRgbComponent(str) {
 	let num = parseFloat(str);
 	if (percentage) {
 		num = (255 * num) / 100;
-	} else if (num <= 1) {
-		num *= 255;
 	}
+	// CSS integer rgb() components are always on the 0..255 scale; only the `%` form is fractional.
 	return num;
 }
 
@@ -467,7 +466,7 @@ function resetState() {
 
 function convertUnits(value, axis) {
 	const str = value.trim().toLowerCase();
-	const match = str.match(/^([+-]?\d*\.?\d+)([a-z%]*)$/);
+	const match = str.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)([a-z%]*)$/);
 	if (!match) {
 		throw new Error("Invalid unit: " + value);
 	}
@@ -588,7 +587,7 @@ function outputMarker(ref, x, y, angle, kind) {
 		output(`scale ${scaleX},${scaleY}`);
 	}
 	if (refX || refY) {
-		output(`offset -${refX},-${refY}`);
+		output(`offset ${formatFloat(-refX)},${formatFloat(-refY)}`);
 	}
 	for (const item of marker.contents || []) {
 		if (item.element) convertSVGElement(item.element);
@@ -1267,10 +1266,12 @@ converters.svg = function (element, attribs) {
 	}
 	if ("viewBox" in attribs) {
 		const vb = parseRect(attribs.viewBox);
-		if (vb.left !== 0 || vb.top !== 0) {
-			output(`offset -${vb.left},-${vb.top}`);
-		}
+		// IVG applies the earlier-issued transform last, so `scale` must be emitted before `offset`
+		// for the viewBox origin to be scaled with the rest of the drawing (SVG maps p to s * (p - min)).
 		output(`scale ${Math.min(width / vb.width, height / vb.height)}`);
+		if (vb.left !== 0 || vb.top !== 0) {
+			output(`offset ${formatFloat(-vb.left)},${formatFloat(-vb.top)}`);
+		}
 	}
 	convertSVGContainer(element);
 	defaultFontFamily = oldFamily;
@@ -1413,10 +1414,13 @@ converters.polygon = function (element, attribs) {
 	}
 	const ctx = createContextMaybe(attribs, bbox);
 	if (pts.length < 2) {
-			warning("Not enough points in 'polygon'.");
+		warning("Not enough points in 'polygon'.");
+	} else if (pts.length === 2) {
+		// IVG's POLYGON requires at least three points; a degenerate two-point polygon becomes a closed path.
+		output(`PATH svg:[M${pts[0][0]},${pts[0][1]}L${pts[1][0]},${pts[1][1]}Z]`);
 	} else {
-			const s = pts.map((p) => `${p[0]},${p[1]}`).join(",");
-			output(`POLYGON ${s}`);
+		const s = pts.map((p) => `${p[0]},${p[1]}`).join(",");
+		output(`POLYGON ${s}`);
 	}
 	processMarkers(attribs, pts);
 	if (ctx.needs) output("]");
@@ -1446,10 +1450,10 @@ converters.polyline = function (element, attribs) {
 	}
 	const ctx = createContextMaybe(attribs, bbox);
 	if (pts.length < 2) {
-			warning("Not enough points in 'polyline'.");
+		warning("Not enough points in 'polyline'.");
 	} else {
-			const s = pts.map((p) => `${p[0]},${p[1]}`).join(",");
-			output(`LINE ${s}`);
+		// IVG's LINE only strokes, but SVG fills a polyline as if it were closed, so emit an open path instead.
+		output(`PATH svg:[M${pts.map((p) => `${p[0]},${p[1]}`).join("L")}]`);
 	}
 	processMarkers(attribs, pts);
 	if (ctx.needs) output("]");
@@ -1610,7 +1614,7 @@ converters.text = function (element, attribs) {
 			if (seg.attribs.stroke) {
 				let outline = seg.attribs.stroke;
 				let opts = "";
-				if (seg.attribs.strokeWidth) {
+				if (seg.attribs.strokeWidth !== undefined) {
 					opts += ` width:${seg.attribs.strokeWidth}`;
 				}
 				if (seg.attribs.strokeJoin) {
@@ -1621,11 +1625,11 @@ converters.text = function (element, attribs) {
 				if (seg.attribs.strokeCap) {
 					opts += ` caps:${seg.attribs.strokeCap}`;
 				}
-				if (seg.attribs.strokeOpacity && seg.attribs.strokeOpacity !== 1) {
+				if (seg.attribs.strokeOpacity !== undefined && seg.attribs.strokeOpacity !== 1) {
 					opts += ` opacity:${seg.attribs.strokeOpacity}`;
 				}
 				if (seg.attribs.strokeMiter) {
-					opts += ` miter:${seg.attribs.strokeMiter}`;
+					opts += ` miter-limit:${seg.attribs.strokeMiter}`;
 				}
 				if (seg.attribs.strokeDash) {
 					if (seg.attribs.strokeDash === "none") {
@@ -1942,6 +1946,7 @@ function parseXML(src) {
 		if (!selfClose) {
 			while (true) {
 				skipWS();
+				if (pos >= len) throw new Error("Malformed XML: unterminated <" + name + ">");
 				if (src.startsWith("</" + name, pos)) {
 					pos += name.length + 2;
 					skipWS();

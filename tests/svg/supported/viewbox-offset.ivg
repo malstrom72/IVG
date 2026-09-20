@@ -1,0 +1,15 @@
+format IVG-3 requires:IMPD-1
+bounds 0,0,200,200
+fill black
+pen miter-limit:4
+scale 2
+offset 50,25
+context [
+	fill #ff00ff
+	RECT -50,-25,50,50
+]
+context [
+	fill #0080ff
+	ELLIPSE 0,0,20
+]
+
