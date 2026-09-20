@@ -988,7 +988,13 @@ GradientSpec::GradientSpec(const Interpreter& impd, const String& source, bool r
 
 PatternBase::PatternBase(int scale) : scale(scale) { }
 
-void PatternBase::makePattern(Interpreter& impd, IVGExecutor& executor, Context& parentContext, const String& source) {
+void PatternBase::makePattern(Interpreter& impd, IVGExecutor& executor, Context& parentContext, const String& source
+		, bool inheritState) {
+	if (!inheritState) {
+		Context patternContext(*this, AffineTransformation().scale(scale));
+		executor.runInNewContext(impd, patternContext, source);
+		return;
+	}
 	Context patternContext(*this, parentContext);
 	patternContext.initState.transformation = AffineTransformation().scale(scale);
 	patternContext.initState.mask = 0;
@@ -1003,8 +1009,8 @@ template<> void PatternPainter<Mask8>::blendWithARGB32(const Renderer<ARGB32>& s
 }
 
 template<> void PatternPainter<ARGB32>::blendWithMask8(const Renderer<Mask8>& source) {
-	(void)source;
-	assert(0);
+	if (image.get() == 0) Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
+	(*image) |= Converter<Mask8, ARGB32>(source);
 }
 
 /* --- Masks --- */
@@ -1382,8 +1388,10 @@ void IVGExecutor::executeDefine(Interpreter& impd, const String& instruction, co
 			Interpreter::throwRunTimeError(String("Duplicate pattern definition \"") + String(name.begin(), name.end()) + "\".");
 		}
 
+		// A named pattern is a global resource, so it is rasterized in a fresh root context (like `define image`)
+		// rather than inheriting the drawing state at the definition site. See `PatternBase::makePattern`.
 		std::unique_ptr< PatternPainter<NuXPixels::ARGB32> > patternPainter(new PatternPainter<NuXPixels::ARGB32>(currentContext->calcPatternScale()));
-		patternPainter->makePattern(impd, *this, *currentContext, definition);
+		patternPainter->makePattern(impd, *this, *currentContext, definition, false);
 		definedPatterns[name] = patternPainter.release();
 	} else {
 		Interpreter::throwBadSyntax(String("Invalid \"define\" instruction type \"") + type + "\".");
@@ -2140,6 +2148,7 @@ void ARGB32Canvas::parsePaint(Interpreter& impd, IVGExecutor& executor, Context&
 }
 
 void ARGB32Canvas::blendWithARGB32(const Renderer<ARGB32>& source) { argb32Raster |= source; }
+void ARGB32Canvas::blendWithMask8(const Renderer<Mask8>& source) { argb32Raster |= Converter<Mask8, ARGB32>(source); }
 void ARGB32Canvas::defineBounds(const IntRect& newBounds) { (void)newBounds; }
 IntRect ARGB32Canvas::getBounds() const { return argb32Raster.calcBounds(); }
 
@@ -2168,6 +2177,10 @@ void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
 }
 
 void SelfContainedARGB32Canvas::blendWithARGB32(const Renderer<ARGB32>& source) { checkBoundsDeclared(); (*raster) |= source; }
+void SelfContainedARGB32Canvas::blendWithMask8(const Renderer<Mask8>& source) {
+	checkBoundsDeclared();
+	(*raster) |= Converter<Mask8, ARGB32>(source);
+}
 IntRect SelfContainedARGB32Canvas::getBounds() const { checkBoundsDeclared(); return raster->calcBounds(); }
 SelfContainedRaster<ARGB32>* SelfContainedARGB32Canvas::accessRaster() { checkBoundsDeclared(); return raster.get(); }
 SelfContainedRaster<ARGB32>* SelfContainedARGB32Canvas::relinquishRaster() { checkBoundsDeclared(); return raster.release(); }

@@ -820,6 +820,11 @@ Syntax:
 -   `<instructions>` are the drawing commands defining the pattern, enclosed in brackets `[` and `]`. The pattern is
     rendered using the current [options](#options) pattern resolution and the current transformation.
 
+-   The definition does not inherit the surrounding drawing state, unlike an inline `pattern:[...]`; it is rendered
+    in a fresh context like [`define image`](#define-image), so the instructions must set any [`pen`](#pen) or
+    [`fill`](#fill) they need. See [Paint Specification](#paint-specification) for the comparison between the two
+    forms.
+
 Example:
 
     bounds 0,0,100,100
@@ -1404,10 +1409,23 @@ look like. You can select a solid color, a gradient of colors, or a pattern.
 
 -   The `pattern` paint type is used to specify a repeating graphical pattern created from a set of drawing
     instructions. You define the pattern by enclosing the instructions in brackets `[` and `]` or by referencing a
-    pattern name created with [`define pattern`](#define-pattern). The drawing context for the pattern inherits all
-    settings from the current context, such as [`pen`](#pen), [`fill`](#fill), etc., except for the [`mask`]
-    (#mask) setting. A [`bounds`](#bounds) directive is required to define the pattern's dimensions. The resolution
-    used for rasterizing the pattern can be changed using the [`options`](#options) directive.
+    pattern name created with [`define pattern`](#define-pattern). A [`bounds`](#bounds) directive is required to
+    define the pattern's dimensions. The resolution used for rasterizing the pattern can be changed using the
+    [`options`](#options) directive.
+
+    The two forms differ in how they pick up the surrounding drawing state:
+
+    -   An **inline** `pattern:[...]` inherits all settings from the current context, such as [`pen`](#pen),
+        [`fill`](#fill), etc., except for the [`mask`](#mask) setting. Its definition site and its use site are the
+        same place, so the inherited state is the state you can see around it.
+    -   A **named** pattern from [`define pattern`](#define-pattern) inherits nothing and is rendered in a fresh
+        drawing context, like [`define image`](#define-image). Because such a pattern is registered globally and may
+        be referenced far from its definition, this keeps it from depending on wherever the definition happens to
+        sit. Its body must therefore set any [`pen`](#pen) or [`fill`](#fill) it needs.
+
+    This also decides which paint vocabulary applies inside a [`mask`](#mask) block, where paints are opacities
+    rather than colours: an inline `pattern:[...]` written there uses opacities, while a `define pattern` body uses
+    the normal colours wherever the definition sits.
     
 -   The `transform` option allows you to apply a series of transformations on the paint. These transformations are
     relative to the current transformation of the active [context](#context). See [Transform

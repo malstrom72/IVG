@@ -542,7 +542,8 @@ template<class PIXEL_TYPE> class RadialGradientPainter : public GradientPainter<
 **/
 class PatternBase : public Painter, public Canvas {
 	public:		PatternBase(int scale);
-	public:		void makePattern(IMPD::Interpreter& impd, IVGExecutor& executor, Context& parentContext, const IMPD::String& source);
+	public:		void makePattern(IMPD::Interpreter& impd, IVGExecutor& executor, Context& parentContext
+						, const IMPD::String& source, bool inheritState = true);	///< `inheritState` is false for a named `define pattern`, which is rasterized in a fresh root context like `define image`.
 	protected:	int scale;
 };
 
@@ -607,6 +608,7 @@ class ARGB32Canvas : public Canvas {
 	public:		ARGB32Canvas(NuXPixels::Raster<NuXPixels::ARGB32>& output);
 	public:		virtual void parsePaint(IMPD::Interpreter& impd, IVGExecutor& executor, Context& context, IMPD::ArgumentsContainer& args, Paint& paint) const;
 	public:		virtual void blendWithARGB32(const NuXPixels::Renderer<NuXPixels::ARGB32>& source);
+	public:		virtual void blendWithMask8(const NuXPixels::Renderer<NuXPixels::Mask8>& source);
 	public:		virtual void defineBounds(const NuXPixels::IntRect& newBounds);
 	public:		virtual NuXPixels::IntRect getBounds() const;
 	protected:	NuXPixels::Raster<NuXPixels::ARGB32>& argb32Raster;
@@ -621,6 +623,7 @@ class SelfContainedARGB32Canvas : public Canvas {
 	public:		SelfContainedARGB32Canvas(const double rescaleBounds = 1.0); // rescaleBounds can be used to create a canvas for a different target resolution (just supply the same scale for the initial transform of the root context).
 	public:		virtual void parsePaint(IMPD::Interpreter& impd, IVGExecutor& executor, Context& context, IMPD::ArgumentsContainer& args, Paint& paint) const;
 	public:		virtual void blendWithARGB32(const NuXPixels::Renderer<NuXPixels::ARGB32>& source);
+	public:		virtual void blendWithMask8(const NuXPixels::Renderer<NuXPixels::Mask8>& source);
 	public:		virtual void defineBounds(const NuXPixels::IntRect& newBounds);
 	public:		virtual NuXPixels::IntRect getBounds() const;
 	public:		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>* accessRaster();

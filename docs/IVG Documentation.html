@@ -1,11 +1,14 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta charset="utf-8" />
-  <meta name="generator" content="pandoc" />
+  <meta name="generator" content="pandoc 3.11" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <title>IVG Documentation</title>
   <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
     html {
       color: #1a1a1a;
       background-color: #fdfdfd;
@@ -38,7 +41,6 @@
       body {
         background-color: transparent;
         color: black;
-        font-size: 12pt;
       }
       p, h2, h3 {
         orphans: 3;
@@ -88,6 +90,7 @@
       color: #606060;
     }
     code {
+      white-space: pre-wrap;
       font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
       font-size: 85%;
       margin: 0;
@@ -151,10 +154,13 @@
     #TOC a:not(:hover) {
       text-decoration: none;
     }
-    code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
-    div.columns{display: flex; gap: min(4vw, 1.5em);}
-    div.column{flex: auto; overflow-x: auto;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
     div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
     /* The extra [class] is a hack that increases specificity enough to
        override a similar rule in reveal.js */
@@ -165,7 +171,6 @@
       margin: 0 0.8em 0.2em -1.6em;
       vertical-align: middle;
     }
-    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
   </style>
   <style>
     body {
@@ -1004,12 +1009,20 @@ specifications.</p>
 <p>Syntax:</p>
 <pre><code>define pattern &lt;name&gt; &lt;instructions&gt;</code></pre>
 <ul>
-<li><code>&lt;name&gt;</code> is a unique identifier for the pattern.
-Pattern names are case-sensitive and may only be defined once.</li>
-<li><code>&lt;instructions&gt;</code> are the drawing commands defining
-the pattern, enclosed in brackets <code>[</code> and <code>]</code>. The
-pattern is rendered using the current <a href="#options">options</a>
-pattern resolution and the current transformation.</li>
+<li><p><code>&lt;name&gt;</code> is a unique identifier for the pattern.
+Pattern names are case-sensitive and may only be defined once.</p></li>
+<li><p><code>&lt;instructions&gt;</code> are the drawing commands
+defining the pattern, enclosed in brackets <code>[</code> and
+<code>]</code>. The pattern is rendered using the current <a
+href="#options">options</a> pattern resolution and the current
+transformation.</p></li>
+<li><p>The definition does not inherit the surrounding drawing state,
+unlike an inline <code>pattern:[...]</code>; it is rendered in a fresh
+context like <a href="#define-image"><code>define image</code></a>, so
+the instructions must set any <a href="#pen"><code>pen</code></a> or <a
+href="#fill"><code>fill</code></a> they need. See <a
+href="#paint-specification">Paint Specification</a> for the comparison
+between the two forms.</p></li>
 </ul>
 <p>Example:</p>
 <pre><code>bounds 0,0,100,100
@@ -1622,14 +1635,34 @@ repeating graphical pattern created from a set of drawing instructions.
 You define the pattern by enclosing the instructions in brackets
 <code>[</code> and <code>]</code> or by referencing a pattern name
 created with <a href="#define-pattern"><code>define pattern</code></a>.
-The drawing context for the pattern inherits all settings from the
-current context, such as <a href="#pen"><code>pen</code></a>, <a
-href="#fill"><code>fill</code></a>, etc., except for the
-[<code>mask</code>] (#mask) setting. A <a
-href="#bounds"><code>bounds</code></a> directive is required to define
-the pattern’s dimensions. The resolution used for rasterizing the
+A <a href="#bounds"><code>bounds</code></a> directive is required to
+define the pattern’s dimensions. The resolution used for rasterizing the
 pattern can be changed using the <a
-href="#options"><code>options</code></a> directive.</p></li>
+href="#options"><code>options</code></a> directive.</p>
+<p>The two forms differ in how they pick up the surrounding drawing
+state:</p>
+<ul>
+<li>An <strong>inline</strong> <code>pattern:[...]</code> inherits all
+settings from the current context, such as <a
+href="#pen"><code>pen</code></a>, <a href="#fill"><code>fill</code></a>,
+etc., except for the <a href="#mask"><code>mask</code></a> setting. Its
+definition site and its use site are the same place, so the inherited
+state is the state you can see around it.</li>
+<li>A <strong>named</strong> pattern from <a
+href="#define-pattern"><code>define pattern</code></a> inherits nothing
+and is rendered in a fresh drawing context, like <a
+href="#define-image"><code>define image</code></a>. Because such a
+pattern is registered globally and may be referenced far from its
+definition, this keeps it from depending on wherever the definition
+happens to sit. Its body must therefore set any <a
+href="#pen"><code>pen</code></a> or <a
+href="#fill"><code>fill</code></a> it needs.</li>
+</ul>
+<p>This also decides which paint vocabulary applies inside a <a
+href="#mask"><code>mask</code></a> block, where paints are opacities
+rather than colours: an inline <code>pattern:[...]</code> written there
+uses opacities, while a <code>define pattern</code> body uses the normal
+colours wherever the definition sits.</p></li>
 <li><p>The <code>transform</code> option allows you to apply a series of
 transformations on the paint. These transformations are relative to the
 current transformation of the active <a href="#context">context</a>. See

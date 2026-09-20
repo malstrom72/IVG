@@ -1,0 +1,18 @@
+// Regression test: `define pattern` is rasterized in a fresh root context, so its body uses the normal
+// colour vocabulary even when the definition is nested inside a mask (where paints are otherwise
+// opacities). While `define pattern` was being added it inherited the mask's Mask8 paint instead,
+// which reached an ARGB32 pattern image and asserted.
+FORMAT IVG-3 requires:IMPD-1
+BOUNDS 0,0,32,8
+
+wipe black
+mask [
+	define pattern p [
+		bounds 0,0,8,8
+		fill white
+		rect 0,0,4,8
+	]
+	fill pattern:p
+	rect 0,0,32,8
+]
+wipe red
