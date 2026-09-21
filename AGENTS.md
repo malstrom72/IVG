@@ -19,42 +19,24 @@ If this message does not appear, the build has not finished correctly.
 ## Repository layout
 The project uses a consistent folder structure. Build output is written to `output/` and no source files live there. Useful locations:
 
-- `tools/` – scripts for building and maintaining the code and documentation.
-- `projects/` – Xcode and Visual Studio project files.
-- `docs/` – documentation.
+- `tools/` - scripts for building and maintaining the code and documentation.
+- `projects/` - Xcode and Visual Studio project files.
+- `docs/` - documentation.
 - `externals/` - projects and source code from other repositories (only touch this content when explicitly asked to).
-- `src/` – C++ source code for the library. The library is distributed as source rather than prebuilt binaries.
-- `tests/` – regression tests.
-- `examples/` – small sample programs.
-- `benchmarks/` – JavaScript performance tests.
-- `output/` – contains only build artifacts (and any runtime dependencies), no source files.
+- `src/` - C++ source code for the library. The library is distributed as source rather than prebuilt binaries.
+- `tests/` - regression tests.
+- `examples/` - small sample programs.
+- `benchmarks/` - JavaScript performance tests.
+- `output/` - contains only build artifacts (and any runtime dependencies), no source files.
 
 Root-level `build.sh` and `build.cmd` (mirrored implementations) should build and test both the beta and release targets.
 
 BuildCpp.sh and BuildCpp.cmd are copied from another repository. Only make changes to them if there is no other solution.
 
-## Formatting rules
-Key style points:
-- **Tab characters for indentation, not spaces.** A tab character equals four spaces, and tabs are required in all project files.
-- Opening braces stay on the same line as the control statement and closing braces are on their own line.
-- Maximum line width is 120 characters. End-of-line comments may start at column 120.
-- Line continuations should start with the operator and be indented two tabs from the original line.
-- `#if`/`#endif` blocks should appear one tab *left* of the current indentation level.
-- Class comment – put a plain C-style block comment immediately above each class, *not* Doxygen.	
-	```
-	/**
-		One-sentence summary of what the class does.
-		Extra details if truly needed.
-	**/
-	```
-	* The two asterisks open/close the block; everything inside is indented with one tab.  
-- Small method comment – use a single end-of-line comment:  
-	void blahblah(int blah);	/// brief description of `blahblah`
-- Inside comment text, wrap any variable, parameter, class or function names in back-ticks, e.g. `blah` is the temporary buffer.
-
-When editing text files with command-line tools:
-- Always run `expand -t 4` on the file before processing.
-- Always run `unexpand -t 4` on the file after processing.
+## Coding style
+Code style and design principles live in [docs/CodingStyle.md](docs/CodingStyle.md). That document is canonical for
+everything about how the code itself is written; this file covers only the operational side. If the two ever conflict,
+CodingStyle.md wins.
 
 ## Script portability
 All user-facing `.sh` and `.cmd` files must work when launched from any directory. They should start by changing
