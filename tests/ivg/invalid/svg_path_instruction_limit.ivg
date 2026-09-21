@@ -1,0 +1,6 @@
+format IVG-3
+BOUNDS 0,0,50,50
+d = M0,0
+repeat 20000 [ d = {$d}C5000,0,-5000,5000,0,0 ]
+fill black
+PATH svg:[$d]

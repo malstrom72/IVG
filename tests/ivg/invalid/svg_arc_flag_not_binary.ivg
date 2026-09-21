@@ -1,0 +1,4 @@
+format IVG-3
+BOUNDS 0,0,20,20
+fill black
+path svg:[M0,0 A10,10 0 99999999999999999999 0 10,10]

@@ -109,18 +109,27 @@ static Vertex toAbsoluteVertex(const Path& path, bool sourceIsRelative, const Ve
 	}
 }
 
-static bool parseInt(StringIt& p, const StringIt& e, int32_t& v) {
-	assert(p <= e);
-	StringIt q = p;
-	bool negative = (e - q > 1 && (*q == '+' || *q == '-') ? (*q++ == '-') : false);
-	int32_t i = 0;
-	if (q == e || *q < '0' || *q > '9') return false;
-	else {
-		p = q;
-		for (; p != e && *p >= '0' && *p <= '9'; ++p) i = i * 10 + (*p - '0');
-		v = negative ? -i : i;
-		return true;
+/* Reports whether `path` has reached `PATH_INSTRUCTION_LIMIT`, setting `errorString` if so. A single curve or arc
+   expands to as many as `MAX_SPLINE_SEGMENTS` / `MAX_CIRCLE_DIVISIONS` vertices, so path data can outgrow its source
+   by a large factor; the limit is therefore checked once per emitted segment rather than per vertex, which bounds
+   the overshoot to one segment's worth. */
+static bool exceedsPathLimit(const Path& path, const char*& errorString) {
+	if (path.size() < PATH_INSTRUCTION_LIMIT) {
+		return false;
 	}
+	errorString = "Path instruction limit exceeded in svg path data";
+	return true;
+}
+
+/* Parses an SVG path flag, i.e. the `large-arc-flag` and `sweep-flag` arguments of an elliptical arc. The SVG
+   grammar defines these as `flag ::= "0" | "1"`, a single character, so this does not parse a general integer.
+   Advances `p` and returns false without touching it if the next character is not a flag. */
+static bool parseFlag(StringIt& p, const StringIt& e, bool& v) {
+	assert(p <= e);
+	if (p == e || (*p != '0' && *p != '1')) return false;
+	v = (*p == '1');
+	++p;
+	return true;
 }
 
 static bool parseSingleCoordinate(StringIt& p, const StringIt& e, double& v) {
@@ -151,7 +160,10 @@ static Mask8::Pixel parseOpacity(const Interpreter& impd, const StringRange& r) 
 	unsigned int i;
 	if (r.e != r.b && *r.b == '#') {
 		StringIt p = Interpreter::parseHex(r.b + 1, r.e, i);
-		if (p - (r.b + 1) != 2) impd.throwBadSyntax(String("Invalid opacity \"") + String(r.b + 1, r.e) + "\".");
+		// `parseHex` stops at the first non-hex character, so the end must be reached for the value to be valid.
+		if (p != r.e || p - (r.b + 1) != 2) {
+			impd.throwBadSyntax(String("Invalid opacity \"") + String(r.b + 1, r.e) + "\".");
+		}
 	} else {
 		double d = impd.toDouble(r);
 		if (d < 0.0 || d > 1.0) impd.throwRunTimeError(String("Opacity \"") + impd.toString(d) + "\" out of range [0..1].");
@@ -250,6 +262,7 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 					path.moveTo(v.x, v.y);
 					while (parseCoordinatePair(p, e, v, true)) {
 						v = toAbsoluteVertex(path, isRelative, v);
+						if (exceedsPathLimit(path, errorString)) return false;
 						path.lineTo(v.x, v.y);
 					}
 					break;
@@ -263,6 +276,7 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 					}
 					do {
 						v = toAbsoluteVertex(path, isRelative, v);
+						if (exceedsPathLimit(path, errorString)) return false;
 						path.lineTo(v.x, v.y);
 					} while (parseCoordinatePair(p, e, v, true));
 					break;
@@ -281,6 +295,7 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 							if (isRelative) pos.y += v;
 							else pos.y = v;
 						}
+						if (exceedsPathLimit(path, errorString)) return false;
 						path.lineTo(pos.x, pos.y);
 						q = eatSpaceAndComma(p, e);
 					}
@@ -301,6 +316,7 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 						ecp = toAbsoluteVertex(path, isRelative, ecp);
 						v = toAbsoluteVertex(path, isRelative, v);
 						cubicReflectionPoint = Vertex(v.x - ecp.x, v.y - ecp.y);
+						if (exceedsPathLimit(path, errorString)) return false;
 						path.cubicTo(bcp.x, bcp.y, ecp.x, ecp.y, v.x, v.y, curveQuality);
 					}
 					break;
@@ -319,6 +335,7 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 						ecp = toAbsoluteVertex(path, isRelative, ecp);
 						v = toAbsoluteVertex(path, isRelative, v);
 						cubicReflectionPoint = Vertex(v.x - ecp.x, v.y - ecp.y);
+						if (exceedsPathLimit(path, errorString)) return false;
 						path.cubicTo(bcp.x, bcp.y, ecp.x, ecp.y, v.x, v.y, curveQuality);
 					}
 					break;
@@ -335,6 +352,7 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 						cp = toAbsoluteVertex(path, isRelative, cp);
 						v = toAbsoluteVertex(path, isRelative, v);
 						quadraticReflectionPoint = Vertex(v.x - cp.x, v.y - cp.y);
+						if (exceedsPathLimit(path, errorString)) return false;
 						path.quadraticTo(cp.x, cp.y, v.x, v.y, curveQuality);
 					}
 					break;
@@ -350,6 +368,7 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 						Vertex cp(pos.x + quadraticReflectionPoint.x, pos.y + quadraticReflectionPoint.y);
 						v = toAbsoluteVertex(path, isRelative, v);
 						quadraticReflectionPoint = Vertex(v.x - cp.x, v.y - cp.y);
+						if (exceedsPathLimit(path, errorString)) return false;
 						path.quadraticTo(cp.x, cp.y, v.x, v.y, curveQuality);
 					}
 					break;
@@ -358,20 +377,21 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 				case 'A': { // FIX : is A without arguments allowed here?
 					Vertex radii;
 					double xAxisRotation;
-					int32_t largeArcFlag;
-					int32_t sweepFlag;
+					bool largeArcFlag;
+					bool sweepFlag;
 					Vertex v;
 					StringIt q = p;
 					while (parseCoordinatePair(q, e, radii, !first)
 							&& ((void)(q = eatSpaceAndComma(q, e)), parseSingleCoordinate(q, e, xAxisRotation))
-							&& ((void)(q = eatSpaceAndComma(q, e)), parseInt(q, e, largeArcFlag))
-							&& ((void)(q = eatSpaceAndComma(q, e)), parseInt(q, e, sweepFlag))
+							&& ((void)(q = eatSpaceAndComma(q, e)), parseFlag(q, e, largeArcFlag))
+							&& ((void)(q = eatSpaceAndComma(q, e)), parseFlag(q, e, sweepFlag))
 							&& parseCoordinatePair(q, e, v, true)) {
+						if (exceedsPathLimit(path, errorString)) return false;
 						first = false;
 						p = q;
 						v = toAbsoluteVertex(path, isRelative, v);
 						appendArcSegment(path.getPosition(), v, radii.x, radii.y, xAxisRotation
-								, sweepFlag != 0, largeArcFlag != 0, curveQuality, path);
+								, sweepFlag, largeArcFlag, curveQuality, path);
 						path.lineTo(v.x, v.y);
 					}
 					break;
@@ -502,16 +522,15 @@ template<> ARGB32::Pixel parseColor<ARGB32>(Interpreter& impd, const StringRange
 	if (r.e != r.b && *r.b == '#') {
 		unsigned int i;
 		StringIt p = Interpreter::parseHex(r.b + 1, r.e, i);
-		switch (p - (r.b + 1)) {
-			default: impd.throwBadSyntax(String("Invalid color value \"") + String(r.b + 1, r.e) + "\".");
-			case 6: return 0xFF000000 | i;
-			case 8: {
-				if (!ARGB32::isValid(i)) {
-					impd.throwBadSyntax(String("Invalid pre-multiplied alpha color \"") + String(r.b + 1, r.e) + "\".");
-				}
-				return i;
-			}
+		// `parseHex` stops at the first non-hex character, so the end must be reached for the value to be valid.
+		const ptrdiff_t digits = (p == r.e ? p - (r.b + 1) : -1);
+		if (digits != 6 && digits != 8) {
+			impd.throwBadSyntax(String("Invalid color value \"") + String(r.b + 1, r.e) + "\".");
 		}
+		if (digits == 8 && !ARGB32::isValid(i)) {
+			impd.throwBadSyntax(String("Invalid pre-multiplied alpha color \"") + String(r.b + 1, r.e) + "\".");
+		}
+		return (digits == 6 ? 0xFF000000 | i : i);
 	} else if (parseNumericColor(impd, r, argb)) {
 		return argb;
 	} else {
@@ -697,6 +716,12 @@ class PathInstructionExecutor : public Executor {
 					const int foundInstruction = findPathInstructionType(IMPD::lossless_cast<int>(instruction.size()), instruction.c_str());
 					if (foundInstruction < 0) {
 						return false;
+					}
+					// `appendChecked` covers the sub-shape instructions, but `line-to`, `line-angle`, `bezier-to`,
+					// `arc-to`, `arc-sweep` and `arc-move` emit straight into `path`. Checking once per instruction
+					// bounds the total by one instruction's worth of vertices without testing around every vertex.
+					if (path.size() >= PATH_INSTRUCTION_LIMIT) {
+						Interpreter::throwRunTimeError("Path instruction limit exceeded.");
 					}
 					ArgumentsContainer args(ArgumentsContainer::parse(impd, arguments));
 					Vertex& ao = anchorOrigin;

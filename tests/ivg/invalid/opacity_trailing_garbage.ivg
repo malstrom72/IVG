@@ -1,0 +1,7 @@
+format IVG-3
+BOUNDS 0,0,10,10
+wipe black
+mask [
+	fill #80junk
+	rect 0,0,10,10
+]
