@@ -370,7 +370,11 @@ themselves):
 - `polygon <x0>,<y0> <x1>,<y1> [<x2>,<y2> ...]` appends a closed polygon.
 - `rect <x>,<y>,<w>,<h> [rounded:<r>|<rx>,<ry>]` appends an axis-aligned rectangle.
 - `star <cx>,<cy>,<points>,<r1>[,<r2>=<r1>] [rotation:<angle>]` appends a star or regular polygon.
-- `text [at:<x,y>] [anchor:left|center|right=left] <text>` appends a text outline.
+- `text [at:<x,y>] [anchor:left|center|right=left] <text>` appends a text outline. Without `at` it starts from the
+  current path position, and afterwards leaves that position at the right edge of the string for every anchor. This
+  differs from the [`TEXT`](#text) instruction, whose caret is left at the string's left edge for `anchor:right` so
+  that right-aligned runs can be composed leftward; see
+  [Continuing from the caret](#continuing-from-the-caret).
 
 #### Examples
 
@@ -578,20 +582,55 @@ Syntax:
 
     TEXT [at:<x,y>] [anchor:left|center|right=left] [caret:<variable>] <text>
 
--   The `at` option specifies the x,y coordinates of the text. If not present, the text will continue to the right of
-    the last written string.
+-   The `at` option specifies the x,y coordinates of the text. If not present, the text continues from the caret left
+    by the previous string — see [Continuing from the caret](#continuing-from-the-caret).
 
--   The `anchor` option specifies the horizontal alignment of the text. The default value is `left`, and anything else
-    requires the `at` argument.
+-   The `anchor` option specifies which edge of the text the anchor point refers to: `left` places the text to the
+    right of it, `right` to the left of it, and `center` centres the text on it. The default value is `left`.
 
 -   The `caret` option specifies a variable that will be set to the final horizontal caret position, i.e., the position
-    where the next character would have been written.
+    where the next character would have been written. "Next" follows the direction the text flows in, which depends on
+    `anchor` — again, see [Continuing from the caret](#continuing-from-the-caret).
 
 -   `<text>` is the text to be drawn on the canvas. `TEXT` draws a single line of text only.
 
 The `y` coordinate specifies the baseline of the text. Font ascent and descent come from the font definition, and `size`
 maps one _em_ to that many pixels. The `anchor` option only adjusts horizontal alignment; vertical placement always
 uses the baseline.
+
+#### Continuing from the caret
+
+Every `TEXT` leaves a caret behind, and a `TEXT` without `at` starts from it. Where the caret lands depends on the
+anchor, because it always marks the edge the *next* string would grow from:
+
+| `anchor` | text is placed | caret is left at |
+|----------|----------------|------------------|
+| `left`   | right of the anchor point | the right edge of the string |
+| `center` | centred on the anchor point | the right edge of the string |
+| `right`  | left of the anchor point | the **left** edge of the string |
+
+For `left` and `center` the text flows rightward, so each further string continues to the right, as you would expect.
+
+For `right` the text flows leftward, and the caret is left at the *start* of the string rather than its end. That is
+what lets you compose a right-aligned line out of several `TEXT` instructions — useful when the parts use different
+fonts or sizes, because you do not have to measure the whole line in advance. Write the segments in reverse order and
+each one ends exactly where the previous one began:
+
+    bounds 0,0,420,60
+    wipe white
+    font serif size:22 color:black
+    TEXT at:390,40 anchor:right "end."
+    font monospace size:22 color:maroon
+    TEXT anchor:right "middle"
+    font sans-serif size:22 color:navy
+    TEXT anchor:right "start "
+
+All three segments finish flush at x = 390. Note that mixing the two directions in one run — a `right`-anchored string
+followed by a `left`-anchored one with no `at` — makes the second overprint the first, since the caret is then at the
+first string's left edge. Give the continuation its own `at` when you want to change direction.
+
+The [`text` path instruction](#path) differs here: it leaves the path position at the right edge for every anchor, so
+`right`-anchored path text does not chain leftward the way `TEXT` does.
 
 Demonstration:
 

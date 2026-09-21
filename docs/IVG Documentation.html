@@ -593,7 +593,13 @@ appends an axis-aligned rectangle.</li>
 <li><code>star &lt;cx&gt;,&lt;cy&gt;,&lt;points&gt;,&lt;r1&gt;[,&lt;r2&gt;=&lt;r1&gt;] [rotation:&lt;angle&gt;]</code>
 appends a star or regular polygon.</li>
 <li><code>text [at:&lt;x,y&gt;] [anchor:left|center|right=left] &lt;text&gt;</code>
-appends a text outline.</li>
+appends a text outline. Without <code>at</code> it starts from the
+current path position, and afterwards leaves that position at the right
+edge of the string for every anchor. This differs from the <a
+href="#text"><code>TEXT</code></a> instruction, whose caret is left at
+the string’s left edge for <code>anchor:right</code> so that
+right-aligned runs can be composed leftward; see <a
+href="#continuing-from-the-caret">Continuing from the caret</a>.</li>
 </ul>
 <h4 id="examples">Examples</h4>
 <p>Quadratic and cubic Bézier curves:</p>
@@ -786,14 +792,20 @@ canvas. It uses the current font settings for its text style.</p>
 <pre><code>TEXT [at:&lt;x,y&gt;] [anchor:left|center|right=left] [caret:&lt;variable&gt;] &lt;text&gt;</code></pre>
 <ul>
 <li><p>The <code>at</code> option specifies the x,y coordinates of the
-text. If not present, the text will continue to the right of the last
-written string.</p></li>
-<li><p>The <code>anchor</code> option specifies the horizontal alignment
-of the text. The default value is <code>left</code>, and anything else
-requires the <code>at</code> argument.</p></li>
+text. If not present, the text continues from the caret left by the
+previous string — see <a href="#continuing-from-the-caret">Continuing
+from the caret</a>.</p></li>
+<li><p>The <code>anchor</code> option specifies which edge of the text
+the anchor point refers to: <code>left</code> places the text to the
+right of it, <code>right</code> to the left of it, and
+<code>center</code> centres the text on it. The default value is
+<code>left</code>.</p></li>
 <li><p>The <code>caret</code> option specifies a variable that will be
 set to the final horizontal caret position, i.e., the position where the
-next character would have been written.</p></li>
+next character would have been written. “Next” follows the direction the
+text flows in, which depends on <code>anchor</code> — again, see <a
+href="#continuing-from-the-caret">Continuing from the
+caret</a>.</p></li>
 <li><p><code>&lt;text&gt;</code> is the text to be drawn on the canvas.
 <code>TEXT</code> draws a single line of text only.</p></li>
 </ul>
@@ -802,6 +814,70 @@ Font ascent and descent come from the font definition, and
 <code>size</code> maps one <em>em</em> to that many pixels. The
 <code>anchor</code> option only adjusts horizontal alignment; vertical
 placement always uses the baseline.</p>
+<h4 id="continuing-from-the-caret">Continuing from the caret</h4>
+<p>Every <code>TEXT</code> leaves a caret behind, and a
+<code>TEXT</code> without <code>at</code> starts from it. Where the
+caret lands depends on the anchor, because it always marks the edge the
+<em>next</em> string would grow from:</p>
+<table>
+<colgroup>
+<col style="width: 22%" />
+<col style="width: 36%" />
+<col style="width: 40%" />
+</colgroup>
+<thead>
+<tr>
+<th><code>anchor</code></th>
+<th>text is placed</th>
+<th>caret is left at</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>left</code></td>
+<td>right of the anchor point</td>
+<td>the right edge of the string</td>
+</tr>
+<tr>
+<td><code>center</code></td>
+<td>centred on the anchor point</td>
+<td>the right edge of the string</td>
+</tr>
+<tr>
+<td><code>right</code></td>
+<td>left of the anchor point</td>
+<td>the <strong>left</strong> edge of the string</td>
+</tr>
+</tbody>
+</table>
+<p>For <code>left</code> and <code>center</code> the text flows
+rightward, so each further string continues to the right, as you would
+expect.</p>
+<p>For <code>right</code> the text flows leftward, and the caret is left
+at the <em>start</em> of the string rather than its end. That is what
+lets you compose a right-aligned line out of several <code>TEXT</code>
+instructions — useful when the parts use different fonts or sizes,
+because you do not have to measure the whole line in advance. Write the
+segments in reverse order and each one ends exactly where the previous
+one began:</p>
+<pre><code>bounds 0,0,420,60
+wipe white
+font serif size:22 color:black
+TEXT at:390,40 anchor:right &quot;end.&quot;
+font monospace size:22 color:maroon
+TEXT anchor:right &quot;middle&quot;
+font sans-serif size:22 color:navy
+TEXT anchor:right &quot;start &quot;</code></pre>
+<p>All three segments finish flush at x = 390. Note that mixing the two
+directions in one run — a <code>right</code>-anchored string followed by
+a <code>left</code>-anchored one with no <code>at</code> — makes the
+second overprint the first, since the caret is then at the first
+string’s left edge. Give the continuation its own <code>at</code> when
+you want to change direction.</p>
+<p>The <a href="#path"><code>text</code> path instruction</a> differs
+here: it leaves the path position at the right edge for every anchor, so
+<code>right</code>-anchored path text does not chain leftward the way
+<code>TEXT</code> does.</p>
 <p>Demonstration:</p>
 <pre><code>format IVG-3 requires:ImpD-1
 options aa-gamma:1.5
