@@ -68,9 +68,9 @@ void checkBounds(const IntRect& bounds) {
 	}
 }
 
-/* Applies the `checkBounds` limits while the rectangle is still `double`. Rescaling can push a perfectly
-   valid rectangle far outside the `int` range, and converting an out-of-range `double` to `int` is
-   undefined, so the range has to be rejected before the conversion rather than after it. */
+/*
+	Applies the `checkBounds` limits while the rectangle is still `double`, before the conversion to `int`.
+*/
 static void checkBoundsBeforeScaling(double left, double top, double width, double height) {
 	if (left < -32768.0 || left > 32767.0) {
 		Interpreter::throwRunTimeError(String("Rescaled \"bounds\" left \"")
@@ -109,10 +109,10 @@ static Vertex toAbsoluteVertex(const Path& path, bool sourceIsRelative, const Ve
 	}
 }
 
-/* Reports whether `path` has reached `PATH_INSTRUCTION_LIMIT`, setting `errorString` if so. A single curve or arc
-   expands to as many as `MAX_SPLINE_SEGMENTS` / `MAX_CIRCLE_DIVISIONS` vertices, so path data can outgrow its source
-   by a large factor; the limit is therefore checked once per emitted segment rather than per vertex, which bounds
-   the overshoot to one segment's worth. */
+/*
+	Reports whether `path` has reached `PATH_INSTRUCTION_LIMIT`, setting `errorString` if so. Call once per emitted
+	segment, which bounds the overshoot to one segment's worth of vertices.
+*/
 static bool exceedsPathLimit(const Path& path, const char*& errorString) {
 	if (path.size() < PATH_INSTRUCTION_LIMIT) {
 		return false;
@@ -121,12 +121,15 @@ static bool exceedsPathLimit(const Path& path, const char*& errorString) {
 	return true;
 }
 
-/* Parses an SVG path flag, i.e. the `large-arc-flag` and `sweep-flag` arguments of an elliptical arc. The SVG
-   grammar defines these as `flag ::= "0" | "1"`, a single character, so this does not parse a general integer.
-   Advances `p` and returns false without touching it if the next character is not a flag. */
+/*
+	Parses an SVG arc `large-arc-flag` or `sweep-flag`, which the SVG grammar defines as a single `0` or `1`
+	character. Advances `p` on success and leaves it untouched otherwise.
+*/
 static bool parseFlag(StringIt& p, const StringIt& e, bool& v) {
 	assert(p <= e);
-	if (p == e || (*p != '0' && *p != '1')) return false;
+	if (p == e || (*p != '0' && *p != '1')) {
+		return false;
+	}
 	v = (*p == '1');
 	++p;
 	return true;
@@ -262,7 +265,9 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 					path.moveTo(v.x, v.y);
 					while (parseCoordinatePair(p, e, v, true)) {
 						v = toAbsoluteVertex(path, isRelative, v);
-						if (exceedsPathLimit(path, errorString)) return false;
+						if (exceedsPathLimit(path, errorString)) {
+							return false;
+						}
 						path.lineTo(v.x, v.y);
 					}
 					break;
@@ -276,7 +281,9 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 					}
 					do {
 						v = toAbsoluteVertex(path, isRelative, v);
-						if (exceedsPathLimit(path, errorString)) return false;
+						if (exceedsPathLimit(path, errorString)) {
+							return false;
+						}
 						path.lineTo(v.x, v.y);
 					} while (parseCoordinatePair(p, e, v, true));
 					break;
@@ -295,7 +302,9 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 							if (isRelative) pos.y += v;
 							else pos.y = v;
 						}
-						if (exceedsPathLimit(path, errorString)) return false;
+						if (exceedsPathLimit(path, errorString)) {
+							return false;
+						}
 						path.lineTo(pos.x, pos.y);
 						q = eatSpaceAndComma(p, e);
 					}
@@ -316,7 +325,9 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 						ecp = toAbsoluteVertex(path, isRelative, ecp);
 						v = toAbsoluteVertex(path, isRelative, v);
 						cubicReflectionPoint = Vertex(v.x - ecp.x, v.y - ecp.y);
-						if (exceedsPathLimit(path, errorString)) return false;
+						if (exceedsPathLimit(path, errorString)) {
+							return false;
+						}
 						path.cubicTo(bcp.x, bcp.y, ecp.x, ecp.y, v.x, v.y, curveQuality);
 					}
 					break;
@@ -335,7 +346,9 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 						ecp = toAbsoluteVertex(path, isRelative, ecp);
 						v = toAbsoluteVertex(path, isRelative, v);
 						cubicReflectionPoint = Vertex(v.x - ecp.x, v.y - ecp.y);
-						if (exceedsPathLimit(path, errorString)) return false;
+						if (exceedsPathLimit(path, errorString)) {
+							return false;
+						}
 						path.cubicTo(bcp.x, bcp.y, ecp.x, ecp.y, v.x, v.y, curveQuality);
 					}
 					break;
@@ -352,7 +365,9 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 						cp = toAbsoluteVertex(path, isRelative, cp);
 						v = toAbsoluteVertex(path, isRelative, v);
 						quadraticReflectionPoint = Vertex(v.x - cp.x, v.y - cp.y);
-						if (exceedsPathLimit(path, errorString)) return false;
+						if (exceedsPathLimit(path, errorString)) {
+							return false;
+						}
 						path.quadraticTo(cp.x, cp.y, v.x, v.y, curveQuality);
 					}
 					break;
@@ -368,7 +383,9 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 						Vertex cp(pos.x + quadraticReflectionPoint.x, pos.y + quadraticReflectionPoint.y);
 						v = toAbsoluteVertex(path, isRelative, v);
 						quadraticReflectionPoint = Vertex(v.x - cp.x, v.y - cp.y);
-						if (exceedsPathLimit(path, errorString)) return false;
+						if (exceedsPathLimit(path, errorString)) {
+							return false;
+						}
 						path.quadraticTo(cp.x, cp.y, v.x, v.y, curveQuality);
 					}
 					break;
@@ -386,7 +403,9 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 							&& ((void)(q = eatSpaceAndComma(q, e)), parseFlag(q, e, largeArcFlag))
 							&& ((void)(q = eatSpaceAndComma(q, e)), parseFlag(q, e, sweepFlag))
 							&& parseCoordinatePair(q, e, v, true)) {
-						if (exceedsPathLimit(path, errorString)) return false;
+						if (exceedsPathLimit(path, errorString)) {
+							return false;
+						}
 						first = false;
 						p = q;
 						v = toAbsoluteVertex(path, isRelative, v);
@@ -1056,7 +1075,9 @@ template<> void PatternPainter<Mask8>::blendWithARGB32(const Renderer<ARGB32>& s
 }
 
 template<> void PatternPainter<ARGB32>::blendWithMask8(const Renderer<Mask8>& source) {
-	if (image.get() == 0) Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
+	if (image.get() == 0) {
+		Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
+	}
 	(*image) |= Converter<Mask8, ARGB32>(source);
 }
 

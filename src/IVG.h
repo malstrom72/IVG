@@ -556,7 +556,7 @@ template<class PIXEL_TYPE> class RadialGradientPainter : public GradientPainter<
 class PatternBase : public Painter, public Canvas {
 	public:		PatternBase(int scale);
 	public:		void makePattern(IMPD::Interpreter& impd, IVGExecutor& executor, Context& parentContext
-						, const IMPD::String& source, bool inheritState = true);	///< `inheritState` is false for a named `define pattern`, which is rasterized in a fresh root context like `define image`.
+						, const IMPD::String& source, bool inheritState = true);	// `inheritState` is false for a named `define pattern`, which is rasterized in a fresh root context like `define image`.
 	protected:	int scale;
 };
 

@@ -583,14 +583,14 @@ Syntax:
     TEXT [at:<x,y>] [anchor:left|center|right=left] [caret:<variable>] <text>
 
 -   The `at` option specifies the x,y coordinates of the text. If not present, the text continues from the caret left
-    by the previous string — see [Continuing from the caret](#continuing-from-the-caret).
+    by the previous string. See [Continuing from the caret](#continuing-from-the-caret).
 
 -   The `anchor` option specifies which edge of the text the anchor point refers to: `left` places the text to the
     right of it, `right` to the left of it, and `center` centres the text on it. The default value is `left`.
 
 -   The `caret` option specifies a variable that will be set to the final horizontal caret position, i.e., the position
     where the next character would have been written. "Next" follows the direction the text flows in, which depends on
-    `anchor` — again, see [Continuing from the caret](#continuing-from-the-caret).
+    `anchor`. Again, see [Continuing from the caret](#continuing-from-the-caret).
 
 -   `<text>` is the text to be drawn on the canvas. `TEXT` draws a single line of text only.
 
@@ -612,7 +612,7 @@ anchor, because it always marks the edge the *next* string would grow from:
 For `left` and `center` the text flows rightward, so each further string continues to the right, as you would expect.
 
 For `right` the text flows leftward, and the caret is left at the *start* of the string rather than its end. That is
-what lets you compose a right-aligned line out of several `TEXT` instructions — useful when the parts use different
+what lets you compose a right-aligned line out of several `TEXT` instructions, which is useful when the parts use different
 fonts or sizes, because you do not have to measure the whole line in advance. Write the segments in reverse order and
 each one ends exactly where the previous one began:
 
@@ -625,8 +625,8 @@ each one ends exactly where the previous one began:
     font sans-serif size:22 color:navy
     TEXT anchor:right "start "
 
-All three segments finish flush at x = 390. Note that mixing the two directions in one run — a `right`-anchored string
-followed by a `left`-anchored one with no `at` — makes the second overprint the first, since the caret is then at the
+All three segments finish flush at x = 390. Note that mixing the two directions in one run, a `right`-anchored string
+followed by a `left`-anchored one with no `at`, makes the second overprint the first, since the caret is then at the
 first string's left edge. Give the continuation its own `at` when you want to change direction.
 
 The [`text` path instruction](#path) differs here: it leaves the path position at the right edge for every anchor, so

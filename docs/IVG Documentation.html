@@ -793,7 +793,7 @@ canvas. It uses the current font settings for its text style.</p>
 <ul>
 <li><p>The <code>at</code> option specifies the x,y coordinates of the
 text. If not present, the text continues from the caret left by the
-previous string — see <a href="#continuing-from-the-caret">Continuing
+previous string. See <a href="#continuing-from-the-caret">Continuing
 from the caret</a>.</p></li>
 <li><p>The <code>anchor</code> option specifies which edge of the text
 the anchor point refers to: <code>left</code> places the text to the
@@ -803,7 +803,7 @@ right of it, <code>right</code> to the left of it, and
 <li><p>The <code>caret</code> option specifies a variable that will be
 set to the final horizontal caret position, i.e., the position where the
 next character would have been written. “Next” follows the direction the
-text flows in, which depends on <code>anchor</code> — again, see <a
+text flows in, which depends on <code>anchor</code>. Again, see <a
 href="#continuing-from-the-caret">Continuing from the
 caret</a>.</p></li>
 <li><p><code>&lt;text&gt;</code> is the text to be drawn on the canvas.
@@ -856,10 +856,10 @@ expect.</p>
 <p>For <code>right</code> the text flows leftward, and the caret is left
 at the <em>start</em> of the string rather than its end. That is what
 lets you compose a right-aligned line out of several <code>TEXT</code>
-instructions — useful when the parts use different fonts or sizes,
-because you do not have to measure the whole line in advance. Write the
-segments in reverse order and each one ends exactly where the previous
-one began:</p>
+instructions, which is useful when the parts use different fonts or
+sizes, because you do not have to measure the whole line in advance.
+Write the segments in reverse order and each one ends exactly where the
+previous one began:</p>
 <pre><code>bounds 0,0,420,60
 wipe white
 font serif size:22 color:black
@@ -869,8 +869,8 @@ TEXT anchor:right &quot;middle&quot;
 font sans-serif size:22 color:navy
 TEXT anchor:right &quot;start &quot;</code></pre>
 <p>All three segments finish flush at x = 390. Note that mixing the two
-directions in one run — a <code>right</code>-anchored string followed by
-a <code>left</code>-anchored one with no <code>at</code> — makes the
+directions in one run, a <code>right</code>-anchored string followed by
+a <code>left</code>-anchored one with no <code>at</code>, makes the
 second overprint the first, since the caret is then at the first
 string’s left edge. Give the continuation its own <code>at</code> when
 you want to change direction.</p>
