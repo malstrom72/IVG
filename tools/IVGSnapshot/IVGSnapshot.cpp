@@ -2326,14 +2326,19 @@ loadPngRaster(const std::string &path,
 		}
 
 		png_init_io(png, file);
+		/*
+			The copy loop below strides 4 bytes per pixel, so libpng has to hand back 8-bit RGBA.
+			`PNG_TRANSFORM_EXPAND` alone leaves grayscale narrow and 16-bit wide.
+		*/
 		png_set_add_alpha(png, 0xFF, PNG_FILLER_AFTER);
+		png_set_gray_to_rgb(png);
 		if (isLittleEndian()) {
 			png_set_bgr(png);
 		} else {
 			png_set_swap_alpha(png);
 		}
 
-		png_read_png(png, info, PNG_TRANSFORM_EXPAND, 0);
+		png_read_png(png, info, PNG_TRANSFORM_EXPAND | PNG_TRANSFORM_STRIP_16, 0);
 		const png_uint_32 width = png_get_image_width(png, info);
 		const png_uint_32 height = png_get_image_height(png, info);
 		if (width > static_cast<png_uint_32>(std::numeric_limits<int>::max())

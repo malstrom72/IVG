@@ -256,13 +256,18 @@ if (info_ptr == 0) {
 throw std::runtime_error("could not initialize PNG info");
 }
 png_init_io(png_ptr, file);
+/*
+	The copy loop below strides 4 bytes per pixel, so libpng has to hand back 8-bit RGBA.
+	`PNG_TRANSFORM_EXPAND` alone leaves grayscale narrow and 16-bit wide.
+*/
 png_set_add_alpha(png_ptr, 0xFF, PNG_FILLER_AFTER);
+png_set_gray_to_rgb(png_ptr);
 if (isLittleEndian()) {
 png_set_bgr(png_ptr);
 } else {
 png_set_swap_alpha(png_ptr);
 }
-png_read_png(png_ptr, info_ptr, PNG_TRANSFORM_EXPAND, 0);
+png_read_png(png_ptr, info_ptr, PNG_TRANSFORM_EXPAND | PNG_TRANSFORM_STRIP_16, 0);
 png_uint_32 width = png_get_image_width(png_ptr, info_ptr);
 png_uint_32 height = png_get_image_height(png_ptr, info_ptr);
 png_bytep* rows = png_get_rows(png_ptr, info_ptr);
