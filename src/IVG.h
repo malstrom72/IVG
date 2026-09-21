@@ -117,7 +117,9 @@ template<class T> class Inheritable {
 	public:		Inheritable& operator=(T* o) { inherited = o; owned.reset(o); return *this; }
 	public:		Inheritable& operator=(const Inheritable<T>& c) {
 					inherited = c.inherited;
-					if (inherited != owned.get()) owned.reset();
+					if (inherited != owned.get()) {
+						owned.reset();
+					}
 					return *this;
 				}
 	public:		bool operator==(T* o) const { return inherited == o; }
@@ -171,7 +173,9 @@ class Paint {
 						, const NuXPixels::Renderer<NuXPixels::Mask8>& mask) {
 					assert(isVisible());
 					const Painter* p = painter;
-					if (p != 0) p->doPaint(*this, inContext, sourceBounds, mask);
+					if (p != 0) {
+						p->doPaint(*this, inContext, sourceBounds, mask);
+					}
 				}
 };
 
@@ -569,11 +573,15 @@ template<class PIXEL_TYPE> class PatternPainter : public PatternBase {
 					parsePaintOfType<PIXEL_TYPE>(impd, executor, context, args, paint);
 				}
 	public:		virtual void blendWithARGB32(const NuXPixels::Renderer<NuXPixels::ARGB32>& source) {
-                                        if (image.get() == 0) IMPD::Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
+                                        if (image.get() == 0) {
+                                        	IMPD::Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
+                                        }
 					(*image) |= source;
 				}
 	public:		virtual void blendWithMask8(const NuXPixels::Renderer<NuXPixels::Mask8>& source) {
-                                        if (image.get() == 0) IMPD::Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
+                                        if (image.get() == 0) {
+                                        	IMPD::Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
+                                        }
 					(*image) |= source;
 				}
 	public:		virtual bool isVisible(const Paint& withPaint) const { (void)withPaint; return (image.get() != 0); }
@@ -602,13 +610,17 @@ template<class PIXEL_TYPE> class PatternPainter : public PatternBase {
 	public:		virtual void defineBounds(const NuXPixels::IntRect& newBounds) {
 					NuXPixels::IntRect physicalBounds(newBounds.left * scale, newBounds.top * scale
 						, newBounds.width * scale, newBounds.height * scale);
-                                        if (image.get() != 0) IMPD::Interpreter::throwRunTimeError("Multiple \"bounds\" declarations.");
+                                        if (image.get() != 0) {
+                                        	IMPD::Interpreter::throwRunTimeError("Multiple \"bounds\" declarations.");
+                                        }
 					checkBounds(physicalBounds);
 					image.reset(new NuXPixels::SelfContainedRaster<PIXEL_TYPE>(physicalBounds));
 					(*image) = NuXPixels::Solid<PIXEL_TYPE>(PIXEL_TYPE::transparent());
 				}
 	public:		virtual NuXPixels::IntRect getBounds() const {
-                                        if (image.get() == 0) IMPD::Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
+                                        if (image.get() == 0) {
+                                        	IMPD::Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
+                                        }
 					return image->calcBounds();
 				}
 	protected:	std::unique_ptr< NuXPixels::SelfContainedRaster<PIXEL_TYPE> > image;

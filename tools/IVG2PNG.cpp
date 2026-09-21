@@ -166,15 +166,21 @@ class IVGExecutorWithExternalFiles : public IVGExecutor {
 				return Image();
 			}
 			const std::vector<unsigned char> imageBytes = readFileBytes(path);
-			if (imageBytes.empty()) return Image();
+			if (imageBytes.empty()) {
+				return Image();
+			}
 			PNGReadContext readContext = { &imageBytes[0], imageBytes.size(), 0 };
 			png_structp png_ptr = 0;
 			png_infop info_ptr = 0;
 			try {
 				png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, myPNGErrorFunction, 0);
-				if (png_ptr == 0) throw std::runtime_error("Error reading PNG image : could not initialize");
+				if (png_ptr == 0) {
+					throw std::runtime_error("Error reading PNG image : could not initialize");
+				}
 				info_ptr = png_create_info_struct(png_ptr);
-				if (info_ptr == 0) throw std::runtime_error("Error reading PNG image : could not initialize");
+				if (info_ptr == 0) {
+					throw std::runtime_error("Error reading PNG image : could not initialize");
+				}
 				png_set_read_fn(png_ptr, &readContext, myPNGReadFunction);
 				png_set_add_alpha(png_ptr, 0xFF, PNG_FILLER_AFTER);
 				if (isLittleEndian()) {
@@ -380,9 +386,13 @@ int main(int argc, const char* argv[]) {
 		std::cerr << "Rasterized image..." << std::endl;
 
 		SelfContainedRaster<ARGB32>* raster = canvas.accessRaster();
-		if (raster == 0) throw std::runtime_error("IVG image is empty");
+		if (raster == 0) {
+			throw std::runtime_error("IVG image is empty");
+		}
 		IntRect bounds = raster->calcBounds();
-		if (bounds.width <= 0 || bounds.height <= 0) throw std::runtime_error("IVG image is empty");
+		if (bounds.width <= 0 || bounds.height <= 0) {
+			throw std::runtime_error("IVG image is empty");
+		}
 
 		if (haveBackground) {
 			SelfContainedRaster<ARGB32> copy(*raster);
@@ -422,13 +432,19 @@ int main(int argc, const char* argv[]) {
 		
 			try {
 				png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, myPNGErrorFunction, 0);
-				if (png_ptr == 0) throw std::runtime_error("Error writing PNG image : could not initialize");
+				if (png_ptr == 0) {
+					throw std::runtime_error("Error writing PNG image : could not initialize");
+				}
 
 				info_ptr = png_create_info_struct(png_ptr);
-				if (info_ptr == 0) throw std::runtime_error("Error writing PNG image : could not initialize");
+				if (info_ptr == 0) {
+					throw std::runtime_error("Error writing PNG image : could not initialize");
+				}
 
 				png_set_compression_level(png_ptr, compressionLevel);
-				if (fast) png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, PNG_FILTER_NONE);
+				if (fast) {
+					png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, PNG_FILTER_NONE);
+				}
 				png_set_write_fn(png_ptr, &writeContext, myPNGWriteFunction, myPNGFlushFunction);
 
 				png_set_IHDR(png_ptr, info_ptr, bounds.width, bounds.height, 8, PNG_COLOR_TYPE_RGB_ALPHA
@@ -454,7 +470,9 @@ int main(int argc, const char* argv[]) {
 	}
 	catch (const IMPD::Exception& x) {
 		std::cerr << "Exception: " << x.what() << std::endl;
-		if (x.hasStatement()) std::cerr << "in statement: " << x.getStatement() << std::endl;
+		if (x.hasStatement()) {
+			std::cerr << "in statement: " << x.getStatement() << std::endl;
+		}
 		return 1;
 	}
 	catch (const std::exception& x) {

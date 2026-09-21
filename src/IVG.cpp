@@ -91,18 +91,24 @@ static void checkBoundsBeforeScaling(double left, double top, double width, doub
 }
 
 static StringIt eatSpace(StringIt p, const StringIt& e) {
-	while (p != e && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')) ++p;
+	while (p != e && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')) {
+		++p;
+	}
 	return p;
 }
 
 static StringIt eatSpaceAndComma(StringIt p, const StringIt& e) {
 	p = eatSpace(p, e);
-	if (p != e && *p == ',') p = eatSpace(p + 1, e);
+	if (p != e && *p == ',') {
+		p = eatSpace(p + 1, e);
+	}
 	return p;
 }
 
 static Vertex toAbsoluteVertex(const Path& path, bool sourceIsRelative, const Vertex& sourceVertex) {
-	if (!sourceIsRelative) return sourceVertex;
+	if (!sourceIsRelative) {
+		return sourceVertex;
+	}
 	else {
 		Vertex pos(path.getPosition());
 		return Vertex(pos.x + sourceVertex.x, pos.y + sourceVertex.y);
@@ -138,16 +144,22 @@ static bool parseFlag(StringIt& p, const StringIt& e, bool& v) {
 static bool parseSingleCoordinate(StringIt& p, const StringIt& e, double& v) {
 	assert(p <= e);
 	StringIt q = Interpreter::parseDouble(p, e, v);
-	if (q == p || !isfinite(v) || fabs(v) > COORDINATE_LIMIT) return false;
+	if (q == p || !isfinite(v) || fabs(v) > COORDINATE_LIMIT) {
+		return false;
+	}
 	p = q;
 	return true;
 }
 
 static bool parseCoordinatePair(StringIt& p, const StringIt& e, Vertex& vertex, bool acceptLeadingComma) {
 	StringIt q = (acceptLeadingComma ? eatSpaceAndComma(p, e) : eatSpace(p, e));
-	if (!parseSingleCoordinate(q, e, vertex.x)) return false;
+	if (!parseSingleCoordinate(q, e, vertex.x)) {
+		return false;
+	}
 	q = eatSpaceAndComma(q, e);
-	if (!parseSingleCoordinate(q, e, vertex.y)) return false;
+	if (!parseSingleCoordinate(q, e, vertex.y)) {
+		return false;
+	}
 	p = q;
 	return true;
 }
@@ -155,7 +167,9 @@ static bool parseCoordinatePair(StringIt& p, const StringIt& e, Vertex& vertex, 
 static int parseNumberList(const Interpreter& impd, const StringRange& r, double numbers[], int minElems, int maxElems) {
 	StringVector elems;
 	int count = impd.parseList(r, elems, true, false, minElems, maxElems);
-	for (int i = 0; i < count; ++i) numbers[i] = impd.toDouble(elems[i]);
+	for (int i = 0; i < count; ++i) {
+		numbers[i] = impd.toDouble(elems[i]);
+	}
 	return count;
 }
 
@@ -169,7 +183,9 @@ static Mask8::Pixel parseOpacity(const Interpreter& impd, const StringRange& r) 
 		}
 	} else {
 		double d = impd.toDouble(r);
-		if (d < 0.0 || d > 1.0) impd.throwRunTimeError(String("Opacity \"") + impd.toString(d) + "\" out of range [0..1].");
+		if (d < 0.0 || d > 1.0) {
+			impd.throwRunTimeError(String("Opacity \"") + impd.toString(d) + "\" out of range [0..1].");
+		}
 		i = min(static_cast<int>(d * 256), 255);
 	}
 	assert(0 <= i && i < 256);
@@ -235,7 +251,9 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 	Vertex cubicReflectionPoint;
 
 	p = eatSpace(p, e);
-	if (p == e) return true;
+	if (p == e) {
+		return true;
+	}
 	if (*p != 'M' && *p != 'm') {
 		errorString = "SVG path must begin with 'M'";
 		return false;
@@ -296,11 +314,19 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 					while (parseSingleCoordinate(q, e, v)) {
 						p = q;
 						if (c == 'H') {
-							if (isRelative) pos.x += v;
-							else pos.x = v;
+							if (isRelative) {
+								pos.x += v;
+							}
+							else {
+								pos.x = v;
+							}
 						} else {
-							if (isRelative) pos.y += v;
-							else pos.y = v;
+							if (isRelative) {
+								pos.y += v;
+							}
+							else {
+								pos.y = v;
+							}
 						}
 						if (exceedsPathLimit(path, errorString)) {
 							return false;
@@ -496,7 +522,9 @@ static int findStandardColorName(size_t n /* string length */, const char* s /* 
 		-1, 12, 8, 7, 3, -1, -1, 1, -1, -1, 5, 10, 9, -1, 2, -1,
 		14, -1, 6, 13, -1, 15, -1, 11, -1, -1, 0, -1, -1, 16, 4, -1
 	};
-	if (n < 3 || n > 7) return -1;
+	if (n < 3 || n > 7) {
+		return -1;
+	}
 	int stringIndex = QUICK_HASH_TABLE[((s[1] + s[3] ^ s[2])) & 31];
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
@@ -524,7 +552,9 @@ static bool parseNumericColor(Interpreter& impd, const StringRange& r, ARGB32::P
 			assert(count == 3 || count == 4);
 			if (isRGB) {
 				unsigned char c[4];
-				for (int i = 0; i < count; ++i) c[i] = min(static_cast<int>(n[i] * 256), 255);
+				for (int i = 0; i < count; ++i) {
+					c[i] = min(static_cast<int>(n[i] * 256), 255);
+				}
 				unsigned int i = 0xFF000000 | (c[0] << 16) | (c[1] << 8) | (c[2] << 0);
 				argb = (count == 4 ? ARGB32::multiply(i, c[3]) : i);
 			} else {
@@ -598,7 +628,9 @@ static int findTransformType(size_t n /* string length */, const char* s /* zero
 	static const int QUICK_HASH_TABLE[8] = {
 		4, 0, -1, 1, -1, -1, 3, 2
 	};
-	if (n < 5 || n > 6) return -1;
+	if (n < 5 || n > 6) {
+		return -1;
+	}
 	int stringIndex = QUICK_HASH_TABLE[(s[1]) & 7];
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
@@ -627,7 +659,9 @@ static int findPathInstructionType(int n /* string length */, const char* s /* s
 	};
 	const unsigned char* p = (const unsigned char*) s;
 	assert(s[n] == '\0');
-	if (n < 4 || n > 10) return -1;
+	if (n < 4 || n > 10) {
+		return -1;
+	}
 	int stringIndex = HASH_TABLE[((p[4] ^ p[0]) - n) & 63u];
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
@@ -1070,7 +1104,9 @@ void PatternBase::makePattern(Interpreter& impd, IVGExecutor& executor, Context&
 }
 
 template<> void PatternPainter<Mask8>::blendWithARGB32(const Renderer<ARGB32>& source) {
-	if (image.get() == 0) Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
+	if (image.get() == 0) {
+		Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
+	}
 	(*image) |= Converter<ARGB32, Mask8>(source);
 }
 
@@ -1134,9 +1170,15 @@ template<class PIXEL_TYPE> void Canvas::parsePaintOfType(Interpreter& impd, IVGE
 	} else if ((s = args.fetchOptional(0)) != 0) {
 		paint.painter = new ColorPainter<PIXEL_TYPE>(parseColor<PIXEL_TYPE>(impd, *s));
 	}
-	if ((s = args.fetchOptional("opacity")) != 0) paint.opacity = parseOpacity(impd, *s);
-	if ((s = args.fetchOptional("relative")) != 0) paint.relative = impd.toBool(*s);
-	if ((s = args.fetchOptional("transform", false)) != 0) paint.transformation = parseTransformationBlock(impd, *s);
+	if ((s = args.fetchOptional("opacity")) != 0) {
+		paint.opacity = parseOpacity(impd, *s);
+	}
+	if ((s = args.fetchOptional("relative")) != 0) {
+		paint.relative = impd.toBool(*s);
+	}
+	if ((s = args.fetchOptional("transform", false)) != 0) {
+		paint.transformation = parseTransformationBlock(impd, *s);
+	}
 }
 
 /* --- Context --- */
@@ -1255,7 +1297,9 @@ static int findIVGInstruction(size_t n /* string length */, const char* s /* zer
 	};
 	const unsigned char* p = (const unsigned char*) s;
 	assert(s[n] == '\0');
-	if (n < 3 || n > 7) return -1;
+	if (n < 3 || n > 7) {
+		return -1;
+	}
 	int stringIndex = HASH_TABLE[((0u + p[3]) << 3 ^ p[0]) & 127u];
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
@@ -1269,26 +1313,46 @@ void IVGExecutor::parseStroke(Interpreter& impd, ArgumentsContainer& args, Strok
 	const String* s;
 	if ((s = args.fetchOptional("width")) != 0) {
 		double d = impd.toDouble(*s);
-		if (d < 0.0) impd.throwRunTimeError(String("Negative stroke width \"") + impd.toString(d) + "\".");
+		if (d < 0.0) {
+			impd.throwRunTimeError(String("Negative stroke width \"") + impd.toString(d) + "\".");
+		}
 		stroke.width = d;
 	}
 	if ((s = args.fetchOptional("caps")) != 0) {
 		String capsString = impd.toLower(*s);
-		if (capsString == "butt") stroke.caps = Path::BUTT;
-		else if (capsString == "round") stroke.caps = Path::ROUND;
-		else if (capsString == "square") stroke.caps = Path::SQUARE;
-		else impd.throwBadSyntax(String("Unrecognized stroke caps \"") + *s + "\".");
+		if (capsString == "butt") {
+			stroke.caps = Path::BUTT;
+		}
+		else if (capsString == "round") {
+			stroke.caps = Path::ROUND;
+		}
+		else if (capsString == "square") {
+			stroke.caps = Path::SQUARE;
+		}
+		else {
+			impd.throwBadSyntax(String("Unrecognized stroke caps \"") + *s + "\".");
+		}
 	}
 	if ((s = args.fetchOptional("joints")) != 0) {
 		String jointsString = impd.toLower(*s);
-		if (jointsString == "bevel") stroke.joints = Path::BEVEL;
-		else if (jointsString == "curve") stroke.joints = Path::CURVE;
-		else if (jointsString == "miter") stroke.joints = Path::MITER;
-		else impd.throwBadSyntax(String("Unrecognized stroke joints \"") + *s + "\".");
+		if (jointsString == "bevel") {
+			stroke.joints = Path::BEVEL;
+		}
+		else if (jointsString == "curve") {
+			stroke.joints = Path::CURVE;
+		}
+		else if (jointsString == "miter") {
+			stroke.joints = Path::MITER;
+		}
+		else {
+			impd.throwBadSyntax(String("Unrecognized stroke joints \"") + *s + "\".");
+		}
 	}
 	if ((s = args.fetchOptional("miter-limit")) != 0) {
 		double d = impd.toDouble(*s);
-		if (d < 1.0) impd.throwRunTimeError(String("\"miter-limit\" value \"") + impd.toString(d) + "\" out of range [1..infinity).");
+		if (d < 1.0) {
+			impd.throwRunTimeError(String("\"miter-limit\" value \"") + impd.toString(d) + "\" out of range [1..infinity).");
+		}
 		stroke.miterLimit = d;
 	}
 	if ((s = args.fetchOptional("dash")) != 0) {
@@ -1310,7 +1374,9 @@ void IVGExecutor::parseStroke(Interpreter& impd, ArgumentsContainer& args, Strok
 			stroke.gap = gap;
 		}
 	}
-	if ((s = args.fetchOptional("dash-offset")) != 0) stroke.dashOffset = impd.toDouble(*s);
+	if ((s = args.fetchOptional("dash-offset")) != 0) {
+		stroke.dashOffset = impd.toDouble(*s);
+	}
 	currentContext->accessCanvas().parsePaint(impd, *this, *currentContext, args, stroke.paint);
 	args.throwIfNoneFetched();
 	args.throwIfAnyUnfetched();
@@ -1331,7 +1397,9 @@ void IVGExecutor::runInNewContext(Interpreter& interpreter, Context& context, co
 
 bool IVGExecutor::format(Interpreter& impd, const FormatInfo& formatInfo) {
 	(void)impd;
-	if (!formatInfo.requires.empty()) return false;
+	if (!formatInfo.requires.empty()) {
+		return false;
+	}
 	if (formatInfo.formatId == "ivg-1") { formatVersion = IVG_1; return true; }
 	if (formatInfo.formatId == "ivg-2") { formatVersion = IVG_2; return true; }
 	if (formatInfo.formatId == "ivg-3") { formatVersion = IVG_3; return true; }
@@ -1486,7 +1554,9 @@ static int findAlignmentKeyword(size_t n /* string length */, const char* s /* s
 		3, -1, -1, -1, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 	};
 	assert(s[n] == '\0');
-	if (n < 3 || n > 6) return -1;
+	if (n < 3 || n > 6) {
+		return -1;
+	}
 	int stringIndex = HASH_TABLE[(s[2]) & 31];
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
@@ -1769,7 +1839,9 @@ static Path& makeRectPath(Path& path, Interpreter& impd, ArgumentsContainer& arg
 	} else {
 		double rounded[2];
 		int count = parseNumberList(impd, *s, rounded, 1, 2);
-		if (count == 1) rounded[1] = rounded[0];
+		if (count == 1) {
+			rounded[1] = rounded[0];
+		}
 		if (rounded[0] < 0.0 || rounded[1] < 0.0) {
 			impd.throwRunTimeError(String("Negative rounded corner radius \"")
 					+ impd.toString(rounded[0] < 0.0 ? rounded[0] : rounded[1]) + "\".");
@@ -1807,9 +1879,15 @@ static Path& makeEllipsePath(Path& path, Interpreter& impd, ArgumentsContainer& 
 		bool typeIsPie = false;
 		if (typeArg != 0) {
 			String t = impd.toLower(*typeArg);
-			if (t == "pie") typeIsPie = true;
-			else if (t == "chord") typeIsPie = false;
-			else impd.throwBadSyntax(String("Unrecognized ellipse type \"") + *typeArg + "\".");
+			if (t == "pie") {
+				typeIsPie = true;
+			}
+			else if (t == "chord") {
+				typeIsPie = false;
+			}
+			else {
+				impd.throwBadSyntax(String("Unrecognized ellipse type \"") + *typeArg + "\".");
+			}
 		}
 		args.throwIfAnyUnfetched();
 
@@ -1903,7 +1981,9 @@ Path IVGExecutor::makeTextPath(Interpreter& impd, const UniString& text, double&
 	const bool success = buildPathForString(text, fonts, state.textStyle.size, state.textStyle.glyphTransform
 			, state.textStyle.letterSpacing, currentContext->calcCurveQuality(), textPath, advance
 			, errorString);
-	if (!success) trace(impd, WideString(errorString, errorString + strlen(errorString)));
+	if (!success) {
+		trace(impd, WideString(errorString, errorString + strlen(errorString)));
+	}
 	return textPath;
 }
 
@@ -1936,9 +2016,15 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			const String* s = args.fetchOptional("rule");
 			if (s != 0) {
 				String ruleString = impd.toLower(*s);
-				if (ruleString == "non-zero") state.evenOddFillRule = false;
-				else if (ruleString == "even-odd") state.evenOddFillRule = true;
-				else impd.throwBadSyntax(String("Unrecognized fill rule \"") + *s + "\".");
+				if (ruleString == "non-zero") {
+					state.evenOddFillRule = false;
+				}
+				else if (ruleString == "even-odd") {
+					state.evenOddFillRule = true;
+				}
+				else {
+					impd.throwBadSyntax(String("Unrecognized fill rule \"") + *s + "\".");
+				}
 			}
 			args.throwIfNoneFetched();
 			args.throwIfAnyUnfetched();
@@ -1996,8 +2082,12 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			}
 			if (wipePaint.isVisible()) {
 				State& state = currentContext->accessState();
-				if (state.mask != 0) wipePaint.doPaint(*currentContext, Rect<double>(), *state.mask);
-				else wipePaint.doPaint(*currentContext, Rect<double>(), Solid<Mask8>(0xFF));
+				if (state.mask != 0) {
+					wipePaint.doPaint(*currentContext, Rect<double>(), *state.mask);
+				}
+				else {
+					wipePaint.doPaint(*currentContext, Rect<double>(), Solid<Mask8>(0xFF));
+				}
 			}
 			break;
 		}
@@ -2245,7 +2335,9 @@ void SelfContainedARGB32Canvas::parsePaint(Interpreter& impd, IVGExecutor& execu
 }
 
 void SelfContainedARGB32Canvas::checkBoundsDeclared() const {
-	if (raster.get() == 0) Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
+	if (raster.get() == 0) {
+		Interpreter::throwRunTimeError("Undeclared \"bounds\" definition.");
+	}
 }
 
 void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
@@ -2258,7 +2350,9 @@ void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
 		checkBoundsBeforeScaling(left, top, width, height);
 		scaledBounds = expandToIntRect(Rect<double>(left, top, width, height));
 	}
-        if (raster.get() != 0) Interpreter::throwRunTimeError("Multiple \"bounds\" declarations.");
+        if (raster.get() != 0) {
+        	Interpreter::throwRunTimeError("Multiple \"bounds\" declarations.");
+        }
 	checkBounds(scaledBounds);
 	raster.reset(new SelfContainedRaster<ARGB32>(scaledBounds));
 	(*raster) = Solid<ARGB32>(ARGB32::transparent());
@@ -2404,7 +2498,9 @@ static int findIVGFontInstruction(size_t n /* string length */, const char* s /*
 		0, 1, 2, -1
 	};
 	assert(s[n] == '\0');
-	if (n < 4 || n > 7) return -1;
+	if (n < 4 || n > 7) {
+		return -1;
+	}
 	int stringIndex = HASH_TABLE[(s[2]) & 3];
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }

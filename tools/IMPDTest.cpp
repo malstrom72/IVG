@@ -72,7 +72,9 @@ class MyExecutor : public Executor {
 	public:		virtual bool load(Interpreter& interpreter, const WideString& filename, String& contents) {
 					std::string filename8Bit(filename.begin(), filename.end());
 					std::ifstream inStream(filename8Bit.c_str());
-					if (!inStream.good()) return false;
+					if (!inStream.good()) {
+						return false;
+					}
 					contents.assign(std::istreambuf_iterator<char>(inStream), std::istreambuf_iterator<char>());
 					return inStream.good();
 				}
@@ -89,16 +91,24 @@ static bool testUniStringConversions() {
 	sample.push_back(static_cast<UniChar>(0x1F600));
 	WideString wide = convertUniToWideString(sample);
 	UniString uni = convertWideToUniString(wide);
-	if (uni != sample) return false;
+	if (uni != sample) {
+		return false;
+	}
 	WideString wide2 = convertUniToWideString(uni);
-	if (wide != wide2) return false;
+	if (wide != wide2) {
+		return false;
+	}
 	
 	WideString wideSample = L"A\u20AC\U0001F600";
 	UniString uni2 = convertWideToUniString(wideSample);
 	WideString wide3 = convertUniToWideString(uni2);
-	if (wideSample != wide3) return false;
+	if (wideSample != wide3) {
+		return false;
+	}
 	UniString uni3 = convertWideToUniString(wide3);
-	if (uni2 != uni3) return false;
+	if (uni2 != uni3) {
+		return false;
+	}
 	return true;
 }
 
@@ -123,7 +133,9 @@ int main(int argc, const char* argv[]) {
 			}
 			catch (const Exception& x) {
 				std::cout << "Exception: " << x.what() << std::endl;
-				if (x.hasStatement()) std::cout << "in statement: " << x.getStatement() << std::endl;
+				if (x.hasStatement()) {
+					std::cout << "in statement: " << x.getStatement() << std::endl;
+				}
 			}
 			catch (const std::exception& x) {
 				std::cout << "Exception: " << x.what() << std::endl;
