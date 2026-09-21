@@ -1186,9 +1186,14 @@ return false;
 
                         const SnapshotInvocation* commonInvocation = plan->lookupCommonInvocation(blockOrdinal);
                         if (commonInvocation != 0) {
-                                const StringRange trimmedCommon = trimRange(StringRange(commonInvocation->statements));
+                                /*
+                                        Copied before running: a nested `meta snapshot` records into the very vector this
+                                        points into, and the reallocation frees the string the range would span.
+                                */
+                                const String commonStatements(commonInvocation->statements);
+                                const StringRange trimmedCommon = trimRange(StringRange(commonStatements));
                                 if (trimmedCommon.b != trimmedCommon.e) {
-                                        interpreter.run(StringRange(commonInvocation->statements));
+                                        interpreter.run(StringRange(commonStatements));
                                 }
                         }
 
@@ -1197,12 +1202,13 @@ return false;
                                 return;
                         }
 
-                        const StringRange trimmed = trimRange(StringRange(invocation->statements));
+                        const String statements(invocation->statements);		// Copied for the same reason as above.
+                        const StringRange trimmed = trimRange(StringRange(statements));
                         if (trimmed.b == trimmed.e) {
                                 return;
                         }
 
-                        interpreter.run(StringRange(invocation->statements));
+                        interpreter.run(StringRange(statements));
                 }
 
                 std::string resolveRelativePath(const std::string& requested) const
