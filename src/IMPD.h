@@ -65,9 +65,9 @@ const int ESCAPE_CODE_COUNT = 7;
 WideString convertUniToWideString(const UniString& s);
 UniString convertWideToUniString(const WideString& s);
 
-/**
+/*
 	Helper representing a pair of iterators into a string.
-**/
+*/
 struct StringRange {
 	StringRange(const StringIt& b, const StringIt& e) : b(b), e(e) { }
 	StringRange(const String& s) : b(s.begin()), e(s.end()) { }
@@ -77,9 +77,9 @@ struct StringRange {
 	StringIt e;
 };
 
-/**
+/*
 	Base class for all IMPD specific exceptions carrying an optional statement.
-**/
+*/
 class Exception : public std::exception {
 	friend class Interpreter;
 	protected:	Exception(const std::string& error) : error(error) { }
@@ -94,10 +94,10 @@ class Exception : public std::exception {
 	protected:	String statement;
 };
 
-struct SyntaxException : public Exception { SyntaxException(const std::string& error) : Exception(error) { } };			///< SyntaxException is thrown when file data cannot be parsed properly.
-struct RunTimeException : public Exception { RunTimeException(const std::string& error) : Exception(error) { } };		///< Run-time exceptions are caused by erraneous dynamic processing. E.g. variable contents is of wrong type for operation.
-struct AbortedException : public Exception { AbortedException(const std::string& error) : Exception(error) { } };		///< AbortedException is thrown by a 'stop' intruction or when an Executor returns false from progress()
-struct FormatException : public Exception { FormatException(const std::string& error) : Exception(error) { } };			///< FormatException is thrown when the 'format' instruction indicates that the data format is unsupported.
+struct SyntaxException : public Exception { SyntaxException(const std::string& error) : Exception(error) { } };			// SyntaxException is thrown when file data cannot be parsed properly.
+struct RunTimeException : public Exception { RunTimeException(const std::string& error) : Exception(error) { } };		// Run-time exceptions are caused by erraneous dynamic processing. E.g. variable contents is of wrong type for operation.
+struct AbortedException : public Exception { AbortedException(const std::string& error) : Exception(error) { } };		// AbortedException is thrown by a 'stop' intruction or when an Executor returns false from progress()
+struct FormatException : public Exception { FormatException(const std::string& error) : Exception(error) { } };			// FormatException is thrown when the 'format' instruction indicates that the data format is unsupported.
 
 class Interpreter;
 
@@ -109,9 +109,9 @@ struct Argument {
 };
 typedef std::vector<Argument> ArgumentVector;
 
-/**
+/*
 	Tracks format declarations for the current document scope.
-**/
+*/
 struct FormatInfo {
 	FormatInfo() { }
 	String formatId;
@@ -119,19 +119,19 @@ struct FormatInfo {
 	std::set<String> requires;
 };
 
-/**
+/*
 	Stores parsed arguments and tracks which entries have been consumed.
 	Fetching an argument marks it as used so missing or surplus parameters can be detected afterwards.
-**/
+*/
 class ArgumentsContainer {
-	public:		static ArgumentsContainer parse(const Interpreter& interpreter, const StringRange& range);		///< Parse a raw argument string and normalize it for indexed and labeled lookups.
-	public:		ArgumentsContainer(const Interpreter& interpreter, const ArgumentVector& arguments);			///< Construct a container from an already tokenized argument list.
-	public:		const String* fetchOptional(int index, bool expand = true);										///< Fetch the N:th positional argument if present, returning 0 otherwise.
-	public:		const String& fetchRequired(int index, bool expand = true);										///< Fetch the N:th positional argument or throw when it is missing.
-	public:		const String* fetchOptional(const String& label, bool expand = true);							///< Fetch an optional labeled argument, returning 0 when the label is absent.
-	public:		const String& fetchRequired(const String& label, bool expand = true);							///< Fetch a labeled argument or throw when the label was not provided.
-	public:		void throwIfAnyUnfetched();																		///< Throw if unused arguments remain. Always call after consuming all expected inputs.
-	public:		void throwIfNoneFetched();																		///< Throw if nothing was consumed. Unnecessary to call if you used fetchRequired() at least once.
+	public:		static ArgumentsContainer parse(const Interpreter& interpreter, const StringRange& range);		// Parse a raw argument string and normalize it for indexed and labeled lookups.
+	public:		ArgumentsContainer(const Interpreter& interpreter, const ArgumentVector& arguments);			// Construct a container from an already tokenized argument list.
+	public:		const String* fetchOptional(int index, bool expand = true);										// Fetch the N:th positional argument if present, returning 0 otherwise.
+	public:		const String& fetchRequired(int index, bool expand = true);										// Fetch the N:th positional argument or throw when it is missing.
+	public:		const String* fetchOptional(const String& label, bool expand = true);							// Fetch an optional labeled argument, returning 0 when the label is absent.
+	public:		const String& fetchRequired(const String& label, bool expand = true);							// Fetch a labeled argument or throw when the label was not provided.
+	public:		void throwIfAnyUnfetched();																		// Throw if unused arguments remain. Always call after consuming all expected inputs.
+	public:		void throwIfNoneFetched();																		// Throw if nothing was consumed. Unnecessary to call if you used fetchRequired() at least once.
 	protected:	struct ArgumentExtra {
 					ArgumentExtra() : hasFetched(false), hasExpanded(false) { }
 					bool hasFetched;
@@ -148,19 +148,19 @@ class ArgumentsContainer {
 	protected:	int unfetchedCount;
 };
 
-/**
+/*
 	Interface representing a storage backend for interpreter variables.
-**/
+*/
 class Variables {
-	public:		virtual bool declare(const String& var, const String& value) = 0;										///< Create a new variable and assign value. Variable must not already exist. Return false if it does exist.
-	public:		virtual bool assign(const String& var, const String& value) = 0;										///< Assign value to an existing variable. Variable must exist. Return false if variable does not exist.
-	public:		virtual bool lookup(const String& var, String& value) const = 0;										///< Load value of an existing variable into `value`. Return false (and do not touch `value`) if the variable does not exist.
+	public:		virtual bool declare(const String& var, const String& value) = 0;										// Create a new variable and assign value. Variable must not already exist. Return false if it does exist.
+	public:		virtual bool assign(const String& var, const String& value) = 0;										// Assign value to an existing variable. Variable must exist. Return false if variable does not exist.
+	public:		virtual bool lookup(const String& var, String& value) const = 0;										// Load value of an existing variable into `value`. Return false (and do not touch `value`) if the variable does not exist.
 	public:		virtual ~Variables() { }
 };
 
-/**
+/*
 	Simple variable store implemented using an STL map.
-**/
+*/
 class STLMapVariables : public Variables {
 	public:		virtual bool declare(const String& var, const String& value);
 	public:		virtual bool assign(const String& var, const String& value);
@@ -168,47 +168,47 @@ class STLMapVariables : public Variables {
 	protected:	StringStringMap vars;
 };
 
-/**
+/*
 	Abstract interface for executing instructions and loading resources.
-**/
+*/
 class Executor {
-	public:		virtual bool format(Interpreter& interpreter, const FormatInfo& formatInfo) = 0;						///< Return false to throw FormatException if the format is not supported. `formatInfo` contains the normalized identifier, declared `uses:` tokens, and the filtered `requires:` set.
-	public:		virtual bool execute(Interpreter& interpreter, const String& instruction, const String& arguments) = 0; ///< Return false to throw SyntaxException if instruction is unrecognized. `instruction` is passed in lower case.
-	public:		virtual bool progress(Interpreter& interpreter, int maxStatementsLeft) = 0;								///< Called before every statement is executed. Return false to stop processing and throw AbortedException.
-	public:		virtual bool load(Interpreter& interpreter, const WideString& filename, String& contents) = 0;			///< Called by the INCLUDE instruction. Load contents of file into `contents`. Return false to throw a RunTimeException.
-	public:		virtual void trace(Interpreter& interpreter, const WideString& s) = 0;									///< Used for debugging. Trace `s` to standard out, any log-files etc...
-	public:		virtual bool meta(Interpreter& interpreter, const String& key, const String& arguments) = 0;			///< Used for passing meta-data from the IMPD script to the executor. `key` is passed in lower case (and will end with `-n` version number if declared in `format uses:`). `arguments` is the raw argument string (may be empty). Return false if the meta tag is unrecognized (not an error, but may trace a warning).
+	public:		virtual bool format(Interpreter& interpreter, const FormatInfo& formatInfo) = 0;						// Return false to throw FormatException if the format is not supported. `formatInfo` contains the normalized identifier, declared `uses:` tokens, and the filtered `requires:` set.
+	public:		virtual bool execute(Interpreter& interpreter, const String& instruction, const String& arguments) = 0; // Return false to throw SyntaxException if instruction is unrecognized. `instruction` is passed in lower case.
+	public:		virtual bool progress(Interpreter& interpreter, int maxStatementsLeft) = 0;								// Called before every statement is executed. Return false to stop processing and throw AbortedException.
+	public:		virtual bool load(Interpreter& interpreter, const WideString& filename, String& contents) = 0;			// Called by the INCLUDE instruction. Load contents of file into `contents`. Return false to throw a RunTimeException.
+	public:		virtual void trace(Interpreter& interpreter, const WideString& s) = 0;									// Used for debugging. Trace `s` to standard out, any log-files etc...
+	public:		virtual bool meta(Interpreter& interpreter, const String& key, const String& arguments) = 0;			// Used for passing meta-data from the IMPD script to the executor. `key` is passed in lower case (and will end with `-n` version number if declared in `format uses:`). `arguments` is the raw argument string (may be empty). Return false if the meta tag is unrecognized (not an error, but may trace a warning).
 	public:		virtual ~Executor() { }
 };
 
-/**
+/*
 	Executes IMPD scripts using an external Executor and variable store.
-**/
+*/
 class Interpreter {
 	public:		static const String CURRENT_IMPD_REQUIRES_ID;
 	public:		static const String YES_STRING;
 	public:		static const String NO_STRING;
 
-	public:		static void throwBadSyntax(const String& how);												///< Bad syntax should be thrown when file data cannot be parsed properly. E.g. missing arguments etc.
+	public:		static void throwBadSyntax(const String& how);												// Bad syntax should be thrown when file data cannot be parsed properly. E.g. missing arguments etc.
 	public:		static void throwBadSyntax(const char* how);
-	public:		static void throwRunTimeError(const String& how);											///< Run-time error should be thrown when dynamic processing fails. E.g. variable contents is of wrong type for operation.
+	public:		static void throwRunTimeError(const String& how);											// Run-time error should be thrown when dynamic processing fails. E.g. variable contents is of wrong type for operation.
 	public:		static void throwRunTimeError(const char* how);
 
-	public:		static String toString(bool b);																///< Returns "yes" or "no".
-	public:		static String toString(int32_t i, int radix = 10, int minLength = 1);						///< Converts integer to string with choosable `radix` (from 2 to 16). `minLength` should be between 0 and 8 * sizeof (int).
-	public:		static String toString(double d, int precision = NUMBER_PRECISION_DIGITS);					///< Converts double to string in scientific e notation, e.g. -12.34e-3.
+	public:		static String toString(bool b);																// Returns "yes" or "no".
+	public:		static String toString(int32_t i, int radix = 10, int minLength = 1);						// Converts integer to string with choosable `radix` (from 2 to 16). `minLength` should be between 0 and 8 * sizeof (int).
+	public:		static String toString(double d, int precision = NUMBER_PRECISION_DIGITS);					// Converts double to string in scientific e notation, e.g. -12.34e-3.
 
-	public:		static bool toBool(const String& s);														///< Tries to convert string (either "yes" or "no") to boolean. Throws a run-time error if the string isn't "yes" or "no".
-	public:		static int toInt(const StringRange& r);														///< Tries to convert a string range to signed integer. Throws a run-time error if the string range could not be fully converted. Notice that a StringRange can be implicitly constructed from String, so you can pass a String as the argument to this function as well. See also parseInt().
-	public:		static double toDouble(const StringRange& r);												///< Tries to convert a string range to double. Throws a run-time error if the string could not be fully converted. Notice that a StringRange can be implicitly constructed from String, so you can pass a String as the argument to this function as well. See also parseDouble().
-	public:		static String toLower(const StringRange& r);												///< Converts string to lower case. Only ASCII characters 'A' to 'Z' will be treated.
-	public:		static UniString unescapeToUni(const StringRange& r);										///< Converts any escaped characters in a string to their unicode values. Special escape sequences are: @code \a \b \f \n \r \t \v \xHH \uHHHH \UHHHHHHHH \<decimal> @endcode. Any other escaped character is simply replaced by itself (without the backslash). Notice that a StringRange can be implicitly constructed from String, so you can pass a String as the argument to this function as well. Returned format is UTF32.
-	public:		static WideString unescapeToWide(const StringRange& r);										///< Like unescapeToUni(), but returned type is std::wstring, which may be UTF32 or UTF16 depending on target platform.
+	public:		static bool toBool(const String& s);														// Tries to convert string (either "yes" or "no") to boolean. Throws a run-time error if the string isn't "yes" or "no".
+	public:		static int toInt(const StringRange& r);														// Tries to convert a string range to signed integer. Throws a run-time error if the string range could not be fully converted. Notice that a StringRange can be implicitly constructed from String, so you can pass a String as the argument to this function as well. See also parseInt().
+	public:		static double toDouble(const StringRange& r);												// Tries to convert a string range to double. Throws a run-time error if the string could not be fully converted. Notice that a StringRange can be implicitly constructed from String, so you can pass a String as the argument to this function as well. See also parseDouble().
+	public:		static String toLower(const StringRange& r);												// Converts string to lower case. Only ASCII characters 'A' to 'Z' will be treated.
+	public:		static UniString unescapeToUni(const StringRange& r);										// Converts any escaped characters in a string to their unicode values. Special escape sequences are: @code \a \b \f \n \r \t \v \xHH \uHHHH \UHHHHHHHH \<decimal> @endcode. Any other escaped character is simply replaced by itself (without the backslash). Notice that a StringRange can be implicitly constructed from String, so you can pass a String as the argument to this function as well. Returned format is UTF32.
+	public:		static WideString unescapeToWide(const StringRange& r);										// Like unescapeToUni(), but returned type is std::wstring, which may be UTF32 or UTF16 depending on target platform.
 
-	public:		static StringIt parseHex(StringIt p, const StringIt& e, uint32_t& i);						///< Parses and converts as much as possible of hexadecimal string starting at `p` and ending at `e` into an unsigned int. Returns an iterator pointing to the first character that could not be parsed.
-	public:		static StringIt parseUnsignedInt(StringIt p, const StringIt& e, uint32_t& i);				///< Parses and converts as much as possible of decimal string starting at `p` and ending at `e` into an unsigned int (does not accept leading '+' or '-'). Returns an iterator pointing to the first character that could not be parsed.
-	public:		static StringIt parseInt(StringIt p, const StringIt& e, int& i);							///< Parses and converts as much as possible of decimal string starting at `p` and ending at `e` into a signed int (accepts leading '+' or '-'). Returns an iterator pointing to the first character that could not be parsed.
-	public:		static StringIt parseDouble(StringIt p, const StringIt& e, double& d);						/// Parses a floating point string starting at `p` and ending at `e` (supports scientific e notation). Returns an iterator pointing to the first character that could not be parsed. Returns `p` on failure.
+	public:		static StringIt parseHex(StringIt p, const StringIt& e, uint32_t& i);						// Parses and converts as much as possible of hexadecimal string starting at `p` and ending at `e` into an unsigned int. Returns an iterator pointing to the first character that could not be parsed.
+	public:		static StringIt parseUnsignedInt(StringIt p, const StringIt& e, uint32_t& i);				// Parses and converts as much as possible of decimal string starting at `p` and ending at `e` into an unsigned int (does not accept leading '+' or '-'). Returns an iterator pointing to the first character that could not be parsed.
+	public:		static StringIt parseInt(StringIt p, const StringIt& e, int& i);							// Parses and converts as much as possible of decimal string starting at `p` and ending at `e` into a signed int (accepts leading '+' or '-'). Returns an iterator pointing to the first character that could not be parsed.
+	public:		static StringIt parseDouble(StringIt p, const StringIt& e, double& d);						// Parses a floating point string starting at `p` and ending at `e` (supports scientific e notation). Returns an iterator pointing to the first character that could not be parsed. Returns `p` on failure.
 	
 	public:		static bool isBracketBlock(const String& s);
 	public:		static bool isQuotedString(const String& s);
@@ -216,7 +216,7 @@ class Interpreter {
 
 	public:		Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo
 						, int statementsLimit = DEFAULT_STATEMENTS_LIMIT
-						, int recursionLimit = DEFAULT_RECURSION_LIMIT);												///< Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`.
+						, int recursionLimit = DEFAULT_RECURSION_LIMIT);												// Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`.
 	public:		Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame);
 	public:		Interpreter(Executor& executor, Interpreter& enclosingInterpreter);
 	public:		Interpreter(Executor& executor, Interpreter& enclosingInterpreter, FormatInfo& formatInfo);
@@ -225,23 +225,23 @@ class Interpreter {
 	public:		FormatInfo& getFormatInfo() { return formatInfo; }
 	public:		const FormatInfo& getFormatInfo() const { return formatInfo; }
 	public:		int mapArguments(const ArgumentVector& allArguments, StringStringMap& labeledArguments
-						, StringVector& indexedArguments);													///< `labeledArguments` will map the labels converted to all lower case
+						, StringVector& indexedArguments);													// `labeledArguments` will map the labels converted to all lower case
 	public:		void parseArguments(const StringRange& r, ArgumentVector& arguments) const;
 	public:		int parseList(const StringRange& r, StringVector& elements, bool expandAll 
 						, bool removeEmpty, int minElements, int maxElements) const;
-	public:		String expand(const StringRange& s) const;	/// expand([ ... ]) removes the outer brackets, normalizes whitespace, and preserves nested bracket blocks intact; it does not expand inside nested [ ... ].
+	public:		String expand(const StringRange& s) const;	// expand([ ... ]) removes the outer brackets, normalizes whitespace, and preserves nested bracket blocks intact; it does not expand inside nested [ ... ].
 	public:		void set(const String& name, const String& value);
 	public:		String get(const String& name) const;
 	public:		void run(const StringRange& r);
 
 	protected:	class EvaluationValue;
 	protected:	static bool isComment(StringIt p, const StringIt& e);
-	protected:	static bool isSymbolLetter(Char c);															///< _ is considered a letter in this context, . - and 0 to 9 are not
+	protected:	static bool isSymbolLetter(Char c);															// _ is considered a letter in this context, . - and 0 to 9 are not
 	protected:	static StringIt eatComment(StringIt p, const StringIt& e);
 	protected:	static StringIt eatWhite(StringIt p, const StringIt& e);
 	protected:	static StringIt eatEscape(StringIt p, const StringIt& e);
 	protected:	static StringIt eatSymbol(StringIt p, const StringIt& e);
-	protected:	static StringIt eatSymbolForAssignment(StringIt p, const StringIt& e);						///< Doesn't accept leading '-' or 0 to 9 to prevent common accidental errors like $x = 3 (where x is a numeric value) from going unnoticed.
+	protected:	static StringIt eatSymbolForAssignment(StringIt p, const StringIt& e);						// Doesn't accept leading '-' or 0 to 9 to prevent common accidental errors like $x = 3 (where x is a numeric value) from going unnoticed.
 	protected:	static StringIt eatBlock(StringIt p, const StringIt& e);
 	protected:	static StringIt eatQuotedString(StringIt p, const StringIt& e);
 	protected:	static StringIt eatArgumentValue(StringIt p, const StringIt& e);

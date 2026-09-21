@@ -74,7 +74,7 @@ inline double square(double d) { return d * d; }
 
 void checkBounds(const NuXPixels::IntRect& bounds);
 
-/**
+/*
 	Lightweight ownership wrapper for pointers that are sometimes "inherited" and sometimes owned.
 
 	Summary
@@ -109,7 +109,7 @@ void checkBounds(const NuXPixels::IntRect& bounds);
 	Invariant
 	- When `owned.get() != 0` it always equals `inherited`. When non‑owning, `owned.get() == 0` and `inherited`
 	  simply points at an external object whose lifetime is managed elsewhere.
-**/
+*/
 template<class T> class Inheritable {
 	public:		Inheritable() : inherited(0) { }
 	public:		Inheritable(const Inheritable<T>& c) : inherited(c.inherited) { }
@@ -128,9 +128,9 @@ template<class T> class Inheritable {
 	protected:	std::unique_ptr<T> owned;
 };
 
-/**
+/*
 	Global rendering options controlling gamma and quality settings.
-**/
+*/
 class Options {
 	public:		Options() : gamma(1.0), curveQuality(1.0), patternResolution(1.0) { }
 	public:		void setGamma(double newGamma);
@@ -143,20 +143,20 @@ class Options {
 class Paint;
 class Context;
 
-/**
+/*
 	Interface implemented by all painting helpers used to draw with a mask.
-**/
+*/
 class Painter {
 	public:		virtual bool isVisible(const Paint& withPaint) const = 0;
 	public:		virtual void doPaint(Paint& withPaint, Context& inContext, const Rect<double>& sourceBounds
-						, const NuXPixels::Renderer<NuXPixels::Mask8>& mask) const = 0; ///< It is not legal to call doPaint if isVisible returns false. \p sourceBounds should only be used for relative paint.
+						, const NuXPixels::Renderer<NuXPixels::Mask8>& mask) const = 0; // It is not legal to call doPaint if isVisible returns false. \p sourceBounds should only be used for relative paint.
 	public:		virtual ~Painter() { }
 };
 
-/**
+/*
 	Describes how something is painted, including transform, opacity and
 	painter implementation.
-**/
+*/
 class Paint {
 	public:		Paint() : relative(false), opacity(255) { }
 	public:		NuXPixels::AffineTransformation transformation;
@@ -175,10 +175,10 @@ class Paint {
 				}
 };
 
-/**
+/*
 	Holds outline properties such as width, cap and join style as well as
 	dash pattern and paint.
-**/
+*/
 class Stroke {
 	public:		Stroke() : width(1.0), caps(NuXPixels::Path::BUTT), joints(NuXPixels::Path::MITER), miterLimit(2.0)
 						, dash(0.0), gap(0.0), dashOffset(0.0) { }
@@ -192,9 +192,9 @@ class Stroke {
 	public:		double dashOffset;
 };
 
-/**
+/*
 	Simple font containing glyph paths and metrics used for text rendering.
-**/
+*/
 class Font {
 	public:		struct Glyph {
 					IMPD::UniChar character;
@@ -226,9 +226,9 @@ class Font {
 	protected:	std::vector<KerningPair> kerningPairs;
 };
 
-/**
+/*
 	IMPD executor used for parsing and creating fonts embedded in IVG files.
-**/
+*/
 class FontParser : public IMPD::Executor {
 	public:		FontParser(IMPD::Executor* parentExecutor = 0);
 	public:		virtual bool format(IMPD::Interpreter& interpreter, const IMPD::FormatInfo& formatInfo);
@@ -248,9 +248,9 @@ class FontParser : public IMPD::Executor {
 	protected:	KerningPairsMap kerningPairs;
 };
 
-/**
+/*
 	Holds font name and painting settings for drawing text.
-**/
+*/
 class TextStyle {
 	public:		TextStyle() : size(20.0), letterSpacing(0.0) { outline.joints = NuXPixels::Path::CURVE; }
 	public:		IMPD::WideString fontName;
@@ -261,9 +261,9 @@ class TextStyle {
 	public:		double letterSpacing;
 };
 
-/**
+/*
 	Snapshot of all painting state used when rendering.
-**/
+*/
 class State {
 	public:		State() : evenOddFillRule(false) { }
 	public:		NuXPixels::AffineTransformation transformation;
@@ -278,23 +278,23 @@ class State {
 
 class IVGExecutor;
 class PathInstructionExecutor;
-/**
+/*
 	Abstract drawing surface that accepts blended pixel data.
-**/
+*/
 class Canvas {
 	protected:	template<class PIXEL_TYPE> void parsePaintOfType(IMPD::Interpreter& impd, IVGExecutor& executor, Context& context, IMPD::ArgumentsContainer& args, Paint& paint) const;
 	public:		virtual void parsePaint(IMPD::Interpreter& impd, IVGExecutor& executor, Context& context, IMPD::ArgumentsContainer& args, Paint& paint) const = 0;
 	public:		virtual void blendWithARGB32(const NuXPixels::Renderer<NuXPixels::ARGB32>& source) { (void)source; assert(0); }
 	public:		virtual void blendWithMask8(const NuXPixels::Renderer<NuXPixels::Mask8>& source) { (void)source; assert(0); }
-	public:		virtual void defineBounds(const NuXPixels::IntRect& newBounds) = 0;			///< Defines the physical boundaries of the canvas (i.e. outer bounds disregarding any current transformations). Never called more than once.
-	public:		virtual NuXPixels::IntRect getBounds() const = 0;							///< Returns the outer boundaries of the canvas. A canvas may throw if bounds has not been set yet.
+	public:		virtual void defineBounds(const NuXPixels::IntRect& newBounds) = 0;			// Defines the physical boundaries of the canvas (i.e. outer bounds disregarding any current transformations). Never called more than once.
+	public:		virtual NuXPixels::IntRect getBounds() const = 0;							// Returns the outer boundaries of the canvas. A canvas may throw if bounds has not been set yet.
 	public:		virtual ~Canvas() { }
 	public:		template<class PIXEL_TYPE> void blend(const NuXPixels::Renderer<PIXEL_TYPE>& source);
 };
 
-/**
+/*
 	Canvas implementation used to build a mask raster.
-**/
+*/
 class MaskMakerCanvas : public Canvas {
 	public:		MaskMakerCanvas(const NuXPixels::IntRect& bounds);
 	public:		virtual void parsePaint(IMPD::Interpreter& impd, IVGExecutor& executor, Context& context, IMPD::ArgumentsContainer& args, Paint& paint) const;
@@ -306,9 +306,9 @@ class MaskMakerCanvas : public Canvas {
 	protected:	std::unique_ptr< NuXPixels::RLERaster<NuXPixels::Mask8> > mask8RLE;
 };
 
-/**
+/*
 	Provides drawing state and helpers while rendering on a canvas.
-**/
+*/
 class Context {
 	friend class PatternBase;
 
@@ -331,9 +331,9 @@ class Context {
 	protected:	State state;
 };
 
-/**
+/*
 	Loaded image data with resolution information.
-**/
+*/
 struct Image {
 	Image() : raster(0), xResolution(1.0), yResolution(1.0) { }
 	const NuXPixels::Raster<NuXPixels::ARGB32>* raster;
@@ -341,9 +341,9 @@ struct Image {
 	double yResolution;
 };
 
-/**
+/*
 	Executes IVG drawing instructions within a rendering context.
-**/
+*/
 class IVGExecutor : public IMPD::Executor {
 	friend class PathInstructionExecutor;
 	public:		enum FormatVersion { UNKNOWN, IVG_1, IVG_2, IVG_3 };
@@ -358,7 +358,7 @@ class IVGExecutor : public IMPD::Executor {
 						, IMPD::String& contents);
 	public:		virtual bool meta(IMPD::Interpreter& interpreter, const IMPD::String& key, const IMPD::String& arguments);
 	
-				/**
+				/*
 					Return Image with null pointer in `raster` if image can't be loaded. Otherwise point to a raster
 					whose lifetime is guaranteed until the next call of this function. IVG will *not* cache this
 					pointer.
@@ -376,13 +376,13 @@ class IVGExecutor : public IMPD::Executor {
 						, const NuXPixels::IntRect* sourceRectangle, bool forStretching, double forXSize
 						, bool xSizeIsRelative, double forYSize, bool ySizeIsRelative);
 				
-				/**
+				/*
 					Returns a vector of pointers to fonts containing the necessary glyphs to display the specified string.
 					Fonts are searched in the order provided in the vector. If a glyph is not found in a font, the search continues with the next font.
 					Returns an empty vector if no suitable font is found. The returned font pointers must remain valid until the next call to lookupFonts().
 					If `forString` is empty, just return the main font.
 					If a glyph cannot be found in any font, the main font's missing glyph is used (character #0).
-				**/
+				*/
 	public:		virtual std::vector<const Font*> lookupFonts(IMPD::Interpreter& interpreter, const IMPD::WideString& fontName
 						, const IMPD::UniString& forString);
 	public:		void runInNewContext(IMPD::Interpreter& impd, Context& context, const IMPD::String& source);
@@ -414,9 +414,9 @@ class IVGExecutor : public IMPD::Executor {
 	protected:	FormatVersion formatVersion;
 };
 
-/**
+/*
 	Utility that multiplies a mask by an opacity value when used.
-**/
+*/
 class FadedMask {
 	public:		FadedMask(const NuXPixels::Renderer<NuXPixels::Mask8>& mask, NuXPixels::Mask8::Pixel opacity);
 	public:		operator const NuXPixels::Renderer<NuXPixels::Mask8>&() const;
@@ -425,9 +425,9 @@ class FadedMask {
 	protected:	const NuXPixels::Renderer<NuXPixels::Mask8>& output;
 };
 
-/**
+/*
 	Painter that fills using a solid color.
-**/
+*/
 template<class PIXEL_TYPE> class ColorPainter : public Painter {
 	public:		ColorPainter(typename PIXEL_TYPE::Pixel color) : color(color) { }
 	public:		virtual bool isVisible(const Paint& withPaint) const { (void)withPaint; return color != 0; }
@@ -440,9 +440,9 @@ template<class PIXEL_TYPE> class ColorPainter : public Painter {
 	protected:	typename PIXEL_TYPE::Pixel color;
 };
 
-/**
+/*
 	Base class for gradient painters handling stop visibility and transforms.
-**/
+*/
 template<class PIXEL_TYPE> class GradientPainter : public Painter {
 	public:		GradientPainter(int count, const typename NuXPixels::Gradient<PIXEL_TYPE>::Stop* points)
 						: gradient(count, points), visibleStops(false) {
@@ -469,9 +469,9 @@ template<class PIXEL_TYPE> class GradientPainter : public Painter {
 	protected:	bool visibleStops;
 };
 
-/**
+/*
 	Painter that renders a linear gradient between two points.
-**/
+*/
 template<class PIXEL_TYPE> class LinearGradientPainter : public GradientPainter<PIXEL_TYPE> {
 	public:		LinearGradientPainter(double startX, double startY, double endX, double endY, int count
 						, const typename NuXPixels::Gradient<PIXEL_TYPE>::Stop* points)
@@ -514,9 +514,9 @@ template<class PIXEL_TYPE> class LinearGradientPainter : public GradientPainter<
 
 // Sorry, the radial gradient painter does not care about any other transformations than width / height
 // (rotation doesn't affect the output unless unproportionally scaled)
-/**
+/*
 	Painter that draws a radial gradient based on an elliptical shape.
-**/
+*/
 template<class PIXEL_TYPE> class RadialGradientPainter : public GradientPainter<PIXEL_TYPE> {
 	public:		RadialGradientPainter(double centerX, double centerY
 						, double width, double height, int count, const typename NuXPixels::Gradient<PIXEL_TYPE>::Stop* points)
@@ -550,9 +550,9 @@ template<class PIXEL_TYPE> class RadialGradientPainter : public GradientPainter<
 	protected:	NuXPixels::Vertex size;
 };
 
-/**
+/*
 	Base helper for pattern painters providing a canvas to draw the pattern.
-**/
+*/
 class PatternBase : public Painter, public Canvas {
 	public:		PatternBase(int scale);
 	public:		void makePattern(IMPD::Interpreter& impd, IVGExecutor& executor, Context& parentContext
@@ -560,9 +560,9 @@ class PatternBase : public Painter, public Canvas {
 	protected:	int scale;
 };
 
-/**
+/*
 	Concrete pattern painter storing the drawn image for repeated use.
-**/
+*/
 template<class PIXEL_TYPE> class PatternPainter : public PatternBase {
 	public:		PatternPainter(int scale) : PatternBase(scale) { }
 	public:		virtual void parsePaint(IMPD::Interpreter& impd, IVGExecutor& executor, Context& context, IMPD::ArgumentsContainer& args, Paint& paint) const {
@@ -614,9 +614,9 @@ template<class PIXEL_TYPE> class PatternPainter : public PatternBase {
 	protected:	std::unique_ptr< NuXPixels::SelfContainedRaster<PIXEL_TYPE> > image;
 };
 
-/**
+/*
 	Canvas that renders directly into an existing ARGB32 raster.
-**/
+*/
 class ARGB32Canvas : public Canvas {
 	public:		ARGB32Canvas(NuXPixels::Raster<NuXPixels::ARGB32>& output);
 	public:		virtual void parsePaint(IMPD::Interpreter& impd, IVGExecutor& executor, Context& context, IMPD::ArgumentsContainer& args, Paint& paint) const;
@@ -629,9 +629,9 @@ class ARGB32Canvas : public Canvas {
 
 // FIX : if we templetize this one as a generic offscreenCanvas it is virtually identical to the one in the PatternPainter
 // it could also expand to an RLEARGB32Canvas, but that is probably always slower than drawing to a bitmap canvas and then compressing
-/**
+/*
 	Canvas with its own ARGB32 buffer allocated internally.
-**/
+*/
 class SelfContainedARGB32Canvas : public Canvas {
 	public:		SelfContainedARGB32Canvas(const double rescaleBounds = 1.0); // rescaleBounds can be used to create a canvas for a different target resolution (just supply the same scale for the initial transform of the root context).
 	public:		virtual void parsePaint(IMPD::Interpreter& impd, IVGExecutor& executor, Context& context, IMPD::ArgumentsContainer& args, Paint& paint) const;
