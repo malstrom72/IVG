@@ -1397,7 +1397,7 @@ void IVGExecutor::runInNewContext(Interpreter& interpreter, Context& context, co
 
 bool IVGExecutor::format(Interpreter& impd, const FormatInfo& formatInfo) {
 	(void)impd;
-	if (!formatInfo.requires.empty()) {
+	if (!formatInfo.requirements.empty()) {
 		return false;
 	}
 	if (formatInfo.formatId == "ivg-1") { formatVersion = IVG_1; return true; }
@@ -2479,7 +2479,7 @@ FontParser::FontParser(Executor* parentExecutor) : parentExecutor(parentExecutor
 
 bool FontParser::format(Interpreter& impd, const FormatInfo& formatInfo) {
 	(void)impd;
-	return (formatInfo.formatId == "ivgfont-1" && formatInfo.requires.empty());
+	return (formatInfo.formatId == "ivgfont-1" && formatInfo.requirements.empty());
 }
 
 bool FontParser::meta(Interpreter& impd, const String& key, const String& arguments) {

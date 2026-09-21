@@ -116,7 +116,7 @@ struct FormatInfo {
 	FormatInfo() { }
 	String formatId;
 	std::set<String> uses;
-	std::set<String> requires;
+	std::set<String> requirements;																						// Not `requires`: that is a keyword from C++20 on.
 };
 
 /*

@@ -31,10 +31,10 @@ using namespace IMPD;
 class MyExecutor : public Executor {
 	public:		virtual bool format(Interpreter& interpreter, const FormatInfo& formatInfo) {
 					(void)interpreter;
-					for (std::set<String>::const_iterator it = formatInfo.requires.begin(); it != formatInfo.requires.end(); ++it) {
+					for (std::set<String>::const_iterator it = formatInfo.requirements.begin(); it != formatInfo.requirements.end(); ++it) {
 						std::cout << *it << std::endl;
 					}
-					return formatInfo.requires.empty();
+					return formatInfo.requirements.empty();
 				}
 	public:		virtual bool execute(Interpreter& interpreter, const String& instruction, const String& arguments) {
 					if (instruction == "test") {
@@ -128,7 +128,7 @@ int main(int argc, const char* argv[]) {
 			try {
 				formatInfo.formatId.clear();
 				formatInfo.uses.clear();
-				formatInfo.requires.clear();
+				formatInfo.requirements.clear();
 				imp.run(code);
 			}
 			catch (const Exception& x) {
