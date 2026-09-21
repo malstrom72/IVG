@@ -1,0 +1,9 @@
+# Formatting-only commits, skipped by git blame.
+# Enable once per clone with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Replace the abandoned Doxygen comment markers in the C++ sources
+df4c989b89599ed9fc3db135f1744816611cbbe6
+
+# Brace every control-flow body in the C++ sources
+f67d815b46f1702b1ffc18c5ed46b49c8caa340a
