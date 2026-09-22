@@ -196,6 +196,74 @@ WideString convertUTF8ToWideString(const StringRange& r) {
 	return convertUniToWideString(convertUTF8ToUniString(r));
 }
 
+static size_t calcUTF32ToUTF8Size(size_t utf32Size, const UniChar* utf32Chars) {
+	size_t n = 0;
+	for (size_t i = 0; i < utf32Size; ++i) {
+		const UniChar c = utf32Chars[i];
+		assert(c < 0xD800 || c >= 0xE000); // Surrogate code points inside UTF32 string are not legal!
+		assert(c <= 0x10FFFF);				// Enforce Unicode scalar upper bound
+		if (c < 0x80) {
+			n += 1;
+		} else if (c < 0x800) {
+			n += 2;
+		} else if (c < 0x10000) {
+			n += 3;
+		} else {
+			n += 4;
+		}
+	}
+	return n;
+}
+
+static size_t convertUTF32ToUTF8(size_t utf32Size, const UniChar* utf32Chars, char* utf8Chars) {
+	size_t outIndex = 0;
+	for (size_t i = 0; i < utf32Size; ++i) {
+		const UniChar c = utf32Chars[i];
+		assert(c < 0xD800 || c >= 0xE000); // Surrogate code points not legal in UTF-32!
+		assert(c <= 0x10FFFF);				// Enforce Unicode scalar upper bound
+		if (c < 0x80) {
+			utf8Chars[outIndex + 0] = static_cast<char>(c);
+			outIndex += 1;
+		} else if (c < 0x800) {
+			utf8Chars[outIndex + 0] = static_cast<char>((c >> 6) | 0xC0);
+			utf8Chars[outIndex + 1] = static_cast<char>((c & 0x3F) | 0x80);
+			outIndex += 2;
+		} else if (c < 0x10000) {
+			utf8Chars[outIndex + 0] = static_cast<char>((c >> 12) | 0xE0);
+			utf8Chars[outIndex + 1] = static_cast<char>(((c >> 6) & 0x3F) | 0x80);
+			utf8Chars[outIndex + 2] = static_cast<char>((c & 0x3F) | 0x80);
+			outIndex += 3;
+		} else {
+			utf8Chars[outIndex + 0] = static_cast<char>((c >> 18) | 0xF0);
+			utf8Chars[outIndex + 1] = static_cast<char>(((c >> 12) & 0x3F) | 0x80);
+			utf8Chars[outIndex + 2] = static_cast<char>(((c >> 6) & 0x3F) | 0x80);
+			utf8Chars[outIndex + 3] = static_cast<char>((c & 0x3F) | 0x80);
+			outIndex += 4;
+		}
+	}
+	return outIndex;
+}
+
+/*
+	Converts UTF-32 to UTF-8. Every UniChar that reaches here came from one of the decoders above or from IMPD
+	itself, so the input is already known to be a valid code point.
+*/
+String convertUniToUTF8String(const UniString& s) {
+	if (s.empty()) {
+		return String();
+	}
+	String result(calcUTF32ToUTF8Size(s.size(), s.data()), 0);
+	convertUTF32ToUTF8(s.size(), s.data(), &result[0]);
+	return result;
+}
+
+/*
+	Converts the platform wide string to UTF-8.
+*/
+String convertWideToUTF8String(const WideString& s) {
+	return convertUniToUTF8String(convertWideToUniString(s));
+}
+
 static size_t calcUTF32ToUTF16Size(size_t utf32Size, const UniChar* utf32Chars) {
 	size_t n = utf32Size;
 	for (size_t i = 0; i < utf32Size; ++i) {

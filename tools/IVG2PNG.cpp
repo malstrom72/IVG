@@ -316,7 +316,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 #endif
 
 #ifndef LIBFUZZ
-int main(int argc, const char* argv[]) {
+static int runIVG2PNG(int argc, const char* argv[]) {
 	try {
 		const char* usage = "Usage: IVG2PNG [--fonts <dir>] [--images <dir>] [--includes <dir>]"
 				" [--background <color>] [--scale <factor>] <input.ivg> <output.png>\n";
@@ -486,4 +486,32 @@ int main(int argc, const char* argv[]) {
 	}
 	return 0;
 }
+#endif
+
+#if defined(_WIN32)
+
+/*
+	Windows hands main() its arguments in the active ANSI code page, so a path with any non-ASCII character in it
+	arrives mangled. wmain() gets the same arguments as UTF-16 from the runtime, which re-encodes losslessly to the
+	UTF-8 the rest of the tool expects.
+*/
+int wmain(int argc, wchar_t* argv[]) {
+	if (argc <= 0) {
+		return runIVG2PNG(0, 0);
+	}
+	std::vector<std::string> utf8Args(static_cast<size_t>(argc));
+	std::vector<const char*> narrowArgs(static_cast<size_t>(argc));
+	for (int i = 0; i < argc; ++i) {
+		utf8Args[i] = IMPD::convertWideToUTF8String(argv[i]);
+		narrowArgs[i] = utf8Args[i].c_str();
+	}
+	return runIVG2PNG(argc, &narrowArgs[0]);
+}
+
+#else
+
+int main(int argc, const char* argv[]) {
+	return runIVG2PNG(argc, argv);
+}
+
 #endif
