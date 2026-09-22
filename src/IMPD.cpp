@@ -46,81 +46,146 @@ namespace IMPD {
 using namespace std;
 
 /*
-	Decodes one UTF-8 character, advancing `p` past it on success and leaving `p` untouched on failure. The legal
-	range of the first continuation byte carries the overlong, surrogate and U+10FFFF limits, so those bounds are
-	stated once here instead of once per sequence length.
+	UTF-8 validation and decoding, ported unchanged from NEdLib's IsValidUTF8(), CalcUTF8ToUTF32Size() and
+	ConvertUTF8ToUTF32(). isValidUTF8() is the perimeter check; the two converters assume it has passed and
+	assert the same conditions.
 */
-static bool parseUTF8Character(StringIt& p, const StringIt& e, UniChar& c) {
-	assert(p <= e);
-
-	if (p == e) {
-		return false;
-	}
-	const unsigned char b0 = static_cast<unsigned char>(*p);
-	if ((b0 & 0x80) == 0) {
-		c = b0;
-		++p;
-		return true;
-	}
-
-	int continuationCount;
-	UniChar value;
-	unsigned char firstMin = 0x80;
-	unsigned char firstMax = 0xBF;
-	if ((b0 & 0xE0) == 0xC0) {
-		if (b0 < 0xC2) {
+static bool isValidUTF8(size_t utf8Size, const char* utf8Chars) {
+	size_t i = 0;
+	while (i < utf8Size) {
+		unsigned char c = static_cast<unsigned char>(utf8Chars[i]);
+		if ((c & 0x80) == 0) {
+			// 1-byte
+			++i;
+		} else if ((c & 0xE0) == 0xC0) {
+			// 2-byte: 110xxxxx 10xxxxxx, no overlongs (>= 0xC2)
+			if (i + 1 >= utf8Size || (utf8Chars[i + 1] & 0xC0) != 0x80 || c < 0xC2) {
+				return false;
+			}
+			i += 2;
+		} else if ((c & 0xF0) == 0xE0) {
+			// 3-byte: 1110xxxx 10xxxxxx 10xxxxxx; exclude surrogates, overlongs
+			if (i + 2 >= utf8Size) {
+				return false;
+			}
+			const unsigned char b1 = static_cast<unsigned char>(utf8Chars[i + 1]);
+			const unsigned char b2 = static_cast<unsigned char>(utf8Chars[i + 2]);
+			if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 || (c == 0xE0 && b1 < 0xA0)
+					|| (c == 0xED && b1 > 0x9F)) {
+				return false;
+			}
+			i += 3;
+		} else if ((c & 0xF8) == 0xF0) {
+			// 4-byte: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx; max U+10FFFF
+			if (i + 3 >= utf8Size) {
+				return false;
+			}
+			const unsigned char b1 = static_cast<unsigned char>(utf8Chars[i + 1]);
+			const unsigned char b2 = static_cast<unsigned char>(utf8Chars[i + 2]);
+			const unsigned char b3 = static_cast<unsigned char>(utf8Chars[i + 3]);
+			if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80
+					|| (c < 0xF0 || c > 0xF4) || (c == 0xF0 && b1 < 0x90)
+					|| (c == 0xF4 && b1 > 0x8F)) {
+				return false;
+			}
+			i += 4;
+		} else {
 			return false;
 		}
-		continuationCount = 1;
-		value = (b0 & 0x1F);
-	} else if ((b0 & 0xF0) == 0xE0) {
-		continuationCount = 2;
-		value = (b0 & 0x0F);
-		firstMin = (b0 == 0xE0 ? 0xA0 : 0x80);
-		firstMax = (b0 == 0xED ? 0x9F : 0xBF);
-	} else if ((b0 & 0xF8) == 0xF0) {
-		if (b0 > 0xF4) {
-			return false;
-		}
-		continuationCount = 3;
-		value = (b0 & 0x07);
-		firstMin = (b0 == 0xF0 ? 0x90 : 0x80);
-		firstMax = (b0 == 0xF4 ? 0x8F : 0xBF);
-	} else {
-		return false;
 	}
-
-	if (e - p <= continuationCount) {
-		return false;
-	}
-	for (int i = 1; i <= continuationCount; ++i) {
-		const unsigned char b = static_cast<unsigned char>(p[i]);
-		if (b < (i == 1 ? firstMin : 0x80) || b > (i == 1 ? firstMax : 0xBF)) {
-			return false;
-		}
-		value = (value << 6) | (b & 0x3F);
-	}
-	c = value;
-	p += continuationCount + 1;
 	return true;
 }
 
+static size_t calcUTF8ToUTF32Size(size_t utf8Size, const char* utf8Chars) {
+	size_t n = 0;
+	for (size_t i = 0; i < utf8Size; ++i) {
+		UniChar c = static_cast<unsigned char>(utf8Chars[i]);
+		if ((c & 0x80) == 0) { // 1-byte character
+			n += 1;
+		} else if ((c & 0xE0) == 0xC0) { // 2-byte character
+			assert(i + 1 < utf8Size);
+			assert(((utf8Chars[i + 1]) & 0xC0) == 0x80);
+			assert(c >= 0xC2);
+			n += 1;
+			i += 1;
+		} else if ((c & 0xF0) == 0xE0) { // 3-byte character
+			assert(i + 2 < utf8Size);
+			assert(((utf8Chars[i + 1]) & 0xC0) == 0x80 && ((utf8Chars[i + 2]) & 0xC0) == 0x80);
+			assert(c != 0xE0 || static_cast<unsigned char>(utf8Chars[i + 1]) >= 0xA0);
+			assert(c != 0xED || static_cast<unsigned char>(utf8Chars[i + 1]) <= 0x9F);
+			n += 1;
+			i += 2;
+		} else if ((c & 0xF8) == 0xF0) { // 4-byte character
+			assert(i + 3 < utf8Size);
+			assert(((utf8Chars[i + 1]) & 0xC0) == 0x80 && ((utf8Chars[i + 2]) & 0xC0) == 0x80
+					&& ((utf8Chars[i + 3]) & 0xC0) == 0x80);
+			assert(c >= 0xF0 && c <= 0xF4);
+			assert(c != 0xF0 || static_cast<unsigned char>(utf8Chars[i + 1]) >= 0x90);
+			assert(c != 0xF4 || static_cast<unsigned char>(utf8Chars[i + 1]) <= 0x8F);
+			n += 1;
+			i += 3;
+		} else {
+			assert(false); // Invalid UTF-8 start byte
+		}
+	}
+	return n;
+}
+
+static size_t convertUTF8ToUTF32(size_t utf8Size, const char* utf8Chars, UniChar* utf32Chars) {
+	size_t outIndex = 0;
+	for (size_t i = 0; i < utf8Size;) {
+		UniChar c = static_cast<unsigned char>(utf8Chars[i]);
+		if ((c & 0x80) == 0) { // 1-byte character
+			i += 1;
+		} else if ((c & 0xE0) == 0xC0) { // 2-byte character
+			assert(i + 1 < utf8Size);
+			assert(((utf8Chars[i + 1]) & 0xC0) == 0x80);
+			assert(c >= 0xC2);
+			c = ((c & 0x1F) << 6) | (static_cast<unsigned char>(utf8Chars[i + 1]) & 0x3F);
+			i += 2;
+		} else if ((c & 0xF0) == 0xE0) { // 3-byte character
+			assert(i + 2 < utf8Size);
+			assert(((utf8Chars[i + 1]) & 0xC0) == 0x80 && ((utf8Chars[i + 2]) & 0xC0) == 0x80);
+			assert(c != 0xE0 || static_cast<unsigned char>(utf8Chars[i + 1]) >= 0xA0);
+			assert(c != 0xED || static_cast<unsigned char>(utf8Chars[i + 1]) <= 0x9F);
+			c = ((c & 0x0F) << 12) | ((static_cast<unsigned char>(utf8Chars[i + 1]) & 0x3F) << 6)
+					| (static_cast<unsigned char>(utf8Chars[i + 2]) & 0x3F);
+			i += 3;
+		} else if ((c & 0xF8) == 0xF0) { // 4-byte character
+			assert(i + 3 < utf8Size);
+			assert(((utf8Chars[i + 1]) & 0xC0) == 0x80 && ((utf8Chars[i + 2]) & 0xC0) == 0x80
+					&& ((utf8Chars[i + 3]) & 0xC0) == 0x80);
+			assert(c >= 0xF0 && c <= 0xF4);
+			assert(c != 0xF0 || static_cast<unsigned char>(utf8Chars[i + 1]) >= 0x90);
+			assert(c != 0xF4 || static_cast<unsigned char>(utf8Chars[i + 1]) <= 0x8F);
+			c = ((c & 0x07) << 18) | ((static_cast<unsigned char>(utf8Chars[i + 1]) & 0x3F) << 12)
+					| ((static_cast<unsigned char>(utf8Chars[i + 2]) & 0x3F) << 6)
+					| (static_cast<unsigned char>(utf8Chars[i + 3]) & 0x3F);
+			i += 4;
+		} else {
+			assert(false); // Invalid UTF-8 start byte
+		}
+
+		utf32Chars[outIndex++] = c;
+	}
+	return outIndex;
+}
+
 /*
-	Converts UTF-8 to UTF-32, throwing a run-time error naming the byte offset if `r` is not well-formed. UTF-8
-	reaching IMPD comes from a file system, a command line or a document, so this is a perimeter: it validates
-	rather than assuming, and code past it treats the result as known-good.
+	Converts UTF-8 to UTF-32, throwing a run-time error if `r` is not well-formed. UTF-8 reaching IMPD comes from a
+	file system, a command line or a document, so this validates rather than assuming.
 */
 UniString convertUTF8ToUniString(const StringRange& r) {
-	UniString result;
-	StringIt p = r.b;
-	while (p != r.e) {
-		UniChar c;
-		if (!parseUTF8Character(p, r.e, c)) {
-			Interpreter::throwRunTimeError(String("Invalid UTF-8 at byte offset ")
-					+ Interpreter::toString(static_cast<int32_t>(p - r.b)));
-		}
-		result += c;
+	const size_t size = r.e - r.b;
+	if (size == 0) {
+		return UniString();
 	}
+	const char* chars = &*r.b;
+	if (!isValidUTF8(size, chars)) {
+		Interpreter::throwRunTimeError("Invalid UTF-8");
+	}
+	UniString result(calcUTF8ToUTF32Size(size, chars), 0);
+	convertUTF8ToUTF32(size, chars, &result[0]);
 	return result;
 }
 

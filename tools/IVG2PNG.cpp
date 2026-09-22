@@ -54,16 +54,12 @@ static bool isLittleEndian() {
 	}
 }
 
-static std::wstring pathStringToWide(const std::string& path) {
-	return IMPD::convertUTF8ToWideString(path);
-}
-
 static bool isAbsolutePath(const WideString& path) {
 	return !path.empty() && (path[0] == L'/' || path[0] == L'\\' || (path.size() >= 2 && path[1] == L':'));
 }
 
 static NuXFiles::Path pathFromUserArgument(const std::string& path) {
-	const WideString wide = pathStringToWide(path);
+	const WideString wide = IMPD::convertUTF8ToWideString(path);
 	return isAbsolutePath(wide) ? NuXFiles::Path(wide) : NuXFiles::Path::getCurrentDirectoryPath().getRelative(wide);
 }
 
