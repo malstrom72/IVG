@@ -77,6 +77,9 @@ struct StringRange {
 	StringIt e;
 };
 
+UniString convertUTF8ToUniString(const StringRange& r);
+WideString convertUTF8ToWideString(const StringRange& r);
+
 /*
 	Base class for all IMPD specific exceptions carrying an optional statement.
 */

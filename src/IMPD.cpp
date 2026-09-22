@@ -45,6 +45,92 @@ namespace IMPD {
 
 using namespace std;
 
+/*
+	Decodes one UTF-8 character, advancing `p` past it on success and leaving `p` untouched on failure. The legal
+	range of the first continuation byte carries the overlong, surrogate and U+10FFFF limits, so those bounds are
+	stated once here instead of once per sequence length.
+*/
+static bool parseUTF8Character(StringIt& p, const StringIt& e, UniChar& c) {
+	assert(p <= e);
+
+	if (p == e) {
+		return false;
+	}
+	const unsigned char b0 = static_cast<unsigned char>(*p);
+	if ((b0 & 0x80) == 0) {
+		c = b0;
+		++p;
+		return true;
+	}
+
+	int continuationCount;
+	UniChar value;
+	unsigned char firstMin = 0x80;
+	unsigned char firstMax = 0xBF;
+	if ((b0 & 0xE0) == 0xC0) {
+		if (b0 < 0xC2) {
+			return false;
+		}
+		continuationCount = 1;
+		value = (b0 & 0x1F);
+	} else if ((b0 & 0xF0) == 0xE0) {
+		continuationCount = 2;
+		value = (b0 & 0x0F);
+		firstMin = (b0 == 0xE0 ? 0xA0 : 0x80);
+		firstMax = (b0 == 0xED ? 0x9F : 0xBF);
+	} else if ((b0 & 0xF8) == 0xF0) {
+		if (b0 > 0xF4) {
+			return false;
+		}
+		continuationCount = 3;
+		value = (b0 & 0x07);
+		firstMin = (b0 == 0xF0 ? 0x90 : 0x80);
+		firstMax = (b0 == 0xF4 ? 0x8F : 0xBF);
+	} else {
+		return false;
+	}
+
+	if (e - p <= continuationCount) {
+		return false;
+	}
+	for (int i = 1; i <= continuationCount; ++i) {
+		const unsigned char b = static_cast<unsigned char>(p[i]);
+		if (b < (i == 1 ? firstMin : 0x80) || b > (i == 1 ? firstMax : 0xBF)) {
+			return false;
+		}
+		value = (value << 6) | (b & 0x3F);
+	}
+	c = value;
+	p += continuationCount + 1;
+	return true;
+}
+
+/*
+	Converts UTF-8 to UTF-32, throwing a run-time error naming the byte offset if `r` is not well-formed. UTF-8
+	reaching IMPD comes from a file system, a command line or a document, so this is a perimeter: it validates
+	rather than assuming, and code past it treats the result as known-good.
+*/
+UniString convertUTF8ToUniString(const StringRange& r) {
+	UniString result;
+	StringIt p = r.b;
+	while (p != r.e) {
+		UniChar c;
+		if (!parseUTF8Character(p, r.e, c)) {
+			Interpreter::throwRunTimeError(String("Invalid UTF-8 at byte offset ")
+					+ Interpreter::toString(static_cast<int32_t>(p - r.b)));
+		}
+		result += c;
+	}
+	return result;
+}
+
+/*
+	Converts UTF-8 to the platform wide string, throwing as convertUTF8ToUniString() does.
+*/
+WideString convertUTF8ToWideString(const StringRange& r) {
+	return convertUniToWideString(convertUTF8ToUniString(r));
+}
+
 static size_t calcUTF32ToUTF16Size(size_t utf32Size, const UniChar* utf32Chars) {
 	size_t n = utf32Size;
 	for (size_t i = 0; i < utf32Size; ++i) {

@@ -55,7 +55,7 @@ static bool isLittleEndian() {
 }
 
 static std::wstring pathStringToWide(const std::string& path) {
-	return std::wstring(path.begin(), path.end());
+	return IMPD::convertUTF8ToWideString(path);
 }
 
 static bool isAbsolutePath(const WideString& path) {
