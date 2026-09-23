@@ -465,3 +465,9 @@ trace {yes || 1/0}
 trace {def(nosuchvar) && $nosuchvar}
 trace {yes && no}
 trace {no || yes}
+
+x=outer
+CALL x:inner [ TRACE $x ]
+CALL [ TRACE $x ] x:inner
+CALL a:1 [ TRACE $a $b ] b:2
+CALL [ TRACE $0 $1 {$n} ] first second
