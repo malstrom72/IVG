@@ -61,6 +61,10 @@ Exception: Cannot return in global frame
 in statement: RETURN asdf
 Exception: Variable asdf does not exist
 in statement: RETURN asdf
+Exception: Variable x already declared
+in statement: CALL [ TRACE BAD!! ] x:1 x:2
+Exception: Variable 0 already declared
+in statement: CALL 0:first [ TRACE BAD!! ] second
 Exception: Recursion limit reached
 in statement: [ $x ]
 Exception: Recursion limit reached

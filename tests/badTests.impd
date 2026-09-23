@@ -58,6 +58,10 @@ RETURN asdf; TRACE BAD!! // cannot return in global frame
 
 CALL [ RETURN asdf ]; TRACE BAD!! // asdf doesn't exist
 
+CALL [ TRACE BAD!! ] x:1 x:2 // duplicate label
+
+CALL 0:first [ TRACE BAD!! ] second // label collides with the indexed argument
+
 // recursion limit
 x = [ $y ]
 y = [ $x ]

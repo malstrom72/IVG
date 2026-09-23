@@ -1445,9 +1445,13 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			String runThis;
 			int counter = 0;
 			for (ArgumentVector::const_iterator it = allArguments.begin(), e = allArguments.end(); it != e; ++it) {
-				if (!it->label.empty()) newVars.declare(it->label, it->value);
-				else if (runThis.empty()) runThis = it->value;
-				else newVars.declare(Interpreter::toString(counter++), it->value);
+				if (it->label.empty() && runThis.empty()) runThis = it->value;
+				else {
+					const String name = (it->label.empty() ? Interpreter::toString(counter++) : it->label);
+					if (!newVars.declare(name, it->value)) {
+						throwRunTimeError(String("Variable ") + name + " already declared");
+					}
+				}
 			}
 			if (instruction == INCLUDE_INSTRUCTION) {
 				const WideString file = unescapeToWide(expand(runThis));
