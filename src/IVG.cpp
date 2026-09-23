@@ -440,7 +440,7 @@ static bool parseNumericColor(Interpreter& impd, const StringRange& r, ARGB32::P
 			int count = parseNumberList(impd, StringRange(p, r.e - 1), n, 3, 4);
 			for (int i = 0; i < count; ++i) {
 				if (n[i] < 0.0 || n[i] > 1.0) {
-					impd.throwRunTimeError(String("hsv value number ") + impd.toString(i + 1)
+					impd.throwRunTimeError(String(isRGB ? "rgb" : "hsv") + " value number " + impd.toString(i + 1)
 							+ " out of range [0..1]: " + impd.toString(n[i]));
 				}
 			}
