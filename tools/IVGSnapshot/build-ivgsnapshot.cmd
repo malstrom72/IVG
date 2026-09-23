@@ -19,10 +19,10 @@ SET "CSOURCES=!CSOURCES! externals\zlib\%%f"
 )
 
 IF NOT EXIST .\output MD .\output
-CALL .\tools\BuildCpp.cmd beta x64 .\output\IVGSnapshot -ffp-contract=off "-DNUXPIXELS_SIMD=0" ^
+CALL .\tools\BuildCpp.cmd beta x64 .\output\IVGSnapshot "-DNUXPIXELS_SIMD=0" ^
         /I"." /I"externals" /I"externals\libpng" /I"externals\zlib" ^
         .\tools\IVGSnapshot\IVGSnapshot.cpp .\src\IVG.cpp .\src\IMPD.cpp ^
-        .\externals\NuX\NuXThreads.cpp .\externals\NuX\NuXThreadsPosix.cpp ^
-        .\externals\NuX\NuXFiles.cpp .\externals\NuX\NuXFilesPosix.cpp ^
+        .\externals\NuX\NuXThreads.cpp .\externals\NuX\NuXThreadsWin32.cpp ^
+        .\externals\NuX\NuXFiles.cpp .\externals\NuX\NuXFilesWin32.cpp ^
         .\externals\NuX\NuXPixels.cpp %CSOURCES%
 EXIT /B %ERRORLEVEL%
