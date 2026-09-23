@@ -30,7 +30,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cctype>
 #include <cerrno>
 #include <climits>
-#include <codecvt>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -39,7 +38,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <iostream>
 #include <iterator>
 #include <limits>
-#include <locale>
 #include <map>
 #include <set>
 #include <memory>
@@ -1007,53 +1005,11 @@ static std::string stringFromIMPD(const String &value) {
 }
 
 static std::wstring pathStringToWide(const std::string &path) {
-	if (path.empty()) {
-		return std::wstring();
-	}
-#if defined(_WIN32)
-	const int sourceLength = static_cast<int>(path.size());
-	const int wideLength =
-		::MultiByteToWideChar(CP_ACP, MB_ERR_INVALID_CHARS, path.data(), sourceLength, 0, 0);
-	if (wideLength <= 0) {
-		throw std::range_error("failed to convert native path to wide characters");
-	}
-	std::wstring wide(static_cast<size_t>(wideLength), L'\0');
-	const int converted = ::MultiByteToWideChar(CP_ACP, MB_ERR_INVALID_CHARS, path.data(), sourceLength
-			, &wide[0], wideLength);
-	if (converted != wideLength) {
-		throw std::range_error("failed to convert native path to wide characters");
-	}
-	return wide;
-#else
-	std::wstring_convert<std::codecvt_utf8<wchar_t> > converter;
-	return converter.from_bytes(path);
-#endif
+	return IMPD::convertUTF8ToWideString(path);
 }
 
 static std::string pathStringFromWide(const std::wstring &path) {
-	if (path.empty()) {
-		return std::string();
-	}
-#if defined(_WIN32)
-	const int sourceLength = static_cast<int>(path.size());
-	const int narrowLength =
-			::WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS, path.data(), sourceLength,
-							0, 0, 0, 0);
-	if (narrowLength <= 0) {
-		throw std::range_error("failed to convert wide path to native characters");
-	}
-	std::string narrow(static_cast<size_t>(narrowLength), '\0');
-	const int converted =
-			::WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS, path.data(), sourceLength,
-							&narrow[0], narrowLength, 0, 0);
-	if (converted != narrowLength) {
-		throw std::range_error("failed to convert wide path to native characters");
-	}
-	return narrow;
-#else
-	std::wstring_convert<std::codecvt_utf8<wchar_t> > converter;
-	return converter.to_bytes(path);
-#endif
+	return IMPD::convertWideToUTF8String(path);
 }
 /**
 	Centralized conversions between user-facing native strings and `NuXFiles::Path`
@@ -2645,7 +2601,7 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 	bool load(Interpreter &interpreter, const WideString &filename,
 			String &contents) {
 		(void)interpreter;
-		const std::string utf8(filename.begin(), filename.end());
+		const std::string utf8 = IMPD::convertWideToUTF8String(filename);
 		// Prefer Path-based resolution from the current source directory.
 		if (!sourcePathObj.isNull() && !sourcePathObj.isRoot()) {
 			const NuXFiles::Path parent = sourcePathObj.getParent();
@@ -3645,7 +3601,7 @@ static uint32_t determineThreadCount(const CommandLineOptions &options,
 
 #if !defined(IVG_SNAPSHOT_TESTING)
 
-int main(int argc, char **argv) {
+static int runIVGSnapshot(int argc, char **argv) {
 	CommandLineOptions options;
 	if (!parseCommandLine(argc, argv, options)) {
 		return 1;
@@ -3815,5 +3771,33 @@ int main(int argc, char **argv) {
 	logTotalsSummary(totals);
 	return exitCode;
 }
+
+#if defined(_WIN32)
+
+/*
+	Windows hands main() its arguments in the active code page, which cannot represent most characters and differs
+	between machines. wmain() gets them as UTF-16 instead, and they are re-encoded here to the UTF-8 the rest of the
+	tool works in.
+*/
+int wmain(int argc, wchar_t **argv) {
+	if (argc <= 0) {
+		return runIVGSnapshot(0, 0);
+	}
+	std::vector<std::string> utf8Args(static_cast<size_t>(argc));
+	std::vector<char *> narrowArgs(static_cast<size_t>(argc));
+	for (int i = 0; i < argc; ++i) {
+		utf8Args[i] = IMPD::convertWideToUTF8String(argv[i]);
+		narrowArgs[i] = &utf8Args[i][0];
+	}
+	return runIVGSnapshot(argc, &narrowArgs[0]);
+}
+
+#else
+
+int main(int argc, char **argv) {
+	return runIVGSnapshot(argc, argv);
+}
+
+#endif
 
 #endif // !defined(IVG_SNAPSHOT_TESTING)
