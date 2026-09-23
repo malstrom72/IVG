@@ -46,6 +46,23 @@ void ExpectEqual(const std::string &actual, const std::string &expected, const s
         }
 }
 
+/*
+        Compares a listing against a golden, ignoring the two things that differ by platform rather than by
+        behaviour: a path printed through NuXFiles::Path carries the local separator, and the goldens are
+        stored with LF but checked out with CRLF on Windows. buildAndTest.sh strips the CR the same way.
+*/
+std::string NormalizeListing(std::string listing)
+{
+        std::replace(listing.begin(), listing.end(), '\\', '/');
+        listing.erase(std::remove(listing.begin(), listing.end(), '\r'), listing.end());
+        return listing;
+}
+
+void ExpectEqualListing(const std::string &actual, const std::string &expected, const std::string &label)
+{
+        ExpectEqual(NormalizeListing(actual), NormalizeListing(expected), label);
+}
+
 std::string ReadFile(const std::string &path)
 {
 	try {
@@ -191,7 +208,7 @@ void TestListOnlySample()
         Expect(run.exitCode == 0, "ListOnlySample run should succeed");
         Expect(io.err.empty(), "ListOnlySample run should not print to stderr");
         const std::string expected = ReadFile("tools/IVGSnapshot/tests/ListOnlySample.txt");
-        ExpectEqual(io.out, expected, "ListOnlySample list-only output");
+        ExpectEqualListing(io.out, expected, "ListOnlySample list-only output");
         ExpectEqual(run.totalEntries, static_cast<uint32_t>(3), "ListOnlySample entry count");
         ExpectEqual(run.validatedEntries, static_cast<uint32_t>(3), "ListOnlySample validated count");
 }
@@ -205,7 +222,7 @@ void TestListScenarioVariants()
         Expect(run.exitCode == 0, "ListScenarioVariants run should succeed");
         Expect(io.err.empty(), "ListScenarioVariants run should not print to stderr");
         const std::string expected = ReadFile("tools/IVGSnapshot/tests/ListScenarioVariants.txt");
-        ExpectEqual(io.out, expected, "ListScenarioVariants list-only output");
+        ExpectEqualListing(io.out, expected, "ListScenarioVariants list-only output");
         ExpectEqual(run.totalEntries, static_cast<uint32_t>(7), "ListScenarioVariants entry count");
 }
 
@@ -218,7 +235,7 @@ void TestListVariableExpansion()
         Expect(run.exitCode == 0, "ListVariableExpansion run should succeed");
         Expect(io.err.empty(), "ListVariableExpansion run should not print to stderr");
         const std::string expected = ReadFile("tools/IVGSnapshot/tests/ListVariableExpansion.txt");
-        ExpectEqual(io.out, expected, "ListVariableExpansion list-only output");
+        ExpectEqualListing(io.out, expected, "ListVariableExpansion list-only output");
         ExpectEqual(run.totalEntries, static_cast<uint32_t>(4), "ListVariableExpansion entry count");
 }
 
@@ -231,7 +248,7 @@ void TestCommonBlockListOnly()
         Expect(run.exitCode == 0, "CommonBlock run should succeed");
         Expect(io.err.empty(), "CommonBlock run should not print to stderr");
         const std::string expected = ReadFile("tools/IVGSnapshot/tests/CommonBlock.txt");
-        ExpectEqual(io.out, expected, "CommonBlock list-only output");
+        ExpectEqualListing(io.out, expected, "CommonBlock list-only output");
         ExpectEqual(run.totalEntries, static_cast<uint32_t>(3), "CommonBlock entry count");
 }
 

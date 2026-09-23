@@ -67,6 +67,21 @@ CALL .\tools\BuildCpp.cmd %1 %2 .\output\PolygonMaskTest ^
 		"-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" ^
 		.\tools\PolygonMaskTest.cpp .\externals\NuX\NuXPixels.cpp || EXIT /B 1
 
+CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVGSnapshot "-DNUXPIXELS_SIMD=%simd%" ^
+		/I"." /I"externals" /I"externals\libpng" /I"externals\zlib" ^
+		.\tools\IVGSnapshot\IVGSnapshot.cpp .\src\IVG.cpp .\src\IMPD.cpp ^
+		.\externals\NuX\NuXThreads.cpp .\externals\NuX\NuXThreadsWin32.cpp ^
+		.\externals\NuX\NuXFiles.cpp .\externals\NuX\NuXFilesWin32.cpp ^
+		.\externals\NuX\NuXPixels.cpp %CSOURCES% || EXIT /B 1
+
+CALL .\tools\BuildCpp.cmd %1 %2 .\output\TestSnapshotPlan ^
+		"-DIVG_SNAPSHOT_TESTING=1" "-DNUXPIXELS_SIMD=%simd%" ^
+		/I"." /I"externals" /I"externals\libpng" /I"externals\zlib" ^
+		.\tools\IVGSnapshot\tests\TestSnapshotPlan.cpp .\src\IVG.cpp .\src\IMPD.cpp ^
+		.\externals\NuX\NuXThreads.cpp .\externals\NuX\NuXThreadsWin32.cpp ^
+		.\externals\NuX\NuXFiles.cpp .\externals\NuX\NuXFilesWin32.cpp ^
+		.\externals\NuX\NuXPixels.cpp %CSOURCES% || EXIT /B 1
+
 ECHO Testing...
 CD tests
 ECHO Invalid IVG tests...
@@ -89,7 +104,26 @@ IF NOT "%SKIP_SVG%"=="" (
 )
 CD ..
 CALL .\output\PolygonMaskTest || GOTO error
+CALL .\output\TestSnapshotPlan || GOTO error
+CALL :listOnly ListOnlySample || GOTO error
+CALL :listOnly ListScenarioVariants || GOTO error
 GOTO :eof
+
+REM Compares one --list-only run against its golden. IVGSnapshot prints paths through NuXFiles::Path,
+REM which uses the platform separator, so the separators are normalised here rather than keeping a
+REM second golden. findstr numbers the lines so that FOR does not swallow the blank ones.
+:listOnly
+SET "check=%TEMP%\%~1.check"
+SET "norm=%TEMP%\%~1.norm"
+.\output\IVGSnapshot --list-only tools/IVGSnapshot/tests/%~1.ivg >"%check%" || EXIT /B 1
+(FOR /F "usebackq delims=" %%L IN (`findstr /n "^" "%check%"`) DO (
+	SET "line=%%L"
+	SET "line=!line:*:=!"
+	IF DEFINED line (ECHO(!line:\=/!) ELSE (ECHO()
+)) >"%norm%"
+FC "%norm%" ".\tools\IVGSnapshot\tests\%~1.txt" || EXIT /B 1
+DEL "%check%" "%norm%"
+EXIT /B 0
 
 :error
 ECHO Error %ERRORLEVEL%
