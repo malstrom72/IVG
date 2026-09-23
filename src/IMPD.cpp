@@ -782,12 +782,16 @@ bool Interpreter::toBool(const String& s) {
 StringIt Interpreter::numericOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence
 		, Char op, Precedence opPrecedence, bool dry) const {
 	if (precedence < opPrecedence) {
-		double l = v;
-		StringIt q = evaluateInner(p += (op == '^' ? 2 : 1), e, v, opPrecedence, dry);
+		double l = 0.0;
+		if (!dry) {
+			l = v;																					// Converted before the right operand is parsed, so a bad left one is still reported first.
+		}
+		EvaluationValue right;
+		StringIt q = evaluateInner(p += (op == '^' ? 2 : 1), e, right, opPrecedence, dry);
 		if (q == p) throwBadSyntax("Syntax error");
 		p = q;
 		if (!dry) {
-			double r = v;
+			double r = right;
 			switch (op) {
 				case '+': l += r; break;
 				case '-': l -= r; break;
@@ -845,7 +849,7 @@ StringIt Interpreter::booleanOperation(StringIt p, const StringIt& e, Evaluation
 		bool l = v;
 		Char op = *p;
 		if (p + 1 != e && p[1] == op)  {
-			StringIt q = evaluateInner(p += 2, e, v, BOOLEAN, dry);
+			StringIt q = evaluateInner(p += 2, e, v, BOOLEAN, dry || (op == '&' ? !l : l));
 			if (q == p) throwBadSyntax("Syntax error");
 			p = q;
 			if (!dry) {

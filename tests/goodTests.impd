@@ -447,3 +447,9 @@ meta test-1 this-is-test-1
 meta test-2 this-is-test-2
 meta test this-should-be-test-2
 meta unknown swallow-this
+
+trace {no && 1/0}
+trace {yes || 1/0}
+trace {def(nosuchvar) && $nosuchvar}
+trace {yes && no}
+trace {no || yes}
