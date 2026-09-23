@@ -41,12 +41,18 @@ node -e "require('amd-loader');require('plist');require('cson');" >NUL 2>NUL || 
   ECHO Re-run when online to regenerate syntax.
   GOTO error
 )
+POPD
 
 ECHO Converting tmLanguage → Ace rules (ivg/impd) ...
 node "%ACE_DIR%\tool\tmlanguage.js" "%TM_IMPD%" "%TM_IVG%" || GOTO error
 
 ECHO Building Ace bundle with dryice (-m -nc) ...
-CALL node "%ACE_DIR%\Makefile.dryice.js" -m -nc >NUL 2>&1 || GOTO error
+PUSHD "%ACE_DIR%"
+CALL node Makefile.dryice.js -m -nc >NUL 2>&1 || (
+  POPD
+  GOTO error
+)
+POPD
 
 IF NOT EXIST "%ACE_DIR%\build\src-min-noconflict\mode-ivg.js" (
   ECHO Error: dryice bundle not found at %ACE_DIR%\build\src-min-noconflict\mode-ivg.js

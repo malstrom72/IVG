@@ -3,7 +3,7 @@ CD /D "%~dp0"
 
 REM Build PikaCmd in its own directory to ensure relative paths work
 PUSHD "..\externals\PikaCmd" || GOTO error
-CALL "BuildPikaCmd.cmd" || GOTO error
+CALL "BuildPikaCmd.cmd" || (POPD & GOTO error)
 POPD
 where pandoc >NUL 2>&1
 IF ERRORLEVEL 1 (

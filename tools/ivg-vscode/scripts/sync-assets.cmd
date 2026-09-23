@@ -37,12 +37,21 @@ IF NOT EXIST "%EXT_DIR%\media" (
 	MKDIR "%EXT_DIR%\media"
 )
 
-ROBOCOPY "%OUTPUT_DIR%" "%EXT_DIR%\media" /MIR >NUL
-SET "RC=%ERRORLEVEL%"
-IF %RC% GEQ 8 (
+COPY /Y "%OUTPUT_DIR%\rasterizeIVG.js" "%EXT_DIR%\media\rasterizeIVG.js" >NUL
+IF ERRORLEVEL 1 (
 	POPD
-	EXIT /B %RC%
+	EXIT /B 1
 )
+
+REM Only docs is mirrored, and only when the build produced it. Everything else under
+REM media is checked in and must survive a sync.
+IF NOT EXIST "%OUTPUT_DIR%\docs" GOTO :docsDone
+ROBOCOPY "%OUTPUT_DIR%\docs" "%EXT_DIR%\media\docs" /MIR >NUL
+IF ERRORLEVEL 8 (
+	POPD
+	EXIT /B 1
+)
+:docsDone
 
 ECHO Synchronized assets into %EXT_DIR%\media
 

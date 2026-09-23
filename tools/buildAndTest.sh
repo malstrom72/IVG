@@ -84,7 +84,7 @@ set +e
 bash ../tools/testInvalidIVG.sh ../output/InvalidIVGTest | tee "$tmp"
 status=${PIPESTATUS[0]}
 set -e
-diff --strip-trailing-cr invalidIVGResults.txt "$tmp"
+diff --strip-trailing-cr <(LC_ALL=C sort invalidIVGResults.txt) <(LC_ALL=C sort "$tmp")
 if [ $status -ne 0 ]; then
 	# Non-zero means at least one test failed; the diff above should also fail if outputs differ,
 	# but keep the explicit status to satisfy callers that inspect exit codes.

@@ -25,3 +25,6 @@
 
 # Ensure IVG files are treated as text for diffs
 *.ivg text
+
+# Snapshot listings are emitted with LF, so keep their goldens LF on Windows too
+/tools/IVGSnapshot/tests/*.txt text eol=lf

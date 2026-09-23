@@ -89,8 +89,12 @@ CALL ..\tools\testInvalidIVG.cmd ..\output\InvalidIVGTest >invalidIVGCheck.txt
 SET err=%ERRORLEVEL%
 TYPE invalidIVGCheck.txt
 IF NOT "%err%"=="0" GOTO error
-fc invalidIVGCheck.txt invalidIVGResults.txt || GOTO error
-DEL invalidIVGCheck.txt
+REM Sorted on both sides before comparing: each harness walks the fixtures in its own
+REM platform's order, and which order that is says nothing about the results.
+SORT invalidIVGCheck.txt >"%TEMP%\invalidIVGCheck.sorted"
+SORT invalidIVGResults.txt >"%TEMP%\invalidIVGResults.sorted"
+fc "%TEMP%\invalidIVGCheck.sorted" "%TEMP%\invalidIVGResults.sorted" || GOTO error
+DEL invalidIVGCheck.txt "%TEMP%\invalidIVGCheck.sorted" "%TEMP%\invalidIVGResults.sorted"
 CALL ..\tools\testIVG.cmd ..\output\IVG2PNG || GOTO error
 IF NOT "%SKIP_SVG%"=="" (
 	ECHO Skipping SVG tests

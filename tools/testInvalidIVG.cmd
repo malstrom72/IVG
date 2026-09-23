@@ -19,11 +19,11 @@ IF %update%==1 (
 	)) >invalidIVGResults.txt
 	TYPE invalidIVGResults.txt
 	EXIT /b 0
-) ELSE (
-	SET fail=0
-	FOR /F "delims=" %%f IN ('dir /b /a-d ivg\invalid\*.ivg ^| sort') DO (
-		%exe% "ivg\invalid\%%f"
-		IF ERRORLEVEL 1 SET fail=1
-	)
-	EXIT /b %fail%
 )
+
+SET fail=0
+FOR /F "delims=" %%f IN ('dir /b /a-d ivg\invalid\*.ivg ^| sort') DO (
+	%exe% "ivg\invalid\%%f"
+	IF ERRORLEVEL 1 SET fail=1
+)
+EXIT /b %fail%
