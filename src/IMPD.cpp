@@ -1445,9 +1445,9 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			String runThis;
 			int counter = 0;
 			for (ArgumentVector::const_iterator it = allArguments.begin(), e = allArguments.end(); it != e; ++it) {
-				if (!runThis.empty())
-					newVars.declare((it->label.empty() ? Interpreter::toString(counter++) : it->label), it->value);
-				else if (it->label.empty()) runThis = it->value;
+				if (!it->label.empty()) newVars.declare(it->label, it->value);
+				else if (runThis.empty()) runThis = it->value;
+				else newVars.declare(Interpreter::toString(counter++), it->value);
 			}
 			if (instruction == INCLUDE_INSTRUCTION) {
 				const WideString file = unescapeToWide(expand(runThis));
