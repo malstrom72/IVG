@@ -954,7 +954,7 @@ GammaTable::GammaTable(double gamma)
 {
 	assert(0.0 < gamma);
 	for (int i = 0; i < 256; ++i) {
-		table[i] = Mask8::Pixel(floor(pow(i / 255.0, 1.0 / gamma) * 255) + 0.5);
+		table[i] = Mask8::Pixel(roundToInt(pow(i / 255.0, 1.0 / gamma) * 255));
 	}
 }
 
