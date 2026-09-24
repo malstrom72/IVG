@@ -974,9 +974,13 @@ std::vector<const Font*> IVGExecutor::lookupExternalOrInternalFonts(Interpreter&
 		lastFontName = name;
 		const FontMap::const_iterator it = embeddedFonts.find(name);
 		lastFontPointers = (it != embeddedFonts.end()
-				? std::vector<const Font*>(1, &it->second) : lookupFonts(impd, name, forString));
+				? std::vector<const Font*>(1, &it->second) : std::vector<const Font*>());
 	}
-	return lastFontPointers;
+	/*
+		Only an embedded font can be cached: its pointer lives in embeddedFonts, while lookupFonts() only
+		promises its result until the next call, and answers per forString anyway.
+	*/
+	return (!lastFontPointers.empty() ? lastFontPointers : lookupFonts(impd, name, forString));
 }
 
 void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
