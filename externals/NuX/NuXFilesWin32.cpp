@@ -238,7 +238,9 @@ PathTime::PathTime(time_t cTime)
 time_t PathTime::convertToCTime() const
 {
 	assert(isAvailable());
-	__int64 x = (static_cast<__int64>(high) << 32) | low;
+	// Rebuilt through an unsigned type since left-shifting a negative `high` is undefined.
+	const unsigned __int64 bits = (static_cast<unsigned __int64>(static_cast<unsigned int>(high)) << 32) | low;
+	__int64 x = static_cast<__int64>(bits);
 	if (x < kWindowsFileTimeToCTimeOffset) {
 		return 0;
 	}

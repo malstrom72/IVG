@@ -32,6 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <unistd.h>
 #include <sched.h>
 #include <stdint.h>
+#include <stdio.h>
 #include "NuXThreadsPosix.h"
 #ifdef __APPLE__
 #include <sys/sysctl.h>

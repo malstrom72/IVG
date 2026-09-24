@@ -56,6 +56,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <vector>
 #include <exception>
 #include <algorithm>
+#include <stddef.h>
 
 #if defined(__cplusplus) && ((__cplusplus >= 201103L) || (defined(_MSC_VER) && _MSC_VER >= 1900))
 	#define NUXTHREADS_HAS_CPP11 1
@@ -713,8 +714,9 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 				}
 				
 	public:		int getSize() const {
-					assert(wrapToInt32(static_cast<unsigned int>(readEnd) - static_cast<unsigned int>(readBegin)) >= 0);
-					return (readEnd - readBegin);
+					int size = wrapToInt32(static_cast<unsigned int>(readEnd) - static_cast<unsigned int>(readBegin));
+					assert(size >= 0);
+					return size;
 				}
 				
 				// Note: if several threads are pushing simultaneously, we need to sync the order of the pushing, and this may cause a little wait.
@@ -722,16 +724,17 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 					int e;
 					while (true) {
 						e = writeEnd;
-						int maxCount = capacity - e + writeBegin;
+						int maxCount = capacity - wrapToInt32(static_cast<unsigned int>(e) - static_cast<unsigned int>(writeBegin));
 						int c = (count < maxCount ? count : maxCount);
 						if (c <= 0) {
 							return 0;
 						}
-						if (writeEnd.swapIfEqual(e, e + c)) {
+						int e2 = wrapToInt32(static_cast<unsigned int>(e) + static_cast<unsigned int>(c));
+						if (writeEnd.swapIfEqual(e, e2)) {
 							for (int i = 0; i < c; ++i) {
-								new (const_cast<T*>(&elements[(e + i) & (capacity - 1)])) T(x[i]);
+								new (const_cast<T*>(&elements[(static_cast<unsigned int>(e) + i) & (capacity - 1)])) T(x[i]);
 							}
-							while (!readEnd.swapIfEqual(e, e + c)) {
+							while (!readEnd.swapIfEqual(e, e2)) {
 								Thread::yield();
 							}
 							return c;
@@ -745,26 +748,27 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 					int b;
 					while (true) {
 						b = readBegin;
-						int maxCount = readEnd - b;
+						int maxCount = wrapToInt32(static_cast<unsigned int>(readEnd) - static_cast<unsigned int>(b));
 						int c = (count < maxCount ? count : maxCount);
 						if (c <= 0) {
 							return 0;
 						}
-						if (readBegin.swapIfEqual(b, b + c)) {
+						int b2 = wrapToInt32(static_cast<unsigned int>(b) + static_cast<unsigned int>(c));
+						if (readBegin.swapIfEqual(b, b2)) {
 							if (x != 0) {
 								for (int i = 0; i < c; ++i) {
 #if NUXTHREADS_HAS_CPP11
-									x[i] = NUXTHREADS_MOVE(const_cast<T&>(elements[(b + i) & (capacity - 1)]));
+									x[i] = NUXTHREADS_MOVE(const_cast<T&>(elements[(static_cast<unsigned int>(b) + i) & (capacity - 1)]));
 #else
-									x[i] = const_cast<T&>(elements[(b + i) & (capacity - 1)]);
+									x[i] = const_cast<T&>(elements[(static_cast<unsigned int>(b) + i) & (capacity - 1)]);
 #endif
 								}
 							}
 							for (int i = 0; i < c; ++i) {
 								// 20140521 : const_cast<T*> is required to work around a bug in MSVC 2010 C++ compiler.
-								const_cast<T*>(elements)[(b + i) & (capacity - 1)].~T();
+								const_cast<T*>(elements)[(static_cast<unsigned int>(b) + i) & (capacity - 1)].~T();
 							}
-							while (!writeBegin.swapIfEqual(b, b + c)) {
+							while (!writeBegin.swapIfEqual(b, b2)) {
 								Thread::yield();
 							}
 							return c;
@@ -789,13 +793,14 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 					int e;
 					while (true) {
 						e = writeEnd;
-						int maxCount = capacity - e + writeBegin;
+						int maxCount = capacity - wrapToInt32(static_cast<unsigned int>(e) - static_cast<unsigned int>(writeBegin));
 						if (maxCount <= 0) {
 							return false;
 						}
-						if (writeEnd.swapIfEqual(e, e + 1)) {
-							new (const_cast<T*>(&elements[e & (capacity - 1)])) T(std::move(x));
-							while (!readEnd.swapIfEqual(e, e + 1)) {
+						int e2 = wrapToInt32(static_cast<unsigned int>(e) + 1);
+						if (writeEnd.swapIfEqual(e, e2)) {
+							new (const_cast<T*>(&elements[static_cast<unsigned int>(e) & (capacity - 1)])) T(std::move(x));
+							while (!readEnd.swapIfEqual(e, e2)) {
 								Thread::yield();
 							}
 							return true;
@@ -808,7 +813,7 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 	public:		bool pop(T& x) { return (pop(1, &x) == 1); }
 	public:		int skip(int count)	{ return pop(count, 0); }
 	public:		bool skip() { return (skip(1) == 1); }
-	public:		void clear() { skip(readEnd - readBegin); }
+	public:		void clear() { skip(wrapToInt32(static_cast<unsigned int>(readEnd) - static_cast<unsigned int>(readBegin))); }
 
 	public:		~Queue() {
 					assert(readBegin == writeBegin);
@@ -816,7 +821,7 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 					while (writeEnd != writeBegin) {
 						// 20140521 : const_cast<T*> is required to work around a bug in MSVC 2010 C++ compiler.
 						--writeEnd;
-						const_cast<T*>(elements)[writeEnd & (capacity - 1)].~T();
+						const_cast<T*>(elements)[static_cast<unsigned int>(writeEnd) & (capacity - 1)].~T();
 					}
 					operator delete(const_cast<T*>(elements));
 				}
@@ -826,8 +831,9 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 					assert(newCapacity >= copy.getSize());
 					// FIX : optimize, don't push one at a time
 					Queue xQueue(newCapacity);
-					for (int i = copy.readBegin; i < copy.readEnd; ++i) {
-						xQueue.push(const_cast<T&>(copy.elements[i & (copy.capacity - 1)]));
+					int n = copy.getSize();
+					for (int i = 0; i < n; ++i) {
+						xQueue.push(const_cast<T&>(copy.elements[(static_cast<unsigned int>(copy.readBegin) + i) & (copy.capacity - 1)]));
 					}
 					swap(xQueue);
 				}
