@@ -896,10 +896,12 @@ void ExchangingFile::commit()
 {
 	if (!originalPath.isNull()) {
 		flush();
-		Path tempPath = impl->path;
+		const Path tempPath = impl->path;
+		const Path original = originalPath;
+		originalPath = Path(); // Clear before deleting `impl` so the destructor won't dereference a null `impl`.
 		delete impl;
 		impl = 0;
-		::BOOL success = ::ReplaceFileW(originalPath.getFullPath().c_str(), tempPath.getFullPath().c_str()
+		::BOOL success = ::ReplaceFileW(original.getFullPath().c_str(), tempPath.getFullPath().c_str()
 				, NULL, 0, 0, 0);
 		::DWORD error = ::GetLastError();
 		bool setReadOnly = false;
@@ -910,13 +912,13 @@ void ExchangingFile::commit()
 						, fileAttributes & ~FILE_ATTRIBUTE_READONLY);
 				assert(didSetAttributes);
 				(void)didSetAttributes;
-				success = ::ReplaceFileW(originalPath.getFullPath().c_str(), tempPath.getFullPath().c_str()
+				success = ::ReplaceFileW(original.getFullPath().c_str(), tempPath.getFullPath().c_str()
 						, NULL, 0, 0, 0);
 				error = ::GetLastError();
 				if (success) {
-					const ::DWORD attributesAgain = ::GetFileAttributesW(originalPath.getFullPath().c_str());
+					const ::DWORD attributesAgain = ::GetFileAttributesW(original.getFullPath().c_str());
 					if (attributesAgain != INVALID_FILE_ATTRIBUTES) {
-						didSetAttributes = ::SetFileAttributesW(originalPath.getFullPath().c_str()
+						didSetAttributes = ::SetFileAttributesW(original.getFullPath().c_str()
 								, attributesAgain | FILE_ATTRIBUTE_READONLY);
 						assert(didSetAttributes);
 						(void)didSetAttributes;
@@ -925,24 +927,21 @@ void ExchangingFile::commit()
 			}
 		}
 		if (!success && error == ERROR_FILE_NOT_FOUND) {
-			success = ::MoveFileW(tempPath.getFullPath().c_str(), originalPath.getFullPath().c_str());
+			success = ::MoveFileW(tempPath.getFullPath().c_str(), original.getFullPath().c_str());
 			if (!success) {
 				error = ::GetLastError();
 			}
 		}
-		if (success) {
-			tempPath = originalPath;
-			originalPath = Path();
+		if (!success) {
+			tempPath.tryToErase(); // Don't leave the temp file behind on a failed commit.
+			throw Exception("Error committing file", original, error);
 		}
 		/* 
 			On Windows, renaming a file can briefly lock it. This issue occurs more frequently in Dropbox folders
 			but is not exclusive to them. To address this, we implement a retry mechanism. On encountering a 'busy'
 			error, we attempt to reopen the file every 100ms, with a 2-second timeout.
 		*/
- 		impl = new ReadOnlyFile::Impl(tempPath, createFile(tempPath, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0, 20, 100));
-		if (!success) {
-			throw Exception("Error committing file", originalPath, error);
-		}
+		impl = new ReadOnlyFile::Impl(original, createFile(original, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0, 20, 100));
 	}
 }
 

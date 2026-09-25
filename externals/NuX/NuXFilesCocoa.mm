@@ -31,7 +31,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace NuXFiles {
 
 static bool gotTrailingSlash(const std::wstring& path) {
-	return (!path.empty() && path.back() == L'/');
+	return (!path.empty() && path[path.size() - 1] == L'/');
 }
 
 static bool endsWith(const std::wstring& s, const std::wstring& suffix) {
@@ -950,6 +950,8 @@ ExchangingFile::ExchangingFile(const Path& path, const PathAttributes& attribute
 }
 
 void ExchangingFile::commit() {
+	bool failed = false;
+	int errorCode = 0;
 	@autoreleasepool {
 		@try {
 			flush();
@@ -983,13 +985,22 @@ void ExchangingFile::commit() {
 					originalPath = NuXFiles::Path();
 				} else {
 					assert(error != nil);
-					throw Exception("Error committing file", getPath(), static_cast<int>([error code]));
+					failed = true;
+					errorCode = static_cast<int>([error code]);
 				}
 			}
 		}
 		@catch (NSException* exception) {
-			throw Exception("Error committing file", getPath(), getNSExceptionErrorCode(exception));
+			failed = true;
+			errorCode = getNSExceptionErrorCode(exception);
 		}
+	}
+	if (failed) {
+		assert(!originalPath.isNull());
+		const NuXFiles::Path original = originalPath;
+		originalPath = NuXFiles::Path();
+		getPath().tryToErase(); // Don't leave the temp file behind on a failed commit.
+		throw Exception("Error committing file", original, errorCode);
 	}
 }
 
