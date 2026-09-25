@@ -1193,7 +1193,7 @@ return false;
                                 const String commonStatements(commonInvocation->statements);
                                 const StringRange trimmedCommon = trimRange(StringRange(commonStatements));
                                 if (trimmedCommon.b != trimmedCommon.e) {
-                                        interpreter.run(StringRange(commonStatements));
+                                        interpreter.run(trimmedCommon);
                                 }
                         }
 
@@ -1208,7 +1208,7 @@ return false;
                                 return;
                         }
 
-                        interpreter.run(StringRange(statements));
+                        interpreter.run(trimmed);
                 }
 
                 std::string resolveRelativePath(const std::string& requested) const
