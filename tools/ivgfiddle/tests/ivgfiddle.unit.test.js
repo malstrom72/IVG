@@ -55,11 +55,12 @@ test("setupModule assigns runtime before startup run", async () => {
 	};
 	const contextObject = {
 		console: console,
-		localStorage: {
-			getItem: function getItem() {
-				return null;
+		Settings: {
+			read: function read(key, fallback) {
+				return fallback;
 			},
 		},
+		STORAGE_KEYS: { SOURCE: "ivgSource", RUN_ON_STARTUP: "runOnStartup" },
 		ace: {
 			edit: function edit() {
 				return {
