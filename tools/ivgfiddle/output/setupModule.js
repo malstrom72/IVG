@@ -10,12 +10,12 @@ const moduleConfig = {
 		window.ivgRuntimeModule = runtimeModule;
 		window.Module = runtimeModule;
 		Module = runtimeModule;
-		let initSource = localStorage.getItem("ivgSource");
-		if (initSource == null || initSource === "") {
+		let initSource = Settings.read(STORAGE_KEYS.SOURCE, "");
+		if (initSource === "") {
 			initSource = runtimeModule.FS.readFile("demoSource.ivg", { encoding: "utf8" });
 		}
 		ace.edit("editor").setValue(initSource);
-		if (localStorage.getItem("runOnStartup") === "false") {
+		if (Settings.read(STORAGE_KEYS.RUN_ON_STARTUP, "") === "false") {
 			trace("Last execution was terminated. Modify IVG code to run again.");
 		} else {
 			runIVG();

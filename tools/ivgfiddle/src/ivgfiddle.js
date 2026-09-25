@@ -1100,7 +1100,6 @@ const ZoomController = (function createZoomController() {
 	let lastVectorRenderLimit = Infinity;
 	let rerenderRequestPending = false;
 	let pendingVectorRerenderReason = "vector rescale update";
-	let bitmapFallbackQueued = false;
 	let vectorBaselineReady = false;
 	const ZOOM_EPSILON = 0.0001;
 
@@ -1271,18 +1270,6 @@ const ZoomController = (function createZoomController() {
 		window.requestAnimationFrame(function dispatchVectorRerender() {
 			rerenderRequestPending = false;
 			runIVG(pendingVectorRerenderReason);
-		});
-	}
-
-	function queueBitmapFallback(reason) {
-		if (bitmapFallbackQueued) {
-			return;
-		}
-		bitmapFallbackQueued = true;
-		const fallbackReason = typeof reason === "string" && reason.length > 0 ? reason : "vector-fallback";
-		window.requestAnimationFrame(function dispatchBitmapFallback() {
-			bitmapFallbackQueued = false;
-			runIVG(fallbackReason);
 		});
 	}
 
@@ -1626,7 +1613,6 @@ const ZoomController = (function createZoomController() {
 		handleVectorRasterFailure: handleVectorRasterFailure,
 		invalidateBaseMetrics: invalidateBaseMetrics,
 		isVectorBaselineReady: isVectorBaselineReady,
-		queueBitmapFallback: queueBitmapFallback,
 		requestVectorRerender: scheduleVectorRerender,
 	};
 })();

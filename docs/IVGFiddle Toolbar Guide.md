@@ -31,7 +31,7 @@ Vector rerenders observe the following safeguards to keep the WebAssembly module
 
 - Maximum magnification is 10× (matching 1000 %).
 - Canvas dimensions and total pixels are checked against allocator limits before rendering.
-- Failed rerenders automatically fall back to bitmap zoom until the next successful vector render.
+- A failed rerender keeps vector mode and shows the last successful render stretched to the new zoom.
 
 Failures surface as toast-style log messages in the console and leave the previous bitmap visible so
 you can reduce the zoom or bounds before retrying.
