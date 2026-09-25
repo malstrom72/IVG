@@ -110,7 +110,8 @@ NuXFiles::Path GetSystemTempRoot()
 	if (native == 0 || native[0] == '\0') {
 		native = "/tmp";
 	}
-	return SnapshotPathBridge::fromNative(native);
+	/* P_tmpdir is "/tmp" on glibc, and NuXFiles only treats a path ending in a separator as a directory. */
+	return NuXFiles::Path(NuXFiles::Path::appendSeparator(pathStringToWide(native)));
 #endif
 }
 
