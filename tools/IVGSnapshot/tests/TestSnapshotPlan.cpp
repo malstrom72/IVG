@@ -121,8 +121,8 @@ NuXFiles::Path MakeTemporaryDirectory(const std::string &suffix)
 	NuXFiles::Path tempFile;
 	try {
 		tempFile = tempRoot.createTempFile();
-	} catch (const std::exception &) {
-		Fail("failed to allocate temporary directory name");
+	} catch (const std::exception &e) {
+		Fail(std::string("failed to allocate temporary directory name: ") + e.what());
 	}
 	const NuXFiles::Path parent = tempFile.getParent();
 	std::wstring directoryName = tempFile.getNameWithExtension();
@@ -305,9 +305,9 @@ NuXFiles::Path WriteTemporaryIVGPath(const std::string &contents)
 	NuXFiles::Path tempFile;
 	try {
 		tempFile = tempRoot.createTempFile();
-	} catch (const std::exception &) {
-		Fail("failed to allocate temporary name");
-}
+	} catch (const std::exception &e) {
+		Fail(std::string("failed to allocate temporary name: ") + e.what());
+	}
 	const NuXFiles::Path parent = tempFile.getParent();
 	std::wstring name = tempFile.getName();
 	removeFileIfExists(tempFile);
@@ -535,8 +535,8 @@ void TestPngOffsetsRoundTrip()
 	NuXFiles::Path path;
 	try {
 		path = tempRoot.createTempFile();
-	} catch (const std::exception &) {
-		Fail("failed to allocate temporary PNG name");
+	} catch (const std::exception &e) {
+		Fail(std::string("failed to allocate temporary PNG name: ") + e.what());
 	}
 
 	NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> raster(
