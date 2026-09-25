@@ -99,10 +99,13 @@ These are the most important principles in the codebase. Get them wrong and the 
   the unavoidable exception: being templates, they have to be visible to the client.
 - **Keep the client surface minimal.** Internal helpers are not public API - make them protected members of the class
   that uses them, or `static` in the `.cpp`, not part of what a client sees when they include the header.
-- **The library is C++03.** `src/` and `externals/NuX/` must compile clean as `-std=c++03`: `0` not `nullptr`,
-  `<stdint.h>` not `<cstdint>`, no `auto`, no range-`for`, no `std::isfinite`. This is not taste. The library is
-  distributed as source and one of its shipping targets is Emscripten at `-std=c++03`, so a C++11 construct breaks a
-  build someone else runs. Tools, tests and examples are free to use more.
+- **The library is C++03, as Emscripten compiles it.** Emscripten builds `src/` and `externals/NuX/NuXPixels.cpp`
+  as `-std=c++03` with clang and libc++, and `build.sh` checks them that way on macOS. Keep to the C++03 language:
+  lambdas, `constexpr`, brace-initialised containers and `>>` closing a nested template are errors there, and `auto`,
+  range-`for`, `enum class`, `override` and rvalue references compile only as extensions. The standard library is
+  wider, since libc++ provides `std::unique_ptr`, `<cstdint>` and even `nullptr` in C++03 mode. This is not taste:
+  the library ships as source, so a construct Emscripten rejects breaks a build someone else runs. Tools, tests and
+  examples are free to use more.
 
 ## 5. Comments
 
