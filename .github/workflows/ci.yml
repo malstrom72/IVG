@@ -35,6 +35,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+    - uses: emscripten-core/setup-emsdk@v15   # build.sh then builds and tests IVGFiddle
+      with:
+        version: 6.0.10
     - name: Build & test
       shell: bash
       run: |
