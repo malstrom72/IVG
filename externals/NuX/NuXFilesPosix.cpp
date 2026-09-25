@@ -545,6 +545,36 @@ PathInfo Path::getInfo() const {
 	return info;
 }
 
+// Only `isReadOnly` applies here. It mirrors getInfo(): read-only clears every write bit, writable sets the owner's.
+void Path::updateAttributes(const PathAttributes& newAttributes) const {
+	assert(!isNull());
+	struct stat st;
+	if (::stat(impl->path.c_str(), &st) != 0) {
+		throw Exception("Error updating attributes on file or directory", *this, errno);
+	}
+	const mode_t mode = (newAttributes.isReadOnly ? (st.st_mode & ~(S_IWUSR | S_IWGRP | S_IWOTH))
+			: (st.st_mode | S_IWUSR));
+	if (::chmod(impl->path.c_str(), mode & 07777) != 0) {
+		throw Exception("Error updating attributes on file or directory", *this, errno);
+	}
+}
+
+// POSIX has no settable creation time, so `newCreationTime` is ignored.
+void Path::updateTimes(const PathTime& newCreationTime, const PathTime& newModificationTime
+		, const PathTime& newAccessTime) const {
+	assert(!isNull());
+	(void)newCreationTime;
+	struct timespec times[2];
+	const PathTime* const newTimes[2] = { &newAccessTime, &newModificationTime };
+	for (int i = 0; i < 2; ++i) {
+		times[i].tv_sec = (newTimes[i]->isAvailable() ? newTimes[i]->convertToCTime() : 0);
+		times[i].tv_nsec = (newTimes[i]->isAvailable() ? 0 : UTIME_OMIT);
+	}
+	if (::utimensat(AT_FDCWD, impl->path.c_str(), times, 0) != 0) {
+		throw Exception("Error updating time info on file or directory", *this, errno);
+	}
+}
+
 void Path::create() const {
 	assert(!isNull());
 	if (::mkdir(impl->path.c_str(), 0777) != 0) {
