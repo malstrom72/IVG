@@ -1468,13 +1468,13 @@ const ZoomController = (function createZoomController() {
 	}
 
 	function handleVectorRasterFailure(details) {
+		invalidateBaseMetrics();	// first, since it resets lastVectorRenderLimit
 		if (details && Number.isFinite(details.vectorRenderLimit)) {
 			lastVectorRenderLimit = details.vectorRenderLimit;
 		}
 		if (details && Number.isFinite(details.renderZoom)) {
 			lastRenderZoom = details.renderZoom;
 		}
-		invalidateBaseMetrics();
 		return false;
 	}
 
