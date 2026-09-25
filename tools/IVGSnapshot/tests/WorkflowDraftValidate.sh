@@ -61,8 +61,8 @@ print("".join(result))
 PY
  )"
 
-golden_path="$output_dir/${snapshot_prefix}__snaptest-1.png"
-old_path="$output_dir/${snapshot_prefix}__snaptest-1.png.old"
+golden_path="$output_dir/${snapshot_prefix}__unlabeled-1.png"
+old_path="$output_dir/${snapshot_prefix}__unlabeled-1.png.old"
 if [ ! -f "$old_path" ] && [ ! -f "$golden_path" ]; then
 	echo "Draft run did not produce a .png.old artifact." >&2
 	exit 1
