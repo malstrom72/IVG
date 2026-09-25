@@ -270,6 +270,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			const type = (message as { type?: unknown }).type;
 			if (type === "ready") {
 				webviewReady = true;
+				seedLatestIncludeBundleMessage();	// a hidden panel's webview reloads and sends "ready" again
 				flushPendingMessages();
 				syncActiveDocument("panelFocus");
 				return;
@@ -365,21 +366,12 @@ export function activate(context: vscode.ExtensionContext): void {
 			}
 		}),
 		vscode.workspace.onDidChangeWorkspaceFolders(() => {
+			includeConfig = readIncludeConfig();
 			initializeIncludeWatchers(context);
 		}),
 		vscode.workspace.onDidChangeConfiguration((event) => {
 			if (event.affectsConfiguration(`${CONFIG_SECTION}.autoRefresh`) || event.affectsConfiguration(`${CONFIG_SECTION}.debounceMs`)) {
 				previewConfig = readPreviewConfig();
-				refreshStatusBar();
-				if (scheduledDocument && previewConfig.autoRefresh) {
-					syncDocument(scheduledDocument, "change");
-				}
-			}
-			if (
-				event.affectsConfiguration(`${GENERAL_CONFIG_SECTION}.syncOnOpen`) ||
-				event.affectsConfiguration(`${GENERAL_CONFIG_SECTION}.webviewUpdateDelay`)
-			) {
-				generalConfig = readGeneralConfig();
 				refreshStatusBar();
 				if (scheduledDocument && previewConfig.autoRefresh) {
 					syncDocument(scheduledDocument, "change");
@@ -985,9 +977,10 @@ function postMessageToWebview(message: unknown): void {
 		ivgPanel.webview.postMessage(message);
 		return;
 	}
+	const panel = ivgPanel;
 	setTimeout(() => {
-		if (ivgPanel) {
-			ivgPanel.webview.postMessage(message);
+		if (ivgPanel === panel) {
+			panel.webview.postMessage(message);
 		}
 	}, delay);
 }
