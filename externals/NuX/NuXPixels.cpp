@@ -1181,9 +1181,10 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 	int minX = 0x3FFFFFFF;
 	int maxY = -0x3FFFFFFF;
 	int maxX = -0x3FFFFFFF;
-	int top = cb.top << FRACT_BITS;
-	int right = rightBound << FRACT_BITS;
-	int bottom = bottomBound << FRACT_BITS;
+	/* Shifted unsigned and cast back: shifting a negative int left is undefined before C++20. */
+	int top = static_cast<int>(static_cast<UInt32>(cb.top) << FRACT_BITS);
+	int right = static_cast<int>(static_cast<UInt32>(rightBound) << FRACT_BITS);
+	int bottom = static_cast<int>(static_cast<UInt32>(bottomBound) << FRACT_BITS);
 	int lx = 0;
 	int ly = 0;
 
@@ -1370,7 +1371,7 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 			This may leave the horizontal list unsorted, requiring
 			extra work later when reordering.
 		*/
-		const int yFixed = y << FRACT_BITS;
+		const int yFixed = static_cast<int>(static_cast<UInt32>(y) << FRACT_BITS);
 		int segIndex = engagedStart;
 		while (segsVertically[segIndex]->topY < yFixed) {
 			Segment* seg = segsVertically[segIndex];
@@ -1384,7 +1385,7 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 		row = y;
 	}
 	
-	const int rowFixed = row << FRACT_BITS;
+	const int rowFixed = static_cast<int>(static_cast<UInt32>(row) << FRACT_BITS);
 	
 	int includeIndex = engagedEnd;
 	while (segsVertically[includeIndex]->topY < rowFixed + FRACT_ONE) {
