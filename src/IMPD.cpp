@@ -1050,7 +1050,7 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 			if (p + 1 != e) {
 				UniChar c;
 				p = unescapeChar(++p, e, c);
-				if (static_cast<Char>(c) != c) {
+				if (static_cast<UniChar>(static_cast<Char>(c)) != c) {
 					throwBadSyntax("Invalid character escape code inside { } expression");
 				}
 				if (!dry) {
