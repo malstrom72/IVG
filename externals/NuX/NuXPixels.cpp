@@ -400,7 +400,8 @@ Path& Path::quadraticTo(double controlPointX, double controlPointY, double x, do
 	const double c2y = 2.0 * (py - 2.0 * controlPointY + y);
 
 	const double d = sqrt(c2x * c2x + c2y * c2y);	// Norm of second derivative is a measure of how direction (=first derivative) twist. We use this info to decide the segment count.
-	const int n = minValue(static_cast<int>(sqrt(d * 0.707 * curveQuality) + 0.5) + 1, MAX_SPLINE_SEGMENTS);
+	const int n = static_cast<int>(minValue(sqrt(d * 0.707 * curveQuality) + 0.5
+			, static_cast<double>(MAX_SPLINE_SEGMENTS - 1))) + 1;	// Clamped as double: a huge or NaN d must not reach the int cast.
 
 	const double m = 1.0 / n;
 	const double px2 = c2x * m * m;
@@ -440,7 +441,8 @@ Path& Path::cubicTo(double cpBeginX, double cpBeginY, double cpEndX, double cpEn
 	const double k2x = 6.0 * (cpBeginX - 2.0 * cpEndX + x);
 	const double k2y = 6.0 * (cpBeginY - 2.0 * cpEndY + y);
 	const double d = sqrt(maxValue(c2x * c2x + c2y * c2y, k2x * k2x + k2y * k2y));
-	const int n = minValue(static_cast<int>(sqrt(d * 0.707 * curveQuality) + 0.5) + 1, MAX_SPLINE_SEGMENTS);
+	const int n = static_cast<int>(minValue(sqrt(d * 0.707 * curveQuality) + 0.5
+			, static_cast<double>(MAX_SPLINE_SEGMENTS - 1))) + 1;	// Clamped as double: a huge or NaN d must not reach the int cast.
 
 	const double m = 1.0 / n;
 	const double px3 = c3x * m * m * m;
@@ -1158,10 +1160,13 @@ bool PolygonMask::isValid() const { return valid; }
 PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const FillRule& fillRule)
 	: segments(), fillRule(fillRule), row(0), engagedStart(0), engagedEnd(0), coverageDelta(), valid(true)
 {
-	// Clamp the clip rectangle to the numeric limits handled by the rasterizer.
+	/*
+		Clamp the clip rectangle to the numeric limits handled by the rasterizer. Coordinates are kept within half the
+		24.8 fixed-point range, so the difference of any two (edge deltas, clip catch-up) fits in an int.
+	*/
 	IntRect cb = clipBounds;
 	assert(0 <= cb.width && 0 <= cb.height);
-	const int limit = (0x7FFFFFFF >> FRACT_BITS);
+	const int limit = (0x3FFFFFFF >> FRACT_BITS);
 	cb.left = maxValue(-limit, minValue(cb.left, limit));
 	cb.top = maxValue(-limit, minValue(cb.top, limit));
 	int rightBound = maxValue(-limit, minValue(cb.calcRight(), limit));
@@ -1171,7 +1176,7 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 
 	// Reserve space for all edges plus a sentinel segment.
 	segments.reserve(path.size() + 1);
-	const double vertexLimit = static_cast<double>(0x7FFFFFFF >> POLYGON_FRACTION_BITS);
+	const double vertexLimit = static_cast<double>(0x3FFFFFFF >> POLYGON_FRACTION_BITS);
 	int minY = 0x3FFFFFFF;
 	int minX = 0x3FFFFFFF;
 	int maxY = -0x3FFFFFFF;
@@ -1558,8 +1563,6 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 			}
 			Mask8::Pixel* pixels = output.addVariable(spanLength, false);
 			fillRule.processCoverage(spanLength, &coverageDelta[col], pixels);
-			for (int i = 0; i < spanLength; ++i) {
-			}
 			for (int i = 0; i < spanLength; ++i) {
 				coverageDelta[col + i] = 0;
 			}
