@@ -808,7 +808,7 @@ Path& Path::stroke(double width, EndCapStyle endCaps, JointStyle joints, double 
 	}
 
 	instructions.swap(stroked.instructions);
-	openIndex = stroked.openIndex;
+	openIndex = instructions.size() - 1;
 	return *this;
 }
 

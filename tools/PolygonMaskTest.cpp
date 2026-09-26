@@ -192,6 +192,19 @@ renderRect(mask, topRight, silly);
 			return 1;
 		}
 	}
+	{
+		// stroke() left openIndex unset, so a later close() went to the origin instead of the last outline's start.
+		Path stroked;
+		stroked.moveTo(10, 10).lineTo(90, 10).stroke(4.0);
+		const Vertex start = stroked.getPosition();
+		stroked.lineTo(50, 50).close();
+		const Vertex closedTo = (stroked.end() - 1)->second;
+		if (closedTo.x != start.x || closedTo.y != start.y) {
+			std::cerr << "close() after stroke() went to (" << closedTo.x << "," << closedTo.y << ") instead of ("
+					<< start.x << "," << start.y << ")\n";
+			return 1;
+		}
+	}
 
 return 0;
 }
