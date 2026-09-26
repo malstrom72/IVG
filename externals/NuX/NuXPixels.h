@@ -977,6 +977,8 @@ class PolygonMask : public Renderer<Mask8> {
 	protected:	mutable std::vector<Segment*> segsVertically;
 	protected:	mutable std::vector<Segment*> segsHorizontally;
 	protected:	bool valid;
+	private:	PolygonMask(const PolygonMask& copy); // N/A
+	private:	PolygonMask& operator=(const PolygonMask& copy); // N/A
 };
 
 

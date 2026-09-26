@@ -160,6 +160,39 @@ renderRect(mask, topRight, silly);
 			return 1;
 }
 
+	{
+		// An edge wider than half the 24.8 fixed-point range overflowed its x delta and lost its fill.
+		Path tooWide;
+		tooWide.moveTo(-5000000, 0).lineTo(5000000, 100).lineTo(5000000, 0).close();
+		if (PolygonMask(tooWide, IntRect(0, 0, 100, 100)).isValid()) {
+			std::cerr << "edge beyond the vertex limit was accepted\n";
+			return 1;
+		}
+		Path wide;
+		wide.moveTo(-4000000, 0).lineTo(4000000, 80).lineTo(4000000, 0).close();
+		const IntRect wideBounds(0, 0, 100, 100);
+		PolygonMask wideMask(wide, wideBounds);
+		SelfContainedRaster<Mask8> wideRaster(wideBounds);
+		renderRect(wideMask, wideBounds, wideRaster);
+		const Mask8::Pixel* widePixels = wideRaster.getPixelPointer();
+		const int wideStride = wideRaster.getStride();
+		if (!wideMask.isValid() || widePixels[10 * wideStride + 50] != 0xFF || widePixels[70 * wideStride + 50] != 0) {
+			std::cerr << "wide edge within the vertex limit rendered wrong\n";
+			return 1;
+		}
+	}
+	{
+		// A huge control point overflowed the segment count, so the curve added no vertices at all.
+		Path cubic;
+		cubic.moveTo(0, 0).cubicTo(1e19, 0, 0, 1e19, 10, 10);
+		Path quadratic;
+		quadratic.moveTo(0, 0).quadraticTo(1e19, 1e19, 10, 10);
+		if (cubic.size() == 1 || quadratic.size() == 1) {
+			std::cerr << "curve with a huge control point added no vertices\n";
+			return 1;
+		}
+	}
+
 return 0;
 }
 
