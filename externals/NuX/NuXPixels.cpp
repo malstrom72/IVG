@@ -668,7 +668,7 @@ static void strokeOneSide(Path& stroked, double direction, const StrokeSegment* 
 		virtually collinear but opposite directions.
 	*/
 	const bool insideHalfPlane = (bx0 - ax1) * bdx < (ay1 - by0) * bdy + EPSILON * 2;
-	const bool oppositeDirs = zeroCross && dot <= -1.0 + EPSILON;
+	const bool oppositeDirs = zeroCross && dot <= -(adx * adx + ady * ady) + EPSILON;	// d is scaled to half the pen width, so an exact reversal gives -|d|^2, not -1.
 	if (insideHalfPlane && !oppositeDirs) {
 		// --- Inner joint ---
 		
