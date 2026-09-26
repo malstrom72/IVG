@@ -1138,7 +1138,7 @@ template<class PIXEL_TYPE> void Canvas::parsePaintOfType(Interpreter& impd, IVGE
 			const IMPD::WideString name = impd.unescapeToWide(*s);
 			IVGExecutor::PatternMap::const_iterator it = executor.getDefinedPatterns().find(name);
 			if (it == executor.getDefinedPatterns().end()) {
-				Interpreter::throwRunTimeError(String("Undefined pattern \"") + String(name.begin(), name.end()) + "\".");
+				Interpreter::throwRunTimeError(String("Undefined pattern \"") + narrowToString(name) + "\".");
 			}
 			paint.painter = it->second;
 		} else {
@@ -1478,7 +1478,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, const String& instruction, co
 		args.throwIfAnyUnfetched();
 
 		if (embeddedFonts.find(name) != embeddedFonts.end()) {
-			Interpreter::throwRunTimeError(String("Duplicate font definition \"") + String(name.begin(), name.end()) + "\".");
+			Interpreter::throwRunTimeError(String("Duplicate font definition \"") + narrowToString(name) + "\".");
 		}
 		IVG::FontParser fontParser(this);
 		FormatInfo fontFormatInfo;	// Fresh format scope for embedded font documents.
@@ -1502,7 +1502,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, const String& instruction, co
 		args.throwIfAnyUnfetched();
 
 		if (definedImages.find(name) != definedImages.end()) {
-			Interpreter::throwRunTimeError(String("Duplicate image definition \"") + String(name.begin(), name.end()) + "\".");
+			Interpreter::throwRunTimeError(String("Duplicate image definition \"") + narrowToString(name) + "\".");
 		}
 
 		SelfContainedARGB32Canvas offscreenCanvas(resolution);
@@ -1521,7 +1521,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, const String& instruction, co
 		args.throwIfAnyUnfetched();
 
 		if (definedPaths.find(name) != definedPaths.end()) {
-			Interpreter::throwRunTimeError(String("Duplicate path definition \"") + String(name.begin(), name.end()) + "\".");
+			Interpreter::throwRunTimeError(String("Duplicate path definition \"") + narrowToString(name) + "\".");
 		}
 
 		Path path;
@@ -1535,7 +1535,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, const String& instruction, co
 		args.throwIfAnyUnfetched();
 
 		if (definedPatterns.find(name) != definedPatterns.end()) {
-			Interpreter::throwRunTimeError(String("Duplicate pattern definition \"") + String(name.begin(), name.end()) + "\".");
+			Interpreter::throwRunTimeError(String("Duplicate pattern definition \"") + narrowToString(name) + "\".");
 		}
 
 		// A named pattern is a global resource, so it is rasterized in a fresh root context (like `define image`)
@@ -1591,7 +1591,7 @@ void IVGExecutor::buildPath(Interpreter& impd, const String* svgArgument, const 
 			const WideString name = impd.unescapeToWide(impd.expand(arg0));
 			PathMap::const_iterator it = definedPaths.find(name);
 			if (it == definedPaths.end()) {
-				Interpreter::throwRunTimeError(String("Undefined path \"") + String(name.begin(), name.end()) + "\".");
+				Interpreter::throwRunTimeError(String("Undefined path \"") + narrowToString(name) + "\".");
 			}
 			path = it->second;
 		} else {
@@ -1721,7 +1721,7 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 		image = loadImage(impd, imageName, gotSourceRectangle ? &sourceRectangle : 0
 				, doStretch, forXSize, !doFitWidth, forYSize, !doFitHeight);
 		if (image.raster == 0) {
-			Interpreter::throwRunTimeError(String("Missing image \"") + String(imageName.begin(), imageName.end()) + "\".");
+			Interpreter::throwRunTimeError(String("Missing image \"") + narrowToString(imageName) + "\".");
 		}
 	}
 	assert(image.xResolution > 0);
@@ -1978,7 +1978,7 @@ Path IVGExecutor::makeTextPath(Interpreter& impd, const UniString& text, double&
 	const std::vector<const Font*> fonts = lookupExternalOrInternalFonts(impd, state.textStyle.fontName, text);
 	if (fonts.empty()) {
 		Interpreter::throwRunTimeError(String("Missing font \"")
-			+ String(state.textStyle.fontName.begin(), state.textStyle.fontName.end()) + "\".");
+			+ narrowToString(state.textStyle.fontName) + "\".");
 	}
 	const char* errorString;
 	Path textPath;
@@ -2229,7 +2229,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				}
 				if (lookupExternalOrInternalFonts(impd, newFontName, UniString()).empty()) {
 					Interpreter::throwRunTimeError(String("Missing font \"")
-							+ String(newFontName.begin(), newFontName.end()) + "\".");
+							+ narrowToString(newFontName) + "\".");
 				}
 				state.textStyle.fontName = newFontName;
 			}
@@ -2547,7 +2547,7 @@ bool FontParser::execute(Interpreter& impd, const String& instruction, const Str
 			Font::Glyph glyph;
 			const UniString ws = impd.unescapeToUni(args.fetchRequired(0));
 			if (ws.size() != 1) {
-				impd.throwRunTimeError(String("Invalid glyph character \"") + String(ws.begin(), ws.end()) + "\" (length must be 1).");
+				impd.throwRunTimeError(String("Invalid glyph character \"") + narrowToString(ws) + "\" (length must be 1).");
 			}
 			glyph.character = static_cast<UniChar>(ws[0]);
 			glyph.advance = impd.toDouble(args.fetchRequired(1));
