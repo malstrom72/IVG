@@ -992,7 +992,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		args.throwIfAnyUnfetched();
 
 		if (embeddedFonts.find(name) != embeddedFonts.end()) {
-			Interpreter::throwRunTimeError(String("Duplicate font definition: ") + String(name.begin(), name.end()));
+			Interpreter::throwRunTimeError(String("Duplicate font definition: ") + narrowToString(name));
 		}
 		IVG::FontParser fontParser(this);
 		FormatInfo fontFormatInfo;	// Fresh format scope for embedded font documents.
@@ -1012,7 +1012,7 @@ void IVGExecutor::executeDefine(Interpreter& impd, ArgumentsContainer& args) {
 		args.throwIfAnyUnfetched();
 
 		if (definedImages.find(name) != definedImages.end()) {
-			Interpreter::throwRunTimeError(String("Duplicate image definition: ") + String(name.begin(), name.end()));
+			Interpreter::throwRunTimeError(String("Duplicate image definition: ") + narrowToString(name));
 		}
 
 		SelfContainedARGB32Canvas offscreenCanvas(resolution);
@@ -1159,7 +1159,7 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 		image = loadImage(impd, imageName, gotSourceRectangle ? &sourceRectangle : 0
 				, doStretch, forXSize, !doFitWidth, forYSize, !doFitHeight);
 		if (image.raster == 0) {
-			Interpreter::throwRunTimeError(String("Missing image: ") + String(imageName.begin(), imageName.end()));
+			Interpreter::throwRunTimeError(String("Missing image: ") + narrowToString(imageName));
 		}
 	}
 	assert(image.xResolution > 0);
@@ -1480,7 +1480,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				}
 				if (lookupExternalOrInternalFonts(impd, newFontName, UniString()).empty()) {
 					Interpreter::throwRunTimeError(String("Missing font: ")
-							+ String(newFontName.begin(), newFontName.end()));
+							+ narrowToString(newFontName));
 				}
 				state.textStyle.fontName = newFontName;
 			}
@@ -1541,7 +1541,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			std::vector<const Font*> fonts = lookupExternalOrInternalFonts(impd, state.textStyle.fontName, text);
 			if (fonts.empty()) {
 				Interpreter::throwRunTimeError(String("Missing font: ")
-						+ String(state.textStyle.fontName.begin(), state.textStyle.fontName.end()));
+						+ narrowToString(state.textStyle.fontName));
 			}
 			
 			double advance;
@@ -1798,7 +1798,7 @@ bool FontParser::execute(Interpreter& impd, const String& instruction, const Str
 			Font::Glyph glyph;
 			const UniString ws = impd.unescapeToUni(args.fetchRequired(0));
 			if (ws.size() != 1) {
-				impd.throwBadSyntax(String("Invalid glyph character (length is not 1): ") + String(ws.begin(), ws.end()));
+				impd.throwBadSyntax(String("Invalid glyph character (length is not 1): ") + narrowToString(ws));
 			}
 			glyph.character = static_cast<UniChar>(ws[0]);
 			glyph.advance = impd.toDouble(args.fetchRequired(1));

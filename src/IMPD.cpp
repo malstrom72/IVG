@@ -102,7 +102,7 @@ WideString convertUniToWideString(const UniString& s) {
 	if (s.empty()) {
 		return WideString();
 	} else if (sizeof (WideChar) == sizeof (UniChar)) {
-		return WideString(s.begin(), s.end());
+		return WideString(reinterpret_cast<const WideChar*>(s.data()), s.size());
 	} else if (sizeof (WideChar) == sizeof (uint16_t)) {
 		const size_t requiredSize = calcUTF32ToUTF16Size(s.size(), s.data());
 		WideString ws(requiredSize, L'\0');
@@ -1163,14 +1163,14 @@ WideString Interpreter::unescapeToWide(const StringRange& r) {
 				p = unescapeChar(p, r.e, c);
 				if (sizeof (WideString::value_type) == sizeof (uint16_t)) {
 					if ((c >> 16) == 0) {
-						processed += c;
+						processed += static_cast<WideChar>(c);
 					} else {
 						processed += static_cast<uint16_t>(((c - 0x10000) >> 10) + 0xD800);
 						processed += static_cast<uint16_t>(((c - 0x10000) & 0x3FF) + 0xDC00);
 					}
 				} else {
 					assert(sizeof (WideString::value_type) == sizeof (UniChar));
-					processed += c;
+					processed += static_cast<WideChar>(c);
 				}
 			}
 			b = p;
@@ -1456,7 +1456,7 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			if (instruction == INCLUDE_INSTRUCTION) {
 				const WideString file = unescapeToWide(expand(runThis));
 				if (!executor.load(*this, file, runThis)) {
-					throwRunTimeError(String("Could not include file: ") + String(file.begin(), file.end()));
+					throwRunTimeError(String("Could not include file: ") + narrowToString(file));
 				}
 			}
 			newVars.declare("n", toString(counter));
