@@ -1,0 +1,25 @@
+// Strokes that turn straight back, with pens thinner and thicker than 2 units.
+// Columns: curve, miter and bevel joints, then curve on a diagonal. Rows: widths 0.5, 1, 1.5, 2 and 3.
+bounds 0,0,800,400
+wipe white
+scale 20
+context [ pen black width:0.5 joints:curve; path svg:[M 1 2 L 8 2 L 3 2] ]
+context [ pen black width:0.5 joints:miter; path svg:[M 11 2 L 18 2 L 13 2] ]
+context [ pen black width:0.5 joints:bevel; path svg:[M 21 2 L 28 2 L 23 2] ]
+context [ pen black width:0.5 joints:curve; path svg:[M 31 3 L 38 1 L 34.5 2] ]
+context [ pen black width:1 joints:curve; path svg:[M 1 6 L 8 6 L 3 6] ]
+context [ pen black width:1 joints:miter; path svg:[M 11 6 L 18 6 L 13 6] ]
+context [ pen black width:1 joints:bevel; path svg:[M 21 6 L 28 6 L 23 6] ]
+context [ pen black width:1 joints:curve; path svg:[M 31 7 L 38 5 L 34.5 6] ]
+context [ pen black width:1.5 joints:curve; path svg:[M 1 10 L 8 10 L 3 10] ]
+context [ pen black width:1.5 joints:miter; path svg:[M 11 10 L 18 10 L 13 10] ]
+context [ pen black width:1.5 joints:bevel; path svg:[M 21 10 L 28 10 L 23 10] ]
+context [ pen black width:1.5 joints:curve; path svg:[M 31 11 L 38 9 L 34.5 10] ]
+context [ pen black width:2 joints:curve; path svg:[M 1 14 L 8 14 L 3 14] ]
+context [ pen black width:2 joints:miter; path svg:[M 11 14 L 18 14 L 13 14] ]
+context [ pen black width:2 joints:bevel; path svg:[M 21 14 L 28 14 L 23 14] ]
+context [ pen black width:2 joints:curve; path svg:[M 31 15 L 38 13 L 34.5 14] ]
+context [ pen black width:3 joints:curve; path svg:[M 1 18 L 8 18 L 3 18] ]
+context [ pen black width:3 joints:miter; path svg:[M 11 18 L 18 18 L 13 18] ]
+context [ pen black width:3 joints:bevel; path svg:[M 21 18 L 28 18 L 23 18] ]
+context [ pen black width:3 joints:curve; path svg:[M 31 19 L 38 17 L 34.5 18] ]

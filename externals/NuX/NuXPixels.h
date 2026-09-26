@@ -162,15 +162,16 @@ inline int wrap(int x, int y) { return (x >= 0) ? (x % y) : (y - 1 - (-x - 1) % 
 
 typedef NUXPIXELS_INT64_TYPE Fixed32_32;
 
-inline Fixed32_32 toFixed32_32(Int32 high, UInt32 low) throw() { return (Fixed32_32(high) << 32) | low; }
+// Left shifts go through uint64_t and back, since shifting a negative value left is undefined before C++20.
+inline Fixed32_32 toFixed32_32(Int32 high, UInt32 low) throw() { return Fixed32_32(static_cast<uint64_t>(high) << 32) | low; }
 inline Fixed32_32 toFixed32_32(double d) throw() { return Fixed32_32(floor(d * 4294967296.0 + 0.5)); }
 inline Fixed32_32 add(Fixed32_32 v1, Fixed32_32 v2) throw() { return v1 + v2; }
 inline Int32 addCarry(Fixed32_32& v1, Fixed32_32 v2) throw() { Int32 carry = Int32((Fixed32_32((UInt32)(v1)) + (UInt32)(v2)) >> 32); v1 += v2; return carry; }
-inline Fixed32_32 shiftLeft(Fixed32_32 v, Int32 s) throw() { return v << s; }
+inline Fixed32_32 shiftLeft(Fixed32_32 v, Int32 s) throw() { return Fixed32_32(static_cast<uint64_t>(v) << s); }
 inline Fixed32_32 shiftRight(Fixed32_32 v, Int32 s) throw() { return v >> s; }
 inline Int32 high32(Fixed32_32 v) throw() { return static_cast<Int32>(v >> 32); }
 inline UInt32 low32(Fixed32_32 v) throw() { return static_cast<UInt32>(v); }
-inline Fixed32_32 divide(Int32 v1, Int32 v2) throw() { return (Fixed32_32(v1) << 32) / v2; }
+inline Fixed32_32 divide(Int32 v1, Int32 v2) throw() { return Fixed32_32(static_cast<uint64_t>(v1) << 32) / v2; }
 inline Fixed32_32 multiply(Int32 v1, Fixed32_32 v2) throw() { return v1 * v2; }
 
 #else // #ifdef NUXPIXELS_INT64_TYPE
@@ -466,7 +467,7 @@ inline void ARGB32::split(Pixel c, UInt8 components[COMPONENT_COUNT]) {
 }
 
 inline ARGB32::Pixel ARGB32::join(const UInt8 components[COMPONENT_COUNT]) {
-	return (components[0] << 24) | (components[1] << 16) | (components[2] << 8) | components[3];
+	return (static_cast<UInt32>(components[0]) << 24) | (components[1] << 16) | (components[2] << 8) | components[3];
 }
 
 /**
@@ -510,7 +511,7 @@ inline void Mask8::split(Pixel c, UInt8 components[COMPONENT_COUNT]) { component
 inline Mask8::Pixel Mask8::join(const UInt8 components[COMPONENT_COUNT]) { return components[0]; }
 
 inline Mask8::Pixel convert(const ARGB32&, const Mask8&, ARGB32::Pixel source) { return source >> 24; }
-inline ARGB32::Pixel convert(const Mask8&, const ARGB32&, Mask8::Pixel source) { return (source << 24) | (source << 16) | (source << 8) | source; }
+inline ARGB32::Pixel convert(const Mask8&, const ARGB32&, Mask8::Pixel source) { return (static_cast<UInt32>(source) << 24) | (source << 16) | (source << 8) | source; }
 
 /**
 	Span models a run of consecutive pixels. The run length and the "solid"

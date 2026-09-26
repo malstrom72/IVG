@@ -707,7 +707,7 @@ static void strokeOneSide(Path& stroked, double direction, const StrokeSegment* 
 		virtually collinear but opposite directions.
 	*/
 	const bool insideHalfPlane = (bx0 - ax1) * bdx < (ay1 - by0) * bdy + EPSILON * 2;
-	const bool oppositeDirs = zeroCross && dot <= -1.0 + EPSILON;
+	const bool oppositeDirs = zeroCross && dot <= -(adx * adx + ady * ady) + EPSILON;	// d is scaled to half the pen width, so an exact reversal gives -|d|^2, not -1.
 	if (insideHalfPlane && !oppositeDirs) {
 		// --- Inner joint ---
 		
@@ -847,7 +847,7 @@ Path& Path::stroke(double width, EndCapStyle endCaps, JointStyle joints, double 
 	}
 
 	instructions.swap(stroked.instructions);
-	openIndex = stroked.openIndex;
+	openIndex = instructions.size() - 1;
 	return *this;
 }
 
@@ -1224,9 +1224,10 @@ PolygonMask::PolygonMask(const Path& path, const IntRect& clipBounds, const Fill
 	int minX = 0x3FFFFFFF;
 	int maxY = -0x3FFFFFFF;
 	int maxX = -0x3FFFFFFF;
-	int top = cb.top << FRACT_BITS;
-	int right = rightBound << FRACT_BITS;
-	int bottom = bottomBound << FRACT_BITS;
+	/* Shifted unsigned and cast back: shifting a negative int left is undefined before C++20. */
+	int top = static_cast<int>(static_cast<UInt32>(cb.top) << FRACT_BITS);
+	int right = static_cast<int>(static_cast<UInt32>(rightBound) << FRACT_BITS);
+	int bottom = static_cast<int>(static_cast<UInt32>(bottomBound) << FRACT_BITS);
 	int lx = 0;
 	int ly = 0;
 
@@ -1419,7 +1420,7 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 			This may leave the horizontal list unsorted, requiring
 			extra work later when reordering.
 		*/
-		const int yFixed = y << FRACT_BITS;
+		const int yFixed = static_cast<int>(static_cast<UInt32>(y) << FRACT_BITS);
 		int segIndex = engagedStart;
 		while (segsVertically[segIndex]->topY < yFixed) {
 			Segment* seg = segsVertically[segIndex];
@@ -1433,7 +1434,7 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 		row = y;
 	}
 	
-	const int rowFixed = row << FRACT_BITS;
+	const int rowFixed = static_cast<int>(static_cast<UInt32>(row) << FRACT_BITS);
 	
 	int includeIndex = engagedEnd;
 	while (segsVertically[includeIndex]->topY < rowFixed + FRACT_ONE) {
