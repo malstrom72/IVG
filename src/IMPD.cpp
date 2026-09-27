@@ -823,7 +823,7 @@ StringIt Interpreter::moduloPercentOperation(StringIt p, const StringIt& e, Eval
 		if (q == p + 1) {
 			++p;
 			if (!dry) {
-				v = fabs(static_cast<double>(v) / 100.0);
+				v = static_cast<double>(v) / 100.0;
 			}
 		} else if (precedence < MUL_DIV_MOD) {
 			p = q;

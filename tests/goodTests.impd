@@ -249,6 +249,8 @@ TRACE {1<1000} == yes
 TRACE {1000<a} == yes
 TRACE {1<0aaa} == yes // numbers are always < strings
 
+x = -6.3; TRACE {$x%} == -0.063; TRACE {-$x%} == 0.063
+
 TRACE {1e-4294967298} == 0; TRACE {2.5e-3} == 0.0025
 
 REPEAT -2147483648 [ TRACE BAD!! ]; TRACE int32 minimum accepted
