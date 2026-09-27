@@ -177,4 +177,10 @@ meta unknown
 format sample-2 uses:[snapshot-1] requires:[impd-1]
 meta snapshot-2
 
+REPEAT 4294967296 [ TRACE BAD!! ] // wrapped to zero repeats
+
+REPEAT 2147483648 [ TRACE BAD!! ] // beyond int32_t
+
+TRACE {1e4294967298} // exponent beyond int32_t
+
 REPEAT 1073741823 [] // statements count limit
