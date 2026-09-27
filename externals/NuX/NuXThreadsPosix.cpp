@@ -397,12 +397,13 @@ void* Thread::Impl::startRoutine(void* arg) {
 		if (impl->stage == RUNNING) {
 			impl->runner->run();
 		}
-		impl->stage = STOPPED;
-		impl->stoppedEvent.signal();
 	}
 	catch (...) {
 		assert(0);
 	}
+	// Outside the try, so joiners are released even if run() threw.
+	impl->stage = STOPPED;
+	impl->stoppedEvent.signal();
 	if (--impl->keepCounter == 0) {
 		delete impl;
 	}
@@ -418,6 +419,18 @@ Thread::Impl::Impl(Runnable* runner) : runner(runner), stage(SUSPENDED), keepCou
 }
 
 ::pthread_t Thread::Impl::getPThreadId() const { return thread; }
+
+// Calls pthread_join exactly once, whichever joiner gets here first. Only called once the thread has stopped.
+void Thread::Impl::reap() {
+	MutexLock lock(joinMutex);
+	if (stage != JOINED) {
+		assert(stage == STOPPED);
+		int err = ::pthread_join(thread, 0);
+		(void)err;
+		assert(err == 0);
+		stage = JOINED;
+	}
+}
 
 Thread::Impl::~Impl()
 {
@@ -475,29 +488,23 @@ void Thread::start() {
 	}
 }
 
+/*
+	stoppedEvent releases one waiter at a time, so every joiner that gets it signals it again. That releases the next
+	joiner and leaves it signaled for any later one, like a Win32 thread handle.
+*/
 void Thread::join() const {
-	if (impl->stage != Impl::JOINED) {
-		int err = ::pthread_join(impl->thread, 0);
-		(void)err;
-		assert(err == 0);
-		assert(impl->stage == Impl::STOPPED);
-		impl->stage = Impl::JOINED;
-	}
+	impl->stoppedEvent.wait();
+	impl->stoppedEvent.signal();
+	impl->reap();
 }
 
 bool Thread::timedJoin(int ms) const {
-	if (impl->stage == Impl::JOINED) {
-		return true;
-	} else if (!impl->stoppedEvent.timedWait(ms)) {
+	if (!impl->stoppedEvent.timedWait(ms)) {
 		return false;
-	} else {
-		assert(impl->stage == Impl::STOPPED);
-		int err = ::pthread_join(impl->thread, 0);
-		(void)err;
-		assert(err == 0);
-		impl->stage = Impl::JOINED;
-		return true;
 	}
+	impl->stoppedEvent.signal();
+	impl->reap();
+	return true;
 }
 
 ThreadId Thread::getId() const { return reinterpret_cast<ThreadId>(impl->thread); }
@@ -509,14 +516,17 @@ Thread::~Thread()
 		impl->stage = Impl::STOPPED;
 		impl->startEvent.signal();
 	}
-	if (impl->stage == Impl::RUNNING) {
-		int err = ::pthread_detach(impl->thread);
-		(void)err;
-		assert(err == 0);
-	} else if (impl->stage != Impl::JOINED) {
-		int err = ::pthread_join(impl->thread, 0);
-		(void)err;
-		assert(err == 0);
+	{
+		MutexLock lock(impl->joinMutex);
+		if (impl->stage == Impl::RUNNING) {
+			int err = ::pthread_detach(impl->thread);
+			(void)err;
+			assert(err == 0);
+		} else if (impl->stage != Impl::JOINED) {
+			int err = ::pthread_join(impl->thread, 0);
+			(void)err;
+			assert(err == 0);
+		}
 	}
 	if (--impl->keepCounter == 0) {
 		delete impl;

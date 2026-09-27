@@ -392,8 +392,8 @@ class Thread : public Runnable {
 	public:		Thread(Runnable& runner);		///< This constructor assigns a Runnable object as the "runner", i.e. use this constructor if you have a subclass of Runnable that you wish to use to run the thread. Once constructed, the thread is allocated but suspended. Use start() to run.
 	public:		void setPriority(int priority);	///< Sets the thread priority. \p priority is between -10 and 10, where 0 is normal, -10 is lowest priority and 10 is highest.
 	public:		void start();					///< Starts running the thread. Calling this method more than once has no effect.
-	public:		void join() const;				///< Blocks the current thread and waits infinitely for the thread represented by this object to exit "naturally". (The thread must have been started by start() before calling this method.)
-	public:		bool timedJoin(int ms) const;	///< As join() but with a time-out of \p ms milliseconds. Returns false if the thread didn't exit.
+	public:		void join() const;				///< Blocks the current thread and waits infinitely for the thread represented by this object to exit "naturally". (The thread must have been started by start() before calling this method.) Any number of threads may join the same thread, at once or repeatedly; all are released when it exits.
+	public:		bool timedJoin(int ms) const;	///< As join() but with a time-out of \p ms milliseconds. Returns false if the thread didn't exit. Like join(), safe to call from any number of threads, at once or repeatedly.
 	public:		ThreadId getId() const;			///< Gets the unique id of the thread represented by this object.
 	public:		bool isRunning() const;			///< Returns true if the thread has started and not exited yet.
 // FIX : drop, this is such a stupid routine, async cancelling even doesn't work right with pthreads on MacOS

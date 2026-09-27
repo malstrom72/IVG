@@ -62,10 +62,12 @@ class Thread::Impl {
 
 	protected:	enum Stage { SUSPENDED, RUNNING, STOPPED, JOINED };
 	protected:	static void* startRoutine(void*);
+	protected:	void reap();
 	protected:	Runnable* const runner;
 	protected:	::pthread_t thread;
 	protected:	Event startEvent;
 	protected:	Event stoppedEvent;
+	protected:	Mutex joinMutex;
 	protected:	AtomicInt stage;
 	protected:	AtomicInt keepCounter;
 	private:	Impl(const Impl& copy); // N/A
