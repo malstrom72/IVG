@@ -104,8 +104,10 @@ These are the most important principles in the codebase. Get them wrong and the 
   lambdas, `constexpr`, brace-initialised containers and `>>` closing a nested template are errors there, and `auto`,
   range-`for`, `enum class`, `override` and rvalue references compile only as extensions. The standard library is
   wider, since libc++ provides `std::unique_ptr`, `<cstdint>` and even `nullptr` in C++03 mode. This is not taste:
-  the library ships as source, so a construct Emscripten rejects breaks a build someone else runs. Tools, tests and
-  examples are free to use more.
+  the library ships as source, so a construct Emscripten rejects breaks a build someone else runs. The rule is for
+  the build without SIMD (`NUXPIXELS_SIMD=0`), which is what Emscripten compiles and `build.sh` checks. The SIMD
+  code, `NuXSIMD.h` and the SIMD paths in `NuXPixelsImpl.h`, may use C++11, so a SIMD build (the default) needs a
+  C++11 compiler. Tools, tests and examples are free to use more.
 
 ## 5. Comments
 

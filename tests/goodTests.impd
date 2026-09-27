@@ -375,6 +375,8 @@ trace {"abcdefgh"{0:0}}
 
 trace {"abcdefgh"{0:2}}
 
+TRACE A\x42\u0043\U00000044 // escapes written in ASCII
+
 trace {"abcdefgh"{3:1e30}}
 
 trace {"abcdefgh"{3:-1e30}}

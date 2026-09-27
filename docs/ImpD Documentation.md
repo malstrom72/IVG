@@ -118,7 +118,8 @@ Brackets are one of three different techniques that exist for including spaces i
 
 Besides using backslash to escape space characters, all the conventional C-style escape codes, such as `\n`, `\r`, `\t`
 etc. are available, as well as `\x` for two-digit hex values, `\u` for four-digit hex values, and `\U` for eight-digit
-hex values. `\` followed by a decimal number also works.
+hex values. `\` followed by a decimal number also works. Strings are ASCII: write any other character as one of
+these escapes, since a byte above 127 in a string is an error.
 
 When instructions expect lists, you can delimit the elements with commas or spaces. It is just a matter of taste:
 

@@ -65,6 +65,12 @@ Exception: Variable "x" is already declared.
 in statement: CALL [ TRACE BAD!! ] x:1 x:2
 Exception: Variable "0" is already declared.
 in statement: CALL 0:first [ TRACE BAD!! ] second
+Exception: Variable "n" is already declared.
+in statement: CALL [ TRACE BAD!! ] n:5
+Exception: Non-ASCII character in string (use a \x, \u or \U escape).
+in statement: TRACE café
+Exception: Non-ASCII character in string (use a \x, \u or \U escape).
+in statement: TRACE caf\é
 Exception: Recursion limit reached.
 in statement: [ $x ]
 Exception: Recursion limit reached.

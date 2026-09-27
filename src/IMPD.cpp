@@ -1551,6 +1551,16 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 	return p;
 }
 
+/*
+	Strings are ASCII, and other characters are written as \x, \u or \U escapes. A byte above 127 is an error, since
+	its meaning would depend on the platform's char signedness.
+*/
+static void throwIfNotASCII(Char c) {
+	if (static_cast<unsigned char>(c) >= 0x80) {
+		Interpreter::throwRunTimeError("Non-ASCII character in string (use a \\x, \\u or \\U escape).");
+	}
+}
+
 StringIt Interpreter::unescapeChar(StringIt p, const StringIt& e, UniChar& c) {
 	const Char* f = find(ESCAPE_CHARS, ESCAPE_CHARS + ESCAPE_CODE_COUNT, *p);
 	uint32_t i;
@@ -1564,6 +1574,7 @@ StringIt Interpreter::unescapeChar(StringIt p, const StringIt& e, UniChar& c) {
 			p = q;
 		}
 		else {
+			throwIfNotASCII(*p);
 			i = *p++;
 		}
 	}
@@ -1585,6 +1596,7 @@ UniString Interpreter::unescapeToUni(const StringRange& r) {
 			}
 			b = p;
 		} else {
+			throwIfNotASCII(*p);
 			++p;
 		}
 	}
@@ -1616,6 +1628,7 @@ WideString Interpreter::unescapeToWide(const StringRange& r) {
 			}
 			b = p;
 		} else {
+			throwIfNotASCII(*p);
 			++p;
 		}
 	}
@@ -1932,13 +1945,15 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 					}
 				}
 			}
+			if (!newVars.declare("n", toString(counter))) {	// $n is the argument count, so no label may take it.
+				throwRunTimeError("Variable \"n\" is already declared.");
+			}
 			if (instruction == INCLUDE_INSTRUCTION) {
 				const WideString file = unescapeToWide(expand(runThis));
 				if (!executor.load(*this, file, runThis)) {
 					throwRunTimeError(String("Could not include file \"") + narrowToString(file) + "\".");
 				}
 			}
-			newVars.declare("n", toString(counter));
 			Interpreter newFrame(executor, newVars, *this);
 			newFrame.run(runThis);
 			break;
