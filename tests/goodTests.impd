@@ -249,6 +249,10 @@ TRACE {1<1000} == yes
 TRACE {1000<a} == yes
 TRACE {1<0aaa} == yes // numbers are always < strings
 
+TRACE {1e-4294967298} == 0; TRACE {2.5e-3} == 0.0025
+
+REPEAT -2147483648 [ TRACE BAD!! ]; TRACE int32 minimum accepted
+
 TRACE {abs(-0.5) " " acos(0.5) " " asin(0.5) " " atan(0.5) " " ceil(0.1) " " ceil(-0.1) " " cos(0.5) " " cosh(0.5) " " exp(0.5)
  " " floor(0.9) " " floor(-0.1) " " log(0.5) " " log10(0.5) " " sin(0.5) " " sinh(0.5) " " sqrt(0.5) " " tan(0.5) " " tanh(0.5) }
 
@@ -362,6 +366,14 @@ trace {"abcdefgh"{:-5}}
 trace {"abcdefgh"{0:0}}
 
 trace {"abcdefgh"{0:2}}
+
+trace {"abcdefgh"{3:1e30}}
+
+trace {"abcdefgh"{3:-1e30}}
+
+trace {"abcdefgh"{2000000000:2000000000}}
+
+trace {"abcdefgh"{-1e30:2}}
 
 trace {"abcdefgh"{0:1000}}
 

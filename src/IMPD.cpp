@@ -705,15 +705,17 @@ StringIt Interpreter::parseHex(StringIt p, const StringIt& e, uint32_t& i) {
 }
 
 StringIt Interpreter::parseUnsignedInt(StringIt p, const StringIt& e, uint32_t& i) {
-	for (i = 0; p != e && *p >= '0' && *p <= '9'; ++p) i = i * 10 + (*p - '0');
+	// Stops before a digit that would overflow, so a caller expecting the whole string sees it as invalid.
+	for (i = 0; p != e && *p >= '0' && *p <= '9' && i <= (0xFFFFFFFFu - (*p - '0')) / 10; ++p) i = i * 10 + (*p - '0');
 	return p;
 }
 
 StringIt Interpreter::parseInt(StringIt p, const StringIt& e, int32_t& i) {
 	bool negative = (e - p >= 2 && ((*p == '+' || *p == '-') && p[1] >= '0' && p[1] <= '9') ? (*p++ == '-') : false);
-	uint32_t ui;
-	p = parseUnsignedInt(p, e, ui);
-	i = (negative ? -static_cast<int>(ui) : ui);
+	const uint32_t limit = (negative ? 0x80000000u : 0x7FFFFFFFu);
+	uint32_t ui = 0;
+	for (; p != e && *p >= '0' && *p <= '9' && ui <= (limit - (*p - '0')) / 10; ++p) ui = ui * 10 + (*p - '0');	// As above, within int32_t.
+	i = (negative ? static_cast<int32_t>(0u - ui) : static_cast<int32_t>(ui));
 	return p;
 }
 
@@ -734,7 +736,14 @@ StringIt Interpreter::parseDouble(StringIt p, const StringIt& e, double& v) {
 	if (q != e && (*q == 'E' || *q == 'e')) {
 		int32_t i;
 		StringIt t = parseInt(q + 1, e, i);
-		if (t != q + 1) { d *= pow(10, static_cast<double>(i)); q = t; }
+		if (t != q + 1) {
+			if (t != e && *t >= '0' && *t <= '9') {		// More digits than an int32_t holds, so out of range either way.
+				i = (i < 0 ? -100000 : 100000);
+				while (t != e && *t >= '0' && *t <= '9') ++t;
+			}
+			d *= pow(10, static_cast<double>(i));
+			q = t;
+		}
 	}
 	v = d * sign;
 	return q;
@@ -966,13 +975,16 @@ StringIt Interpreter::substringOperation(StringIt p, const StringIt& e, Evaluati
 			const String source = static_cast<String>(v);
 			const long sourceLength = lossless_cast<long>(source.size());
 
-			const long intOffset = (gotOffset ? static_cast<long>(floor(static_cast<double>(offset))) : 0L);
-			const long intLength = (gotLength ? static_cast<long>(floor(static_cast<double>(length))) : 0L);
+			// Worked out as doubles and clamped before the conversion, so a huge offset or length cannot overflow a long.
+			const double sourceLengthValue = static_cast<double>(sourceLength);
+			const double offsetValue = (gotOffset ? floor(static_cast<double>(offset)) : 0.0);
+			const double lengthValue = (gotLength ? floor(static_cast<double>(length)) : 0.0);
 
-			long start = (gotOffset ? (intOffset < 0 ? sourceLength + intOffset : intOffset) : (intLength < 0 ? sourceLength : 0));
-			long end = (gotLength ? start + intLength : sourceLength);
-			start = min(max(start, 0L), sourceLength);
-			end = min(max(end, 0L), sourceLength);
+			const double startValue = (gotOffset ? (offsetValue < 0.0 ? sourceLengthValue + offsetValue : offsetValue)
+					: (lengthValue < 0.0 ? sourceLengthValue : 0.0));
+			const double endValue = (gotLength ? startValue + lengthValue : sourceLengthValue);
+			const long start = static_cast<long>(min(max(startValue, 0.0), sourceLengthValue));
+			const long end = static_cast<long>(min(max(endValue, 0.0), sourceLengthValue));
 			if (end < start) {
 				v = String(source.rbegin() + (sourceLength - start), source.rbegin() + (sourceLength - end));
 			} else {
