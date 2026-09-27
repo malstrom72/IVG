@@ -64,6 +64,10 @@ CALL 0:first [ TRACE BAD!! ] second // label collides with the indexed argument
 
 CALL [ TRACE BAD!! ] n:5 // label collides with the argument count
 
+TRACE café // raw UTF-8, not an escape
+
+TRACE caf\é // an escaped raw byte is no better
+
 // recursion limit
 x = [ $y ]
 y = [ $x ]
