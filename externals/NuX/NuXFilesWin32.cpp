@@ -203,7 +203,7 @@ std::string Exception::describe() const
 			::DWORD formatMessageReturn = ::FormatMessageW
 					( FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, errorCode
 					, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), &messageBuffer[0]
-					, sizeof (messageBuffer) - 1, NULL);
+					, static_cast< ::DWORD >(messageBuffer.size() - 1), NULL);
 			if (formatMessageReturn != 0) {
 				size_t length = wcslen(&messageBuffer[0]);
 				while (length > 0 && (messageBuffer[length - 1] == '\r' || messageBuffer[length - 1] == '\n')) {
@@ -880,7 +880,9 @@ void ReadWriteFile::write(Int64 index, int count, const unsigned char* bytes)
 	if (!writeFileReturn) {
 		throw Exception("Error writing to file", getPath(), ::GetLastError());
 	}
-	assert(bytesWritten == count);
+	if (bytesWritten != static_cast< ::DWORD >(count)) {
+		throw Exception("Error writing to file (incomplete write)", getPath());
+	}
 }
 
 ExchangingFile::ExchangingFile(const Path& path, const PathAttributes& attributes)

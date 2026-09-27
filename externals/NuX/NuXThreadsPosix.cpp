@@ -33,6 +33,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sched.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include "NuXThreadsPosix.h"
 #ifdef __APPLE__
 #include <sys/sysctl.h>
@@ -301,17 +302,21 @@ bool AtomicInt::swapIfEqual(volatile int* x, int equalTo, int y)
 
 /* --- AtomicFloat --- */
 
+// Floats go through the integer atomics as their bit patterns, copied with memcpy, the conforming way to reinterpret.
+typedef char FloatIsIntSizedAssertion[sizeof (float) == sizeof (int) ? 1 : -1];
+
 float AtomicFloat::assign(volatile float* x, float y)
 {
-	union u { uint32_t i; float f; };
-	u a, b;
-	a.f = *x;
-	b.f = y;
+	const float current = *x;
+	int currentBits;
+	int bits;
+	memcpy(&currentBits, &current, sizeof (currentBits));
+	memcpy(&bits, &y, sizeof (bits));
 #ifdef __APPLE__
-	::OSAtomicCompareAndSwap32Barrier(a.i, b.i, (int32_t*)(x));
+	::OSAtomicCompareAndSwap32Barrier(currentBits, bits, (int32_t*)(x));
 	return y;
 #else
-	__sync_bool_compare_and_swap(reinterpret_cast<volatile int*>(x), a.i, b.i);
+	__sync_bool_compare_and_swap(reinterpret_cast<volatile int*>(x), currentBits, bits);
 	__sync_synchronize();
 	return y;
 #endif
@@ -319,27 +324,28 @@ float AtomicFloat::assign(volatile float* x, float y)
 
 float AtomicFloat::swap(volatile float* x, float y)
 {
-	union u { int i; float f; };
-	u z;
-	z.f = y;
+	int bits;
+	memcpy(&bits, &y, sizeof (bits));
 #ifdef __APPLE__
-	z.i = AtomicInt::swap(reinterpret_cast<volatile int*>(x), z.i);
+	bits = AtomicInt::swap(reinterpret_cast<volatile int*>(x), bits);
 #else
-	z.i = __sync_lock_test_and_set(reinterpret_cast<volatile int*>(x), z.i);
+	bits = __sync_lock_test_and_set(reinterpret_cast<volatile int*>(x), bits);
 #endif
-	return z.f;
+	float previous;
+	memcpy(&previous, &bits, sizeof (previous));
+	return previous;
 }
 
 bool AtomicFloat::swapIfEqual(volatile float* x, float equalTo, float y)
 {
-	union u { uint32_t i; float f; };
-	u a, b;
-	a.f = equalTo;
-	b.f = y;
+	int equalToBits;
+	int bits;
+	memcpy(&equalToBits, &equalTo, sizeof (equalToBits));
+	memcpy(&bits, &y, sizeof (bits));
 #ifdef __APPLE__
-	return ::OSAtomicCompareAndSwap32Barrier(a.i, b.i, (int32_t*)(x));
+	return ::OSAtomicCompareAndSwap32Barrier(equalToBits, bits, (int32_t*)(x));
 #else
-	return __sync_bool_compare_and_swap(reinterpret_cast<volatile int*>(x), a.i, b.i);
+	return __sync_bool_compare_and_swap(reinterpret_cast<volatile int*>(x), equalToBits, bits);
 #endif
 }
 

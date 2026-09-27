@@ -622,7 +622,7 @@ void Path::copy(const Path& dst) const {
 	if (infd < 0) {
 		throw Exception("Error opening source", *this, errno);
 	}
-	int outfd = ::open(dst.impl->path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+	int outfd = ::open(dst.impl->path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0666); // O_EXCL: must not replace a file.
 	if (outfd < 0) {
 		int err = errno;
 		::close(infd);
@@ -679,10 +679,29 @@ bool Path::matchesFilter(const PathListFilter& filter) const {
 	return true;
 }
 
+// Closes a directory stream when it goes out of scope, so a throw while listing cannot leak it.
+class DirectoryStreamCloser {
+	public:		DirectoryStreamCloser(DIR* dir) : dir(dir) { }
+	public:		~DirectoryStreamCloser() { ::closedir(dir); }
+	private:	DIR* const dir;
+	private:	DirectoryStreamCloser(const DirectoryStreamCloser& copy); // N/A
+	private:	DirectoryStreamCloser& operator=(const DirectoryStreamCloser& copy); // N/A
+};
+
+// Frees a glob() result when it goes out of scope, so a throw while walking it cannot leak it.
+class GlobResultFreer {
+	public:		GlobResultFreer(glob_t* result) : result(result) { }
+	public:		~GlobResultFreer() { ::globfree(result); }
+	private:	glob_t* const result;
+	private:	GlobResultFreer(const GlobResultFreer& copy); // N/A
+	private:	GlobResultFreer& operator=(const GlobResultFreer& copy); // N/A
+};
+
 void Path::listSubPaths(std::vector<Path>& subPaths, const PathListFilter& filter) const {
 	assert(!isNull());
 	DIR* dir = ::opendir(impl->path.c_str());
 	if (!dir) throw Exception("Error listing file directory", *this, errno);
+	DirectoryStreamCloser closer(dir);
 	struct dirent* ent;
 	while ((ent = ::readdir(dir)) != 0) {
 		std::string name(ent->d_name);
@@ -690,13 +709,13 @@ void Path::listSubPaths(std::vector<Path>& subPaths, const PathListFilter& filte
 		Path child = getRelative(fromUTF8(name));
 		if (child.matchesFilter(filter)) subPaths.push_back(child);
 	}
-	::closedir(dir);
 }
 
 void Path::findPaths(std::vector<Path>& paths, const std::wstring& pattern, const PathListFilter& filter) {
 	std::string utf8 = toUTF8(pattern);
 	glob_t g;
 	int r = ::glob(utf8.c_str(), 0, 0, &g);
+	GlobResultFreer freer(&g);
 	if (r == 0) {
 		for (size_t i = 0; i < g.gl_pathc; ++i) {
 			std::string p(g.gl_pathv[i]);
@@ -708,7 +727,6 @@ void Path::findPaths(std::vector<Path>& paths, const std::wstring& pattern, cons
 			if (path.matchesFilter(filter)) paths.push_back(path);
 		}
 	}
-	globfree(&g);
 }
 
 /* --- ReadOnlyFile --- */

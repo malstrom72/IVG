@@ -145,7 +145,7 @@ class AtomicInt {
 class AtomicFloat {
 	public:		static float assign(volatile float* x, float y);
 	public:		static float swap(volatile float* x, float y);						///< Sets the 32-bit float pointed to by \p x to \p y "atomically" and returns the previous value. You can use this static method on your 32-bit floats as an alternative to using the entire class.
-	public:		static bool swapIfEqual(volatile float* x, float equalTo, float y); ///< Like swap() but only sets the new value if the previous value equals to \p equalTo. Returns true if the previous value equalled \p equalTo. You can use this static method on your 32-bit floats as an alternative to using the entire class.
+	public:		static bool swapIfEqual(volatile float* x, float equalTo, float y); ///< Like swap() but only sets the new value if the previous value equals to \p equalTo. Returns true if the previous value equalled \p equalTo. Values are compared bitwise, so -0.0f does not equal 0.0f, but a NaN equals an identical NaN. You can use this static method on your 32-bit floats as an alternative to using the entire class.
 	public:		AtomicFloat() : x(0.0f) { }											///< (AtomicFloats are always initialized to 0 by default.)
 	public:		AtomicFloat(float x) : x(x) { }
 	public:		AtomicFloat(const AtomicFloat& copy) { assign(&x, copy.x); }
@@ -153,7 +153,7 @@ class AtomicFloat {
 	public:		AtomicFloat& operator=(float y) { assign(&x, y); return (*this); }
 	public:		operator float() const { return x; }
 	public:		float swap(float y) { return swap(&x, y); }							///< Sets the value to \p y "atomically" and returns the previous value.
-	public:		bool swapIfEqual(float equalTo, float y) {							///< Like swap() but only sets the new value if the previous value equals to \p equalTo. Returns true if the previous value equalled \p equalTo.
+	public:		bool swapIfEqual(float equalTo, float y) {							///< Like swap() but only sets the new value if the previous value equals to \p equalTo. Returns true if the previous value equalled \p equalTo. Values are compared bitwise (see the static version).
 					return swapIfEqual(&x, equalTo, y);
 				}
 	protected:	volatile float x;

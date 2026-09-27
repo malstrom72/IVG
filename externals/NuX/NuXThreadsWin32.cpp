@@ -26,6 +26,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include "NuXThreadsWin32.h"
 #include <sstream>
+#include <string.h>
 #include <process.h>
 
 #if defined(_UINTPTR_T_DEFINED)
@@ -58,7 +59,7 @@ static void throwWin32Exception(const std::string& errorStringUTF8, ::DWORD erro
 		::DWORD formatMessageReturn = ::FormatMessageW
 		( FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, errorCode
 			, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), &messageBuffer[0]
-			, sizeof (messageBuffer) - 1, NULL);
+			, static_cast< ::DWORD >(messageBuffer.size() - 1), NULL);
 		if (formatMessageReturn != 0) {
 			size_t length = wcslen(&messageBuffer[0]);
 			while (length > 0 && (messageBuffer[length - 1] == '\r' || messageBuffer[length - 1] == '\n')) {
@@ -157,18 +158,31 @@ bool AtomicInt::swapIfEqual(volatile int* x, int equalTo, int y) {
 
 /* --- AtomicFloat --- */
 
+// Floats go through the Interlocked API as their bit patterns, copied with memcpy, the conforming way to reinterpret.
+typedef char FloatIsLongSizedAssertion[sizeof (float) == sizeof (LONG) ? 1 : -1];
+
 float AtomicFloat::assign(volatile float* x, float y) {
-	InterlockedExchange((LPLONG)(x), *(LPLONG)(&y));
+	LONG bits;
+	memcpy(&bits, &y, sizeof (bits));
+	InterlockedExchange((LPLONG)(x), bits);
 	return y;
 }
 
 float AtomicFloat::swap(volatile float* x, float y) {
-	int z = InterlockedExchange((LPLONG)(x), *(LPLONG)(&y));
-	return *reinterpret_cast<float*>(&z);
+	LONG bits;
+	memcpy(&bits, &y, sizeof (bits));
+	const LONG previousBits = InterlockedExchange((LPLONG)(x), bits);
+	float previous;
+	memcpy(&previous, &previousBits, sizeof (previous));
+	return previous;
 }
 
 bool AtomicFloat::swapIfEqual(volatile float* x, float equalTo, float y) {
-	return (InterlockedCompareExchange((LPLONG)(x), *(LPLONG)(&y), *(LPLONG)(&equalTo)) == equalTo);
+	LONG equalToBits;
+	LONG bits;
+	memcpy(&equalToBits, &equalTo, sizeof (equalToBits));
+	memcpy(&bits, &y, sizeof (bits));
+	return (InterlockedCompareExchange((LPLONG)(x), bits, equalToBits) == equalToBits);
 }
 
 /* --- AtomicPointerBaseClass --- */
