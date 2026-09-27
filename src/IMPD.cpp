@@ -1465,13 +1465,15 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 					}
 				}
 			}
+			if (!newVars.declare("n", toString(counter))) {	// $n is the argument count, so no label may take it.
+				throwRunTimeError("Variable n already declared");
+			}
 			if (instruction == INCLUDE_INSTRUCTION) {
 				const WideString file = unescapeToWide(expand(runThis));
 				if (!executor.load(*this, file, runThis)) {
 					throwRunTimeError(String("Could not include file: ") + narrowToString(file));
 				}
 			}
-			newVars.declare("n", toString(counter));
 			Interpreter newFrame(executor, newVars, *this);
 			newFrame.run(runThis);
 			break;

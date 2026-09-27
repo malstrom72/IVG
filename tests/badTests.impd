@@ -62,6 +62,8 @@ CALL [ TRACE BAD!! ] x:1 x:2 // duplicate label
 
 CALL 0:first [ TRACE BAD!! ] second // label collides with the indexed argument
 
+CALL [ TRACE BAD!! ] n:5 // label collides with the argument count
+
 // recursion limit
 x = [ $y ]
 y = [ $x ]
