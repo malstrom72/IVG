@@ -29,7 +29,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using namespace NuXPixels;
 
-static void renderRect(const PolygonMask& mask, const IntRect& rect, SelfContainedRaster<Mask8>& dest)
+static void renderRect(const Renderer<Mask8>& mask, const IntRect& rect, SelfContainedRaster<Mask8>& dest)
 {
 Mask8::Pixel* pixels = dest.getPixelPointer();
 	int stride = dest.getStride();
@@ -202,6 +202,42 @@ renderRect(mask, topRight, silly);
 		if (closedTo.x != start.x || closedTo.y != start.y) {
 			std::cerr << "close() after stroke() went to (" << closedTo.x << "," << closedTo.y << ") instead of ("
 					<< start.x << "," << start.y << ")\n";
+			return 1;
+		}
+	}
+
+	{
+		// RadialAscend against the exact value at each pixel centre, for gradients from 0.5 to 60 px, elliptical ones
+		// included. The 4096 entry sqrt table limits accuracy to a few steps near the centre.
+		unsigned int seed = 12345;
+		int worst = 0;
+		for (int n = 0; n < 200; ++n) {
+			double v[4];
+			for (int k = 0; k < 4; ++k) {
+				seed = seed * 1664525u + 1013904223u;
+				v[k] = (seed >> 8) / 16777216.0;
+			}
+			const double w = (n % 2 == 0) ? 0.5 + v[0] * 5.5 : 4.0 + v[0] * 56.0;
+			const double h = (n % 3 == 0) ? w : ((n % 2 == 0) ? 0.5 + v[1] * 5.5 : 4.0 + v[1] * 56.0);
+			const double cx = 70.0 + v[2] * 20.0;
+			const double cy = 70.0 + v[3] * 20.0;
+			const IntRect radialBounds(0, 0, 160, 160);
+			SelfContainedRaster<Mask8> radialRaster(radialBounds);
+			renderRect(RadialAscend(cx, cy, w, h), radialBounds, radialRaster);
+			const Mask8::Pixel* radialPixels = radialRaster.getPixelPointer();
+			const int radialStride = radialRaster.getStride();
+			for (int y = 0; y < 160; ++y) {
+				for (int x = 0; x < 160; ++x) {
+					const double dxn = (x + 0.5 - cx) / w;
+					const double dyn = (y + 0.5 - cy) / h;
+					const double distance = sqrt(dxn * dxn + dyn * dyn);
+					const int exact = (distance < 1.0) ? roundToInt(255.0 * (1.0 - distance)) : 0;
+					worst = std::max(worst, std::abs(exact - int(radialPixels[y * radialStride + x])));
+				}
+			}
+		}
+		if (worst > 4) {
+			std::cerr << "RadialAscend is off by " << worst << " from the exact value\n";
 			return 1;
 		}
 	}

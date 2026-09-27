@@ -121,6 +121,7 @@
 #endif
 
 #include "assert.h"
+#include <math.h>
 #include <cstdint>
 #include <cstdlib>
 #include <vector>
