@@ -1036,13 +1036,28 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 			i = edge;
 		} else {
 			assert(i == leftEdge);
+			if (width < 4.0) {
+				/*
+					Too narrow for the integration below: its integer slopes grow as 1 / width^2 and overflow. Such a
+					gradient is only a few pixels wide, so evaluate each pixel centre directly.
+				*/
+				Mask8::Pixel* pixels = output.addVariable(rightEdge - leftEdge, false);
+				for (; i < rightEdge; ++i) {
+					const double px = x + i + 0.5 - centerX;
+					const int z = roundToInt(minValue(dy * dy * hk + px * px * wk, double((1 << 30) - 1)));
+					const int precision = (z < (1 << (30 - 8))) << 2;
+					const int sqrtShift = ((30 - RADIAL_SQRT_BITS) - precision - precision);
+					*pixels++ = ((255 << precision) - 255 + sqrtTable[z >> sqrtShift]) >> precision;
+				}
+				continue;
+			}
 						
 			const int steps = x + i - rowStartInt;
 			assert(steps >= 0);
 			const double dx = rowStartInt - centerX;
 			const double dpp = 2.0 * wk;
 			const double dp = (2.0 * dx - 1.0) * wk + dpp * 0.5;
-			const double d = dy * dy * hk + dx * dx * wk + dp * 0.5;
+			const double d = dy * dy * hk + dx * dx * wk + dp * 0.5 + wk * 0.25;	// wk * (dx + 0.5)^2: the first pixel's centre, not its left edge.
 			assert(dpp >= 0.0);
 			const unsigned int dppi = roundToInt(dpp);
 			assert(steps < (1 << 16));
@@ -1051,7 +1066,8 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 			// Calculate steps * (steps + 1) / 2 in a way that avoids overflow.
 			const int tri = ((steps & 1) != 0) ? steps * ((steps + 1) >> 1) : (steps >> 1) * (steps + 1);
 			int dpi = dp0 + steps * dppi;
-			int di = roundToInt(d) + steps * dp0 + dppi * tri;			
+			int di = static_cast<int>(static_cast<UInt32>(roundToInt(d)) + static_cast<UInt32>(steps) * static_cast<UInt32>(dp0)
+					+ dppi * static_cast<UInt32>(tri));	// Wraps on the way, but the result fits.
 			
 			Mask8::Pixel* pixels = output.addVariable(rightEdge - leftEdge, false);
 			

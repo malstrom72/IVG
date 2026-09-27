@@ -1,0 +1,27 @@
+// Small radial gradients, centred on a pixel centre (top row) and between pixels (middle row), with radii on both
+// sides of the 4 px switch from per-pixel evaluation to integration. The bottom row has elliptical ones.
+bounds 0,0,200,60
+wipe black
+fill gradient:[radial 10.5,10.5,0.6 from:white to:none]; ellipse 10.5,10.5,0.6
+fill gradient:[radial 30.5,10.5,1 from:white to:none]; ellipse 30.5,10.5,1
+fill gradient:[radial 50.5,10.5,1.5 from:white to:none]; ellipse 50.5,10.5,1.5
+fill gradient:[radial 70.5,10.5,2 from:white to:none]; ellipse 70.5,10.5,2
+fill gradient:[radial 90.5,10.5,3 from:white to:none]; ellipse 90.5,10.5,3
+fill gradient:[radial 110.5,10.5,3.9 from:white to:none]; ellipse 110.5,10.5,3.9
+fill gradient:[radial 130.5,10.5,4.1 from:white to:none]; ellipse 130.5,10.5,4.1
+fill gradient:[radial 150.5,10.5,5 from:white to:none]; ellipse 150.5,10.5,5
+fill gradient:[radial 170.5,10.5,8 from:white to:none]; ellipse 170.5,10.5,8
+fill gradient:[radial 10,30,0.6 from:white to:none]; ellipse 10,30,0.6
+fill gradient:[radial 30,30,1 from:white to:none]; ellipse 30,30,1
+fill gradient:[radial 50,30,1.5 from:white to:none]; ellipse 50,30,1.5
+fill gradient:[radial 70,30,2 from:white to:none]; ellipse 70,30,2
+fill gradient:[radial 90,30,3 from:white to:none]; ellipse 90,30,3
+fill gradient:[radial 110,30,3.9 from:white to:none]; ellipse 110,30,3.9
+fill gradient:[radial 130,30,4.1 from:white to:none]; ellipse 130,30,4.1
+fill gradient:[radial 150,30,5 from:white to:none]; ellipse 150,30,5
+fill gradient:[radial 170,30,8 from:white to:none]; ellipse 170,30,8
+fill gradient:[radial 10.5,50.5,6,2 from:white to:none]; ellipse 10.5,50.5,6,2
+fill gradient:[radial 30,50,2,6 from:white to:none]; ellipse 30,50,2,6
+fill gradient:[radial 50.5,50,3.5,1 from:white to:none]; ellipse 50.5,50,3.5,1
+fill gradient:[radial 70,50.5,1,3.5 from:white to:none]; ellipse 70,50.5,1,3.5
+fill gradient:[radial 95,50,8,4.5 from:white to:none]; ellipse 95,50,8,4.5
