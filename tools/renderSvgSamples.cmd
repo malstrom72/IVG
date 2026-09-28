@@ -13,7 +13,8 @@ FOR %%c IN (supported unsupported) DO (
 		IF ERRORLEVEL 1 (
 			ECHO Failed to convert %%f
 		) ELSE (
-			more +1 "%outDir%\%%c\%%~nf.tmp" > "%outDir%\%%c\%%~nf.ivg"
+			REM Drop svg2ivg's "------" line as the .sh does, keeping tabs ("more +1" expands them).
+			node -e "process.stdout.write(require('fs').readFileSync(process.argv[1], 'utf8').replace(/^[^\n]*\n/, ''))" "%outDir%\%%c\%%~nf.tmp" > "%outDir%\%%c\%%~nf.ivg"
 			output\IVG2PNG --fonts fonts --background white "%outDir%\%%c\%%~nf.ivg" "%outDir%\%%c\%%~nf.png" || ECHO Failed to render %%f
 		)
 		DEL "%outDir%\%%c\%%~nf.tmp"
