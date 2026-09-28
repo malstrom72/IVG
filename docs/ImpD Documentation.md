@@ -186,7 +186,9 @@ operations are supported (in order of descending precedence):
 | `{yes ? 3 : 1}`  | `3`     | conditional (`boolean ? true : false`)                 |
 
 Notice that you use the strings `yes` and `no` for boolean values (not `true` and `false` like in most C-style
-languages).
+languages). Inside curly brackets, `&&`, `||`, `!` and `?` also accept a number, where zero means `no` and any other
+number means `yes`, so `{$t % 1 ? 3 : 5}` gives `5` for whole numbers. Statements such as `IF` accept only `yes` or
+`no`, and so does an expression result used as their condition: `IF {1} [ ... ]` is an error.
 
 Inside curly brackets, anything that is not a number, a known operator, a comment, etc., is taken as a literal string,
 but you may also use double quotes. E.g.
