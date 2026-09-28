@@ -76,9 +76,12 @@ C_SRCS=(./externals/libpng/png.c ./externals/libpng/pngerror.c ./externals/libpn
                 "${C_SRCS[@]}"
 
 echo Testing...
+# One temp dir with a trap, so a failing diff does not leave files behind.
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
 cd tests
 echo Invalid IVG tests...
-tmp=$(mktemp)
+tmp="$tmpdir/invalid.txt"
 # Run invalid IVG tests and capture both output and exit status without aborting the pipeline
 set +e
 bash ../tools/testInvalidIVG.sh ../output/InvalidIVGTest | tee "$tmp"
@@ -90,7 +93,6 @@ if [ $status -ne 0 ]; then
 	# but keep the explicit status to satisfy callers that inspect exit codes.
 	exit $status
 fi
-rm "$tmp"
 bash ../tools/testIVG.sh ../output/IVG2PNG
 if [ -n "${SKIP_SVG:-}" ]; then
 		echo "Skipping SVG tests"
@@ -102,12 +104,9 @@ fi
 cd ..
 ./output/PolygonMaskTest
 ./output/TestSnapshotPlan
-tmp=$(mktemp)
+tmp="$tmpdir/list.txt"
 ./output/IVGSnapshot --list-only tools/IVGSnapshot/tests/ListOnlySample.ivg > "$tmp"
 diff --strip-trailing-cr tools/IVGSnapshot/tests/ListOnlySample.txt "$tmp"
-rm "$tmp"
-tmp=$(mktemp)
 ./output/IVGSnapshot --list-only tools/IVGSnapshot/tests/ListScenarioVariants.ivg > "$tmp"
 diff --strip-trailing-cr tools/IVGSnapshot/tests/ListScenarioVariants.txt "$tmp"
-rm "$tmp"
 exit 0
