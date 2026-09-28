@@ -77,7 +77,7 @@ instructions when available.
 ## Helper Scripts
 
 - `build.sh` / `build.cmd` – build both the **beta** and **release** targets and run all tests
-- `tools/updateIVGTests.sh` / `.cmd` – regenerate golden PNGs from all `.ivg` test files
+- `tools/testIVG.sh update` / `.cmd update` – regenerate golden PNGs from all `.ivg` test files
 - `tools/updateDocumentation.sh` – rebuild HTML documentation using Pandoc and PikaScript
 	(Mac / Linux only)
 
