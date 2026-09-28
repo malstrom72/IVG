@@ -19,13 +19,7 @@ IF NOT "%~1"=="" (
 	EXIT /B 1
 )
 
-IF "%BUILD%"=="1" (
-	CALL tools\ivgfiddle\buildIVGFiddle.cmd
-	IF ERRORLEVEL 1 (
-		POPD
-		EXIT /B %ERRORLEVEL%
-	)
-)
+IF "%BUILD%"=="1" CALL tools\ivgfiddle\buildIVGFiddle.cmd || GOTO error
 
 IF NOT EXIST "%OUTPUT_DIR%\ivgfiddle.html" (
 	ECHO Expected %OUTPUT_DIR%\ivgfiddle.html but it was not found.
@@ -57,3 +51,8 @@ ECHO Synchronized assets into %EXT_DIR%\media
 
 POPD
 EXIT /B 0
+
+:error
+SET "EXIT_CODE=%ERRORLEVEL%"
+POPD
+EXIT /B %EXIT_CODE%
