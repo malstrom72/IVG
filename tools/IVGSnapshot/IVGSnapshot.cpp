@@ -136,6 +136,7 @@ struct CommandLineOptions {
 	bool exitOnFirstFailure;
 	bool recursive;
 	bool goldenAudit;
+	bool onlyDirectoryInputs;
 	uint32_t threads;
 	std::vector<NuXFiles::Path> ivgPaths;
 
@@ -144,7 +145,7 @@ struct CommandLineOptions {
 		  rootDir(NuXFiles::Path::getCurrentDirectoryPath()),
 		  forceUpdate(false), listOnly(false), verbose(false),
 		  exitOnFirstFailure(false), recursive(false), goldenAudit(true),
-		  threads(0) {}
+		  onlyDirectoryInputs(true), threads(0) {}
 };
 
 /**
@@ -1105,6 +1106,14 @@ static std::string sanitizeFileComponent(const std::string &name) {
 	return sanitized;
 }
 
+// makeRelative() starts a path below the directory with "./", which snapshot names and logs leave out.
+static std::wstring withoutDotPrefix(const std::wstring &path) {
+	if (path.size() > 2 && path[0] == L'.' && path[1] == NuXFiles::Path::getSeparator()) {
+		return path.substr(2);
+	}
+	return path;
+}
+
 static bool tryBuildRelativeSnapshotTag(const NuXFiles::Path &rootDir,
 		const NuXFiles::Path &withoutExtension,
 		std::string &relative) {
@@ -1113,9 +1122,9 @@ static bool tryBuildRelativeSnapshotTag(const NuXFiles::Path &rootDir,
 	}
 
 	std::wstring relativeWide;
-	if (rootDir.makeRelative(withoutExtension, false, relativeWide)) {
+	if (withoutExtension.makeRelative(rootDir, false, relativeWide)) {
 		if (!relativeWide.empty()) {
-			relative = pathStringFromWide(relativeWide);
+			relative = pathStringFromWide(withoutDotPrefix(relativeWide));
 			for (size_t i = 0; i < relative.size(); ++i) {
 				if (relative[i] == '\\') {
 					relative[i] = '/';
@@ -1316,6 +1325,7 @@ static bool expandInputPaths(CommandLineOptions &options) {
 			expanded.insert(expanded.end(), directoryFiles.begin(), directoryFiles.end());
 		} else {
 			expanded.push_back(input);
+			options.onlyDirectoryInputs = false;
 		}
 	}
 
@@ -1482,8 +1492,6 @@ static std::string abbreviatePathForDisplay(const std::string &path) {
 
 // Prefer paths relative to current working directory for user-facing logs
 // to keep fixtures stable. Fall back to absolute native when not possible.
-// Prefer paths relative to current working directory for user-facing logs
-// to keep fixtures stable. Fall back to absolute native when not possible.
 static std::string displayPathRelativeToCwd(const NuXFiles::Path &path)
 {
 	if (path.isNull()) {
@@ -1492,8 +1500,8 @@ static std::string displayPathRelativeToCwd(const NuXFiles::Path &path)
 	try {
 		const NuXFiles::Path cwd = NuXFiles::Path::getCurrentDirectoryPath();
 		std::wstring rel;
-		if (cwd.makeRelative(path, false, rel) && !rel.empty()) {
-			return pathStringFromWide(rel);
+		if (path.makeRelative(cwd, false, rel) && !rel.empty()) {
+			return pathStringFromWide(withoutDotPrefix(rel));
 		}
 	} catch (const std::exception &) {
 		// fall through to absolute
@@ -2698,8 +2706,6 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		return handleRoundMeta(interpreter, args);
 	}
 
-	bool finished() const { return true; }
-
 	private:
 	bool handleRoundMeta(Interpreter &interpreter, ArgumentsContainer &args) {
 		const String *validateFlag = args.fetchOptional("validate");
@@ -2901,12 +2907,11 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		const std::string fontName8(fontName.begin(), fontName.end());
 		const std::string fileName = fontName8 + ".ivgfont";
 
+		// Files win over the built-in fonts, so --font-dir can override them.
 		String contents;
-		if (loadBuiltInFont(fontName8, contents)) {
-			return parseFont(contents, font);
-		}
 		if (tryReadFile(resolveRelativePathPath(fileName), contents) ||
-				loadFromDirectories(fontDirs, fileName, contents)) {
+				loadFromDirectories(fontDirs, fileName, contents) ||
+				loadBuiltInFont(fontName8, contents)) {
 			return parseFont(contents, font);
 		}
 		return false;
@@ -3019,7 +3024,7 @@ static void printUsage(const char *program) {
 	std::cout << "\t--verbose\t\tPrint verbose diagnostics." << std::endl;
 	std::cout << "\t--exit-on-first-failure\tAbort after first failure."
 				  << std::endl;
-	std::cout << "\t--no-golden-audit\tDisable orphan golden PNG audit."
+	std::cout << "\t--no-golden-audit\tDisable orphan golden PNG audit (only done when all inputs are directories)."
 				  << std::endl;
 	std::cout << "\t--help\t\t\tShow this message." << std::endl;
 }
@@ -3386,15 +3391,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 			} else {
 				NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> *raster =
 					canvas.accessRaster();
-				if (!executor.finished()) {
-					result.message = "did not execute all snapshot invocations";
-					result.success = false;
-					if (options.verbose || options.listOnly) {
-						std::cerr << pathNative << ": scenario " << result.scenarioName
-							<< " did not execute all snapshot invocations."
-							<< std::endl;
-					}
-				} else if (raster == 0) {
+				if (raster == 0) {
 					result.message = "rendered image is empty";
 					result.success = false;
 					if (options.verbose || options.listOnly) {
@@ -3478,15 +3475,7 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 		} else {
 			NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> *raster =
 				canvas.accessRaster();
-			if (!executor.finished()) {
-				result.message = "did not execute all snapshot invocations";
-				result.success = false;
-				if (options.verbose || options.listOnly) {
-					std::cerr << pathNative << ": scenario " << result.scenarioName
-						<< " did not execute all snapshot invocations."
-						<< std::endl;
-				}
-			} else if (raster == 0) {
+			if (raster == 0) {
 				result.message = "rendered image is empty";
 				result.success = false;
 				if (options.verbose || options.listOnly) {
@@ -3730,8 +3719,9 @@ static int runIVGSnapshot(int argc, char **argv) {
 
 	// Global golden audit: ensure that any golden PNG present under the
 	// snapshot directories correspond to at least one IVG source included
-	// in this run (by matching the sanitized snapshot base).
-	if (!options.listOnly && options.goldenAudit) {
+	// in this run (by matching the sanitized snapshot base). A run on
+	// individual files skips it, since it would flag every other file's goldens.
+	if (!options.listOnly && options.goldenAudit && options.onlyDirectoryInputs) {
 		std::set<std::string> processedBases;
 		processedBases.clear();
 		for (size_t i = 0; i < options.ivgPaths.size(); ++i) {

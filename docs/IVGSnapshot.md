@@ -72,7 +72,7 @@ For each file, IVGSnapshot prints the discovered scenarios, renders every entry,
 | Option | Purpose | Notes |
 | --- | --- | --- |
 | `--include-dir <path>` | Adds an include search directory. | Directories are consulted before resolving relative `load` statements while collecting and rendering. |
-| `--font-dir <path>` | Adds a font lookup directory. | Fonts are cached per path so repeated entries avoid reloading resources. |
+| `--font-dir <path>` | Adds a font lookup directory. Fonts found here override the built-in fonts. | Fonts are cached per path so repeated entries avoid reloading resources. |
 | `--image-dir <path>` | Adds an external image directory. | Enables reusing PNG assets referenced from ImpD code without duplicating them in the IVG tree. |
 | `--snapshot-dir <path>` | Overrides the default output directory. | By default goldens live next to each IVG; this option pushes everything under a central folder. |
 | `--root-dir <path>` | Sets the root used when computing snapshot names. | Useful when CI runs inside a workspace checkout but goldens are stored elsewhere. |
