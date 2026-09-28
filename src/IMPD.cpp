@@ -1027,21 +1027,22 @@ StringIt Interpreter::parseHex(StringIt p, const StringIt& e, uint32_t& i) {
 	return p;
 }
 
-StringIt Interpreter::parseUnsignedInt(StringIt p, const StringIt& e, uint32_t& i) {
-	// Stops before a digit that would overflow, so a caller expecting the whole string sees it as invalid.
-	for (i = 0; p != e && *p >= '0' && *p <= '9' && i <= (0xFFFFFFFFu - (*p - '0')) / 10; ++p) {
+// Stops before a digit that would take the value past limit, so a caller expecting the whole string sees it as invalid.
+static StringIt parseDigits(StringIt p, const StringIt& e, uint32_t limit, uint32_t& i) {
+	for (i = 0; p != e && *p >= '0' && *p <= '9' && i <= (limit - (*p - '0')) / 10; ++p) {
 		i = i * 10 + (*p - '0');
 	}
 	return p;
 }
 
+StringIt Interpreter::parseUnsignedInt(StringIt p, const StringIt& e, uint32_t& i) {
+	return parseDigits(p, e, 0xFFFFFFFFu, i);
+}
+
 StringIt Interpreter::parseInt(StringIt p, const StringIt& e, int32_t& i) {
 	bool negative = (e - p >= 2 && ((*p == '+' || *p == '-') && p[1] >= '0' && p[1] <= '9') ? (*p++ == '-') : false);
-	const uint32_t limit = (negative ? 0x80000000u : 0x7FFFFFFFu);
-	uint32_t ui = 0;
-	for (; p != e && *p >= '0' && *p <= '9' && ui <= (limit - (*p - '0')) / 10; ++p) {	// As above, within int32_t.
-		ui = ui * 10 + (*p - '0');
-	}
+	uint32_t ui;
+	p = parseDigits(p, e, (negative ? 0x80000000u : 0x7FFFFFFFu), ui);
 	i = (negative ? static_cast<int32_t>(0u - ui) : static_cast<int32_t>(ui));
 	return p;
 }
