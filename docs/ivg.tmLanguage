@@ -55,7 +55,7 @@
                     <key>name</key>
                     <string>support.function.path.ivg</string>
                     <key>match</key>
-                    <string>(?i)\b(move-to|move-angle|line-to|line-angle|bezier-to|arc-to|arc-sweep|arc-move|close|rect|polygon|ellipse|text|path|anchor|cursor)\b</string>
+                    <string>(?i)\b(move-to|move-angle|line-to|line-angle|line|bezier-to|arc-to|arc-sweep|arc-move|close|rect|polygon|ellipse|star|text|path|anchor|cursor)\b</string>
                 </dict>
                 <dict>
                     <key>name</key>
@@ -229,7 +229,7 @@
                     <key>name</key>
                     <string>support.function.path.ivg</string>
                     <key>match</key>
-                    <string>(?i)\b(move-to|move-angle|line-to|line-angle|bezier-to|arc-to|arc-sweep|arc-move|close|rect|polygon|ellipse|text|path|anchor|cursor)\b</string>
+                    <string>(?i)\b(move-to|move-angle|line-to|line-angle|line|bezier-to|arc-to|arc-sweep|arc-move|close|rect|polygon|ellipse|star|text|path|anchor|cursor)\b</string>
                 </dict>
                 <dict>
                     <key>name</key>

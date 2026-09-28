@@ -63,7 +63,7 @@ var ivgHighlightRules = function() {
 				next: "pop"
 			}, {
 				token: "support.function.path.ivg",
-				regex: /\b(?:move-to|move-angle|line-to|line-angle|bezier-to|arc-to|arc-sweep|arc-move|close|rect|polygon|ellipse|text|path|anchor|cursor)\b/,
+				regex: /\b(?:move-to|move-angle|line-to|line-angle|line|bezier-to|arc-to|arc-sweep|arc-move|close|rect|polygon|ellipse|star|text|path|anchor|cursor)\b/,
 				caseInsensitive: true
 			}, {
 				token: "entity.name.variable.impd, variable.other.impd",
@@ -160,7 +160,7 @@ var ivgHighlightRules = function() {
 				next: "pop"
 			}, {
 				token: "support.function.path.ivg",
-				regex: /\b(?:move-to|move-angle|line-to|line-angle|bezier-to|arc-to|arc-sweep|arc-move|close|rect|polygon|ellipse|text|path|anchor|cursor)\b/,
+				regex: /\b(?:move-to|move-angle|line-to|line-angle|line|bezier-to|arc-to|arc-sweep|arc-move|close|rect|polygon|ellipse|star|text|path|anchor|cursor)\b/,
 				caseInsensitive: true
 			}, {
 				token: "keyword.operator.svg.path.ivg",
