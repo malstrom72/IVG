@@ -43,6 +43,7 @@
 #include <png.h>
 #include <zlib.h>
 #include "../src/IVG.h"
+#include "../../PNGReading.h"
 
 using namespace std;
 using namespace IVG;
@@ -221,12 +222,6 @@ return true;
 return false;
 }
 
-static bool isLittleEndian()
-{
-static const unsigned char bytes[4] = { 0x4A, 0x3B, 0x2C, 0x1D };
-return (*reinterpret_cast<const unsigned int*>(bytes) == 0x1D2C3B4A);
-}
-
 static void PNGAPI ivgPngError(png_structp png_ptr, png_const_charp error_msg)
 {
 (void)png_ptr;
@@ -256,37 +251,16 @@ if (info_ptr == 0) {
 throw std::runtime_error("could not initialize PNG info");
 }
 png_init_io(png_ptr, file);
-/*
-	The copy loop below strides 4 bytes per pixel, so libpng has to hand back 8-bit RGBA.
-	`PNG_TRANSFORM_EXPAND` alone leaves grayscale narrow and 16-bit wide.
-*/
-png_set_add_alpha(png_ptr, 0xFF, PNG_FILLER_AFTER);
-png_set_gray_to_rgb(png_ptr);
-if (isLittleEndian()) {
-png_set_bgr(png_ptr);
-} else {
-png_set_swap_alpha(png_ptr);
-}
+setPNGReadTransforms(png_ptr);
 png_read_png(png_ptr, info_ptr, PNG_TRANSFORM_EXPAND | PNG_TRANSFORM_STRIP_16, 0);
 png_uint_32 width = png_get_image_width(png_ptr, info_ptr);
 png_uint_32 height = png_get_image_height(png_ptr, info_ptr);
+checkPNGSize(width, height);
 png_bytep* rows = png_get_rows(png_ptr, info_ptr);
 target = SelfContainedRaster<ARGB32>(IntRect(0, 0, static_cast<int>(width), static_cast<int>(height)));
 for (png_uint_32 y = 0; y < height; ++y) {
 ARGB32::Pixel* dest = target.getPixelPointer() + y * target.getStride();
-png_bytep src = rows[y];
-for (png_uint_32 x = 0; x < width; ++x) {
-unsigned int b = src[x * 4 + 0];
-unsigned int g = src[x * 4 + 1];
-unsigned int r = src[x * 4 + 2];
-unsigned int a = src[x * 4 + 3];
-if (a != 0xFF) {
-r = (r * a + 0x7F) >> 8;
-g = (g * a + 0x7F) >> 8;
-b = (b * a + 0x7F) >> 8;
-}
-dest[x] = (a << 24) | (r << 16) | (g << 8) | b;
-}
+copyPNGRow(rows[y], dest, width);
 }
 success = true;
 } catch (const std::exception& ex) {

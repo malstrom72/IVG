@@ -66,6 +66,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "src/IMPD.h"
 #include "src/IVG.h"
 #include "tools/IVGSnapshot/BuiltInFonts.h"
+#include "tools/PNGReading.h"
 
 using namespace IMPD;
 
@@ -2241,11 +2242,6 @@ static void PNGAPI snapshotPNGError(png_structp png, png_const_charp message) {
 							 message);
 }
 
-static bool isLittleEndian() {
-	static const unsigned char bytes[4] = {0x4A, 0x3B, 0x2C, 0x1D};
-	return (*reinterpret_cast<const unsigned int *>(bytes) == 0x1D2C3B4A);
-}
-
 static unsigned int convertPremultipliedChannelToStraight(unsigned int value,
 														  unsigned int alpha) {
 	if (alpha == 0 || value == 0) {
@@ -2257,14 +2253,6 @@ static unsigned int convertPremultipliedChannelToStraight(unsigned int value,
 		result = 255u;
 	}
 	return result;
-}
-
-static unsigned int convertStraightChannelToPremultiplied(unsigned int value,
-														  unsigned int alpha) {
-	if (alpha == 0 || value == 0) {
-		return 0;
-	}
-	return (value * alpha + 127u) / 255u;
 }
 
 static bool
@@ -2290,17 +2278,7 @@ loadPngRaster(const std::string &path,
 		}
 
 		png_init_io(png, file);
-		/*
-			The copy loop below strides 4 bytes per pixel, so libpng has to hand back 8-bit RGBA.
-			`PNG_TRANSFORM_EXPAND` alone leaves grayscale narrow and 16-bit wide.
-		*/
-		png_set_add_alpha(png, 0xFF, PNG_FILLER_AFTER);
-		png_set_gray_to_rgb(png);
-		if (isLittleEndian()) {
-			png_set_bgr(png);
-		} else {
-			png_set_swap_alpha(png);
-		}
+		setPNGReadTransforms(png);
 
 		png_read_png(png, info, PNG_TRANSFORM_EXPAND | PNG_TRANSFORM_STRIP_16, 0);
 		const png_uint_32 width = png_get_image_width(png, info);
@@ -2364,20 +2342,7 @@ loadPngRaster(const std::string &path,
 			const int targetY = top + static_cast<int>(y);
 			NuXPixels::ARGB32::Pixel *dest =
 					tempRaster.getPixelPointer() + targetY * tempRaster.getStride();
-			png_bytep src = rows[y];
-			for (png_uint_32 x = 0; x < width; ++x) {
-				unsigned int b = src[x * 4 + 0];
-				unsigned int g = src[x * 4 + 1];
-				unsigned int r = src[x * 4 + 2];
-				unsigned int a = src[x * 4 + 3];
-				if (a != 0xFF) {
-					r = convertStraightChannelToPremultiplied(r, a);
-					g = convertStraightChannelToPremultiplied(g, a);
-					b = convertStraightChannelToPremultiplied(b, a);
-				}
-				const int targetX = left + static_cast<int>(x);
-				dest[targetX] = (a << 24) | (r << 16) | (g << 8) | b;
-			}
+			copyPNGRow(rows[y], dest + left, width);
 		}
 
 		outRaster = tempRaster;
