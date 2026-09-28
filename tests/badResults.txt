@@ -77,6 +77,8 @@ Exception: Invalid Unicode character in escape.
 in statement: TRACE \U00110000
 Exception: Invalid Unicode character in escape.
 in statement: TRACE \1114112
+Exception: Could not include file "café中.impd".
+in statement: INCLUDE caf\u00E9\u4E2D.impd
 Exception: Recursion limit reached.
 in statement: [ $x ]
 Exception: Recursion limit reached.

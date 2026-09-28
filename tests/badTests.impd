@@ -74,6 +74,8 @@ TRACE \U00110000 // above U+10FFFF
 
 TRACE \1114112 // decimal escape above U+10FFFF
 
+INCLUDE caf\u00E9\u4E2D.impd // error names the file in UTF-8
+
 // recursion limit
 x = [ $y ]
 y = [ $x ]

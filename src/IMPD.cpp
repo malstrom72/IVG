@@ -1955,7 +1955,7 @@ void Interpreter::runInstruction(const String& instructionString, const StringRa
 			if (instruction == INCLUDE_INSTRUCTION) {
 				const WideString file = unescapeToWide(expand(runThis));
 				if (!executor.load(*this, file, runThis)) {
-					throwRunTimeError(String("Could not include file \"") + narrowToString(file) + "\".");
+					throwRunTimeError(String("Could not include file \"") + convertWideToUTF8String(file) + "\".");
 				}
 			}
 			Interpreter newFrame(executor, newVars, *this);
