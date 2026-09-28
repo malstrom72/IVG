@@ -1856,6 +1856,35 @@
 			}
 		};
 
+		// Copies the raster and its snapshot catalog out of the heap, freeing them even when reading throws.
+		function readRasterResult(module, pointer) {
+			try {
+				const heapU8 = getHeapView(module, "HEAPU8");
+				if (!heapU8) {
+					throw new Error("WebAssembly heap unavailable");
+				}
+				const headerSigned = new Int32Array(heapU8.buffer, pointer, 4);
+				const header = new Uint32Array(heapU8.buffer, pointer, 8);
+				const pixelBytes = header[4];
+				const catalogBytes = header[5];
+				const pixelOffset = pointer + 8 * 4;
+				const catalogOffset = pixelOffset + pixelBytes;
+				return {
+					left: headerSigned[0],
+					top: headerSigned[1],
+					width: headerSigned[2],
+					height: headerSigned[3],
+					pixelBytes: pixelBytes,
+					defaultScenarioIndex: header[6],
+					defaultEntryOrdinal: header[7],
+					pixelData: new Uint8ClampedArray(heapU8.subarray(pixelOffset, pixelOffset + pixelBytes)),
+					snapshotCatalogJson: catalogBytes > 0 ? readUtf8FromHeap(module, catalogOffset, catalogBytes) : "",
+				};
+			} finally {
+				module._deallocatePixels(pointer);
+			}
+		}
+
 		function renderCurrentSource() {
 			if (!global.Module || !ivgCanvas || !ivgContext) {
 				return;
@@ -1902,32 +1931,8 @@
 					snapshotSelection && Number.isInteger(snapshotSelection.entryOrdinal) ? snapshotSelection.entryOrdinal : -1;
 				const result = rasterizeIVG(currentSource, rasterScale, selectionScenarioIndex, selectionEntryOrdinal);
 				if (result !== 0) {
-					const heapU8 = getHeapView(module, "HEAPU8");
-					if (!heapU8) {
-						module._deallocatePixels(result);
-						throw new Error("WebAssembly heap unavailable");
-					}
-					let left, top, width, height, pixelBytes, defaultScenarioIndex, defaultEntryOrdinal, pixelData, snapshotCatalogJson;
-					try {
-						const heapBuffer = heapU8.buffer;
-						const headerSigned = new Int32Array(heapBuffer, result, 4);
-						left = headerSigned[0];
-						top = headerSigned[1];
-						width = headerSigned[2];
-						height = headerSigned[3];
-						const header = new Uint32Array(heapBuffer, result, 8);
-						pixelBytes = header[4];
-						const catalogBytes = header[5];
-						defaultScenarioIndex = header[6];
-						defaultEntryOrdinal = header[7];
-						const pixelOffset = result + 8 * 4;
-						const catalogOffset = pixelOffset + pixelBytes;
-						const pixelSlice = heapU8.subarray(pixelOffset, pixelOffset + pixelBytes);
-						pixelData = new Uint8ClampedArray(pixelSlice);
-						snapshotCatalogJson = catalogBytes > 0 ? readUtf8FromHeap(module, catalogOffset, catalogBytes) : "";
-					} finally {
-						module._deallocatePixels(result);
-					}
+					const { left, top, width, height, pixelBytes, defaultScenarioIndex, defaultEntryOrdinal, pixelData, snapshotCatalogJson } =
+						readRasterResult(module, result);
 					if (width > 0 && height > 0 && pixelData.length === pixelBytes) {
 						if (ivgCanvas.width !== width || ivgCanvas.height !== height) {
 							ivgCanvas.width = width;

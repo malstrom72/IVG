@@ -94,17 +94,9 @@ globalObject.__ivgReloadModule = function reloadModule() {
 };
 
 function notifyPreviewReady(moduleInstance) {
-	let initSource = null;
-	try {
-		initSource = localStorage.getItem("ivgSource");
-	} catch (error) {
-		// A webview that blocks site data throws here; fall back to the demo source.
-	}
-	if (initSource == null || initSource === "") {
-		initSource = moduleInstance.FS.readFile("demoSource.ivg", { encoding: "utf8" });
-	}
+	// The preview prefers the source it saved in storage, so this only supplies the demo for a first run.
 	if (typeof window.ivgPreviewModuleInitialized === "function") {
-		window.ivgPreviewModuleInitialized(initSource);
+		window.ivgPreviewModuleInitialized(moduleInstance.FS.readFile("demoSource.ivg", { encoding: "utf8" }));
 	}
 }
 
