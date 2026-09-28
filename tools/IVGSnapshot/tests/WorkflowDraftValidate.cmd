@@ -18,9 +18,8 @@ MKDIR "%output_dir%" || GOTO error
 CALL :writeIvg no || GOTO error
 CALL :runTool || GOTO error
 
-REM The snapshot prefix is the IVG path relative to the root dir, without extension, with "_" doubled.
-FOR %%I IN ("%ivg_file%") DO SET snapshot_prefix=%%~nI
-SET snapshot_prefix=%snapshot_prefix:_=__%
+REM snaptest.ivg sits directly in --root-dir, so its snapshots are named snaptest__<scenario>.png.
+SET snapshot_prefix=snaptest
 
 SET golden_path=%output_dir%\%snapshot_prefix%__unlabeled-1.png
 SET old_path=%output_dir%\%snapshot_prefix%__unlabeled-1.png.old

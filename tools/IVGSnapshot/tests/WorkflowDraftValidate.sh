@@ -33,33 +33,8 @@ mkdir -p "$output_dir"
 run_draft="$("$snapshot_tool" --snapshot-dir "$output_dir" --root-dir "$temp_dir" "$ivg_file")"
 printf '%s\n' "$run_draft"
 
-snapshot_prefix="$(
-python3 - <<'PY' "$ivg_file" "$temp_dir"
-import os
-import sys
-from pathlib import Path
-
-ivg_path = Path(sys.argv[1]).with_suffix("")
-root_path = Path(sys.argv[2])
-
-try:
-    relative = ivg_path.relative_to(root_path)
-except ValueError:
-    relative = ivg_path
-
-path = str(relative).replace(os.sep, "/")
-result = []
-for ch in path:
-    if ch == "_":
-        result.append("__")
-    elif ch in "/\\:":
-        result.append("_")
-    else:
-        result.append(ch)
-
-print("".join(result))
-PY
- )"
+# snaptest.ivg sits directly in --root-dir, so its snapshots are named snaptest__<scenario>.png.
+snapshot_prefix=snaptest
 
 golden_path="$output_dir/${snapshot_prefix}__unlabeled-1.png"
 old_path="$output_dir/${snapshot_prefix}__unlabeled-1.png.old"
