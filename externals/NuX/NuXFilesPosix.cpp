@@ -680,9 +680,10 @@ bool Path::tryToErase() const {
 }
 
 /*
-	Win32's MoveFileW and Cocoa's moveItemAtURL fail if the destination exists, but rename() silently replaces it. Linux
-	can refuse atomically with renameat2(RENAME_NOREPLACE); elsewhere, or where the file system lacks it, the
-	destination is checked first (not atomic: something created there in between would still be replaced).
+	moveRename() stays within one file system, as rename() does (EXDEV otherwise; nothing is copied), and refuses an
+	existing destination as Win32 and Cocoa do, although rename() would silently replace it. Linux can refuse atomically
+	with renameat2(RENAME_NOREPLACE); elsewhere, or where the file system lacks it, the destination is checked first (not
+	atomic: something created there in between would still be replaced).
 */
 void Path::moveRename(const Path& dst) const {
 	assert(!isNull());

@@ -262,7 +262,7 @@ class Path {
 	public:		void create() const; ///< Creates a physical directory for the path. If the directory already exists this routine will throw. Only one directory can be created at a time, thus the parent path must refer to an existing directory.
 	public:		bool tryToCreate() const; ///< Tries to creates a physical directory for the path (like create()) but does not throw if the directory couldn't be created, instead it only returns false.
 	public:		void copy(const Path& destination) const; ///< Copies a file to a new name and / or place. The path must be a file path and if the file already exists this routine will throw.
-	public:		void moveRename(const Path& destination) const; ///< Moves or renames a file or directory tree to a new name and / or place. Throws on failure.
+	public:		void moveRename(const Path& destination) const; ///< Moves or renames a file or directory tree to a new name and / or place on the same volume. Throws if the destination is on another volume (nothing is copied), if it already exists, or on any other failure.
 	public:		void erase() const; ///< Deletes the file or directory. Directories must be empty to be deleted. Throws on failure.
 	public:		bool tryToErase() const; ///< Tries to delete (like erase()) but does not throw if the path couldn't be deleted, instead it only returns false.
 	public:		Path createTempFile() const; ///< Creates a temporary file. If the path is a file path, the temporary file is created "adjacent" to this file in the same directory. If the path is an existing directory path, the temporary file is created beneath this directory. Returns a path to the created temporary file.

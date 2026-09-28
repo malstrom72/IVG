@@ -26,6 +26,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include <sstream>
 #include <limits>
+#include <errno.h>
 #include <glob.h>
 #include <string.h>
 #include "NuXFilesCocoa.h"
@@ -642,11 +643,24 @@ void Path::copy(const Path& destination) const {
 	}
 }
 
+/*
+	moveRename() stays within one volume on every backend. moveItemAtURL: would copy a file or a whole directory tree to
+	another volume and then delete the original, so the volumes are compared first. (Within a volume it is a rename, and
+	it refuses an existing destination.)
+*/
 void Path::moveRename(const Path& destination) const {
 	assert(!isNull());
 	assert(!destination.isNull());
-	
+
 	@autoreleasepool {
+		id sourceVolume = nil;
+		id destinationVolume = nil;
+		[impl->url getResourceValue:&sourceVolume forKey:NSURLVolumeIdentifierKey error:nil];
+		[[destination.impl->url URLByDeletingLastPathComponent] getResourceValue:&destinationVolume
+				forKey:NSURLVolumeIdentifierKey error:nil];
+		if (sourceVolume != nil && destinationVolume != nil && [sourceVolume isEqual:destinationVolume] == NO) {
+			throw Exception("Error renaming or moving file or directory (different volume)", (*this), EXDEV);
+		}
 		NSFileManager* manager = [[[NSFileManager alloc] init] autorelease];	// removeItemAtURL uses delegate so better create our own manager
 		NSError* error = nil;
 		if ([manager moveItemAtURL:impl->url toURL:destination.impl->url error:&error] == NO) {

@@ -98,14 +98,19 @@ bool Path::matchesFilter(const PathListFilter& filter) const {
 	return false;
 }
 
+/*
+	With `missingDirectoryMatchesNothing` (findPaths()), a pattern in a directory that doesn't exist finds nothing, like
+	glob() on POSIX and macOS. Without it (listSubPaths()), listing a missing directory throws, as on the other backends.
+*/
 static void appendPaths(const Path& parent, std::vector<Path>& paths, const std::wstring& wildcardPattern
-		, const PathListFilter& filter)
+		, const PathListFilter& filter, bool missingDirectoryMatchesNothing)
 {
 	::WIN32_FIND_DATAW findFileData;
 	::HANDLE findFirstHandle = ::FindFirstFileW(wildcardPattern.c_str(), &findFileData);
 	if (findFirstHandle == INVALID_HANDLE_VALUE) {
 		::DWORD lastError = ::GetLastError();
-		if (lastError != ERROR_FILE_NOT_FOUND) {
+		if (lastError != ERROR_FILE_NOT_FOUND
+				&& !(missingDirectoryMatchesNothing && lastError == ERROR_PATH_NOT_FOUND)) {
 			throw Exception("Error listing file directory", parent, lastError);
 		}
 	} else {
@@ -562,7 +567,7 @@ void Path::findPaths(std::vector<Path>& paths, const std::wstring& wildcardPatte
 	while (--p >= s && *p != L'/' && *p != L'\\' && *p != L':') {
 		;
 	}
-	appendPaths((p >= s) ? Path(std::wstring(s, p + 1)) : getCurrentDirectoryPath(), paths, pattern, filter);
+	appendPaths((p >= s) ? Path(std::wstring(s, p + 1)) : getCurrentDirectoryPath(), paths, pattern, filter, true);
 }
 
 void Path::listSubPaths(std::vector<Path>& subPaths, const PathListFilter& filter) const
@@ -570,7 +575,7 @@ void Path::listSubPaths(std::vector<Path>& subPaths, const PathListFilter& filte
 	assert(!isNull());
 	// "*.ext" also matches 8.3 short names ("*.htm" finds "page.html"), so appendPaths() checks the extension again.
 	appendPaths(*this, subPaths, addTrailingBackslash(impl->path) + L"*."
-			+ ((filter.includeExtension.empty() ? L"*" : filter.includeExtension)), filter);
+			+ ((filter.includeExtension.empty() ? L"*" : filter.includeExtension)), filter, false);
 }
 
 std::wstring Path::getName() const
@@ -707,7 +712,9 @@ void Path::erase() const
 void Path::moveRename(const Path& destination) const
 {
 	assert(!isNull());
-	::BOOL moveFileReturn = ::MoveFileW(getFullPath().c_str(), destination.getFullPath().c_str());
+	// No MOVEFILE_COPY_ALLOWED: a move to another volume fails (ERROR_NOT_SAME_DEVICE) instead of copying and deleting,
+	// and without MOVEFILE_REPLACE_EXISTING an existing destination is refused.
+	::BOOL moveFileReturn = ::MoveFileExW(getFullPath().c_str(), destination.getFullPath().c_str(), 0);
 	if (!moveFileReturn) {
 		throw Exception("Error renaming or moving file or directory", (*this), ::GetLastError());
 	}
