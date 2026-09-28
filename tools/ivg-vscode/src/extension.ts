@@ -333,8 +333,10 @@ export function activate(context: vscode.ExtensionContext): void {
 			}
 		}),
 		vscode.workspace.onDidChangeTextDocument((event) => {
-			if (isIvgDocument(event.document)) {
-				scheduleDocument(event.document);
+			// Only the previewed or active document refreshes; a Replace All or formatter may change other .ivg files.
+			const document = event.document;
+			if (isIvgDocument(document) && (document.uri.toString() === lastPreviewDocumentUri || document === getActiveIvgDocument())) {
+				scheduleDocument(document);
 			}
 		}),
 		vscode.window.onDidChangeActiveTextEditor((editor) => {
