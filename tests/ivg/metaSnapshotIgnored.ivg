@@ -1,0 +1,9 @@
+format IVG-3 uses:snapshot-1 requires:IMPD-1
+bounds 0,0,40,20
+
+// IVG2PNG ignores meta snapshot, so only the base drawing is rendered: blue on white, no red.
+meta snapshot scenario:alternative [ WIPE red ]
+
+WIPE white
+fill #3366CC
+rect 5,5,30,10

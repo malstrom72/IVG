@@ -198,11 +198,11 @@ CapturedIO RunListOnlyTool(const NuXFiles::Path &path, SnapshotRunResult &outRun
         std::ostringstream errBuffer;
 
         {
-        	StreamCapture capture(outBuffer, errBuffer);
-        	outRun = processFile(options, path);
-        	totals.accumulate(outRun);
-        	logFileReport(path, outRun);
-        	logTotalsSummary(totals);
+                StreamCapture capture(outBuffer, errBuffer);
+                outRun = processFile(options, path);
+                totals.accumulate(outRun);
+                logFileReport(path, outRun);
+                logTotalsSummary(totals);
         }
 
         CapturedIO captured;
@@ -381,8 +381,8 @@ void TestValidateMismatch()
         std::ostringstream errBuffer;
         SnapshotRunResult run;
         {
-        	StreamCapture capture(outBuffer, errBuffer);
-        	run = processFile(options, path);
+                StreamCapture capture(outBuffer, errBuffer);
+                run = processFile(options, path);
         }
 
         removeFileIfExists(path);
@@ -393,6 +393,29 @@ void TestValidateMismatch()
                 "validate mismatch should report correct error");
         Expect(errBuffer.str().find("validate flag mismatch for scenario") != std::string::npos,
                 "validate mismatch should log error to stderr");
+}
+
+void TestMalformedSnapshotMeta()
+{
+        const char *const sources[] = {
+                "format ivg-3 uses:snapshot-1\nbounds 0,0,16,16\nmeta snapshot validate:maybe [ fill red ]\n",
+                "format ivg-3 uses:snapshot-1\nbounds 0,0,16,16\nmeta snapshot colour:red [ fill red ]\n",
+        };
+        for (size_t i = 0; i < sizeof(sources) / sizeof(sources[0]); ++i) {
+                const NuXFiles::Path path = WriteTemporaryIVGPath(sources[i]);
+                CommandLineOptions options;
+                options.listOnly = true;
+                std::ostringstream outBuffer;
+                std::ostringstream errBuffer;
+                SnapshotRunResult run;
+                {
+                        StreamCapture capture(outBuffer, errBuffer);
+                        run = processFile(options, path);
+                }
+                removeFileIfExists(path);
+                Expect(run.fileFailed && run.exitCode == 1, std::string("malformed meta snapshot should fail: ") + sources[i]);
+                Expect(!run.fileError.empty(), std::string("malformed meta snapshot should report an error: ") + sources[i]);
+        }
 }
 
 void TestSnapshotSourceTags()
@@ -816,6 +839,7 @@ int main()
 	TestScenarioMismatchDetection();
 	TestImplicitSnapshotRendering();
 	TestValidateMismatch();
+	TestMalformedSnapshotMeta();
 	TestSnapshotSourceTags();
 	TestGoldenAuditWithSanitizedBases();
 	TestDraftValidateWorkflow();
