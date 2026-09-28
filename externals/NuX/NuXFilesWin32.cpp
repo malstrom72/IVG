@@ -59,20 +59,26 @@ static std::wstring addTrailingBackslash(const std::wstring& source)
 	return (gotTrailingBackslash(source) ? source : source + L'\\');
 }
 
+// Compares the part after the last dot of `nameWithExtension` with `extension`. A name without a dot has no extension.
 static bool extensionMatches(const std::wstring& nameWithExtension, const std::wstring& extension)
 {
-	const wchar_t* s = nameWithExtension.c_str();
-	const wchar_t* e = s + nameWithExtension.size();
-	const wchar_t* p = e;
-	while (p > s && *(p - 1) != L'.') --p;
-	return (::CompareStringW(LOCALE_USER_DEFAULT, NORM_IGNORECASE, p, lossless_cast<int>(e - p), extension.c_str()
+	const size_t dot = nameWithExtension.find_last_of(L'.');
+	if (dot == std::wstring::npos) {
+		return false;
+	}
+	return (::CompareStringW(LOCALE_USER_DEFAULT, NORM_IGNORECASE, nameWithExtension.c_str() + dot + 1
+			, lossless_cast<int>(nameWithExtension.size() - dot - 1), extension.c_str()
 			, lossless_cast<int>(extension.size())) == CSTR_EQUAL);
 }
 
+// A path that doesn't exist (or can't be examined) matches nothing, as on POSIX.
 bool Path::matchesFilter(const PathListFilter& filter) const {
 	assert(!isNull());
 
 	const ::DWORD fileAttributes = ::GetFileAttributesW(getFullPath().c_str());
+	if (fileAttributes == INVALID_FILE_ATTRIBUTES) {
+		return false;
+	}
 	const bool isDirectory = ((fileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0);
 
 	if ((!filter.excludeFiles || isDirectory)
@@ -562,6 +568,7 @@ void Path::findPaths(std::vector<Path>& paths, const std::wstring& wildcardPatte
 void Path::listSubPaths(std::vector<Path>& subPaths, const PathListFilter& filter) const
 {
 	assert(!isNull());
+	// "*.ext" also matches 8.3 short names ("*.htm" finds "page.html"), so appendPaths() checks the extension again.
 	appendPaths(*this, subPaths, addTrailingBackslash(impl->path) + L"*."
 			+ ((filter.includeExtension.empty() ? L"*" : filter.includeExtension)), filter);
 }
@@ -753,8 +760,9 @@ Path Path::createTempFile() const
 			, tempFilePathBuffer // pointer to buffer that receives the new filename
 			);
 	if (getTempFileNameReturn == 0) {
-		throw Exception("Error creating temporary file"
-				, (tempFilePathBuffer[0] != 0) ? Path(tempFilePathBuffer) : Path(), ::GetLastError());
+		// Read the error before anything else can change it. The buffer was never written, so report the directory.
+		const ::DWORD error = ::GetLastError();
+		throw Exception("Error creating temporary file", Path(addTrailingBackslash(directory)), error);
 	}
 	return Path(tempFilePathBuffer);
 }
@@ -897,12 +905,19 @@ ExchangingFile::ExchangingFile(const Path& path, const PathAttributes& attribute
 void ExchangingFile::commit()
 {
 	if (!originalPath.isNull()) {
-		flush();
+		// A write error can be reported as late as the flush (a full disk, a network share), and then the original
+		// must stay untouched.
+		const ::BOOL flushed = ::FlushFileBuffers(impl->handle);
+		const ::DWORD flushError = ::GetLastError();
 		const Path tempPath = impl->path;
 		const Path original = originalPath;
 		originalPath = Path(); // Clear before deleting `impl` so the destructor won't dereference a null `impl`.
 		delete impl;
 		impl = 0;
+		if (!flushed) {
+			tempPath.tryToErase();
+			throw Exception("Error committing file", original, flushError);
+		}
 		::BOOL success = ::ReplaceFileW(original.getFullPath().c_str(), tempPath.getFullPath().c_str()
 				, NULL, 0, 0, 0);
 		::DWORD error = ::GetLastError();
@@ -947,7 +962,12 @@ void ExchangingFile::commit()
 	}
 }
 
-void ReadWriteFile::flush() { ::FlushFileBuffers(impl->handle); }
+void ReadWriteFile::flush()
+{
+	if (!::FlushFileBuffers(impl->handle)) {
+		throw Exception("Error flushing file", getPath(), ::GetLastError());
+	}
+}
 
 ExchangingFile::~ExchangingFile()
 {

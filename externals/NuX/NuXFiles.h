@@ -277,8 +277,8 @@ class Path {
 /**
 	A ReadOnlyFile is an existing open file from which you can read. The file remains open until the object is destructed.
 
-	Internally, files are implemented with native file handles and file routines under Windows NT and the Carbon file
-	API is used under Mac OS X.
+	Internally, files are implemented with native file handles and file routines under Windows, with POSIX file
+	descriptors under Linux and with Foundation (NSFileManager / NSFileHandle) under macOS.
 */
 class ReadOnlyFile {
 	public:		class Impl;
@@ -346,7 +346,7 @@ class ExchangingFile : public ReadWriteFile {
 
 // FIX : document
 class Exception : public std::exception {
-	public:		Exception(const std::string& errorStringUTF8, const Path& path = Path(), int errorCode = 0) : errorStringUTF8(errorStringUTF8), path(path), errorCode(errorCode) { } ///< \p errorString is the string returned by what(). \p path and \p errorCode are optional.
+	public:		Exception(const std::string& errorStringUTF8, const Path& path = Path(), int errorCode = 0) : errorStringUTF8(errorStringUTF8), errorCode(errorCode), path(path) { } ///< \p errorString is the string returned by what(). \p path and \p errorCode are optional.
 	public:		virtual const char *what() const throw() { descriptionUTF8 = describe(); return descriptionUTF8.c_str(); } ///< Returns a string describing the error. This string is usually constructed from an OS error code.
 	public:		std::string getErrorStringUTF8() const { return errorStringUTF8; }
 	public:		Path getPath() const throw() { return path; } ///< Returns the path to the file / directory that this exception occurred with (this path is also usually present in the error-string returned by what()). Returns 0 if no path is associated with this exception or a pointer to a constant object which is only valid for as long as this exception object exists.

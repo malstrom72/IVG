@@ -26,6 +26,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include <sstream>
 #include <limits>
+#include <glob.h>
+#include <string.h>
 #include "NuXFilesCocoa.h"
 
 namespace NuXFiles {
@@ -425,13 +427,22 @@ static bool urlMatches(NSURL* fileURL, bool excludeHidden, bool excludeDirectori
 	return false;
 }
 
+/*
+	As on Win32 and POSIX, a path that doesn't exist matches nothing, and whether it is a directory comes from the file
+	system rather than from a trailing slash in the path.
+*/
 bool Path::matchesFilter(const PathListFilter& filter) const {
 	assert(!isNull());
 
 	@autoreleasepool {
+		BOOL isDirectory = NO;
+		if ([[NSFileManager defaultManager] fileExistsAtPath:[impl->url path] isDirectory:&isDirectory] == NO) {
+			return false;
+		}
+		NSURL* url = [NSURL fileURLWithPath:[impl->url path] isDirectory:isDirectory];
 		NSString* includeExtension = (filter.includeExtension.empty() ? nil : toNSString(filter.includeExtension));
 		NSString* includeHFSType = (filter.includeMacFileType == 0 ? nil : NSFileTypeForHFSTypeCode(filter.includeMacFileType));
-		return urlMatches(impl->url, filter.excludeHidden, filter.excludeDirectories, filter.excludeFiles
+		return urlMatches(url, filter.excludeHidden, filter.excludeDirectories, filter.excludeFiles
 				, includeExtension, includeHFSType);
 	}
 }
@@ -645,17 +656,38 @@ void Path::moveRename(const Path& destination) const {
 	}
 }
 
+enum Erasability { ERASABLE, NOT_EMPTY, UNEXAMINABLE };
+
+/*
+	removeItemAtURL: deletes directories recursively, but erase() may only remove an empty directory, so a directory is
+	listed first. The type comes from attributesOfItemAtPath:, which does not follow a final symlink: a link is removed
+	itself (removeItemAtURL: never touches its target), whatever the target holds. A directory that cannot be listed is
+	refused rather than deleted recursively.
+*/
+static Erasability checkErasable(NSFileManager* manager, NSURL* url, NSError** error) {
+	NSDictionary* attributes = [manager attributesOfItemAtPath:[url path] error:error];
+	if (attributes == nil) {
+		return UNEXAMINABLE;
+	}
+	if ([[attributes fileType] isEqualToString:NSFileTypeDirectory]) {
+		NSArray* contents = [manager contentsOfDirectoryAtURL:url includingPropertiesForKeys:nil options:0 error:error];
+		if (contents == nil) {
+			return UNEXAMINABLE;
+		}
+		if ([contents count] != 0) {
+			return NOT_EMPTY;
+		}
+	}
+	return ERASABLE;
+}
+
 bool Path::tryToErase() const {
 	assert(!isNull());
 	@autoreleasepool {
 		NSError* dummyError = nil;
 		NSFileManager* manager = [[[NSFileManager alloc] init] autorelease];	// removeItemAtURL uses delegate so better create our own manager
-		BOOL isDir;
-		if ([manager fileExistsAtPath:[impl->url path] isDirectory:&isDir] && isDir) {
-			NSArray* contents = [manager contentsOfDirectoryAtURL:impl->url includingPropertiesForKeys:nil options:0 error:&dummyError];
-			if (contents != nil && [contents count] != 0) {
-				return NO;
-			}
+		if (checkErasable(manager, impl->url, &dummyError) != ERASABLE) {
+			return NO;
 		}
 		return ([manager removeItemAtURL:impl->url error:&dummyError] != NO);
 	}
@@ -665,15 +697,16 @@ void Path::erase() const {
 	assert(!isNull());
 	@autoreleasepool {
 		NSFileManager* manager = [[[NSFileManager alloc] init] autorelease];	// removeItemAtURL uses delegate so better create our own manager
-		BOOL isDir;
-		if ([manager fileExistsAtPath:[impl->url path] isDirectory:&isDir] && isDir) {
-			NSError* dummyError = nil;
-			NSArray* contents = [manager contentsOfDirectoryAtURL:impl->url includingPropertiesForKeys:nil options:0 error:&dummyError];
-			if (contents != nil && [contents count] != 0) {
-				throw Exception("Error deleting directory (not empty)", (*this), NSFileWriteFileExistsError);
+		NSError* error = nil;
+		switch (checkErasable(manager, impl->url, &error)) {
+			case ERASABLE: break;
+			case NOT_EMPTY: throw Exception("Error deleting directory (not empty)", (*this), NSFileWriteFileExistsError);
+			case UNEXAMINABLE: {
+				assert(error != nil);
+				throw Exception("Error deleting file or directory", (*this), static_cast<int>([error code]));
 			}
 		}
-		NSError* error = nil;
+		error = nil;
 		if ([manager removeItemAtURL:impl->url error:&error] == NO) {
 			assert(error != nil);
 			throw Exception("Error deleting file or directory", (*this), static_cast<int>([error code]));
@@ -710,12 +743,32 @@ Path Path::createTempFile() const {
 	}
 }
 
+/*
+	Expands the wildcard pattern with glob(), as the POSIX backend does, and keeps the matches that pass `filter`.
+	GLOB_MARK appends a slash to directories so they become directory paths.
+*/
 void Path::findPaths(std::vector<Path>& paths, const std::wstring& wildcardPattern, const PathListFilter& filter) {
-	(void)filter;
-	/* FIX : should we allow wildcards or not? */
-	Path testPath(wildcardPattern);
-	if (testPath.exists()) {
-		paths.push_back(testPath);
+	@autoreleasepool {
+		glob_t g;
+		const int result = ::glob([toNSString(wildcardPattern) fileSystemRepresentation], GLOB_MARK, 0, &g);
+		try {
+			if (result == 0) {
+				NSFileManager* manager = [NSFileManager defaultManager];
+				for (size_t i = 0; i < static_cast<size_t>(g.gl_pathc); ++i) {
+					NSString* found = [manager stringWithFileSystemRepresentation:g.gl_pathv[i]
+							length:strlen(g.gl_pathv[i])];
+					const Path path(toStdWString(found));
+					if (path.matchesFilter(filter)) {
+						paths.push_back(path);
+					}
+				}
+			}
+		}
+		catch (...) {
+			::globfree(&g);
+			throw;
+		}
+		::globfree(&g);
 	}
 }
 

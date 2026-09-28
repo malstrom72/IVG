@@ -262,6 +262,69 @@ static std::wstring removeSlash(const std::wstring& p) {
 	return gotTrailingSlash(p) ? std::wstring(p.begin(), p.end() - 1) : p;
 }
 
+/*
+	Returns the position of the dot that starts the extension of `p` (a path without a trailing slash), or npos. A dot
+	starts an extension only if it is neither the first nor the last character of the name, so ".file" and "file." have
+	none. All the extension functions below share this rule.
+*/
+static size_t findExtensionDot(const std::wstring& p) {
+	const size_t slash = p.find_last_of(L'/');
+	const size_t nameStart = (slash == std::wstring::npos ? 0 : slash + 1);
+	const size_t dot = p.find_last_of(L'.');
+	return ((dot != std::wstring::npos && dot > nameStart && dot + 1 < p.size()) ? dot : std::wstring::npos);
+}
+
+/*
+	A system call can fail with EINTR when a signal arrives, and a read or write can transfer fewer bytes than asked
+	(network and FUSE file systems in particular). These wrappers retry and loop, so callers see one result.
+*/
+static int openRetrying(const char* path, int flags, mode_t mode = 0) {
+	int fd;
+	do {
+		fd = ::open(path, flags, mode);
+	} while (fd < 0 && errno == EINTR);
+	return fd;
+}
+
+// Returns the number of bytes read, which is less than `count` only at the end of the file, or -1 with errno set.
+static ssize_t readFully(int fd, off_t offset, size_t count, unsigned char* bytes) {
+	size_t done = 0;
+	while (done < count) {
+		const ssize_t r = ::pread(fd, bytes + done, count - done, offset + static_cast<off_t>(done));
+		if (r < 0) {
+			if (errno == EINTR) {
+				continue;
+			}
+			return -1;
+		}
+		if (r == 0) {
+			break;
+		}
+		done += static_cast<size_t>(r);
+	}
+	return static_cast<ssize_t>(done);
+}
+
+// Returns true once all `count` bytes are written, false with errno set otherwise.
+static bool writeFully(int fd, off_t offset, size_t count, const unsigned char* bytes) {
+	size_t done = 0;
+	while (done < count) {
+		const ssize_t w = ::pwrite(fd, bytes + done, count - done, offset + static_cast<off_t>(done));
+		if (w < 0) {
+			if (errno == EINTR) {
+				continue;
+			}
+			return false;
+		}
+		if (w == 0) {
+			errno = EIO; // No progress and no error: fail rather than spin.
+			return false;
+		}
+		done += static_cast<size_t>(w);
+	}
+	return true;
+}
+
 /* --- PathAttributes --- */
 
 PathAttributes::PathAttributes()
@@ -282,23 +345,17 @@ time_t PathTime::convertToCTime() const {
 }
 
 static std::wstring canonicalize(const std::wstring& in) {
-	std::wstring result;
-
-	bool isAbs = (!in.empty() && in[0] == L'/');
-	if (isAbs) {
-		result = L"/";
-	} else {
+	// A relative path is appended to the current directory before any '..' is applied, so '..' can climb out of it.
+	std::wstring path = in;
+	if (path.empty() || path[0] != L'/') {
 		char buf[PATH_MAX];
 		if (!::getcwd(buf, sizeof (buf))) {
-			throw Exception("Error getting cwd");
+			throw Exception("Error getting cwd", Path(), errno);
 		}
-		result = fromUTF8(buf);
-		if (result.empty() || result[result.size() - 1] != L'/') {
-			result += L'/';
-		}
+		path = appendSlash(fromUTF8(buf)) + path;
 	}
+	std::wstring result = L"/";
 
-	std::wstring path = in;
 	bool endsSlash = gotTrailingSlash(path);
 	if (!endsSlash && path.size() >= 2) {
 		if (path.substr(path.size() - 2) == L"/." ||
@@ -306,9 +363,7 @@ static std::wstring canonicalize(const std::wstring& in) {
 			endsSlash = true;
 		}
 	}
-	if (isAbs && !path.empty()) {
-		path = path.substr(1);
-	}
+	path = path.substr(1);
 
 	size_t pos = 0;
 	std::vector<std::wstring> components;
@@ -435,9 +490,8 @@ Path Path::getRelative(const std::wstring& pathString) const {
 Path Path::withoutExtension() const {
 	assert(!isNull());
 	std::wstring p = removeSlash(fromUTF8(impl->path));
-	size_t slash = p.find_last_of(L'/');
-	size_t dot = p.find_last_of(L'.');
-	if (dot != std::wstring::npos && dot > slash) {
+	const size_t dot = findExtensionDot(p);
+	if (dot != std::wstring::npos) {
 		p = p.substr(0, dot);
 	}
 	if (isDirectoryPath()) {
@@ -449,9 +503,8 @@ Path Path::withoutExtension() const {
 Path Path::withExtension(const std::wstring& extensionString) const {
 	assert(!isNull());
 	std::wstring p = removeSlash(fromUTF8(impl->path));
-	size_t slash = p.find_last_of(L'/');
-	size_t dot = p.find_last_of(L'.');
-	if (dot != std::wstring::npos && dot > slash) {
+	const size_t dot = findExtensionDot(p);
+	if (dot != std::wstring::npos) {
 		p = p.substr(0, dot);
 	}
 	if (!extensionString.empty() && extensionString[0] != L'.') {
@@ -466,10 +519,7 @@ Path Path::withExtension(const std::wstring& extensionString) const {
 
 bool Path::hasExtension() const {
 	assert(!isNull());
-	std::wstring p = removeSlash(fromUTF8(impl->path));
-	size_t slash = p.find_last_of(L'/');
-	size_t dot = p.find_last_of(L'.');
-	return (dot != std::wstring::npos && dot > slash + 1 && dot < p.length() - 1);
+	return (findExtensionDot(removeSlash(fromUTF8(impl->path))) != std::wstring::npos);
 }
 
 std::wstring Path::getName() const {
@@ -477,25 +527,18 @@ std::wstring Path::getName() const {
 	if (isRoot()) {
 		return std::wstring();
 	}
-	std::wstring p = removeSlash(fromUTF8(impl->path));
-	size_t slash = p.find_last_of(L'/');
-	size_t dot = p.find_last_of(L'.');
-	std::wstring name = p.substr(slash == std::wstring::npos ? 0 : slash + 1);
-	if (dot != std::wstring::npos && dot > slash + 1 && dot < p.length() - 1) {
-		name = name.substr(0, dot - (slash == std::wstring::npos ? 0 : slash + 1));
-	}
-	return name;
+	const std::wstring p = removeSlash(fromUTF8(impl->path));
+	const size_t slash = p.find_last_of(L'/');
+	const size_t nameStart = (slash == std::wstring::npos ? 0 : slash + 1);
+	const size_t dot = findExtensionDot(p);
+	return p.substr(nameStart, (dot == std::wstring::npos ? std::wstring::npos : dot - nameStart));
 }
 
 std::wstring Path::getExtension() const {
 	assert(!isNull());
-	std::wstring p = removeSlash(fromUTF8(impl->path));
-	size_t slash = p.find_last_of(L'/');
-	size_t dot = p.find_last_of(L'.');
-	if (dot != std::wstring::npos && dot > slash + 1 && dot < p.length() - 1) {
-		return p.substr(dot + 1);
-	}
-	return std::wstring();
+	const std::wstring p = removeSlash(fromUTF8(impl->path));
+	const size_t dot = findExtensionDot(p);
+	return (dot == std::wstring::npos ? std::wstring() : p.substr(dot + 1));
 }
 
 std::wstring Path::getNameWithExtension() const {
@@ -538,10 +581,21 @@ PathInfo Path::getInfo() const {
 	PathInfo info;
 	info.isDirectory = S_ISDIR(st.st_mode);
 	info.fileSize = Int64(static_cast<int>(st.st_size >> 32), static_cast<unsigned int>(st.st_size));
-	info.creationTime = PathTime(st.st_ctime);
+	/*
+		st_ctime is the inode change time, not the creation time. Linux reports the real birth time through statx() on
+		file systems that record it; otherwise creationTime stays "not available".
+	*/
+#if defined(__linux__) && defined(STATX_BTIME)
+	struct statx sx;
+	if (::statx(AT_FDCWD, impl->path.c_str(), 0, STATX_BTIME, &sx) == 0 && (sx.stx_mask & STATX_BTIME) != 0) {
+		info.creationTime = PathTime(static_cast<time_t>(sx.stx_btime.tv_sec));
+	}
+#endif
 	info.modificationTime = PathTime(st.st_mtime);
 	info.lastAccessTime = PathTime(st.st_atime);
 	info.attributes.isReadOnly = ((st.st_mode & S_IWUSR) == 0);
+	const std::wstring name = getNameWithExtension();
+	info.attributes.isHidden = (!name.empty() && name[0] == L'.'); // The same rule as matchesFilter().
 	return info;
 }
 
@@ -587,14 +641,29 @@ bool Path::tryToCreate() const {
 	return (::mkdir(impl->path.c_str(), 0777) == 0);
 }
 
+/*
+	Whether erase() removes `path` with rmdir() rather than unlink(). Decided with lstat() on the path without a trailing
+	slash (which would make even lstat() follow a link), so a symlink to a directory is removed itself and its target is
+	untouched, as on Win32 and Cocoa.
+*/
+static bool isRealDirectory(const std::string& path) {
+	struct stat st;
+	return (::lstat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode));
+}
+
+static std::string withoutTrailingSlash(const std::string& path) {
+	return ((path.size() > 1 && path[path.size() - 1] == '/') ? path.substr(0, path.size() - 1) : path);
+}
+
 void Path::erase() const {
 	assert(!isNull());
-	if (isDirectory()) {
-		if (::rmdir(impl->path.c_str()) != 0) {
+	const std::string path = withoutTrailingSlash(impl->path);
+	if (isRealDirectory(path)) {
+		if (::rmdir(path.c_str()) != 0) {
 			throw Exception("Error deleting directory", *this, errno);
 		}
 	} else {
-		if (::unlink(impl->path.c_str()) != 0) {
+		if (::unlink(path.c_str()) != 0) {
 			throw Exception("Error deleting file", *this, errno);
 		}
 	}
@@ -602,66 +671,110 @@ void Path::erase() const {
 
 bool Path::tryToErase() const {
 	assert(!isNull());
-	if (isDirectory()) {
-		return (::rmdir(impl->path.c_str()) == 0);
+	const std::string path = withoutTrailingSlash(impl->path);
+	if (isRealDirectory(path)) {
+		return (::rmdir(path.c_str()) == 0);
 	} else {
-		return (::unlink(impl->path.c_str()) == 0);
+		return (::unlink(path.c_str()) == 0);
 	}
 }
 
+/*
+	Win32's MoveFileW and Cocoa's moveItemAtURL fail if the destination exists, but rename() silently replaces it. Linux
+	can refuse atomically with renameat2(RENAME_NOREPLACE); elsewhere, or where the file system lacks it, the
+	destination is checked first (not atomic: something created there in between would still be replaced).
+*/
 void Path::moveRename(const Path& dst) const {
 	assert(!isNull());
-	if (::rename(impl->path.c_str(), dst.impl->path.c_str()) != 0) {
+	const char* const from = impl->path.c_str();
+	const char* const to = dst.impl->path.c_str();
+#if defined(__linux__) && defined(RENAME_NOREPLACE)
+	if (::renameat2(AT_FDCWD, from, AT_FDCWD, to, RENAME_NOREPLACE) == 0) {
+		return;
+	}
+	if (errno != EINVAL && errno != ENOSYS) {
+		throw Exception("Error renaming", *this, errno);
+	}
+#endif
+	struct stat st;
+	if (::lstat(to, &st) == 0) {
+		throw Exception("Error renaming", dst, EEXIST);
+	}
+	if (::rename(from, to) != 0) {
 		throw Exception("Error renaming", *this, errno);
 	}
 }
 
 void Path::copy(const Path& dst) const {
 	assert(!isNull());
-	int infd = ::open(impl->path.c_str(), O_RDONLY);
+	const int infd = openRetrying(impl->path.c_str(), O_RDONLY);
 	if (infd < 0) {
 		throw Exception("Error opening source", *this, errno);
 	}
-	int outfd = ::open(dst.impl->path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0666); // O_EXCL: must not replace a file.
+	const int outfd = openRetrying(dst.impl->path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0666); // O_EXCL: must not replace a file.
 	if (outfd < 0) {
-		int err = errno;
+		const int error = errno;
 		::close(infd);
-		throw Exception("Error creating dest", dst, err);
+		throw Exception("Error creating dest", dst, error);
 	}
-	char buf[8192];
-	ssize_t r;
-	while ((r = ::read(infd, buf, sizeof (buf))) > 0) {
-		ssize_t w = ::write(outfd, buf, r);
-		if (w != r) {
-			int err = errno;
-			::close(infd);
-			::close(outfd);
-			throw Exception("Error copying", dst, err);
+	unsigned char buf[8192];
+	off_t offset = 0;
+	int error = 0;
+	const Path* failedPath = this;
+	for (;;) {
+		const ssize_t r = readFully(infd, offset, sizeof (buf), buf);
+		if (r < 0) {
+			error = errno;
+			break;
 		}
-	}
-	if (r < 0) {
-		int err = errno;
-		::close(infd);
-		::close(outfd);
-		throw Exception("Error copying", *this, err);
+		if (r == 0) {
+			break;
+		}
+		if (!writeFully(outfd, offset, static_cast<size_t>(r), buf)) {
+			error = errno;
+			failedPath = &dst;
+			break;
+		}
+		offset += r;
 	}
 	::close(infd);
-	::close(outfd);
+	if (::close(outfd) != 0 && error == 0) { // Network file systems may only report a write error here.
+		error = errno;
+		failedPath = &dst;
+	}
+	if (error != 0) {
+		::unlink(dst.impl->path.c_str()); // Don't leave a partial copy behind.
+		throw Exception("Error copying", *failedPath, error);
+	}
 }
 
 Path Path::createTempFile() const {
 	assert(!isNull());
-	std::wstring dir = isDirectoryPath() ? fromUTF8(impl->path) : fromUTF8(getParent().impl->path);
-	std::string utf8dir = toUTF8(dir);
-	std::string tmpl = utf8dir + "tmpXXXXXX";
-	std::vector<char> buf(tmpl.begin(), tmpl.end());
-	buf.push_back('\0');
-	int fd = ::mkstemp(&buf[0]);
-	if (fd < 0) {
-		throw Exception("Error creating temp", *this, errno);
+	/*
+		Created with O_EXCL and mode 0666, so the umask applies as for any other new file (mkstemp() forces 0600, which
+		ExchangingFile would then give every file it saves). O_EXCL also makes creation safe against name clashes and
+		symlinks, so the name only has to be unlikely to exist, not unguessable.
+	*/
+	const std::string directory = (isDirectoryPath() ? impl->path : getParent().impl->path);
+	unsigned int seed = (static_cast<unsigned int>(::getpid()) * 2654435761u) ^ static_cast<unsigned int>(::time(0))
+			^ static_cast<unsigned int>(reinterpret_cast<size_t>(&seed)); // The stack address differs per thread.
+	static const char DIGITS[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+	for (int attempt = 0; attempt < 1000; ++attempt) {
+		std::string name = directory + "tmp";
+		for (int i = 0; i < 6; ++i) {
+			seed = seed * 1103515245u + 12345u;
+			name += DIGITS[(seed >> 16) % 36];
+		}
+		const int fd = openRetrying(name.c_str(), O_RDWR | O_CREAT | O_EXCL, 0666);
+		if (fd >= 0) {
+			::close(fd);
+			return Path(fromUTF8(name));
+		}
+		if (errno != EEXIST) {
+			throw Exception("Error creating temp", *this, errno);
+		}
 	}
-	::close(fd);
-	return Path(fromUTF8(&buf[0]));
+	throw Exception("Error creating temp", *this, EEXIST);
 }
 
 bool Path::matchesFilter(const PathListFilter& filter) const {
@@ -670,12 +783,15 @@ bool Path::matchesFilter(const PathListFilter& filter) const {
 		std::wstring n = getNameWithExtension();
 		if (!n.empty() && n[0] == L'.') return false;
 	}
-	bool isDir = isDirectory();
+	struct stat st;
+	if (::stat(impl->path.c_str(), &st) != 0) {
+		return false; // A path that doesn't exist (or can't be examined) matches nothing, as on Win32.
+	}
+	const bool isDir = S_ISDIR(st.st_mode);
 	if (filter.excludeFiles && !isDir) return false;
 	if (filter.excludeDirectories && isDir) return false;
-	if (!filter.includeExtension.empty() && !isDir) {
-		if (getExtension() != filter.includeExtension) return false;
-	}
+	// The extension filter applies to directories too, as documented and as on Win32 and Cocoa.
+	if (!filter.includeExtension.empty() && getExtension() != filter.includeExtension) return false;
 	return true;
 }
 
@@ -731,13 +847,17 @@ void Path::findPaths(std::vector<Path>& paths, const std::wstring& pattern, cons
 
 /* --- ReadOnlyFile --- */
 
-ReadOnlyFile::Impl::~Impl() { ::close(fileDescriptor); }
+ReadOnlyFile::Impl::~Impl() {
+	if (fileDescriptor >= 0) {
+		::close(fileDescriptor);
+	}
+}
 
 ReadOnlyFile::ReadOnlyFile(const Path& path, bool allowConcurrentWrites)
 	   : impl(0)
 {
 	(void)allowConcurrentWrites;
-	const int fd = ::open(path.getImpl()->getPosixPath().c_str(), O_RDONLY);
+	const int fd = openRetrying(path.getImpl()->getPosixPath().c_str(), O_RDONLY);
 	if (fd < 0) {
 		throw Exception("Error opening file", path, errno);
 	}
@@ -753,8 +873,9 @@ Int64 ReadOnlyFile::getSize() const {
 }
 
 int ReadOnlyFile::tryToRead(Int64 pos, int count, unsigned char* bytes) const {
+	assert(count >= 0);
 	off_t offset = (static_cast<off_t>(pos.getHigh()) << 32) | pos.getLow();
-	ssize_t r = ::pread(impl->fileDescriptor, bytes, count, offset);
+	const ssize_t r = readFully(impl->fileDescriptor, offset, static_cast<size_t>(count), bytes);
 	if (r < 0) {
 		throw Exception("Error reading", getPath(), errno);
 	}
@@ -778,52 +899,98 @@ ReadWriteFile::ReadWriteFile(const Path& path, bool allowConcurrentReads, bool a
 {
 	(void)allowConcurrentReads;
 	(void)allowConcurrentWrites;
-	const int fd = ::open(path.getImpl()->getPosixPath().c_str(), O_RDWR);
+	const int fd = openRetrying(path.getImpl()->getPosixPath().c_str(), O_RDWR);
 	if (fd < 0) {
 		throw Exception("Error opening file", path, errno);
 	}
 	impl = new Impl(path, fd);
 }
 
-ReadWriteFile::ReadWriteFile(const Path& path, const PathAttributes&, bool replaceExisting, bool allowReads, bool allowWrites)
+// Only `isReadOnly` applies here (see updateAttributes()). It is set through the open descriptor, which stays writable.
+ReadWriteFile::ReadWriteFile(const Path& path, const PathAttributes& attributes, bool replaceExisting, bool allowReads
+		, bool allowWrites)
 	   : ReadOnlyFile(static_cast<Impl*>(0))
 {
 	(void)allowReads;
 	(void)allowWrites;
-	const int fd = ::open(path.getImpl()->getPosixPath().c_str(), O_RDWR | O_CREAT | (replaceExisting ? O_TRUNC : O_EXCL), 0666);
+	const int fd = openRetrying(path.getImpl()->getPosixPath().c_str(), O_RDWR | O_CREAT | (replaceExisting ? O_TRUNC : O_EXCL)
+			, 0666);
 	if (fd < 0) {
 		throw Exception("Error creating file", path, errno);
 	}
 	impl = new Impl(path, fd);
+	if (attributes.isReadOnly) {
+		struct stat st;
+		if (::fstat(fd, &st) != 0 || ::fchmod(fd, st.st_mode & 07777 & ~(S_IWUSR | S_IWGRP | S_IWOTH)) != 0) {
+			const int error = errno;
+			delete impl;
+			impl = 0;
+			throw Exception("Error setting attributes on file", path, error);
+		}
+	}
 }
 
 void ReadWriteFile::write(Int64 pos, int count, const unsigned char* bytes) {
+	assert(count >= 0);
 	off_t offset = (static_cast<off_t>(pos.getHigh()) << 32) | pos.getLow();
-	ssize_t w = ::pwrite(impl->fileDescriptor, bytes, count, offset);
-	if (w != count) {
+	if (!writeFully(impl->fileDescriptor, offset, static_cast<size_t>(count), bytes)) {
 		throw Exception("Error writing", getPath(), errno);
 	}
 }
 
-void ReadWriteFile::flush() { ::fsync(impl->fileDescriptor); }
+void ReadWriteFile::flush() {
+	if (::fsync(impl->fileDescriptor) != 0) {
+		throw Exception("Error flushing file", getPath(), errno);
+	}
+}
 
 /* --- ExchangingFile --- */
 
+/*
+	Saving over a file keeps its permissions, as Win32's ReplaceFileW and Cocoa do. This is best effort: some file
+	systems (FAT, SMB mounts) refuse fchmod(), and that should not stop a save.
+*/
 ExchangingFile::ExchangingFile(const Path& path, const PathAttributes& attrs)
-		: ReadWriteFile(path.createTempFile(), attrs, true, false, false), originalPath(path) { }
+		: ReadWriteFile(path.createTempFile(), attrs, true, false, false), originalPath(path) {
+	struct stat st;
+	if (::stat(path.getImpl()->getPosixPath().c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
+		mode_t mode = st.st_mode & 07777;
+		if (attrs.isReadOnly) {
+			mode &= ~(S_IWUSR | S_IWGRP | S_IWOTH);
+		}
+		::fchmod(impl->fileDescriptor, mode);
+	}
+}
 
+/*
+	A write error can be reported as late as fsync() or close() (a full disk, NFS, delayed allocation), so both are
+	checked before the rename. On any failure the original is left untouched and the temp file is removed.
+*/
 void ExchangingFile::commit() {
 	if (!originalPath.isNull()) {
-		flush();
 		Path temp = getPath();
 		Path original = originalPath;
 		originalPath = Path(); // Clear before deleting `impl` so the destructor won't dereference a null `impl`.
+		int error = (::fsync(impl->fileDescriptor) != 0 ? errno : 0);
+		if (::close(impl->fileDescriptor) != 0 && error == 0) {
+			error = errno;
+		}
+		impl->fileDescriptor = -1; // Closed (even if close() failed), so ~Impl must not close it again.
 		delete impl;
 		impl = 0;
-		if (::rename(temp.getImpl()->getPosixPath().c_str(), original.getImpl()->getPosixPath().c_str()) != 0) {
-			const int renameErrno = errno;
+		if (error == 0
+				&& ::rename(temp.getImpl()->getPosixPath().c_str(), original.getImpl()->getPosixPath().c_str()) != 0) {
+			error = errno;
+		}
+		if (error != 0) {
 			::unlink(temp.getImpl()->getPosixPath().c_str()); // Don't leave the temp file behind on a failed commit.
-			throw Exception("Error committing", original, renameErrno);
+			throw Exception("Error committing", original, error);
+		}
+		// Make the rename itself durable. Best effort: the commit has already succeeded, so a failure here is not reported.
+		const int directory = ::open(original.getParent().getImpl()->getPosixPath().c_str(), O_RDONLY);
+		if (directory >= 0) {
+			::fsync(directory);
+			::close(directory);
 		}
 	}
 }

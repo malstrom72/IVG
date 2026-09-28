@@ -666,6 +666,14 @@ template<typename T> class Snapshot {
 	protected:	AtomicInt last;
 };
 
+/**
+	Bounded, lock-free FIFO for multiple producers and multiple consumers. Capacity must be a power of two. See
+	docs/queueConcurrency.md for the concurrency model.
+
+	T's copy constructor, move constructor and destructor must not throw. A push reserves its slots before constructing
+	elements in them, and a reservation cannot be rolled back once other producers may have reserved slots after it, so
+	an exception there would leave the queue stuck.
+*/
 // TODO : it would be cool in a single writer / reader situation to be able to access queue elements without copying them (if they are big), would this be possible?
 template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 	public:		void swap(Queue& other) { // Not thread-safe.
