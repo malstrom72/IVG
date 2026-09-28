@@ -97,7 +97,7 @@ using the script under the IVGFiddle folder. This builds a bundled `mode-ivg.js`
 
 What it does:
 - Clones Ace into `externals/ace` (ignored by git) if missing and checks out `ACE_REF` (defaults to `v1.43.3`).
-- Converts `tools/ivg-vscode/syntaxes/*.tmLanguage` into Ace rules in the local Ace checkout.
+- Converts `tools/grammars/*.tmLanguage` into Ace rules in the local Ace checkout.
 - Runs Ace’s dryice bundler (`-m -nc`) to produce a self‑contained `mode-ivg.js`.
 - Copies the result to `tools/ivgfiddle/src/ace/mode-ivg.js`.
 

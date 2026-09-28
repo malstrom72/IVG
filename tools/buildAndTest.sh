@@ -102,6 +102,11 @@ else
 	echo "Warning: Node.js not found, skipping SVG tests" >&2
 fi
 cd ..
+# The grammar copies in docs/ and the VS Code extension must match tools/grammars/.
+for grammar in ivg impd; do
+	cmp tools/grammars/$grammar.tmLanguage docs/$grammar.tmLanguage
+	cmp tools/grammars/$grammar.tmLanguage tools/ivg-vscode/syntaxes/$grammar.tmLanguage
+done
 ./output/PolygonMaskTest
 ./output/TestSnapshotPlan
 tmp="$tmpdir/list.txt"

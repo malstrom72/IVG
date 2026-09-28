@@ -107,6 +107,11 @@ IF NOT "%SKIP_SVG%"=="" (
 	)
 )
 CD ..
+REM The grammar copies in docs\ and the VS Code extension must match tools\grammars\.
+FOR %%g IN (ivg impd) DO (
+	FC /B tools\grammars\%%g.tmLanguage docs\%%g.tmLanguage >NUL || GOTO error
+	FC /B tools\grammars\%%g.tmLanguage tools\ivg-vscode\syntaxes\%%g.tmLanguage >NUL || GOTO error
+)
 CALL .\output\PolygonMaskTest || GOTO error
 CALL .\output\TestSnapshotPlan || GOTO error
 CALL :listOnly ListOnlySample || GOTO error
