@@ -1491,6 +1491,12 @@ static std::string abbreviatePathForDisplay(const std::string &path) {
 	return path;
 }
 
+// "/" separators, so listings are the same on every platform.
+static std::string withForwardSlashes(std::string path) {
+	std::replace(path.begin(), path.end(), '\\', '/');
+	return path;
+}
+
 // Prefer paths relative to current working directory for user-facing logs
 // to keep fixtures stable. Fall back to absolute native when not possible.
 static std::string displayPathRelativeToCwd(const NuXFiles::Path &path)
@@ -1502,7 +1508,7 @@ static std::string displayPathRelativeToCwd(const NuXFiles::Path &path)
 		const NuXFiles::Path cwd = NuXFiles::Path::getCurrentDirectoryPath();
 		std::wstring rel;
 		if (path.makeRelative(cwd, false, rel) && !rel.empty()) {
-			return pathStringFromWide(withoutDotPrefix(rel));
+			return withForwardSlashes(pathStringFromWide(withoutDotPrefix(rel)));
 		}
 	} catch (const std::exception &) {
 		// fall through to absolute
@@ -1520,7 +1526,7 @@ static std::string displayPathRelativeToCwd(const NuXFiles::Path &path)
 				}
 			}
 			if (native.size() > prefix.size() && native.compare(0, prefix.size(), prefix) == 0) {
-				return native.substr(prefix.size());
+				return withForwardSlashes(native.substr(prefix.size()));
 			}
 		}
 	}

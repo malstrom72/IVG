@@ -47,13 +47,11 @@ void ExpectEqual(const std::string &actual, const std::string &expected, const s
 }
 
 /*
-        Compares a listing against a golden, ignoring the two things that differ by platform rather than by
-        behaviour: a path printed through NuXFiles::Path carries the local separator, and the goldens are
-        stored with LF but checked out with CRLF on Windows. buildAndTest.sh strips the CR the same way.
+        Compares a listing against a golden, ignoring line endings: the goldens are stored with LF but
+        checked out with CRLF on Windows. buildAndTest.sh strips the CR the same way.
 */
 std::string NormalizeListing(std::string listing)
 {
-        std::replace(listing.begin(), listing.end(), '\\', '/');
         listing.erase(std::remove(listing.begin(), listing.end(), '\r'), listing.end());
         return listing;
 }

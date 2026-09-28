@@ -118,25 +118,12 @@ CALL :listOnly ListOnlySample || GOTO error
 CALL :listOnly ListScenarioVariants || GOTO error
 GOTO :eof
 
-REM Compares one --list-only run against its golden. IVGSnapshot prints paths through NuXFiles::Path,
-REM which uses the platform separator, so the separators are normalised here rather than keeping a
-REM second golden. findstr numbers the lines so that FOR does not swallow the blank ones, and the
-REM line is captured with delayed expansion off so that a "!" in it survives.
+REM Compares one --list-only run against its golden.
 :listOnly
 SET "check=%TEMP%\%~1.check"
-SET "norm=%TEMP%\%~1.norm"
 .\output\IVGSnapshot --list-only tools/IVGSnapshot/tests/%~1.ivg >"%check%" || EXIT /B 1
-(FOR /F "usebackq delims=" %%L IN (`findstr /n "^" "%check%"`) DO (
-	SETLOCAL DISABLEDELAYEDEXPANSION
-	SET "line=%%L"
-	SETLOCAL ENABLEDELAYEDEXPANSION
-	SET "line=!line:*:=!"
-	IF DEFINED line (ECHO(!line:\=/!) ELSE (ECHO()
-	ENDLOCAL
-	ENDLOCAL
-)) >"%norm%"
-FC "%norm%" ".\tools\IVGSnapshot\tests\%~1.txt" || EXIT /B 1
-DEL "%check%" "%norm%"
+FC "%check%" ".\tools\IVGSnapshot\tests\%~1.txt" || EXIT /B 1
+DEL "%check%"
 EXIT /B 0
 
 :error
