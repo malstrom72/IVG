@@ -64,6 +64,8 @@ const TRACE_OUTPUT_CHANNEL_NAME = "IVG Preview Trace";
 const TRACE_SHOW_ACTION = "Show Trace Output";
 let traceOutputChannel;
 let traceOutputLines = [];
+// The webview's last line, which its "replace" updates. Include telemetry may have been appended after it.
+let webviewTraceLineIndex = -1;
 let previewConfig = readPreviewConfig();
 let generalConfig = readGeneralConfig();
 let includeConfig = readIncludeConfig();
@@ -2041,12 +2043,13 @@ function processTraceMessage(raw) {
         if (typeof payload.text === "string") {
             handleIncludeMissingTraceLine(payload.text);
             appendTraceOutputLine(payload.text);
+            webviewTraceLineIndex = traceOutputLines.length - 1;
         }
         return;
     }
     if (action === "replace" && typeof payload.text === "string") {
         handleIncludeMissingTraceLine(payload.text);
-        replaceLastTraceOutputLine(payload.text);
+        replaceWebviewTraceLine(payload.text);
     }
 }
 function getTraceOutputChannel() {
@@ -2057,6 +2060,7 @@ function getTraceOutputChannel() {
 }
 function clearTraceOutput() {
     traceOutputLines = [];
+    webviewTraceLineIndex = -1;
     if (traceOutputChannel) {
         traceOutputChannel.clear();
     }
@@ -2064,6 +2068,7 @@ function clearTraceOutput() {
 function resetTraceOutput(lines) {
     const channel = getTraceOutputChannel();
     traceOutputLines = lines.slice();
+    webviewTraceLineIndex = traceOutputLines.length - 1;
     channel.clear();
     for (const line of traceOutputLines) {
         channel.appendLine(line);
@@ -2073,17 +2078,14 @@ function appendTraceOutputLine(line) {
     traceOutputLines.push(line);
     getTraceOutputChannel().appendLine(line);
 }
-function replaceLastTraceOutputLine(line) {
-    if (traceOutputLines.length === 0) {
+function replaceWebviewTraceLine(line) {
+    if (webviewTraceLineIndex < 0) {
         appendTraceOutputLine(line);
+        webviewTraceLineIndex = traceOutputLines.length - 1;
         return;
     }
-    traceOutputLines[traceOutputLines.length - 1] = line;
-    const channel = getTraceOutputChannel();
-    channel.clear();
-    for (const entry of traceOutputLines) {
-        channel.appendLine(entry);
-    }
+    traceOutputLines[webviewTraceLineIndex] = line;
+    getTraceOutputChannel().replace(traceOutputLines.join("\n") + "\n");
 }
 function revealTraceOutput(preserveFocus) {
     const channel = getTraceOutputChannel();
