@@ -6,7 +6,7 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-const { initializeIvfFiddleForTests } = require("./ivgfiddleTestHarness");
+const { initializeIvfFiddleForTests, flushAnimationFrames } = require("./ivgfiddleTestHarness");
 
 function setup() {
 	return initializeIvfFiddleForTests();
@@ -446,4 +446,76 @@ test("estimateVectorPixelBudget honors heap reserve", () => {
 		return 20 * 1024 * 1024;
 	};
 	assert.equal(context.exports.estimateVectorPixelBudget(), Math.floor((20 * 1024 * 1024 - 12 * 1024 * 1024) / 4));
+});
+
+// A runtime whose heap is a real buffer, recording what gets freed. `rasterize` stands in for _rasterizeIVG.
+function createRecordingRuntime(rasterize) {
+	const buffer = new ArrayBuffer(64 * 1024 * 1024);
+	const runtime = {
+		HEAPU8: new Uint8Array(buffer),
+		HEAPU32: new Uint32Array(buffer),
+		freed: [],
+		deallocated: [],
+		rasterizeCalls: 0,
+		lengthBytesUTF8: function lengthBytesUTF8(source) {
+			return String(source).length;
+		},
+		_malloc: function malloc() {
+			return 512;
+		},
+		stringToUTF8: function stringToUTF8() {},
+		_rasterizeIVG: function rasterizeIVG() {
+			++runtime.rasterizeCalls;
+			return rasterize(runtime);
+		},
+		_free: function free(pointer) {
+			runtime.freed.push(pointer);
+		},
+		_deallocatePixels: function deallocatePixels(pointer) {
+			runtime.deallocated.push(pointer);
+		},
+	};
+	return runtime;
+}
+
+test("Vector rerender waits for an animation frame and runs once", () => {
+	const context = setup();
+	const runtime = createRecordingRuntime(() => 0);
+	context.window.Module = runtime;
+	const zoomController = context.exports.ZoomController;
+	zoomController.setVectorScalingEnabled(true, { skipRerender: true });
+	zoomController.requestVectorRerender("first request");
+	zoomController.requestVectorRerender("second request");
+	assert.equal(runtime.rasterizeCalls, 0);
+	flushAnimationFrames(context.window);
+	assert.equal(runtime.rasterizeCalls, 1);
+	assert.match(context.exports.getTraceText(), /Render reason: second request/);
+	flushAnimationFrames(context.window);
+	assert.equal(runtime.rasterizeCalls, 1);
+});
+
+test("runIVG frees the source string when the rasterizer throws", () => {
+	const context = setup();
+	const runtime = createRecordingRuntime(() => {
+		throw new Error("simulated abort");
+	});
+	context.window.Module = runtime;
+	context.exports.runIVG("unit-rasterizer-throws");
+	assert.match(context.exports.getTraceText(), /Rasterization crashed/);
+	assert.deepEqual(runtime.freed, [512]);
+});
+
+test("runIVG frees the raster when reading it throws", () => {
+	const context = setup();
+	const rasterPointer = 4096;
+	const runtime = createRecordingRuntime((self) => {
+		// A negative width makes createImageData throw after the raster has been handed over.
+		const header = new Int32Array(self.HEAPU8.buffer, rasterPointer, 8);
+		header.set([0, 0, -1, 1, 0, 0, -1, -1]);
+		return rasterPointer;
+	});
+	context.window.Module = runtime;
+	context.exports.runIVG("unit-raster-read-throws");
+	assert.match(context.exports.getTraceText(), /Rasterization crashed/);
+	assert.deepEqual(runtime.deallocated, [rasterPointer]);
 });
