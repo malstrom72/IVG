@@ -1,0 +1,12 @@
+format IVG-3 requires:IMPD-1
+bounds 0,0,40,30
+
+// testIVG renders this with --scale 2.5, so the golden is 100x75.
+
+WIPE white
+pen black width:2
+fill #3366CC
+ELLIPSE 20,15,14,10
+pen none
+fill #CC3333
+rect 4,4,8,6

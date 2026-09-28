@@ -1,0 +1,5 @@
+format IVG-3 requires:IMPD-1
+bounds 0,0,16,16
+
+// includeDirTest.impd lives only in ivg/includes, which testIVG passes with --includes.
+include includeDirTest.impd

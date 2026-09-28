@@ -14,6 +14,7 @@ IF "%~1"=="" (
 )
 SET fonts=..\fonts
 SET images=.
+SET includes=ivg\includes
 
 SET tempDir=%TEMP%\temp%RANDOM%
 ECHO Using temporary dir: %tempDir%
@@ -23,11 +24,10 @@ SET fail=0
 FOR %%f IN (ivg\*.ivg) DO (
 	ECHO Doing %%f
 	ECHO.
-	IF "%%~nf"=="huge" (
-		%exe% --fast --images %images% --fonts %fonts% "%%f" "%tempDir%\%%~nf.png"
-	) ELSE (
-		%exe% --images %images% --fonts %fonts% "%%f" "%tempDir%\%%~nf.png"
-	)
+	SET args=
+	IF "%%~nf"=="huge" SET args=--fast
+	IF "%%~nf"=="scaleOption" SET args=--scale 2.5
+	CALL %exe% %%args%% --images %images% --fonts %fonts% --includes %includes% "%%f" "%tempDir%\%%~nf.png"
 	IF ERRORLEVEL 1 SET fail=1
 	IF %update%==1 (
 		COPY "%tempDir%\%%~nf.png" "png\%%~nf.png" >NUL

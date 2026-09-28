@@ -14,6 +14,7 @@ else
 fi
 FONTS=../fonts
 IMAGES=.
+INCLUDES=./ivg/includes
 
 tmp=$(mktemp -d)
 echo Using temporary dir: "$tmp"
@@ -28,8 +29,10 @@ for f in ./ivg/*.ivg; do
 	args=""
 	if [ "$n" = "huge" ]; then
 		args="--fast"
+	elif [ "$n" = "scaleOption" ]; then
+		args="--scale 2.5"
 	fi
-	$EXE $args --images "$IMAGES" --fonts "$FONTS" "$f" "$tmp/$n.png"
+	$EXE $args --images "$IMAGES" --fonts "$FONTS" --includes "$INCLUDES" "$f" "$tmp/$n.png"
 	if [ $? -ne 0 ]; then
 		fail=1
 		echo
