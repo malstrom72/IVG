@@ -1530,7 +1530,7 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 							if (errno != 0) {
 								throwRunTimeError("Math error.");
 							}
-							if (!isFinite(v)) {
+							if (!isFinite(result)) {
 								throwRunTimeError("Number overflow.");
 							}
 							v = result;

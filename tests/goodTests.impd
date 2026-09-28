@@ -377,6 +377,8 @@ trace {"abcdefgh"{0:2}}
 
 TRACE A\x42\u0043\U00000044 // escapes written in ASCII
 
+trace {yes && (abs -1) == 1} // the math check tested the left operand, not the result
+
 trace {"abcdefgh"{3:1e30}}
 
 trace {"abcdefgh"{3:-1e30}}
