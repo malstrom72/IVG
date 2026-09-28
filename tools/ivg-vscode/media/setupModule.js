@@ -94,7 +94,12 @@ globalObject.__ivgReloadModule = function reloadModule() {
 };
 
 function notifyPreviewReady(moduleInstance) {
-	let initSource = localStorage.getItem("ivgSource");
+	let initSource = null;
+	try {
+		initSource = localStorage.getItem("ivgSource");
+	} catch (error) {
+		// A webview that blocks site data throws here; fall back to the demo source.
+	}
 	if (initSource == null || initSource === "") {
 		initSource = moduleInstance.FS.readFile("demoSource.ivg", { encoding: "utf8" });
 	}
