@@ -20,12 +20,20 @@ MKDIR %tempDir%
 
 SET fail=0
 FOR %%n IN (
-	circle rect ellipse line path group color-names stroke-fill viewbox viewbox-offset multi-path polygon polyline units percentage transform skew matrix gradient gradient-stops gradient-radial gradient-transform defs-use opacity text text-stroke resvg_tests_shapes_rect_em-values resvg_tests_shapes_rect_vw-and-vh-values resvg_tests_painting_color_inherit "resvg_tests_masking_clipPath_clipPathUnits=objectBoundingBox" resvg_tests_painting_marker_marker-on-line
+	circle rect ellipse line path group color-names stroke-fill viewbox multi-path polygon polyline units
+	viewbox-offset
+	percentage transform skew matrix gradient gradient-stops gradient-radial gradient-transform defs-use opacity
+	text text-stroke resvg_tests_shapes_rect_em-values resvg_tests_shapes_rect_vw-and-vh-values
+	resvg_tests_painting_color_inherit "resvg_tests_masking_clipPath_clipPathUnits=objectBoundingBox"
+	resvg_tests_painting_marker_marker-on-line resvg_tests_painting_stroke-dasharray_ws-separator
+	resvg_tests_painting_stroke-dasharray_on-a-circle resvg_tests_painting_stroke-dashoffset_default
+	resvg_tests_painting_stroke-dashoffset_negative-value blossom blossomCSS blossomStyles
 ) DO (
 	ECHO Testing %%~n
 	node ..\..\tools\svg2ivg.js "supported/%%~n.svg" 500,500 > "%tempDir%\%%~n.tmp"
 	IF ERRORLEVEL 1 SET fail=1
-	more +1 "%tempDir%\%%~n.tmp" > "%tempDir%\%%~n.ivg"
+	REM Drop svg2ivg's "------" line as testSVG.sh does. "more +1" did this before, but expanded tabs.
+	node -e "process.stdout.write(require('fs').readFileSync(process.argv[1], 'utf8').replace(/^[^\n]*\n/, ''))" "%tempDir%\%%~n.tmp" > "%tempDir%\%%~n.ivg"
 	DEL "%tempDir%\%%~n.tmp"
 	%exe% --fonts %fonts% --background white "%tempDir%\%%~n.ivg" "%tempDir%\%%~n.png"
 	IF ERRORLEVEL 1 SET fail=1
