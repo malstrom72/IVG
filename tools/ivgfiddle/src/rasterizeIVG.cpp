@@ -143,6 +143,7 @@ namespace {
 const int MAX_RASTER_DIMENSION = 16384;
 const long long MAX_RASTER_PIXELS = 67108864LL;
 const size_t VECTOR_HEAP_RESERVE_BYTES = 2 * 1024 * 1024;
+const size_t RASTER_HEADER_BYTES = 8 * sizeof(uint32_t); // left, top, width, height, pixel and catalog bytes, selection
 static const char* const SNAPSHOT_SOURCE_PATH = "/ivgfiddle/source.ivg";
 static const char* const INCLUDE_ARCHIVE_ROOT = "/__ivg/includes";
 
@@ -154,187 +155,187 @@ static const String SNAPSHOT_META_KEY("snapshot-1");
 
 static std::vector<std::string> buildCollectorIncludeDirectories()
 {
-std::vector<std::string> includeDirs;
-includeDirs.push_back(".");
-includeDirs.push_back(INCLUDE_ARCHIVE_ROOT);
-includeDirs.push_back("/");
-return includeDirs;
+	std::vector<std::string> includeDirs;
+	includeDirs.push_back(".");
+	includeDirs.push_back(INCLUDE_ARCHIVE_ROOT);
+	includeDirs.push_back("/");
+	return includeDirs;
 }
 
 static void appendUniqueCandidate(std::vector<std::string>& candidates, const std::string& candidate)
 {
-if (candidate.empty()) {
-return;
-}
-for (size_t index = 0; index < candidates.size(); ++index) {
-if (candidates[index] == candidate) {
-return;
-}
-}
-candidates.push_back(candidate);
+	if (candidate.empty()) {
+		return;
+	}
+	for (size_t index = 0; index < candidates.size(); ++index) {
+		if (candidates[index] == candidate) {
+			return;
+		}
+	}
+	candidates.push_back(candidate);
 }
 
 static bool resolveIncludeAssetPath(const std::string& requested, std::string& resolvedPath)
 {
-resolvedPath.clear();
-if (requested.empty()) {
-return false;
-}
+	resolvedPath.clear();
+	if (requested.empty()) {
+		return false;
+	}
 
-std::vector<std::string> candidates;
-appendUniqueCandidate(candidates, requested);
+	std::vector<std::string> candidates;
+	appendUniqueCandidate(candidates, requested);
 
-std::string normalized;
-std::string normalizationError;
-const bool hasNormalized = normalizeIncludeRelativePath(requested, normalized, normalizationError);
+	std::string normalized;
+	std::string normalizationError;
+	const bool hasNormalized = normalizeIncludeRelativePath(requested, normalized, normalizationError);
 
-if (hasNormalized) {
-appendUniqueCandidate(candidates, std::string(INCLUDE_ARCHIVE_ROOT) + "/" + normalized);
-appendUniqueCandidate(candidates, normalized);
-const std::vector<std::string> includeDirs = buildCollectorIncludeDirectories();
-for (size_t index = 0; index < includeDirs.size(); ++index) {
-const std::string& dir = includeDirs[index];
-if (dir.empty() || dir == ".") {
-appendUniqueCandidate(candidates, normalized);
-continue;
-}
-if (dir == "/") {
-appendUniqueCandidate(candidates, std::string("/") + normalized);
-continue;
-}
-if (!dir.empty() && dir[dir.size() - 1] == '/') {
-appendUniqueCandidate(candidates, dir + normalized);
-} else {
-appendUniqueCandidate(candidates, dir + "/" + normalized);
-}
-}
-}
+	if (hasNormalized) {
+		appendUniqueCandidate(candidates, std::string(INCLUDE_ARCHIVE_ROOT) + "/" + normalized);
+		appendUniqueCandidate(candidates, normalized);
+		const std::vector<std::string> includeDirs = buildCollectorIncludeDirectories();
+		for (size_t index = 0; index < includeDirs.size(); ++index) {
+			const std::string& dir = includeDirs[index];
+			if (dir.empty() || dir == ".") {
+				appendUniqueCandidate(candidates, normalized);
+				continue;
+			}
+			if (dir == "/") {
+				appendUniqueCandidate(candidates, std::string("/") + normalized);
+				continue;
+			}
+			if (!dir.empty() && dir[dir.size() - 1] == '/') {
+				appendUniqueCandidate(candidates, dir + normalized);
+			} else {
+				appendUniqueCandidate(candidates, dir + "/" + normalized);
+			}
+		}
+	}
 
-for (size_t index = 0; index < candidates.size(); ++index) {
-const std::string& candidate = candidates[index];
-std::ifstream stream(candidate.c_str(), std::ios::binary);
-if (stream.good()) {
-resolvedPath = candidate;
-return true;
-}
-}
+	for (size_t index = 0; index < candidates.size(); ++index) {
+		const std::string& candidate = candidates[index];
+		std::ifstream stream(candidate.c_str(), std::ios::binary);
+		if (stream.good()) {
+			resolvedPath = candidate;
+			return true;
+		}
+	}
 
-return false;
+	return false;
 }
 
 static void PNGAPI ivgPngError(png_structp png_ptr, png_const_charp error_msg)
 {
-(void)png_ptr;
-const char* message = (error_msg ? error_msg : "Unknown PNG error");
-throw std::runtime_error(message);
+	(void)png_ptr;
+	const char* message = (error_msg ? error_msg : "Unknown PNG error");
+	throw std::runtime_error(message);
 }
 
 static bool decodePngIntoRaster(const std::string& path, SelfContainedRaster<ARGB32>& target, std::string& errorMessage)
 {
-errorMessage.clear();
-FILE* file = fopen(path.c_str(), "rb");
-if (file == 0) {
-errorMessage = "unable to open image asset";
-return false;
-}
+	errorMessage.clear();
+	FILE* file = fopen(path.c_str(), "rb");
+	if (file == 0) {
+		errorMessage = "unable to open image asset";
+		return false;
+	}
 
-png_structp png_ptr = 0;
-png_infop info_ptr = 0;
-bool success = false;
-try {
-png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, ivgPngError, 0);
-if (png_ptr == 0) {
-throw std::runtime_error("could not initialize PNG reader");
-}
-info_ptr = png_create_info_struct(png_ptr);
-if (info_ptr == 0) {
-throw std::runtime_error("could not initialize PNG info");
-}
-png_init_io(png_ptr, file);
-setPNGReadTransforms(png_ptr);
-png_read_png(png_ptr, info_ptr, PNG_TRANSFORM_EXPAND | PNG_TRANSFORM_STRIP_16, 0);
-png_uint_32 width = png_get_image_width(png_ptr, info_ptr);
-png_uint_32 height = png_get_image_height(png_ptr, info_ptr);
-checkPNGSize(width, height);
-png_bytep* rows = png_get_rows(png_ptr, info_ptr);
-target = SelfContainedRaster<ARGB32>(IntRect(0, 0, static_cast<int>(width), static_cast<int>(height)));
-for (png_uint_32 y = 0; y < height; ++y) {
-ARGB32::Pixel* dest = target.getPixelPointer() + y * target.getStride();
-copyPNGRow(rows[y], dest, width);
-}
-success = true;
-} catch (const std::exception& ex) {
-errorMessage = ex.what();
-} catch (...) {
-errorMessage = "unknown PNG decoding error";
-}
+	png_structp png_ptr = 0;
+	png_infop info_ptr = 0;
+	bool success = false;
+	try {
+		png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, ivgPngError, 0);
+		if (png_ptr == 0) {
+			throw std::runtime_error("could not initialize PNG reader");
+		}
+		info_ptr = png_create_info_struct(png_ptr);
+		if (info_ptr == 0) {
+			throw std::runtime_error("could not initialize PNG info");
+		}
+		png_init_io(png_ptr, file);
+		setPNGReadTransforms(png_ptr);
+		png_read_png(png_ptr, info_ptr, PNG_TRANSFORM_EXPAND | PNG_TRANSFORM_STRIP_16, 0);
+		png_uint_32 width = png_get_image_width(png_ptr, info_ptr);
+		png_uint_32 height = png_get_image_height(png_ptr, info_ptr);
+		checkPNGSize(width, height);
+		png_bytep* rows = png_get_rows(png_ptr, info_ptr);
+		target = SelfContainedRaster<ARGB32>(IntRect(0, 0, static_cast<int>(width), static_cast<int>(height)));
+		for (png_uint_32 y = 0; y < height; ++y) {
+			ARGB32::Pixel* dest = target.getPixelPointer() + y * target.getStride();
+			copyPNGRow(rows[y], dest, width);
+		}
+		success = true;
+	} catch (const std::exception& ex) {
+		errorMessage = ex.what();
+	} catch (...) {
+		errorMessage = "unknown PNG decoding error";
+	}
 
-if (png_ptr != 0 || info_ptr != 0) {
-png_destroy_read_struct(&png_ptr, (info_ptr != 0 ? &info_ptr : 0), 0);
-}
-fclose(file);
-return success;
+	if (png_ptr != 0 || info_ptr != 0) {
+		png_destroy_read_struct(&png_ptr, (info_ptr != 0 ? &info_ptr : 0), 0);
+	}
+	fclose(file);
+	return success;
 }
 
 static bool normalizeIncludeRelativePath(const std::string& candidate, std::string& output, std::string& errorReason)
 {
-output.clear();
-errorReason.clear();
-std::string sanitized(candidate);
-std::replace(sanitized.begin(), sanitized.end(), '\\', '/');
-std::vector<std::string> segments;
-size_t cursor = 0;
-while (cursor <= sanitized.size()) {
-size_t slash = sanitized.find('/', cursor);
-if (slash == std::string::npos) {
-slash = sanitized.size();
-}
-std::string part = sanitized.substr(cursor, slash - cursor);
-cursor = slash + 1;
-if (part.empty() || part == ".") {
-continue;
-}
-if (part == "..") {
-errorReason = "contains parent directory traversal";
-return false;
-}
-segments.push_back(part);
-}
-if (segments.empty()) {
-errorReason = "resolved to an empty path";
-return false;
-}
-output.clear();
-for (size_t index = 0; index < segments.size(); ++index) {
-if (index > 0) {
-output.append("/");
-}
-output.append(segments[index]);
-}
-return true;
+	output.clear();
+	errorReason.clear();
+	std::string sanitized(candidate);
+	std::replace(sanitized.begin(), sanitized.end(), '\\', '/');
+	std::vector<std::string> segments;
+	size_t cursor = 0;
+	while (cursor <= sanitized.size()) {
+		size_t slash = sanitized.find('/', cursor);
+		if (slash == std::string::npos) {
+			slash = sanitized.size();
+		}
+		std::string part = sanitized.substr(cursor, slash - cursor);
+		cursor = slash + 1;
+		if (part.empty() || part == ".") {
+			continue;
+		}
+		if (part == "..") {
+			errorReason = "contains parent directory traversal";
+			return false;
+		}
+		segments.push_back(part);
+	}
+	if (segments.empty()) {
+		errorReason = "resolved to an empty path";
+		return false;
+	}
+	output.clear();
+	for (size_t index = 0; index < segments.size(); ++index) {
+		if (index > 0) {
+			output.append("/");
+		}
+		output.append(segments[index]);
+	}
+	return true;
 }
 
 void logIncludeResolutionFailure(const std::string& includePath, const std::string& reason)
 {
-std::cout << "[IVGFiddle] Include missing: " << includePath;
-if (!reason.empty()) {
-std::cout << " (" << reason << ")";
-}
-std::cout << std::endl;
+	std::cout << "[IVGFiddle] Include missing: " << includePath;
+	if (!reason.empty()) {
+		std::cout << " (" << reason << ")";
+	}
+	std::cout << std::endl;
 }
 
 class SnapshotPlanCache {
-public: SnapshotPlanCache();
+	public: SnapshotPlanCache();
 
-public: ~SnapshotPlanCache();
+	public: ~SnapshotPlanCache();
 
-public: SnapshotPlan& ensure(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs);
+	public: SnapshotPlan& ensure(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs);
 
-private: void rebuild(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs);
+	private: void rebuild(const std::string& sourceTextUtf8, const String& sourceText, const std::vector<std::string>& includeDirs);
 
-private: SnapshotPlan* plan;
-private: std::string cachedSourceText;
-private: std::vector<std::string> cachedIncludeDirs;
+	private: SnapshotPlan* plan;
+	private: std::string cachedSourceText;
+	private: std::vector<std::string> cachedIncludeDirs;
 };
 
 static SnapshotPlanCache snapshotPlanCache;
@@ -391,7 +392,7 @@ class GuardedSelfContainedARGB32Canvas : public SelfContainedARGB32Canvas {
 				throw runtime_error(message.str());
 			}
 			const size_t requiredPixelBytes = static_cast<size_t>(scaledBounds.width) * static_cast<size_t>(scaledBounds.height) * 4u;
-			const size_t requiredBytes = 4u * 4u + requiredPixelBytes;
+			const size_t requiredBytes = RASTER_HEADER_BYTES + requiredPixelBytes;
 #ifdef __EMSCRIPTEN__
 			const size_t freeHeapBytes = computeFreeHeapBytes();
 			if (freeHeapBytes > 0 && requiredBytes + heapReserve > freeHeapBytes) {
@@ -586,7 +587,7 @@ class SnapshotPlan {
 			}
 			}
 			if (block.statements.empty() && !hasCommon) {
-Interpreter::throwBadSyntax("snapshot meta requires at least one statement block.");
+			Interpreter::throwBadSyntax("snapshot meta requires at least one statement block.");
 			}
 
 			uint32_t blockOrdinal = nextBlockOrdinal;
@@ -899,19 +900,19 @@ Interpreter::throwBadSyntax("snapshot meta requires at least one statement block
 			}
 		}
 
-String baseName;
-std::vector<SnapshotEntry> entries;
-std::vector<SnapshotScenario> scenarios;
-std::map<String, uint32_t> scenarioLookup;
-uint32_t nextBlockOrdinal;
-bool collectingPlan;
-uint32_t activeScenarioIndex;
-uint32_t activeEntryOrdinal;
-std::vector<uint32_t> recordedBlockOrdinals;
-size_t recordedBlockCursor;
-std::map<uint32_t, SnapshotInvocation> commonInvocations;
-bool anyCommonBlocks;
-bool commonOnlyBlocks;
+	String baseName;
+	std::vector<SnapshotEntry> entries;
+	std::vector<SnapshotScenario> scenarios;
+	std::map<String, uint32_t> scenarioLookup;
+	uint32_t nextBlockOrdinal;
+	bool collectingPlan;
+	uint32_t activeScenarioIndex;
+	uint32_t activeEntryOrdinal;
+	std::vector<uint32_t> recordedBlockOrdinals;
+	size_t recordedBlockCursor;
+	std::map<uint32_t, SnapshotInvocation> commonInvocations;
+	bool anyCommonBlocks;
+	bool commonOnlyBlocks;
 
 		struct CollectionRun {
 			uint32_t scenarioIndex;
@@ -977,43 +978,43 @@ class SnapshotExecutor : public IVGExecutorWithExternalFonts {
 		{
 		}
 
-bool load(Interpreter& interpreter, const WideString& filename, String& contents)
-{
-const std::string utf8(filename.begin(), filename.end());
-if (readFile(resolveRelativePath(utf8), contents)) {
-return true;
-}
-std::string normalized;
-std::string normalizationError;
-const bool hasNormalized = normalizeIncludeRelativePath(utf8, normalized, normalizationError);
-if (hasNormalized) {
-const std::string archivePath = std::string(INCLUDE_ARCHIVE_ROOT) + "/" + normalized;
-if (readFile(archivePath, contents)) {
-return true;
-}
-}
-for (size_t i = 0; i < includeDirs.size(); ++i) {
-if (hasNormalized) {
-if (readFile(includeDirs[i] + "/" + normalized, contents)) {
-return true;
-}
-}
-if (readFile(includeDirs[i] + "/" + utf8, contents)) {
-return true;
-}
-}
-if (mode == SnapshotExecutorModeCollect) {
-if (IVGExecutorWithExternalFonts::load(interpreter, filename, contents)) {
-return true;
-}
-}
-if (hasNormalized) {
-logIncludeResolutionFailure(utf8, "not found in synchronized bundle");
-} else {
-logIncludeResolutionFailure(utf8, normalizationError);
-}
-return false;
-}
+	bool load(Interpreter& interpreter, const WideString& filename, String& contents)
+	{
+		const std::string utf8(filename.begin(), filename.end());
+		if (readFile(resolveRelativePath(utf8), contents)) {
+			return true;
+		}
+		std::string normalized;
+		std::string normalizationError;
+		const bool hasNormalized = normalizeIncludeRelativePath(utf8, normalized, normalizationError);
+		if (hasNormalized) {
+			const std::string archivePath = std::string(INCLUDE_ARCHIVE_ROOT) + "/" + normalized;
+			if (readFile(archivePath, contents)) {
+				return true;
+			}
+		}
+		for (size_t i = 0; i < includeDirs.size(); ++i) {
+			if (hasNormalized) {
+				if (readFile(includeDirs[i] + "/" + normalized, contents)) {
+					return true;
+				}
+			}
+			if (readFile(includeDirs[i] + "/" + utf8, contents)) {
+				return true;
+			}
+		}
+		if (mode == SnapshotExecutorModeCollect) {
+			if (IVGExecutorWithExternalFonts::load(interpreter, filename, contents)) {
+				return true;
+			}
+		}
+		if (hasNormalized) {
+			logIncludeResolutionFailure(utf8, "not found in synchronized bundle");
+		} else {
+			logIncludeResolutionFailure(utf8, normalizationError);
+		}
+		return false;
+	}
 
                 bool meta(Interpreter& interpreter, const String& key, const String& arguments)
                 {
@@ -1342,9 +1343,9 @@ static std::string buildSnapshotCatalogJson(const SnapshotPlan& plan, uint32_t d
 		json << "\"defaultScenarioIndex\":" << defaultScenarioIndex;
 		json << ",\"defaultEntryOrdinal\":" << defaultEntryOrdinal;
 	}
-json << ",\"hasCommon\":" << (plan.hasCommonBlocks() ? "true" : "false");
-json << ",\"hasCommonOnly\":" << (plan.hasCommonOnlyBlocks() ? "true" : "false");
-json << ",\"scenarios\":[";
+	json << ",\"hasCommon\":" << (plan.hasCommonBlocks() ? "true" : "false");
+	json << ",\"hasCommonOnly\":" << (plan.hasCommonOnlyBlocks() ? "true" : "false");
+	json << ",\"scenarios\":[";
 	bool firstScenario = true;
 	for (size_t i = 0; i < scenarios.size(); ++i) {
 		const SnapshotScenario& scenario = scenarios[i];
@@ -1386,8 +1387,8 @@ json << ",\"scenarios\":[";
 
 extern "C" {
 
-EMSCRIPTEN_KEEPALIVE
-uint8_t* rasterizeIVG(const char* ivgSource, double scaling, int scenarioIndex, int entryOrdinal) {
+	EMSCRIPTEN_KEEPALIVE
+	uint8_t* rasterizeIVG(const char* ivgSource, double scaling, int scenarioIndex, int entryOrdinal) {
 	uint8_t* pixelsArray = 0;
 	try {
 		const uint32_t sentinel = std::numeric_limits<uint32_t>::max();
@@ -1489,8 +1490,7 @@ uint8_t* rasterizeIVG(const char* ivgSource, double scaling, int scenarioIndex, 
 		const int imageStride = raster->getStride();
 		const ARGB32::Pixel* sourcePixels = raster->getPixelPointer() + bounds.top * imageStride + bounds.left;
 		const size_t requiredPixelBytes = static_cast<size_t>(bounds.width) * static_cast<size_t>(bounds.height) * 4u;
-		const size_t headerUint32Count = 8;
-		const size_t headerBytes = headerUint32Count * sizeof(uint32_t);
+		const size_t headerBytes = RASTER_HEADER_BYTES;
 		const size_t catalogBytes = catalogJson.size() + 1;
 		const size_t requiredBytes = headerBytes + requiredPixelBytes + catalogBytes;
 #ifdef __EMSCRIPTEN__
@@ -1557,16 +1557,16 @@ uint8_t* rasterizeIVG(const char* ivgSource, double scaling, int scenarioIndex, 
 		return 0;
 	}
 	return pixelsArray;
-}
+	}
 
-EMSCRIPTEN_KEEPALIVE
-void deallocatePixels(uint8_t* pixelsArray) {
+	EMSCRIPTEN_KEEPALIVE
+	void deallocatePixels(uint8_t* pixelsArray) {
 	delete [] pixelsArray;
-}
+	}
 
-EMSCRIPTEN_KEEPALIVE
-size_t getFreeHeapBytes() {
+	EMSCRIPTEN_KEEPALIVE
+	size_t getFreeHeapBytes() {
 	return computeFreeHeapBytes();
-}
+	}
 
 }
