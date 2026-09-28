@@ -66,7 +66,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "src/IMPD.h"
 #include "src/IVG.h"
 #include "tools/IVGSnapshot/BuiltInFonts.h"
-#include "tools/PNGReading.h"
+#include "tools/PNGPixels.h"
 
 using namespace IMPD;
 
@@ -2242,19 +2242,6 @@ static void PNGAPI snapshotPNGError(png_structp png, png_const_charp message) {
 							 message);
 }
 
-static unsigned int convertPremultipliedChannelToStraight(unsigned int value,
-														  unsigned int alpha) {
-	if (alpha == 0 || value == 0) {
-		return 0;
-	}
-	unsigned int numerator = value * 255u + (alpha / 2u);
-	unsigned int result = numerator / alpha;
-	if (result > 255u) {
-		result = 255u;
-	}
-	return result;
-}
-
 static bool
 loadPngRaster(const std::string &path,
 			  NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &outRaster) {
@@ -2388,9 +2375,9 @@ static bool writeRasterToPng(
 			unsigned int g = (pixel >> 8) & 0xFF;
 			unsigned int b = pixel & 0xFF;
 			if (a != 0 && a != 0xFF) {
-				r = convertPremultipliedChannelToStraight(r, a);
-				g = convertPremultipliedChannelToStraight(g, a);
-				b = convertPremultipliedChannelToStraight(b, a);
+				r = unpremultiplyChannel(r, a);
+				g = unpremultiplyChannel(g, a);
+				b = unpremultiplyChannel(b, a);
 			}
 			dest[x * 4 + 0] = static_cast<unsigned char>(r);
 			dest[x * 4 + 1] = static_cast<unsigned char>(g);

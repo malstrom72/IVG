@@ -1,8 +1,8 @@
-#ifndef PNGReading_h
-#define PNGReading_h
+#ifndef PNGPixels_h
+#define PNGPixels_h
 
 /**
-	PNG reading shared by IVG2PNG, IVGSnapshot and IVGFiddle, so an image renders the same in all three.
+	PNG pixel conversion shared by IVG2PNG, IVGSnapshot and IVGFiddle, so all three read and write the same pixels.
 **/
 
 #include <limits>
@@ -30,8 +30,8 @@ inline void checkPNGSize(png_uint_32 width, png_uint_32 height) {
 }
 
 /**
-	Converts one BGRA row to premultiplied ARGB32, rounding to nearest. IVGSnapshot writes its goldens with the exact
-	inverse, so a golden reloads unchanged.
+	Converts one BGRA row to premultiplied ARGB32, rounding to nearest. unpremultiplyChannel() is the exact inverse, so a
+	PNG written by these tools reloads unchanged.
 **/
 inline void copyPNGRow(const png_byte* source, NuXPixels::ARGB32::Pixel* destination, png_uint_32 width) {
 	for (png_uint_32 x = 0; x < width; ++x) {
@@ -46,6 +46,14 @@ inline void copyPNGRow(const png_byte* source, NuXPixels::ARGB32::Pixel* destina
 		}
 		destination[x] = (a << 24) | (r << 16) | (g << 8) | b;
 	}
+}
+
+/**
+	Converts one premultiplied channel to straight alpha for writing a PNG, rounding to nearest. `alpha` is 1 to 254.
+**/
+inline unsigned int unpremultiplyChannel(unsigned int value, unsigned int alpha) {
+	const unsigned int straight = (value * 255 + alpha / 2) / alpha;
+	return (straight > 255 ? 255 : straight);
 }
 
 #endif
