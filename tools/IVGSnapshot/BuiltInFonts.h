@@ -1,3 +1,5 @@
+// Generated from fonts/*.ivgfont by updateBuiltInFonts.sh. Do not edit.
+
 #ifndef TOOLS_IVGSNAPSHOT_BUILTINFONTS_H
 #define TOOLS_IVGSNAPSHOT_BUILTINFONTS_H
 
