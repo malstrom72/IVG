@@ -391,10 +391,10 @@ static int runIVG2PNG(int argc, const char* argv[]) {
 				int g = (*p >> 8) & 0xFF;
 				int b = (*p >> 0) & 0xFF;
 				if (a != 0xFF && a != 0x00) {
-					int m = 0xFFFF / a;
-					r = (r * m) >> 8;
-					g = (g * m) >> 8;
-					b = (b * m) >> 8;
+					// Round to nearest, the exact inverse of premultiplying with (v * a + 127) / 255.
+					r = (r * 255 + a / 2) / a;
+					g = (g * 255 + a / 2) / a;
+					b = (b * 255 + a / 2) / a;
 					assert(0 <= r && r < 0x100);
 					assert(0 <= g && g < 0x100);
 					assert(0 <= b && b < 0x100);
