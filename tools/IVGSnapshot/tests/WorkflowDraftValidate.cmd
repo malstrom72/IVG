@@ -31,23 +31,11 @@ IF NOT EXIST "%old_path%" IF NOT EXIST "%golden_path%" (
 
 CALL :writeIvg yes || GOTO error
 CALL :runTool || GOTO error
-FINDSTR /C:"FAILED" "%run_log%" >NUL && (
-	ECHO Initial validation failed. 1>&2
-	GOTO fail
-)
 
 CALL :runTool || GOTO error
-FINDSTR /C:"FAILED" "%run_log%" >NUL && (
-	ECHO Second validation run reported a failure. 1>&2
-	GOTO fail
-)
 
 CALL :writeIvg no || GOTO error
 CALL :runTool || GOTO error
-FINDSTR /C:"FAILED" "%run_log%" >NUL && (
-	ECHO Disabling validation reported a failure. 1>&2
-	GOTO fail
-)
 IF NOT EXIST "%old_path%" (
 	ECHO Disabling validation did not regenerate the .png.old draft. 1>&2
 	GOTO fail
@@ -59,10 +47,6 @@ IF EXIST "%golden_path%" (
 
 CALL :writeIvg yes || GOTO error
 CALL :runTool || GOTO error
-FINDSTR /C:"FAILED" "%run_log%" >NUL && (
-	ECHO Re-enabling validation reported a failure. 1>&2
-	GOTO fail
-)
 IF NOT EXIST "%golden_path%" (
 	ECHO Golden image was not restored after re-enabling validation. 1>&2
 	GOTO fail

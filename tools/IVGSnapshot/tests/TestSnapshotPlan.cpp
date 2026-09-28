@@ -174,6 +174,20 @@ void WriteFile(const NuXFiles::Path &path, const std::string &contents)
 	}
 }
 
+// Redirects cout and cerr while in scope, so a test that throws still restores them.
+class StreamCapture {
+	public:	StreamCapture(std::ostream &out, std::ostream &err)
+				: oldOut(std::cout.rdbuf(out.rdbuf())), oldErr(std::cerr.rdbuf(err.rdbuf())) { }
+	public:	~StreamCapture() {
+		std::cout.rdbuf(oldOut);
+		std::cerr.rdbuf(oldErr);
+	}
+	private:	StreamCapture(const StreamCapture&);
+	private:	StreamCapture& operator=(const StreamCapture&);
+	private:	std::streambuf *oldOut;
+	private:	std::streambuf *oldErr;
+};
+
 CapturedIO RunListOnlyTool(const NuXFiles::Path &path, SnapshotRunResult &outRun)
 {
         CommandLineOptions options;
@@ -183,16 +197,13 @@ CapturedIO RunListOnlyTool(const NuXFiles::Path &path, SnapshotRunResult &outRun
         std::ostringstream outBuffer;
         std::ostringstream errBuffer;
 
-        std::streambuf *oldOut = std::cout.rdbuf(outBuffer.rdbuf());
-        std::streambuf *oldErr = std::cerr.rdbuf(errBuffer.rdbuf());
-
-        outRun = processFile(options, path);
-        totals.accumulate(outRun);
-        logFileReport(path, outRun);
-        logTotalsSummary(totals);
-
-        std::cout.rdbuf(oldOut);
-        std::cerr.rdbuf(oldErr);
+        {
+        	StreamCapture capture(outBuffer, errBuffer);
+        	outRun = processFile(options, path);
+        	totals.accumulate(outRun);
+        	logFileReport(path, outRun);
+        	logTotalsSummary(totals);
+        }
 
         CapturedIO captured;
         captured.out = outBuffer.str();
@@ -368,11 +379,11 @@ void TestValidateMismatch()
 
         std::ostringstream outBuffer;
         std::ostringstream errBuffer;
-        std::streambuf *oldOut = std::cout.rdbuf(outBuffer.rdbuf());
-        std::streambuf *oldErr = std::cerr.rdbuf(errBuffer.rdbuf());
-        SnapshotRunResult run = processFile(options, path);
-        std::cout.rdbuf(oldOut);
-        std::cerr.rdbuf(oldErr);
+        SnapshotRunResult run;
+        {
+        	StreamCapture capture(outBuffer, errBuffer);
+        	run = processFile(options, path);
+        }
 
         removeFileIfExists(path);
 
