@@ -194,7 +194,7 @@ class Executor {
 	public:		virtual bool progress(Interpreter& interpreter, int maxStatementsLeft) = 0;								// Called before every statement is executed. Return false to stop processing and throw AbortedException.
 	public:		virtual bool load(Interpreter& interpreter, const WideString& filename, String& contents) = 0;			// Called by the INCLUDE instruction. Load contents of file into `contents`. Return false to throw a RunTimeException.
 	public:		virtual void trace(Interpreter& interpreter, const WideString& s) = 0;									// Used for debugging. Trace `s` to standard out, any log-files etc...
-	public:		virtual bool meta(Interpreter& interpreter, const String& key, const String& arguments) = 0;			// Used for passing meta-data from the IMPD script to the executor. `key` is passed in lower case (and will end with `-n` version number if declared in `format uses:`). `arguments` is the raw argument string (may be empty). Return false if the meta tag is unrecognized (not an error, but may trace a warning).
+	public:		virtual bool meta(Interpreter& interpreter, const String& key, const String& arguments) = 0;			// Used for passing meta-data from the IMPD script to the executor. `key` is passed in lower case (and will end with `-n` version number if declared in `format uses:`). `arguments` is the raw argument string (may be empty). Return false if the meta tag is unrecognized. This is not an error and the interpreter ignores the result, but the executor may trace a warning itself.
 	public:		virtual ~Executor() { }
 };
 

@@ -118,7 +118,10 @@ int main(int argc, const char* argv[]) {
 	FormatInfo formatInfo;
 	Interpreter imp(myExecutor, topVars, formatInfo);
 
-	assert(testUniStringConversions());
+	if (!testUniStringConversions()) {
+		std::cerr << "UniString conversion test failed" << std::endl;
+		return 1;
+	}
 
 	String s;
 	String code;

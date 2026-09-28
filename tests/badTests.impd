@@ -68,6 +68,12 @@ TRACE café // raw UTF-8, not an escape
 
 TRACE caf\é // an escaped raw byte is no better
 
+TRACE \uD800 // lone surrogate
+
+TRACE \U00110000 // above U+10FFFF
+
+TRACE \1114112 // decimal escape above U+10FFFF
+
 // recursion limit
 x = [ $y ]
 y = [ $x ]

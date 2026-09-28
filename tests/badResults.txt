@@ -71,6 +71,12 @@ Exception: Non-ASCII character in string (use a \x, \u or \U escape).
 in statement: TRACE café
 Exception: Non-ASCII character in string (use a \x, \u or \U escape).
 in statement: TRACE caf\é
+Exception: Invalid Unicode character in escape.
+in statement: TRACE \uD800
+Exception: Invalid Unicode character in escape.
+in statement: TRACE \U00110000
+Exception: Invalid Unicode character in escape.
+in statement: TRACE \1114112
 Exception: Recursion limit reached.
 in statement: [ $x ]
 Exception: Recursion limit reached.

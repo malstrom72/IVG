@@ -11,6 +11,10 @@ int main() {
 	canvas |= Solid<ARGB32>(0xFFFF0000) * mask; // fill red square
 
 	FILE* f = fopen("out.ppm", "wb");
+	if (f == 0) {
+		perror("out.ppm");
+		return 1;
+	}
 	fprintf(f, "P6\n64 64\n255\n");
 	const ARGB32::Pixel* p = canvas.getPixelPointer();
 	for(int i = 0; i < 64 * 64; ++i) {
