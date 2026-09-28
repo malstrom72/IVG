@@ -1151,6 +1151,9 @@ StringIt Interpreter::unescapeChar(StringIt p, const StringIt& e, UniChar& c) {
 			i = *p++;
 		}
 	}
+	if ((i >= 0xD800 && i <= 0xDFFF) || i > 0x10FFFF) {
+		throwRunTimeError("Invalid Unicode character in escape");
+	}
 	c = static_cast<UniChar>(i);
 	return p;
 }
