@@ -2375,20 +2375,11 @@ static bool writeRasterToPng(
 			&pixels[static_cast<size_t>(y) * static_cast<size_t>(width) * 4u];
 		rows[static_cast<size_t>(y)] = dest;
 		for (int x = 0; x < width; ++x) {
-			const NuXPixels::ARGB32::Pixel pixel = src[x];
-			unsigned int a = (pixel >> 24) & 0xFF;
-			unsigned int r = (pixel >> 16) & 0xFF;
-			unsigned int g = (pixel >> 8) & 0xFF;
-			unsigned int b = pixel & 0xFF;
-			if (a != 0 && a != 0xFF) {
-				r = unpremultiplyChannel(r, a);
-				g = unpremultiplyChannel(g, a);
-				b = unpremultiplyChannel(b, a);
-			}
-			dest[x * 4 + 0] = static_cast<unsigned char>(r);
-			dest[x * 4 + 1] = static_cast<unsigned char>(g);
-			dest[x * 4 + 2] = static_cast<unsigned char>(b);
-			dest[x * 4 + 3] = static_cast<unsigned char>(a);
+			const NuXPixels::ARGB32::Pixel pixel = unpremultiplyPixel(src[x]);
+			dest[x * 4 + 0] = static_cast<unsigned char>(pixel >> 16);
+			dest[x * 4 + 1] = static_cast<unsigned char>(pixel >> 8);
+			dest[x * 4 + 2] = static_cast<unsigned char>(pixel);
+			dest[x * 4 + 3] = static_cast<unsigned char>(pixel >> 24);
 		}
 	}
 
@@ -2634,7 +2625,7 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		(void)forYSize;
 		(void)ySizeIsRelative;
 
-		const std::string requested(imageSource.begin(), imageSource.end());
+		const std::string requested = pathStringFromWide(imageSource);
 		const CachedImage *cached = resolveImage(requested);
 		if (cached == 0) {
 			return IVG::Image();
@@ -2862,7 +2853,7 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		size_t scanOffset;
 
 	bool loadExternalFont(const WideString &fontName, IVG::Font &font) {
-		const std::string fontName8(fontName.begin(), fontName.end());
+		const std::string fontName8 = pathStringFromWide(fontName);
 		const std::string fileName = fontName8 + ".ivgfont";
 
 		// Files win over the built-in fonts, so --font-dir can override them.
@@ -3728,11 +3719,8 @@ static int runIVGSnapshot(int argc, char **argv) {
 	tool works in.
 */
 int wmain(int argc, wchar_t **argv) {
-	if (argc <= 0) {
-		return runIVGSnapshot(0, 0);
-	}
 	std::vector<std::string> utf8Args(static_cast<size_t>(argc));
-	std::vector<char *> narrowArgs(static_cast<size_t>(argc));
+	std::vector<char *> narrowArgs(static_cast<size_t>(argc) + 1, 0);
 	for (int i = 0; i < argc; ++i) {
 		utf8Args[i] = IMPD::convertWideToUTF8String(argv[i]);
 		narrowArgs[i] = &utf8Args[i][0];

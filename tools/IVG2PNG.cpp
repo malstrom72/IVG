@@ -386,16 +386,7 @@ static int runIVG2PNG(int argc, const char* argv[]) {
 			ARGB32::Pixel* p = pixels + i * imageStride;
 			rowPointers[i] = reinterpret_cast<png_bytep>(p);
 			for (int x = 0; x < bounds.width; ++x) {
-				int a = (*p >> 24) & 0xFF;
-				int r = (*p >> 16) & 0xFF;
-				int g = (*p >> 8) & 0xFF;
-				int b = (*p >> 0) & 0xFF;
-				if (a != 0xFF && a != 0x00) {
-					r = unpremultiplyChannel(r, a);
-					g = unpremultiplyChannel(g, a);
-					b = unpremultiplyChannel(b, a);
-				}
-				*p = (a << 24) | (r << 16) | (g << 8) | b;
+				*p = unpremultiplyPixel(*p);
 				++p;
 			}
 		}
@@ -472,11 +463,8 @@ static int runIVG2PNG(int argc, const char* argv[]) {
 	UTF-8 the rest of the tool expects.
 */
 int wmain(int argc, wchar_t* argv[]) {
-	if (argc <= 0) {
-		return runIVG2PNG(0, 0);
-	}
 	std::vector<std::string> utf8Args(static_cast<size_t>(argc));
-	std::vector<const char*> narrowArgs(static_cast<size_t>(argc));
+	std::vector<const char*> narrowArgs(static_cast<size_t>(argc) + 1, 0);
 	for (int i = 0; i < argc; ++i) {
 		utf8Args[i] = IMPD::convertWideToUTF8String(argv[i]);
 		narrowArgs[i] = utf8Args[i].c_str();

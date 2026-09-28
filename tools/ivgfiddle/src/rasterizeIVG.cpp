@@ -68,7 +68,7 @@ class IVGExecutorWithExternalFonts : public IVGExecutor {
 			(void)forString;
                         std::pair< FontMap::iterator, bool > insertResult = loadedFonts.insert(std::make_pair(fontName, Font()));
                         if (insertResult.second) {
-                                const std::string fontName8Bit(fontName.begin(), fontName.end());
+                                const std::string fontName8Bit = IMPD::convertWideToUTF8String(fontName);
                                 String fontCode;
                                 {
                                         const std::string requested = fontName8Bit + ".ivgfont";
@@ -108,7 +108,7 @@ class IVGExecutorWithExternalFonts : public IVGExecutor {
                         (void)forYSize;
                         (void)ySizeIsRelative;
 
-                        const std::string imageName(imageSource.begin(), imageSource.end());
+                        const std::string imageName = IMPD::convertWideToUTF8String(imageSource);
                         std::string resolved;
                         if (!resolveIncludeAssetPath(imageName, resolved)) {
                                 logIncludeResolutionFailure(imageName, "image asset not found");
@@ -980,7 +980,7 @@ class SnapshotExecutor : public IVGExecutorWithExternalFonts {
 
 	bool load(Interpreter& interpreter, const WideString& filename, String& contents)
 	{
-		const std::string utf8(filename.begin(), filename.end());
+		const std::string utf8 = IMPD::convertWideToUTF8String(filename);
 		if (readFile(resolveRelativePath(utf8), contents)) {
 			return true;
 		}
@@ -1516,21 +1516,12 @@ extern "C" {
 		for (int y = 0; y < bounds.height; ++y) {
 			const ARGB32::Pixel* sp = sourcePixels + y * imageStride;
 			for (int x = 0; x < bounds.width; ++x) {
-				const uint32_t p = *sp;
+				const uint32_t p = unpremultiplyPixel(*sp);
 				++sp;
-				const int a = (p >> 24) & 0xFF;
-				int r = (p >> 16) & 0xFF;
-				int g = (p >> 8) & 0xFF;
-				int b = p & 0xFF;
-				if (a != 0xFF && a != 0x00) {
-					r = unpremultiplyChannel(r, a);
-					g = unpremultiplyChannel(g, a);
-					b = unpremultiplyChannel(b, a);
-				}
-				dp[0] = r;
-				dp[1] = g;
-				dp[2] = b;
-				dp[3] = a;
+				dp[0] = static_cast<uint8_t>(p >> 16);
+				dp[1] = static_cast<uint8_t>(p >> 8);
+				dp[2] = static_cast<uint8_t>(p);
+				dp[3] = static_cast<uint8_t>(p >> 24);
 				dp += 4;
 			}
 		}

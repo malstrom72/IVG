@@ -30,7 +30,7 @@ inline void checkPNGSize(png_uint_32 width, png_uint_32 height) {
 }
 
 /**
-	Converts one BGRA row to premultiplied ARGB32, rounding to nearest. unpremultiplyChannel() is the exact inverse, so a
+	Converts one BGRA row to premultiplied ARGB32, rounding to nearest. unpremultiplyPixel() is the exact inverse, so a
 	PNG written by these tools reloads unchanged.
 **/
 inline void copyPNGRow(const png_byte* source, NuXPixels::ARGB32::Pixel* destination, png_uint_32 width) {
@@ -48,12 +48,21 @@ inline void copyPNGRow(const png_byte* source, NuXPixels::ARGB32::Pixel* destina
 	}
 }
 
-/**
-	Converts one premultiplied channel to straight alpha for writing a PNG, rounding to nearest. `alpha` is 1 to 254.
-**/
 inline unsigned int unpremultiplyChannel(unsigned int value, unsigned int alpha) {
 	const unsigned int straight = (value * 255 + alpha / 2) / alpha;
 	return (straight > 255 ? 255 : straight);
+}
+
+/**
+	Converts one premultiplied ARGB32 pixel to straight alpha for writing a PNG, rounding to nearest.
+**/
+inline NuXPixels::ARGB32::Pixel unpremultiplyPixel(NuXPixels::ARGB32::Pixel pixel) {
+	const unsigned int a = (pixel >> 24) & 0xFF;
+	if (a == 0x00 || a == 0xFF) {
+		return pixel;
+	}
+	return (a << 24) | (unpremultiplyChannel((pixel >> 16) & 0xFF, a) << 16)
+			| (unpremultiplyChannel((pixel >> 8) & 0xFF, a) << 8) | unpremultiplyChannel(pixel & 0xFF, a);
 }
 
 #endif
