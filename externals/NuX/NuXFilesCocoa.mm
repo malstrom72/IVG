@@ -41,8 +41,9 @@ static bool endsWith(const std::wstring& s, const std::wstring& suffix) {
     return (s.size() >= suffix.size() && std::equal(suffix.rbegin(), suffix.rend(), s.rbegin()));
 }
 
+// A bare "." or ".." counts too: NSURL resolves a relative path before Path::Impl can see the dot segment.
 static bool isDirPath(const std::wstring& path) {
-	return (endsWith(path, L"/") || endsWith(path, L"/.") || endsWith(path, L"/.."));
+	return (path == L"." || path == L".." || endsWith(path, L"/") || endsWith(path, L"/.") || endsWith(path, L"/.."));
 }
 
 static NSString* toNSString(const std::wstring& s) {
@@ -157,22 +158,44 @@ PathAttributes::PathAttributes()
 
 /* --- Path::Impl --- */
 
+/*
+	Collapses ".", ".." and repeated slashes in an absolute path by text alone, like the POSIX backend. The same string
+	therefore always gives the same Path, whatever exists on disk. (URLByStandardizingPath and stringByStandardizingPath
+	also strip a leading /private, but only when the shorter path exists, so a Path built before a file was created
+	would not equal one built after.) Sets `endsInDotSegment` if the last component was "." or "..", which makes the
+	result a directory.
+*/
+static NSString* collapseDotSegments(NSString* absolutePath, bool& endsInDotSegment) {
+	NSMutableArray* kept = [NSMutableArray array];
+	endsInDotSegment = false;
+	for (NSString* part in [absolutePath componentsSeparatedByString:@"/"]) {
+		if ([part length] == 0) {
+			continue;
+		}
+		endsInDotSegment = ([part isEqualToString:@"."] || [part isEqualToString:@".."]);
+		if ([part isEqualToString:@".."]) {
+			if ([kept count] != 0) {
+				[kept removeLastObject];
+			}
+		} else if (!endsInDotSegment) {
+			[kept addObject:part];
+		}
+	}
+	return [@"/" stringByAppendingString:[kept componentsJoinedByString:@"/"]];
+}
+
 Path::Impl::Impl(NSURL* input) : url(nil) {
 	assert(input != nil);
-	NSURL* normalized = [input filePathURL];
-	if (normalized == nil) {
+	NSURL* filePathURL = [input filePathURL];
+	if (filePathURL == nil) {
 		const std::string utf8PathString = [[input path] UTF8String];
 		throw Exception(std::string("Error resolving file reference URL : ") + utf8PathString);
 	}
-	normalized = [normalized URLByStandardizingPath];
+	bool endsInDotSegment;
+	NSString* path = collapseDotSegments([[filePathURL absoluteURL] path], endsInDotSegment);
+	const bool isDirectory = (hasDirectoryPath(filePathURL) || endsInDotSegment || [path isEqualToString:@"/"]);
+	NSURL* normalized = [NSURL fileURLWithPath:[path precomposedStringWithCanonicalMapping] isDirectory:isDirectory];
 	assert(normalized != nil); // this should never happen
-	if ([[normalized path] isEqual:@"/."]) {		// URLByStandardizingPath has a "bug" where /./ doesn't resolve into /
-		normalized = [NSURL fileURLWithPath:@"/" isDirectory:YES];
-	} else {
-		NSString* nfcPath = [[normalized path] precomposedStringWithCanonicalMapping];
-		normalized = [NSURL fileURLWithPath:nfcPath isDirectory:hasDirectoryPath(normalized)];
-		assert(normalized != nil); // this should never happen
-	}
 	url = [normalized retain];
 }
 

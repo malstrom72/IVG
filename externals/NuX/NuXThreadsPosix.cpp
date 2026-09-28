@@ -202,12 +202,12 @@ bool Event::timedWait(int ms) {
 		err = ::pthread_mutex_lock(&impl->mutex);
 		assert(err == 0);
 
-		bool ok = true;
 		while (!impl->signaled && err == 0) {
 			err = ::pthread_cond_timedwait(&impl->condition, &impl->mutex, &absTS);
 			assert(err == 0 || err == ETIMEDOUT);
-			ok = (err == 0);
 		}
+		// Decided by the flag, not by `err`: POSIX lets the wait report ETIMEDOUT although the signal came in time.
+		const bool ok = impl->signaled;
 		if (ok) {
 			impl->signaled = false;
 		}
@@ -235,13 +235,14 @@ Event::~Event() {
 
 /* --- AtomicInt --- */
 
+// An unconditional store. (A single compare-and-swap would silently skip it if another thread changed `x` first.)
 int AtomicInt::assign(volatile int* x, int y)
 {
 #ifdef __APPLE__
-	::OSAtomicCompareAndSwap32Barrier(*x, y, const_cast<int32_t*>(x));
+	(void)swap(x, y);
 	return y;
 #else
-	__sync_lock_test_and_set(const_cast<int*>(x), y);
+	(void)__sync_lock_test_and_set(const_cast<int*>(x), y);
 	__sync_synchronize();
 	return y;
 #endif
@@ -305,21 +306,15 @@ bool AtomicInt::swapIfEqual(volatile int* x, int equalTo, int y)
 // Floats go through the integer atomics as their bit patterns, copied with memcpy, the conforming way to reinterpret.
 typedef char FloatIsIntSizedAssertion[sizeof (float) == sizeof (int) ? 1 : -1];
 
+// An unconditional store, through swap(). (A single compare-and-swap would silently skip it if another thread changed
+// `x` first.)
 float AtomicFloat::assign(volatile float* x, float y)
 {
-	const float current = *x;
-	int currentBits;
-	int bits;
-	memcpy(&currentBits, &current, sizeof (currentBits));
-	memcpy(&bits, &y, sizeof (bits));
-#ifdef __APPLE__
-	::OSAtomicCompareAndSwap32Barrier(currentBits, bits, (int32_t*)(x));
-	return y;
-#else
-	__sync_bool_compare_and_swap(reinterpret_cast<volatile int*>(x), currentBits, bits);
+	(void)swap(x, y);
+#ifndef __APPLE__
 	__sync_synchronize();
-	return y;
 #endif
+	return y;
 }
 
 float AtomicFloat::swap(volatile float* x, float y)
@@ -351,13 +346,14 @@ bool AtomicFloat::swapIfEqual(volatile float* x, float equalTo, float y)
 
 /* --- AtomicPointerBaseClass --- */
 
+// An unconditional store. (A single compare-and-swap would silently skip it if another thread changed `p` first.)
 const void* AtomicPointerBaseClass::assign(const void* volatile* p, const void* q)
 {
 #ifdef __APPLE__
-	::OSAtomicCompareAndSwapPtrBarrier(const_cast<void*>(*p), const_cast<void*>(q), const_cast<void**>(p));
+	(void)swap(p, q);
 	return q;
 #else
-	__sync_lock_test_and_set(const_cast<const void**>(p), q);
+	(void)__sync_lock_test_and_set(const_cast<const void**>(p), q);
 	__sync_synchronize();
 	return q;
 #endif

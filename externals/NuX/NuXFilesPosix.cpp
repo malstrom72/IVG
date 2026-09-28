@@ -823,6 +823,9 @@ void Path::listSubPaths(std::vector<Path>& subPaths, const PathListFilter& filte
 	while ((ent = ::readdir(dir)) != 0) {
 		std::string name(ent->d_name);
 		if (name == "." || name == "..") continue;
+		// A name that isn't valid UTF-8 (legal on Linux) cannot become a Path, so it is skipped rather than failing the
+		// whole listing.
+		if (!isValidUTF8(name.size(), name.data())) continue;
 		Path child = getRelative(fromUTF8(name));
 		if (child.matchesFilter(filter)) subPaths.push_back(child);
 	}
@@ -838,6 +841,7 @@ void Path::findPaths(std::vector<Path>& paths, const std::wstring& pattern, cons
 			std::string p(g.gl_pathv[i]);
 			struct stat st;
 			if (::stat(p.c_str(), &st) != 0) continue;
+			if (!isValidUTF8(p.size(), p.data())) continue; // Cannot become a Path; skipped, as in listSubPaths().
 			std::wstring w = fromUTF8(p);
 			if (S_ISDIR(st.st_mode) && !w.empty() && w[w.size() - 1] != L'/') w += L'/';
 			Path path(w);

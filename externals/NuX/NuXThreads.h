@@ -587,8 +587,10 @@ template<typename T> class Snapshot {
 				}
 				
 	protected:	template<class U> void construct(int n, U& copy) {
-					assert(n > 0);
-					capacity = n;
+					// One slot always holds the active value, so a write needs a second one; with a single slot,
+					// allocate() would spin forever. Clamped too, since assert() is compiled out in release builds.
+					assert(n >= 2);
+					capacity = (n < 2 ? 2 : n);
 					try {
 						slots = reinterpret_cast<T*>(operator new(sizeof (T) * static_cast<size_t>(capacity)));
 						locks = new AtomicInt[static_cast<int>(capacity)];

@@ -44,6 +44,9 @@ void threadMemoryFence() {
 }
 	
 static std::string convertToUTF8String(const std::wstring& w) {
+	if (w.empty()) {
+		return std::string(); // WideCharToMultiByte fails on empty input (throwWin32Exception() passes one for code 0).
+	}
 	const int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), lossless_cast<int>(w.size()), NULL, 0, NULL, NULL);
 	assert(sizeNeeded > 0);
 	std::string utf8(sizeNeeded, 0);
@@ -215,17 +218,18 @@ bool AtomicPointerBaseClass::swapIfEqual(const void* volatile* p, const void* eq
 /* --- Thread --- */
 
 unsigned int __stdcall Thread::Impl::win32ThreadFunction(void* param) {
+	Impl* impl = reinterpret_cast<Impl*>(param);
 	try {
-		Impl* impl = reinterpret_cast<Impl*>(param);
 		if (impl->started != 0) {
 			impl->runner->run();
-		}
-		if (--(impl->keepCounter) == 0) {
-			delete impl;
 		}
 	}
 	catch (...) {
 		assert(0);
+	}
+	// Outside the try, so a run() that throws still releases the Impl and its thread handle.
+	if (--(impl->keepCounter) == 0) {
+		delete impl;
 	}
 	return 0;
 }
