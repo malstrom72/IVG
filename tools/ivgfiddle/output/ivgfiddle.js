@@ -1677,9 +1677,11 @@ const rasterizeIVG = function (runtimeModule, source, scaling, scenarioIndex, en
 	runtimeModule.stringToUTF8(source, stringPointer, size);
 	const selectedScenarioIndex = Number.isInteger(scenarioIndex) ? scenarioIndex : -1;
 	const selectedEntryOrdinal = Number.isInteger(entryOrdinal) ? entryOrdinal : -1;
-	const result = runtimeModule._rasterizeIVG(stringPointer, scaling, selectedScenarioIndex, selectedEntryOrdinal);
-	runtimeModule._free(stringPointer);
-	return result;
+	try {
+		return runtimeModule._rasterizeIVG(stringPointer, scaling, selectedScenarioIndex, selectedEntryOrdinal);
+	} finally {
+		runtimeModule._free(stringPointer);
+	}
 };
 function deallocatePixels(runtimeModule, pixelsPointer) {
 	runtimeModule._deallocatePixels(pixelsPointer);
@@ -1936,54 +1938,57 @@ function runIVG(reason) {
 				end = Date.now();
 			}
 			if (!skipVectorRaster && rasterPointer !== 0) {
-				const heapBuffer = heapU32(runtimeModule).buffer;
-				const headerSigned = new Int32Array(heapBuffer, rasterPointer, 4);
-				const left = headerSigned[0];
-				const top = headerSigned[1];
-				const width = headerSigned[2];
-				const height = headerSigned[3];
-				const header = new Uint32Array(heapBuffer, rasterPointer, 8);
-				const pixelBytes = header[4];
-				const catalogBytes = header[5];
-				const defaultScenarioIndex = header[6];
-				const defaultEntryOrdinal = header[7];
-				const pixelOffset = rasterPointer + 8 * 4;
-				const catalogOffset = pixelOffset + pixelBytes;
-				const pixelData = new Uint8Array(heapBuffer, pixelOffset, pixelBytes);
-				const snapshotCatalogJson = catalogBytes > 0 ? readUtf8FromHeap(runtimeModule, catalogOffset, catalogBytes) : "";
-				const DEFAULT_SELECTION_SENTINEL = 0xffffffff;
-				const normalizedScenarioIndex = defaultScenarioIndex === DEFAULT_SELECTION_SENTINEL ? -1 : defaultScenarioIndex;
-				const normalizedEntryOrdinal = defaultEntryOrdinal === DEFAULT_SELECTION_SENTINEL ? -1 : defaultEntryOrdinal;
-				ivgCanvas.width = width;
-				ivgCanvas.height = height;
-				const imageData = ivgContext.createImageData(width, height);
-				imageData.data.set(pixelData);
-				deallocatePixels(runtimeModule, rasterPointer);
-				const cssWidth = width / pixelRatio;
-				const cssHeight = height / pixelRatio;
-				const translateX = left / pixelRatio;
-				const translateY = top / pixelRatio;
-				ZoomController.setCanvasMetrics({
-					width: cssWidth,
-					height: cssHeight,
-					translateX: translateX,
-					translateY: translateY,
-					zoomApplied: renderZoom,
-					vectorRenderLimit: vectorRenderLimit,
-				});
-				SnapshotController.applyRenderResult({
-					catalogJson: snapshotCatalogJson,
-					defaultScenarioIndex: normalizedScenarioIndex,
-					defaultEntryOrdinal: normalizedEntryOrdinal,
-				});
-				ivgContext.putImageData(imageData, 0, 0);
-				trace("Completed IVG");
-				trace("Time spent: " + (end - start) + "ms");
-				ok = true;
-				lastRasterizedSourceSignature = sourceSignature;
-			if (vectorRescaleEnabled && baselineRender && targetRenderZoom > renderZoom + 0.0001) {
-				ZoomController.requestVectorRerender("vector-baseline");
-			}
+				try {
+					const heapBuffer = heapU32(runtimeModule).buffer;
+					const headerSigned = new Int32Array(heapBuffer, rasterPointer, 4);
+					const left = headerSigned[0];
+					const top = headerSigned[1];
+					const width = headerSigned[2];
+					const height = headerSigned[3];
+					const header = new Uint32Array(heapBuffer, rasterPointer, 8);
+					const pixelBytes = header[4];
+					const catalogBytes = header[5];
+					const defaultScenarioIndex = header[6];
+					const defaultEntryOrdinal = header[7];
+					const pixelOffset = rasterPointer + 8 * 4;
+					const catalogOffset = pixelOffset + pixelBytes;
+					const pixelData = new Uint8Array(heapBuffer, pixelOffset, pixelBytes);
+					const snapshotCatalogJson = catalogBytes > 0 ? readUtf8FromHeap(runtimeModule, catalogOffset, catalogBytes) : "";
+					const DEFAULT_SELECTION_SENTINEL = 0xffffffff;
+					const normalizedScenarioIndex = defaultScenarioIndex === DEFAULT_SELECTION_SENTINEL ? -1 : defaultScenarioIndex;
+					const normalizedEntryOrdinal = defaultEntryOrdinal === DEFAULT_SELECTION_SENTINEL ? -1 : defaultEntryOrdinal;
+					ivgCanvas.width = width;
+					ivgCanvas.height = height;
+					const imageData = ivgContext.createImageData(width, height);
+					imageData.data.set(pixelData);
+					const cssWidth = width / pixelRatio;
+					const cssHeight = height / pixelRatio;
+					const translateX = left / pixelRatio;
+					const translateY = top / pixelRatio;
+					ZoomController.setCanvasMetrics({
+						width: cssWidth,
+						height: cssHeight,
+						translateX: translateX,
+						translateY: translateY,
+						zoomApplied: renderZoom,
+						vectorRenderLimit: vectorRenderLimit,
+					});
+					SnapshotController.applyRenderResult({
+						catalogJson: snapshotCatalogJson,
+						defaultScenarioIndex: normalizedScenarioIndex,
+						defaultEntryOrdinal: normalizedEntryOrdinal,
+					});
+					ivgContext.putImageData(imageData, 0, 0);
+					trace("Completed IVG");
+					trace("Time spent: " + (end - start) + "ms");
+					ok = true;
+					lastRasterizedSourceSignature = sourceSignature;
+				if (vectorRescaleEnabled && baselineRender && targetRenderZoom > renderZoom + 0.0001) {
+					ZoomController.requestVectorRerender("vector-baseline");
+				}
+				} finally {
+					deallocatePixels(runtimeModule, rasterPointer);
+				}
 	} else if (!skipVectorRaster) {
 		trace("Aborted IVG");
 		if (vectorRescaleEnabled) {

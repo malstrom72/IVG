@@ -1826,9 +1826,11 @@ let trimmed = false;
 			global.Module.stringToUTF8(source, stringPointer, size);
 			const selectedScenarioIndex = Number.isInteger(scenarioIndex) ? scenarioIndex : -1;
 			const selectedEntryOrdinal = Number.isInteger(entryOrdinal) ? entryOrdinal : -1;
-			const result = global.Module._rasterizeIVG(stringPointer, scaling, selectedScenarioIndex, selectedEntryOrdinal);
-			global.Module._free(stringPointer);
-			return result;
+			try {
+				return global.Module._rasterizeIVG(stringPointer, scaling, selectedScenarioIndex, selectedEntryOrdinal);
+			} finally {
+				global.Module._free(stringPointer);
+			}
 		};
 
 function renderCurrentSource() {
@@ -1886,24 +1888,28 @@ if (!heapU8) {
 module._deallocatePixels(result);
 throw new Error("WebAssembly heap unavailable");
 }
+let left, top, width, height, pixelBytes, defaultScenarioIndex, defaultEntryOrdinal, pixelData, snapshotCatalogJson;
+try {
 const heapBuffer = heapU8.buffer;
 const headerSigned = new Int32Array(heapBuffer, result, 4);
-const left = headerSigned[0];
-const top = headerSigned[1];
-const width = headerSigned[2];
-const height = headerSigned[3];
+left = headerSigned[0];
+top = headerSigned[1];
+width = headerSigned[2];
+height = headerSigned[3];
 const header = new Uint32Array(heapBuffer, result, 8);
-const pixelBytes = header[4];
+pixelBytes = header[4];
 const catalogBytes = header[5];
-const defaultScenarioIndex = header[6];
-const defaultEntryOrdinal = header[7];
+defaultScenarioIndex = header[6];
+defaultEntryOrdinal = header[7];
 const pixelOffset = result + 8 * 4;
 const catalogOffset = pixelOffset + pixelBytes;
 const pixelSlice = heapU8.subarray(pixelOffset, pixelOffset + pixelBytes);
-const pixelData = new Uint8ClampedArray(pixelSlice);
-const snapshotCatalogJson =
+pixelData = new Uint8ClampedArray(pixelSlice);
+snapshotCatalogJson =
 catalogBytes > 0 ? readUtf8FromHeap(module, catalogOffset, catalogBytes) : "";
+} finally {
 module._deallocatePixels(result);
+}
 if (width > 0 && height > 0 && pixelData.length === pixelBytes) {
 if (ivgCanvas.width !== width || ivgCanvas.height !== height) {
 ivgCanvas.width = width;
