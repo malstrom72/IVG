@@ -29,6 +29,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <errno.h>
 #include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 #include <sched.h>
 #include <stdint.h>
@@ -82,6 +83,7 @@ Mutex::Impl::Impl() {
 		if (err == 0) {
 			err = ::pthread_mutex_init(&mutex, &attr);
 		}
+		::pthread_mutexattr_destroy(&attr); // Doesn't affect the mutex created from it.
 	}
 	if (err != 0) {
 		throwPThreadException("Error initializing pthread mutex", err);
@@ -447,7 +449,15 @@ int Thread::readMsTimer()
 	return wrapToInt32(static_cast<unsigned int>(nowTV.tv_sec * 1000) + nowTV.tv_usec / 1000);
 }
 
-void Thread::sleep(int ms) { ::usleep(1000 * ms); }
+void Thread::sleep(int ms) {
+	// nanosleep() takes any length (1000 * ms overflows for usleep(), which POSIX only specifies up to a second) and is
+	// resumed after a signal.
+	::timespec remaining;
+	remaining.tv_sec = (ms > 0 ? ms / 1000 : 0);
+	remaining.tv_nsec = (ms > 0 ? (ms % 1000) * 1000000L : 0);
+	while (::nanosleep(&remaining, &remaining) != 0 && errno == EINTR) {
+	}
+}
 
 void Thread::yield()
 {

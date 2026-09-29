@@ -264,7 +264,7 @@ int Thread::readMsTimer()
 #endif
 }
 
-void Thread::sleep(int ms) { ::Sleep(ms); }
+void Thread::sleep(int ms) { ::Sleep(ms > 0 ? static_cast< ::DWORD >(ms) : 0); } // -1 would be INFINITE
 void Thread::yield() { ::SwitchToThread(); }
 ThreadId Thread::getCurrentId() { return reinterpret_cast<ThreadId>(static_cast<intptr_t>(::GetCurrentThreadId())); }
 

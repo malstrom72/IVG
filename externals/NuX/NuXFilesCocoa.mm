@@ -27,8 +27,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sstream>
 #include <limits>
 #include <errno.h>
+#include <fcntl.h>
 #include <glob.h>
 #include <string.h>
+#include <unistd.h>
 #include "NuXFilesCocoa.h"
 
 namespace NuXFiles {
@@ -760,23 +762,25 @@ Path Path::createTempFile() const {
 			underURL = [underURL URLByDeletingLastPathComponent];
 		}
 
-		NSFileManager* fileManager = [NSFileManager defaultManager];
-		
-		NSURL* tempURL;
-		NSString* tempPath;
-		do {
+		// O_EXCL checks for an existing file and creates the new one in a single step, and a failure leaves errno.
+		// Mode 0666 lets the umask apply as for any other new file.
+		for (int attempt = 0; attempt < 100; ++attempt) {
 			NSString* uuidString = [[NSUUID UUID] UUIDString];
-			tempURL = [[underURL URLByAppendingPathComponent:uuidString isDirectory:NO] URLByAppendingPathExtension:[impl->url pathExtension]];
+			NSURL* tempURL = [[underURL URLByAppendingPathComponent:uuidString isDirectory:NO] URLByAppendingPathExtension:[impl->url pathExtension]];
 			assert(tempURL != nil); // should not happen
-			tempPath = [tempURL path];
-			// I mean, this really should never ever happen with UUID, but well...
-			if ([fileManager fileExistsAtPath:tempPath] == NO) {
-				break;
+			int fd;
+			do {
+				fd = ::open([[tempURL path] fileSystemRepresentation], O_RDWR | O_CREAT | O_EXCL, 0666);
+			} while (fd < 0 && errno == EINTR);
+			if (fd >= 0) {
+				::close(fd);
+				return Path(new Impl(tempURL));
 			}
-		} while (true);
-		
-		[fileManager createFileAtPath:tempPath contents:[NSData data] attributes:nil];
-		return Path(new Impl(tempURL));
+			if (errno != EEXIST) {
+				throw Exception("Error creating temp", *this, errno);
+			}
+		}
+		throw Exception("Error creating temp", *this, EEXIST);
 	}
 }
 
@@ -1044,8 +1048,8 @@ void ExchangingFile::commit() {
 	int errorCode = 0;
 	@autoreleasepool {
 		@try {
-			flush();
-			if (!originalPath.isNull()) {
+			if (!originalPath.isNull()) { // Already committed otherwise, and the file handle is closed.
+				flush();
 				NSURL* newURL = nil;
 				NSError* error = nil;
 				[impl->fileHandle closeFile];

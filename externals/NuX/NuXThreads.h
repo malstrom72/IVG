@@ -56,6 +56,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <vector>
 #include <exception>
 #include <algorithm>
+#include <functional>
 #include <stddef.h>
 
 #if defined(__cplusplus) && ((__cplusplus >= 201103L) || (defined(_MSC_VER) && _MSC_VER >= 1900))
@@ -303,8 +304,9 @@ template<typename T> class Lockable {
 #endif
 	public:		Lockable& operator=(const Lockable& copy) {
 					if (this != &copy) {
-						MutexLock lockThis(mutex);
-						MutexLock lockCopy(copy.mutex);
+						const bool thisFirst = lockThisFirst(copy);
+						MutexLock lockFirst(thisFirst ? mutex : copy.mutex);
+						MutexLock lockSecond(thisFirst ? copy.mutex : mutex);
 						resource = copy.resource;
 					}
 					return *this;
@@ -312,8 +314,9 @@ template<typename T> class Lockable {
 #if NUXTHREADS_HAS_CPP11
 	public:		Lockable& operator=(Lockable&& other) {
 					if (this != &other) {
-						MutexLock lockThis(mutex);
-						MutexLock lockOther(other.mutex);
+						const bool thisFirst = lockThisFirst(other);
+						MutexLock lockFirst(thisFirst ? mutex : other.mutex);
+						MutexLock lockSecond(thisFirst ? other.mutex : mutex);
 						resource = std::move(other.resource);
 					}
 					return *this;
@@ -322,6 +325,9 @@ template<typename T> class Lockable {
 	public:		Lock lock() const { return Lock(*this); }
 	public:		Lock operator->() const { return Lock(*this); }
 	public:		T get() const { return Lock(*this).access(); }
+	// Assignments lock both mutexes. Taking them in address order means `a = b` and `b = a` on two threads can't
+	// deadlock. (std::less orders any two pointers, `<` only pointers into the same object.)
+	private:	bool lockThisFirst(const Lockable& other) const { return std::less<const Lockable*>()(this, &other); }
 	private:	static T copyResource(const Lockable& other) {
 					MutexLock lock(other.mutex);
 					return other.resource;
@@ -384,7 +390,7 @@ typedef struct ThreadIdVoid {} * ThreadId;
 class Thread : public Runnable {
 // FIX : should these really be statics or rather global functions in the namespace?
 	public:		static int readMsTimer();		///< Reads the system millisecond timer. Use this function to measure time intervals. Remember that, at least in theory, 32-bit timer values may overflow and "wrap". Thus you should never compare two timer values with comparison operators (e.g. x >= y + 100), but instead compare the difference of the two timer values (e.g. wrapToInt32(x - y) >= 100).
-	public:		static void sleep(int ms);		///< Suspends execution of the current thread for at least \p ms milliseconds and passes the cpu to any other thread that is not waiting.
+	public:		static void sleep(int ms);		///< Suspends execution of the current thread for at least \p ms milliseconds and passes the cpu to any other thread that is not waiting. A negative \p ms is taken as 0.
 	public:		static void yield();			///< Releases the remainder of the thread's time slice to any other thread that is running.
 	public:		static ThreadId getCurrentId();	///< Returns the currently running thread's unique id.	
 // FIX : add optional stack-size
@@ -483,7 +489,7 @@ class Thread : public Runnable {
 template<typename T> class Snapshot {
 	public:		class Guard {
 					public:		Guard(const Snapshot& s) : s(s), x(s.lock()) { }
-					public:		Guard(const Guard& g) : s(g.s), x(g.s.lock()) { }
+					public:		Guard(const Guard& g) : s(g.s), x(g.x) { s.relock(x); } // Shares g's slot, which may no longer be the active one.
 					public:		T& get() const { return x; } // FIX : phase out
 					public:		T& access() const { return x; }
 					public:		T& operator=(const T& copy) const { if (&x != &copy) { x = copy; }; return x; }
@@ -616,6 +622,12 @@ template<typename T> class Snapshot {
 					return const_cast<T&>(slots[activeSlot]);
 				}
 	
+	protected:	void relock(const T& x) const { // Only for a slot that is already locked, so its count can't be 0 or 1.
+					assert(slots <= &x && &x < slots + capacity);
+					assert(locks[&x - const_cast<T*>(slots)] >= 2);
+					++locks[&x - const_cast<T*>(slots)];
+				}
+
 	protected:	int allocate() {
 					int firstSlot = last;
 					firstSlot = ((firstSlot + 1) < capacity ? (firstSlot + 1) : 0);
@@ -634,7 +646,13 @@ template<typename T> class Snapshot {
 
 	protected:	template<class U> T& exchange(const U& x) {
 					int slotIndex = allocate();
-					new (const_cast<T*>(&slots[slotIndex])) T(x);
+					try {
+						new (const_cast<T*>(&slots[slotIndex])) T(x);
+					}
+					catch (...) {
+						locks[slotIndex] = 0; // Nothing was constructed, so the slot is free again.
+						throw;
+					}
 					locks[slotIndex] = 2;
 					return const_cast<T&>(slots[active.swap(slotIndex)]);
 				}
