@@ -13,10 +13,11 @@ fi
 
 # Emscripten compiles the library as C++03 with clang and libc++, and Apple's toolchain is the same pair, so on
 # macOS the library is syntax-checked that way. gcc cannot stand in: libstdc++ refuses <cstdint> below C++11.
+# clang only warns about C++11 extensions in C++03 mode, so they are made errors here.
 if [ "$sys" = "Darwin" ]; then
 	for src in src/IVG.cpp src/IMPD.cpp externals/NuX/NuXPixels.cpp; do
-		CPP_OPTIONS="-std=c++03" ./tools/BuildCpp.sh release native "output/$(basename "$src" .cpp).cpp03.o" \
-				"$src" -fsyntax-only -DNUXPIXELS_SIMD=0 -I ./ -I ./externals
+		CPP_OPTIONS="-std=c++03 -Werror=c++11-extensions" ./tools/BuildCpp.sh release native \
+				"output/$(basename "$src" .cpp).cpp03.o" "$src" -fsyntax-only -DNUXPIXELS_SIMD=0 -I ./ -I ./externals
 	done
 fi
 
