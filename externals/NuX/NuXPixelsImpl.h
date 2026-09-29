@@ -393,7 +393,7 @@ template<class T> Renderer<T>::~Renderer() { }
 
 /* --- Solid -- */
 
-template<class T> Solid<T>::Solid(const typename T::Pixel& pixel) : pixel(pixel) { assert(T::isValid(pixel)); };
+template<class T> Solid<T>::Solid(const typename T::Pixel& pixel) : pixel(pixel) { assert(T::isValid(pixel)); }
 template<class T> IntRect Solid<T>::calcBounds() const { return FULL_RECT; }
 template<class T> void Solid<T>::render(int /*x*/, int /*y*/, int length, SpanBuffer<T>& output) const {
 	assert(0 < length && length <= MAX_RENDER_LENGTH);

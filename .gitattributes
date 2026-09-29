@@ -1,7 +1,6 @@
 # Mark generated files from IVG Fiddle build as linguist-generated
 /tools/ivgfiddle/output/** linguist-generated=true
 /tools/ivgfiddle/output/*.js text
-/tools/ivgfiddle/src/rasterizeIVG.js text linguist-generated=true
 
 # Treat Codex task documents and synchronized include metadata as text
 /\.gitattributes text
