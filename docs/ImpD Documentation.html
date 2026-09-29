@@ -313,7 +313,11 @@ conventional C-style escape codes, such as <code>\n</code>,
 <code>\r</code>, <code>\t</code> etc. are available, as well as
 <code>\x</code> for two-digit hex values, <code>\u</code> for four-digit
 hex values, and <code>\U</code> for eight-digit hex values.
-<code>\</code> followed by a decimal number also works.</p>
+<code>\</code> followed by a decimal number also works. Strings are
+ASCII: write any other character as one of these escapes, since a byte
+above 127 in a string is an error. An escape must be a valid Unicode
+character, so surrogates (D800 to DFFF) and values above 10FFFF are
+errors too.</p>
 <p>When instructions expect lists, you can delimit the elements with
 commas or spaces. It is just a matter of taste:</p>
 <pre><code>// Equivalent:
@@ -492,7 +496,13 @@ comparison)</td>
 </table>
 <p>Notice that you use the strings <code>yes</code> and <code>no</code>
 for boolean values (not <code>true</code> and <code>false</code> like in
-most C-style languages).</p>
+most C-style languages). Inside curly brackets, <code>&amp;&amp;</code>,
+<code>||</code>, <code>!</code> and <code>?</code> also accept a number,
+where zero means <code>no</code> and any other number means
+<code>yes</code>, so <code>{$t % 1 ? 3 : 5}</code> gives <code>5</code>
+for whole numbers. Statements such as <code>IF</code> accept only
+<code>yes</code> or <code>no</code>, and so does an expression result
+used as their condition: <code>IF {1} [ ... ]</code> is an error.</p>
 <p>Inside curly brackets, anything that is not a number, a known
 operator, a comment, etc., is taken as a literal string, but you may
 also use double quotes. E.g.</p>
