@@ -47,6 +47,7 @@ const double DEGREES = PI2 / 360.0;
 const double MIN_CURVE_QUALITY = 0.001;
 const double MAX_CURVE_QUALITY = 100.0;
 const double COORDINATE_LIMIT = 1000000.0;
+const double MAX_RADIUS_RATIO = 10000000000.0;	// Path::arcSweep() needs the x radius to be less than this many times the y radius.
 
 void checkBounds(const IntRect& bounds) {
 	if (bounds.left < -32768 || bounds.left >= 32768) {
@@ -316,6 +317,10 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 								double largeArcSign = (largeArcFlag != 0 ? 1.0 : -1.0);
 								double sweepSign = (sweepFlag != 0 ? largeArcSign : -largeArcSign);
 								double aspectRatio = radii.x / radii.y;
+								if (aspectRatio >= MAX_RADIUS_RATIO) {
+									errorString = "Arc radius ratio out of range in svg path data";
+									return false;
+								}
 								double l = dx * dx + (aspectRatio * dy) * (aspectRatio * dy);
 								double b = max(4.0 * radii.x * radii.x / l - 1.0, EPSILON);
 								double a = sweepSign * sqrt(b * 0.25);
@@ -1277,8 +1282,14 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 				if (rounded[0] < 0.0 || rounded[1] < 0.0) {
 					impd.throwRunTimeError(String("Negative rounded corner radius: ") + impd.toString(numbers[numbers[0] < 0.0 ? 0 : 1]));
 				}
-				p.addRoundedRect(numbers[0], numbers[1], numbers[2], numbers[3], min(rounded[0], numbers[2] * 0.5)
-						, min(rounded[1], numbers[3] * 0.5), currentContext->calcCurveQuality());
+				const double cornerWidth = min(rounded[0], numbers[2] * 0.5);
+				const double cornerHeight = min(rounded[1], numbers[3] * 0.5);
+				if (cornerWidth >= EPSILON && cornerHeight >= EPSILON && cornerWidth / cornerHeight >= MAX_RADIUS_RATIO) {
+					impd.throwRunTimeError(String("Rounded corner radius ratio out of range (0..1e10): ")
+							+ impd.toString(cornerWidth / cornerHeight));
+				}
+				p.addRoundedRect(numbers[0], numbers[1], numbers[2], numbers[3], cornerWidth, cornerHeight
+						, currentContext->calcCurveQuality());
 			}
 			currentContext->draw(p);
 			break;
@@ -1402,6 +1413,9 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			const double ry = (count == 4 ? numbers[3] : rx);
 			if (rx < 0.0 || ry < 0.0) {
 				impd.throwRunTimeError(String("Negative ellipse radius: ") + impd.toString(rx < 0.0 ? rx : ry));
+			}
+			if (rx >= EPSILON && ry >= EPSILON && rx / ry >= MAX_RADIUS_RATIO) {
+				impd.throwRunTimeError(String("Ellipse radius ratio out of range (0..1e10): ") + impd.toString(rx / ry));
 			}
 			if (rx == ry) {
 				p.addCircle(numbers[0], numbers[1], rx, currentContext->calcCurveQuality());
