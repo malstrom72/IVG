@@ -34,7 +34,10 @@ namespace NuXFiles {
 template<typename T, typename U> T lossless_cast(U x) { assert(static_cast<T>(x) == x); return static_cast<T>(x); }
 
 static std::string convertToUTF8String(const std::wstring& w) {
-	const wchar_t* source = (w.empty() ? L"" : &w[0]);
+	if (w.empty()) {
+		return std::string(); // WideCharToMultiByte() fails on an empty input.
+	}
+	const wchar_t* source = &w[0];
 	const int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, source, lossless_cast<int>(w.size()), NULL, 0, NULL, NULL);
 	assert(sizeNeeded > 0);
 	std::string utf8(sizeNeeded, 0);
@@ -261,17 +264,6 @@ time_t PathTime::convertToCTime() const
 		return 0x7FFFFFFF;
 	}
 	return y;
-}
-
-/* --- PathAttributes --- */
-
-PathAttributes::PathAttributes()
-	: isReadOnly(false)
-	, isHidden(false)
-	, win32Attributes(FILE_ATTRIBUTE_NORMAL)
-	, macFileCreator(0)
-	, macFileType(0)
-{
 }
 
 /* --- Path --- */
@@ -791,7 +783,6 @@ static ::HANDLE createFile(const Path& path, ::DWORD dwDesiredAccess, ::DWORD dw
 		, ::LPSECURITY_ATTRIBUTES lpSecurityAttributes, ::DWORD dwCreationDisposition, ::DWORD dwFlagsAndAttributes
 		, ::HANDLE hTemplateFile, int retryCount = 0, int retrySleepMS = 100)
 {
-	::DWORD error = NO_ERROR;
 	do {
 		const ::HANDLE handle = ::CreateFileW(path.getFullPath().c_str(), dwDesiredAccess, dwShareMode, lpSecurityAttributes
 				, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
@@ -928,7 +919,6 @@ void ExchangingFile::commit()
 		::BOOL success = ::ReplaceFileW(original.getFullPath().c_str(), tempPath.getFullPath().c_str()
 				, NULL, 0, 0, 0);
 		::DWORD error = ::GetLastError();
-		bool setReadOnly = false;
 		if (!success && error == ERROR_ACCESS_DENIED) {
 			const ::DWORD fileAttributes = ::GetFileAttributesW(tempPath.getFullPath().c_str());
 			if (fileAttributes != INVALID_FILE_ATTRIBUTES && (fileAttributes & FILE_ATTRIBUTE_READONLY) != 0) {

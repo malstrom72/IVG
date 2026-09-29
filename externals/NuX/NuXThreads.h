@@ -126,11 +126,12 @@ class AtomicInt {
 	public:		AtomicInt& operator=(int y) { assign(&x, y); return (*this); }
 	public:		operator int() const { return x; }
 	public:		int operator++() { return increment(&x); }
-	public:		int operator++(int) { return increment(&x) - 1; }
+	// The postfix forms and -= adjust in unsigned arithmetic, so a counter that wraps at INT_MIN / INT_MAX stays defined.
+	public:		int operator++(int) { return wrapToInt32(static_cast<unsigned int>(increment(&x)) - 1U); }
 	public:		int operator--() { return decrement(&x); }
-	public:		int operator--(int) { return decrement(&x) + 1; }
+	public:		int operator--(int) { return wrapToInt32(static_cast<unsigned int>(decrement(&x)) + 1U); }
 	public:		int operator+=(int y) { return add(&x, y); }
-	public:		int operator-=(int y) { return add(&x, -y); }
+	public:		int operator-=(int y) { return add(&x, wrapToInt32(0U - static_cast<unsigned int>(y))); }
 	public:		int swap(int y) { return swap(&x, y); }							///< Sets the value to \p y "atomically" and returns the previous value.
 	public:		bool swapIfEqual(int equalTo, int y) {							///< Like swap() but only sets the new value if the previous value equals to \p equalTo. Returns true if the previous value equalled \p equalTo.
 					return swapIfEqual(&x, equalTo, y);
@@ -741,10 +742,16 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 					assign(*this, capacity);
 				}
 				
+	/*
+		While other threads push or pop, the size is only a snapshot, but it always lies in [0, capacity]. readBegin is
+		read first: readEnd only grows and never falls behind readBegin, so the difference can't go negative. The clamps
+		also cover loads that the CPU reorders.
+	*/
 	public:		int getSize() const {
-					int size = wrapToInt32(static_cast<unsigned int>(readEnd) - static_cast<unsigned int>(readBegin));
-					assert(size >= 0);
-					return size;
+					const unsigned int begin = static_cast<unsigned int>(readBegin);
+					const unsigned int end = static_cast<unsigned int>(readEnd);
+					const int size = wrapToInt32(end - begin);
+					return (size < 0 ? 0 : (size > capacity ? static_cast<int>(capacity) : size));
 				}
 				
 				// Note: if several threads are pushing simultaneously, we need to sync the order of the pushing, and this may cause a little wait.
@@ -841,7 +848,7 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 	public:		bool pop(T& x) { return (pop(1, &x) == 1); }
 	public:		int skip(int count)	{ return pop(count, 0); }
 	public:		bool skip() { return (skip(1) == 1); }
-	public:		void clear() { skip(wrapToInt32(static_cast<unsigned int>(readEnd) - static_cast<unsigned int>(readBegin))); }
+	public:		void clear() { skip(getSize()); }
 
 	public:		~Queue() {
 					assert(readBegin == writeBegin);

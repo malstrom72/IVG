@@ -36,6 +36,15 @@ PathListFilter::PathListFilter()
 {
 }
 
+PathAttributes::PathAttributes()
+	: isReadOnly(false)
+	, isHidden(false)
+	, win32Attributes(0x80) // FILE_ATTRIBUTE_NORMAL, as documented (only Win32 reads it)
+	, macFileType(0)
+	, macFileCreator(0)
+{
+}
+
 // Notice that this function works on both Mac and PC only because they both use '.' and '..'. We may have to copy and
 // paste it to the specific platform files in case we need to support a platform that doesn't use '.' and '..'.
 

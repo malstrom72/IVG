@@ -308,6 +308,20 @@ bool AtomicInt::swapIfEqual(volatile int* x, int equalTo, int y)
 // Floats go through the integer atomics as their bit patterns, copied with memcpy, the conforming way to reinterpret.
 typedef char FloatIsIntSizedAssertion[sizeof (float) == sizeof (int) ? 1 : -1];
 
+static int floatToBits(float f)
+{
+	int bits;
+	memcpy(&bits, &f, sizeof (bits));
+	return bits;
+}
+
+static float bitsToFloat(int bits)
+{
+	float f;
+	memcpy(&f, &bits, sizeof (f));
+	return f;
+}
+
 // An unconditional store, through swap(). (A single compare-and-swap would silently skip it if another thread changed
 // `x` first.)
 float AtomicFloat::assign(volatile float* x, float y)
@@ -321,28 +335,19 @@ float AtomicFloat::assign(volatile float* x, float y)
 
 float AtomicFloat::swap(volatile float* x, float y)
 {
-	int bits;
-	memcpy(&bits, &y, sizeof (bits));
 #ifdef __APPLE__
-	bits = AtomicInt::swap(reinterpret_cast<volatile int*>(x), bits);
+	return bitsToFloat(AtomicInt::swap(reinterpret_cast<volatile int*>(x), floatToBits(y)));
 #else
-	bits = __sync_lock_test_and_set(reinterpret_cast<volatile int*>(x), bits);
+	return bitsToFloat(__sync_lock_test_and_set(reinterpret_cast<volatile int*>(x), floatToBits(y)));
 #endif
-	float previous;
-	memcpy(&previous, &bits, sizeof (previous));
-	return previous;
 }
 
 bool AtomicFloat::swapIfEqual(volatile float* x, float equalTo, float y)
 {
-	int equalToBits;
-	int bits;
-	memcpy(&equalToBits, &equalTo, sizeof (equalToBits));
-	memcpy(&bits, &y, sizeof (bits));
 #ifdef __APPLE__
-	return ::OSAtomicCompareAndSwap32Barrier(equalToBits, bits, (int32_t*)(x));
+	return ::OSAtomicCompareAndSwap32Barrier(floatToBits(equalTo), floatToBits(y), (int32_t*)(x));
 #else
-	return __sync_bool_compare_and_swap(reinterpret_cast<volatile int*>(x), equalToBits, bits);
+	return __sync_bool_compare_and_swap(reinterpret_cast<volatile int*>(x), floatToBits(equalTo), floatToBits(y));
 #endif
 }
 
@@ -528,22 +533,16 @@ Thread::~Thread()
 		impl->stage = Impl::STOPPED;
 		impl->startEvent.signal();
 	}
-	{
-		MutexLock lock(impl->joinMutex);
-		if (impl->stage == Impl::RUNNING) {
-			int err = ::pthread_detach(impl->thread);
-			(void)err;
-			assert(err == 0);
-		} else if (impl->stage != Impl::JOINED) {
-			int err = ::pthread_join(impl->thread, 0);
-			(void)err;
-			assert(err == 0);
-		}
+	if (impl->stage == Impl::RUNNING) {
+		int err = ::pthread_detach(impl->thread);
+		(void)err;
+		assert(err == 0);
+	} else {
+		impl->reap();
 	}
 	if (--impl->keepCounter == 0) {
 		delete impl;
 	}
-
 }
 
 int queryCPUCount()

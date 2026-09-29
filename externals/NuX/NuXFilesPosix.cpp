@@ -43,210 +43,78 @@ namespace NuXFiles {
 
 /*
 	UTF-8 <-> UTF-32 conversion, hand-rolled because `std::wstring_convert` and `std::codecvt_utf8` are C++11
-	only and are removed in C++26, and this file is also compiled as C++03. `isValidUTF8` and `isValidUTF32`
-	are the perimeter checks; the converters assume a check has passed and only assert the same conditions.
-	`wchar_t` is UTF-32 here, unlike the UTF-16 Win32 backend.
+	only and are removed in C++26, and this file is also compiled as C++03. Both directions accept only Unicode scalar
+	values, so overlong forms, surrogates and code points above U+10FFFF are rejected. `wchar_t` is UTF-32 here, unlike
+	the UTF-16 Win32 backend.
 */
 typedef unsigned int UniChar;
 typedef char WCharIsUTF32Assertion[sizeof (wchar_t) >= 4 ? 1 : -1];
 
-static bool isValidUTF8(size_t utf8Size, const char* utf8Chars) {
+// Paths from `getcwd`, `readdir` and `glob` are not guaranteed well-formed, so this returns false instead of assuming.
+static bool tryFromUTF8(const std::string& s, std::wstring& result) {
+	result.clear();
+	result.reserve(s.size());
 	size_t i = 0;
-	while (i < utf8Size) {
-		const unsigned char c = static_cast<unsigned char>(utf8Chars[i]);
-		if ((c & 0x80) == 0) {												// 1-byte character
-			i += 1;
-		} else if ((c & 0xE0) == 0xC0) {									// 2-byte character, no overlongs
-			if (i + 1 >= utf8Size || (utf8Chars[i + 1] & 0xC0) != 0x80 || c < 0xC2) {
-				return false;
-			}
-			i += 2;
-		} else if ((c & 0xF0) == 0xE0) {									// 3-byte character, no surrogates
-			if (i + 2 >= utf8Size) {
-				return false;
-			}
-			const unsigned char b1 = static_cast<unsigned char>(utf8Chars[i + 1]);
-			const unsigned char b2 = static_cast<unsigned char>(utf8Chars[i + 2]);
-			if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 || (c == 0xE0 && b1 < 0xA0)
-					|| (c == 0xED && b1 > 0x9F)) {
-				return false;
-			}
-			i += 3;
-		} else if ((c & 0xF8) == 0xF0) {									// 4-byte character, max U+10FFFF
-			if (i + 3 >= utf8Size) {
-				return false;
-			}
-			const unsigned char b1 = static_cast<unsigned char>(utf8Chars[i + 1]);
-			const unsigned char b2 = static_cast<unsigned char>(utf8Chars[i + 2]);
-			const unsigned char b3 = static_cast<unsigned char>(utf8Chars[i + 3]);
-			if ((b1 & 0xC0) != 0x80 || (b2 & 0xC0) != 0x80 || (b3 & 0xC0) != 0x80 || c < 0xF0 || c > 0xF4
-					|| (c == 0xF0 && b1 < 0x90) || (c == 0xF4 && b1 > 0x8F)) {
-				return false;
-			}
-			i += 4;
+	while (i < s.size()) {
+		const UniChar lead = static_cast<unsigned char>(s[i]);
+		// The number of continuation bytes, and the smallest code point that needs them (anything less is overlong).
+		size_t count;
+		UniChar smallest;
+		UniChar c;
+		if (lead < 0x80) {
+			count = 0; smallest = 0; c = lead;
+		} else if ((lead & 0xE0) == 0xC0) {
+			count = 1; smallest = 0x80; c = lead & 0x1F;
+		} else if ((lead & 0xF0) == 0xE0) {
+			count = 2; smallest = 0x800; c = lead & 0x0F;
+		} else if ((lead & 0xF8) == 0xF0) {
+			count = 3; smallest = 0x10000; c = lead & 0x07;
 		} else {
 			return false;
 		}
+		if (s.size() - i <= count) {
+			return false;
+		}
+		for (size_t j = 1; j <= count; ++j) {
+			const UniChar b = static_cast<unsigned char>(s[i + j]);
+			if ((b & 0xC0) != 0x80) {
+				return false;
+			}
+			c = (c << 6) | (b & 0x3F);
+		}
+		if (c < smallest || (c >= 0xD800 && c < 0xE000) || c > 0x10FFFF) {
+			return false;
+		}
+		result += static_cast<wchar_t>(c);
+		i += count + 1;
 	}
 	return true;
 }
 
-static bool isValidUTF32(size_t utf32Size, const wchar_t* utf32Chars) {
-	for (size_t i = 0; i < utf32Size; ++i) {
-		const UniChar c = static_cast<UniChar>(utf32Chars[i]);
-		if ((c >= 0xD800 && c < 0xE000) || c > 0x10FFFF) {
-			return false;
-		}
-	}
-	return true;
-}
-
-static size_t calcUTF8ToUTF32Size(size_t utf8Size, const char* utf8Chars) {
-	size_t n = 0;
-	for (size_t i = 0; i < utf8Size; ++i) {
-		const UniChar c = static_cast<unsigned char>(utf8Chars[i]);
-		if ((c & 0x80) == 0) {												// 1-byte character
-			n += 1;
-		} else if ((c & 0xE0) == 0xC0) {									// 2-byte character
-			assert(i + 1 < utf8Size);
-			assert(((utf8Chars[i + 1]) & 0xC0) == 0x80);
-			assert(c >= 0xC2);
-			n += 1;
-			i += 1;
-		} else if ((c & 0xF0) == 0xE0) {									// 3-byte character
-			assert(i + 2 < utf8Size);
-			assert(((utf8Chars[i + 1]) & 0xC0) == 0x80 && ((utf8Chars[i + 2]) & 0xC0) == 0x80);
-			assert(c != 0xE0 || static_cast<unsigned char>(utf8Chars[i + 1]) >= 0xA0);
-			assert(c != 0xED || static_cast<unsigned char>(utf8Chars[i + 1]) <= 0x9F);
-			n += 1;
-			i += 2;
-		} else if ((c & 0xF8) == 0xF0) {									// 4-byte character
-			assert(i + 3 < utf8Size);
-			assert(((utf8Chars[i + 1]) & 0xC0) == 0x80 && ((utf8Chars[i + 2]) & 0xC0) == 0x80
-					&& ((utf8Chars[i + 3]) & 0xC0) == 0x80);
-			assert(c >= 0xF0 && c <= 0xF4);
-			assert(c != 0xF0 || static_cast<unsigned char>(utf8Chars[i + 1]) >= 0x90);
-			assert(c != 0xF4 || static_cast<unsigned char>(utf8Chars[i + 1]) <= 0x8F);
-			n += 1;
-			i += 3;
-		} else {
-			assert(false);													// Invalid UTF-8 start byte
-		}
-	}
-	return n;
-}
-
-static size_t convertUTF8ToUTF32(size_t utf8Size, const char* utf8Chars, wchar_t* utf32Chars) {
-	size_t outIndex = 0;
-	for (size_t i = 0; i < utf8Size;) {
-		UniChar c = static_cast<unsigned char>(utf8Chars[i]);
-		if ((c & 0x80) == 0) {												// 1-byte character
-			i += 1;
-		} else if ((c & 0xE0) == 0xC0) {									// 2-byte character
-			assert(i + 1 < utf8Size);
-			assert(((utf8Chars[i + 1]) & 0xC0) == 0x80);
-			assert(c >= 0xC2);
-			c = ((c & 0x1F) << 6) | (static_cast<unsigned char>(utf8Chars[i + 1]) & 0x3F);
-			i += 2;
-		} else if ((c & 0xF0) == 0xE0) {									// 3-byte character
-			assert(i + 2 < utf8Size);
-			assert(((utf8Chars[i + 1]) & 0xC0) == 0x80 && ((utf8Chars[i + 2]) & 0xC0) == 0x80);
-			assert(c != 0xE0 || static_cast<unsigned char>(utf8Chars[i + 1]) >= 0xA0);
-			assert(c != 0xED || static_cast<unsigned char>(utf8Chars[i + 1]) <= 0x9F);
-			c = ((c & 0x0F) << 12) | ((static_cast<unsigned char>(utf8Chars[i + 1]) & 0x3F) << 6)
-					| (static_cast<unsigned char>(utf8Chars[i + 2]) & 0x3F);
-			i += 3;
-		} else if ((c & 0xF8) == 0xF0) {									// 4-byte character
-			assert(i + 3 < utf8Size);
-			assert(((utf8Chars[i + 1]) & 0xC0) == 0x80 && ((utf8Chars[i + 2]) & 0xC0) == 0x80
-					&& ((utf8Chars[i + 3]) & 0xC0) == 0x80);
-			assert(c >= 0xF0 && c <= 0xF4);
-			assert(c != 0xF0 || static_cast<unsigned char>(utf8Chars[i + 1]) >= 0x90);
-			assert(c != 0xF4 || static_cast<unsigned char>(utf8Chars[i + 1]) <= 0x8F);
-			c = ((c & 0x07) << 18) | ((static_cast<unsigned char>(utf8Chars[i + 1]) & 0x3F) << 12)
-					| ((static_cast<unsigned char>(utf8Chars[i + 2]) & 0x3F) << 6)
-					| (static_cast<unsigned char>(utf8Chars[i + 3]) & 0x3F);
-			i += 4;
-		} else {
-			assert(false);													// Invalid UTF-8 start byte
-		}
-
-		utf32Chars[outIndex++] = static_cast<wchar_t>(c);
-	}
-	return outIndex;
-}
-
-static size_t calcUTF32ToUTF8Size(size_t utf32Size, const wchar_t* utf32Chars) {
-	size_t n = 0;
-	for (size_t i = 0; i < utf32Size; ++i) {
-		const UniChar c = static_cast<UniChar>(utf32Chars[i]);
-		assert(c < 0xD800 || c >= 0xE000);									// Surrogates are not legal in UTF-32
-		assert(c <= 0x10FFFF);												// Enforce Unicode scalar upper bound
-		if (c < 0x80) {
-			n += 1;
-		} else if (c < 0x800) {
-			n += 2;
-		} else if (c < 0x10000) {
-			n += 3;
-		} else {
-			n += 4;
-		}
-	}
-	return n;
-}
-
-static size_t convertUTF32ToUTF8(size_t utf32Size, const wchar_t* utf32Chars, char* utf8Chars) {
-	size_t outIndex = 0;
-	for (size_t i = 0; i < utf32Size; ++i) {
-		const UniChar c = static_cast<UniChar>(utf32Chars[i]);
-		assert(c < 0xD800 || c >= 0xE000);									// Surrogates are not legal in UTF-32
-		assert(c <= 0x10FFFF);												// Enforce Unicode scalar upper bound
-		if (c < 0x80) {
-			utf8Chars[outIndex + 0] = static_cast<char>(c);
-			outIndex += 1;
-		} else if (c < 0x800) {
-			utf8Chars[outIndex + 0] = static_cast<char>((c >> 6) | 0xC0);
-			utf8Chars[outIndex + 1] = static_cast<char>((c & 0x3F) | 0x80);
-			outIndex += 2;
-		} else if (c < 0x10000) {
-			utf8Chars[outIndex + 0] = static_cast<char>((c >> 12) | 0xE0);
-			utf8Chars[outIndex + 1] = static_cast<char>(((c >> 6) & 0x3F) | 0x80);
-			utf8Chars[outIndex + 2] = static_cast<char>((c & 0x3F) | 0x80);
-			outIndex += 3;
-		} else {
-			utf8Chars[outIndex + 0] = static_cast<char>((c >> 18) | 0xF0);
-			utf8Chars[outIndex + 1] = static_cast<char>(((c >> 12) & 0x3F) | 0x80);
-			utf8Chars[outIndex + 2] = static_cast<char>(((c >> 6) & 0x3F) | 0x80);
-			utf8Chars[outIndex + 3] = static_cast<char>((c & 0x3F) | 0x80);
-			outIndex += 4;
-		}
-	}
-	return outIndex;
-}
-
-// Paths from `getcwd`, `readdir` and `glob` are not guaranteed well-formed, so validate instead of assuming.
 static std::wstring fromUTF8(const std::string& s) {
-	if (s.empty()) {
-		return std::wstring();
-	}
-	if (!isValidUTF8(s.size(), s.data())) {
+	std::wstring result;
+	if (!tryFromUTF8(s, result)) {
 		throw Exception("Invalid UTF-8 in path");
 	}
-	std::wstring result(calcUTF8ToUTF32Size(s.size(), s.data()), L'\0');
-	convertUTF8ToUTF32(s.size(), s.data(), &result[0]);
 	return result;
 }
 
 // Wide strings may come straight from a caller, so the code points are validated here too.
 static std::string toUTF8(const std::wstring& s) {
-	if (s.empty()) {
-		return std::string();
+	static const unsigned char LEAD_BITS[4] = { 0x00, 0xC0, 0xE0, 0xF0 };
+	std::string result;
+	result.reserve(s.size());
+	for (size_t i = 0; i < s.size(); ++i) {
+		const UniChar c = static_cast<UniChar>(s[i]);
+		if ((c >= 0xD800 && c < 0xE000) || c > 0x10FFFF) {
+			throw Exception("Invalid Unicode code point in path");
+		}
+		const int count = (c < 0x80 ? 0 : (c < 0x800 ? 1 : (c < 0x10000 ? 2 : 3)));
+		result += static_cast<char>(LEAD_BITS[count] | (c >> (6 * count)));
+		for (int shift = 6 * (count - 1); shift >= 0; shift -= 6) {
+			result += static_cast<char>(0x80 | ((c >> shift) & 0x3F));
+		}
 	}
-	if (!isValidUTF32(s.size(), s.data())) {
-		throw Exception("Invalid Unicode code point in path");
-	}
-	std::string result(calcUTF32ToUTF8Size(s.size(), s.data()), '\0');
-	convertUTF32ToUTF8(s.size(), s.data(), &result[0]);
 	return result;
 }
 
@@ -267,6 +135,11 @@ static std::wstring removeSlash(const std::wstring& p) {
 	starts an extension only if it is neither the first nor the last character of the name, so ".file" and "file." have
 	none. All the extension functions below share this rule.
 */
+static const mode_t WRITE_BITS = (S_IWUSR | S_IWGRP | S_IWOTH);
+
+// A leading dot hides a name, for getInfo() and matchesFilter() alike.
+static bool isHiddenName(const std::wstring& name) { return (!name.empty() && name[0] == L'.'); }
+
 static size_t findExtensionDot(const std::wstring& p) {
 	const size_t slash = p.find_last_of(L'/');
 	const size_t nameStart = (slash == std::wstring::npos ? 0 : slash + 1);
@@ -324,11 +197,6 @@ static bool writeFully(int fd, off_t offset, size_t count, const unsigned char* 
 	}
 	return true;
 }
-
-/* --- PathAttributes --- */
-
-PathAttributes::PathAttributes()
-	: isReadOnly(false), isHidden(false), win32Attributes(0), macFileType(0), macFileCreator(0) {}
 
 /* --- PathTime --- */
 
@@ -594,8 +462,7 @@ PathInfo Path::getInfo() const {
 	info.modificationTime = PathTime(st.st_mtime);
 	info.lastAccessTime = PathTime(st.st_atime);
 	info.attributes.isReadOnly = ((st.st_mode & S_IWUSR) == 0);
-	const std::wstring name = getNameWithExtension();
-	info.attributes.isHidden = (!name.empty() && name[0] == L'.'); // The same rule as matchesFilter().
+	info.attributes.isHidden = isHiddenName(getNameWithExtension());
 	return info;
 }
 
@@ -606,8 +473,7 @@ void Path::updateAttributes(const PathAttributes& newAttributes) const {
 	if (::stat(impl->path.c_str(), &st) != 0) {
 		throw Exception("Error updating attributes on file or directory", *this, errno);
 	}
-	const mode_t mode = (newAttributes.isReadOnly ? (st.st_mode & ~(S_IWUSR | S_IWGRP | S_IWOTH))
-			: (st.st_mode | S_IWUSR));
+	const mode_t mode = (newAttributes.isReadOnly ? (st.st_mode & ~WRITE_BITS) : (st.st_mode | S_IWUSR));
 	if (::chmod(impl->path.c_str(), mode & 07777) != 0) {
 		throw Exception("Error updating attributes on file or directory", *this, errno);
 	}
@@ -670,12 +536,12 @@ void Path::erase() const {
 }
 
 bool Path::tryToErase() const {
-	assert(!isNull());
-	const std::string path = withoutTrailingSlash(impl->path);
-	if (isRealDirectory(path)) {
-		return (::rmdir(path.c_str()) == 0);
-	} else {
-		return (::unlink(path.c_str()) == 0);
+	try {
+		erase();
+		return true;
+	}
+	catch (const Exception&) {
+		return false;
 	}
 }
 
@@ -778,12 +644,25 @@ Path Path::createTempFile() const {
 	throw Exception("Error creating temp", *this, EEXIST);
 }
 
+// Extensions name a file type, so they match regardless of case, as on Win32 and Cocoa. Only ASCII is folded, which
+// keeps the result independent of the locale.
+static bool equalsIgnoringASCIICase(const std::wstring& a, const std::wstring& b) {
+	if (a.size() != b.size()) {
+		return false;
+	}
+	for (size_t i = 0; i < a.size(); ++i) {
+		const wchar_t x = ((a[i] >= L'A' && a[i] <= L'Z') ? a[i] + (L'a' - L'A') : a[i]);
+		const wchar_t y = ((b[i] >= L'A' && b[i] <= L'Z') ? b[i] + (L'a' - L'A') : b[i]);
+		if (x != y) {
+			return false;
+		}
+	}
+	return true;
+}
+
 bool Path::matchesFilter(const PathListFilter& filter) const {
 	assert(!isNull());
-	if (filter.excludeHidden) {
-		std::wstring n = getNameWithExtension();
-		if (!n.empty() && n[0] == L'.') return false;
-	}
+	if (filter.excludeHidden && isHiddenName(getNameWithExtension())) return false;
 	struct stat st;
 	if (::stat(impl->path.c_str(), &st) != 0) {
 		return false; // A path that doesn't exist (or can't be examined) matches nothing, as on Win32.
@@ -792,7 +671,9 @@ bool Path::matchesFilter(const PathListFilter& filter) const {
 	if (filter.excludeFiles && !isDir) return false;
 	if (filter.excludeDirectories && isDir) return false;
 	// The extension filter applies to directories too, as documented and as on Win32 and Cocoa.
-	if (!filter.includeExtension.empty() && getExtension() != filter.includeExtension) return false;
+	if (!filter.includeExtension.empty() && !equalsIgnoringASCIICase(getExtension(), filter.includeExtension)) {
+		return false;
+	}
 	return true;
 }
 
@@ -825,8 +706,13 @@ void Path::listSubPaths(std::vector<Path>& subPaths, const PathListFilter& filte
 		if (name == "." || name == "..") continue;
 		// A name that isn't valid UTF-8 (legal on Linux) cannot become a Path, so it is skipped rather than failing the
 		// whole listing.
-		if (!isValidUTF8(name.size(), name.data())) continue;
-		Path child = getRelative(fromUTF8(name));
+		std::wstring w;
+		if (!tryFromUTF8(name, w)) continue;
+		// Directory paths end with a slash, as from findPaths().
+		struct stat st;
+		const std::string entryPath = withoutTrailingSlash(impl->path) + '/' + name;
+		const bool isDirectory = (::stat(entryPath.c_str(), &st) == 0 && S_ISDIR(st.st_mode));
+		Path child = getRelative(isDirectory ? w + L'/' : w);
 		if (child.matchesFilter(filter)) subPaths.push_back(child);
 	}
 }
@@ -834,16 +720,12 @@ void Path::listSubPaths(std::vector<Path>& subPaths, const PathListFilter& filte
 void Path::findPaths(std::vector<Path>& paths, const std::wstring& pattern, const PathListFilter& filter) {
 	std::string utf8 = toUTF8(pattern);
 	glob_t g;
-	int r = ::glob(utf8.c_str(), 0, 0, &g);
+	int r = ::glob(utf8.c_str(), GLOB_MARK, 0, &g); // GLOB_MARK ends directories (and links to them) with a slash.
 	GlobResultFreer freer(&g);
 	if (r == 0) {
 		for (size_t i = 0; i < g.gl_pathc; ++i) {
-			std::string p(g.gl_pathv[i]);
-			struct stat st;
-			if (::stat(p.c_str(), &st) != 0) continue;
-			if (!isValidUTF8(p.size(), p.data())) continue; // Cannot become a Path; skipped, as in listSubPaths().
-			std::wstring w = fromUTF8(p);
-			if (S_ISDIR(st.st_mode) && !w.empty() && w[w.size() - 1] != L'/') w += L'/';
+			std::wstring w;
+			if (!tryFromUTF8(g.gl_pathv[i], w)) continue; // Cannot become a Path; skipped, as in listSubPaths().
 			Path path(w);
 			if (path.matchesFilter(filter)) paths.push_back(path);
 		}
@@ -859,7 +741,7 @@ ReadOnlyFile::Impl::~Impl() {
 }
 
 ReadOnlyFile::ReadOnlyFile(const Path& path, bool allowConcurrentWrites)
-	   : impl(0)
+		: impl(0)
 {
 	(void)allowConcurrentWrites;
 	const int fd = openRetrying(path.getImpl()->getPosixPath().c_str(), O_RDONLY);
@@ -900,7 +782,7 @@ ReadOnlyFile::~ReadOnlyFile() { delete impl; }
 /* --- ReadWriteFile --- */
 
 ReadWriteFile::ReadWriteFile(const Path& path, bool allowConcurrentReads, bool allowConcurrentWrites)
-	   : ReadOnlyFile(static_cast<Impl*>(0))
+		: ReadOnlyFile(static_cast<Impl*>(0))
 {
 	(void)allowConcurrentReads;
 	(void)allowConcurrentWrites;
@@ -914,7 +796,7 @@ ReadWriteFile::ReadWriteFile(const Path& path, bool allowConcurrentReads, bool a
 // Only `isReadOnly` applies here (see updateAttributes()). It is set through the open descriptor, which stays writable.
 ReadWriteFile::ReadWriteFile(const Path& path, const PathAttributes& attributes, bool replaceExisting, bool allowReads
 		, bool allowWrites)
-	   : ReadOnlyFile(static_cast<Impl*>(0))
+		: ReadOnlyFile(static_cast<Impl*>(0))
 {
 	(void)allowReads;
 	(void)allowWrites;
@@ -926,7 +808,7 @@ ReadWriteFile::ReadWriteFile(const Path& path, const PathAttributes& attributes,
 	impl = new Impl(path, fd);
 	if (attributes.isReadOnly) {
 		struct stat st;
-		if (::fstat(fd, &st) != 0 || ::fchmod(fd, st.st_mode & 07777 & ~(S_IWUSR | S_IWGRP | S_IWOTH)) != 0) {
+		if (::fstat(fd, &st) != 0 || ::fchmod(fd, st.st_mode & 07777 & ~WRITE_BITS) != 0) {
 			const int error = errno;
 			delete impl;
 			impl = 0;
@@ -959,11 +841,7 @@ ExchangingFile::ExchangingFile(const Path& path, const PathAttributes& attrs)
 		: ReadWriteFile(path.createTempFile(), attrs, true, false, false), originalPath(path) {
 	struct stat st;
 	if (::stat(path.getImpl()->getPosixPath().c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
-		mode_t mode = st.st_mode & 07777;
-		if (attrs.isReadOnly) {
-			mode &= ~(S_IWUSR | S_IWGRP | S_IWOTH);
-		}
-		::fchmod(impl->fileDescriptor, mode);
+		::fchmod(impl->fileDescriptor, st.st_mode & 07777 & (attrs.isReadOnly ? ~WRITE_BITS : ~0));
 	}
 }
 
@@ -997,6 +875,12 @@ void ExchangingFile::commit() {
 			::fsync(directory);
 			::close(directory);
 		}
+		// The file stays readable after commit() (see NuXFiles.h), now as the committed original.
+		const int fd = openRetrying(original.getImpl()->getPosixPath().c_str(), O_RDONLY);
+		if (fd < 0) {
+			throw Exception("Error opening file", original, errno);
+		}
+		impl = new Impl(original, fd);
 	}
 }
 

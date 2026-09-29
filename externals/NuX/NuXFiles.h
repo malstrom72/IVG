@@ -347,7 +347,15 @@ class ExchangingFile : public ReadWriteFile {
 // FIX : document
 class Exception : public std::exception {
 	public:		Exception(const std::string& errorStringUTF8, const Path& path = Path(), int errorCode = 0) : errorStringUTF8(errorStringUTF8), errorCode(errorCode), path(path) { } ///< \p errorString is the string returned by what(). \p path and \p errorCode are optional.
-	public:		virtual const char *what() const throw() { descriptionUTF8 = describe(); return descriptionUTF8.c_str(); } ///< Returns a string describing the error. This string is usually constructed from an OS error code.
+	public:		virtual const char *what() const throw() { ///< Returns a string describing the error. This string is usually constructed from an OS error code.
+					try { // describe() allocates, and an exception escaping throw() would terminate.
+						descriptionUTF8 = describe();
+						return descriptionUTF8.c_str();
+					}
+					catch (...) {
+						return "NuXFiles error";
+					}
+				}
 	public:		std::string getErrorStringUTF8() const { return errorStringUTF8; }
 	public:		Path getPath() const throw() { return path; } ///< Returns the path to the file / directory that this exception occurred with (this path is also usually present in the error-string returned by what()). Returns 0 if no path is associated with this exception or a pointer to a constant object which is only valid for as long as this exception object exists.
 	public:		int getErrorCode() const throw() { return errorCode; } ///< Returns the OS-specific error code that caused this exception (or 0 if an error code was not associated with the exception).

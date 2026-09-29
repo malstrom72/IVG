@@ -40,7 +40,7 @@ static bool gotTrailingSlash(const std::wstring& path) {
 }
 
 static bool endsWith(const std::wstring& s, const std::wstring& suffix) {
-    return (s.size() >= suffix.size() && std::equal(suffix.rbegin(), suffix.rend(), s.rbegin()));
+	return (s.size() >= suffix.size() && std::equal(suffix.rbegin(), suffix.rend(), s.rbegin()));
 }
 
 // A bare "." or ".." counts too: NSURL resolves a relative path before Path::Impl can see the dot segment.
@@ -85,7 +85,10 @@ std::string Exception::describe() const {
 		message << errorStringUTF8;
 		if (!path.isNull()) {
 			const std::wstring fullPath = path.getFullPath();
-			const std::string utf8Path = toUTF8String(toNSString(fullPath));
+			std::string utf8Path;
+			@autoreleasepool { // what() may run on a thread with no pool of its own.
+				utf8Path = toUTF8String(toNSString(fullPath));
+			}
 			message << " : " << utf8Path;
 		}
 		if (errorCode != 0) {
@@ -145,17 +148,6 @@ static NSDate* toNSDate(const PathTime& pathTime) {
 		assert(toPathTime(date) == pathTime);
 		return date;
 	}
-}
-
-/* --- PathAttributes --- */
-
-PathAttributes::PathAttributes()
-	: isReadOnly(false)
-	, isHidden(false)
-	, win32Attributes(0)
-	, macFileType(0)
-	, macFileCreator(0)
-{
 }
 
 /* --- Path::Impl --- */
@@ -1076,6 +1068,10 @@ void ExchangingFile::commit() {
 					}
 				}
 				if (success != NO) {
+					// The file stays readable after commit() (see NuXFiles.h), now as the committed original.
+					ReadOnlyFile::Impl* reopened = openForReading(originalPath);
+					delete impl;
+					impl = reopened;
 					originalPath = NuXFiles::Path();
 				} else {
 					assert(error != nil);

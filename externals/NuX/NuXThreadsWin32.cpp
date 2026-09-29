@@ -164,28 +164,27 @@ bool AtomicInt::swapIfEqual(volatile int* x, int equalTo, int y) {
 // Floats go through the Interlocked API as their bit patterns, copied with memcpy, the conforming way to reinterpret.
 typedef char FloatIsLongSizedAssertion[sizeof (float) == sizeof (LONG) ? 1 : -1];
 
-float AtomicFloat::assign(volatile float* x, float y) {
+static LONG floatToBits(float f) {
 	LONG bits;
-	memcpy(&bits, &y, sizeof (bits));
-	InterlockedExchange((LPLONG)(x), bits);
-	return y;
+	memcpy(&bits, &f, sizeof (bits));
+	return bits;
 }
 
+static float bitsToFloat(LONG bits) {
+	float f;
+	memcpy(&f, &bits, sizeof (f));
+	return f;
+}
+
+float AtomicFloat::assign(volatile float* x, float y) { (void)swap(x, y); return y; }
+
 float AtomicFloat::swap(volatile float* x, float y) {
-	LONG bits;
-	memcpy(&bits, &y, sizeof (bits));
-	const LONG previousBits = InterlockedExchange((LPLONG)(x), bits);
-	float previous;
-	memcpy(&previous, &previousBits, sizeof (previous));
-	return previous;
+	return bitsToFloat(InterlockedExchange((LPLONG)(x), floatToBits(y)));
 }
 
 bool AtomicFloat::swapIfEqual(volatile float* x, float equalTo, float y) {
-	LONG equalToBits;
-	LONG bits;
-	memcpy(&equalToBits, &equalTo, sizeof (equalToBits));
-	memcpy(&bits, &y, sizeof (bits));
-	return (InterlockedCompareExchange((LPLONG)(x), bits, equalToBits) == equalToBits);
+	const LONG equalToBits = floatToBits(equalTo);
+	return (InterlockedCompareExchange((LPLONG)(x), floatToBits(y), equalToBits) == equalToBits);
 }
 
 /* --- AtomicPointerBaseClass --- */
