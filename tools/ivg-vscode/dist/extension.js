@@ -1019,8 +1019,7 @@ async function handleRescanIncludesCommand() {
         return;
     }
     if (includeWatcherRootCount === 0) {
-        await vscode.window.showInformationMessage(includeWatcherUnavailableMessage ??
-            "Configure at least one include root so the include watcher can rescan your assets.");
+        await vscode.window.showInformationMessage(includeWatcherUnavailableMessage ?? "Configure at least one include root so the include watcher can rescan your assets.");
         return;
     }
     logIncludeTelemetry("Manual include manifest rescan requested.");

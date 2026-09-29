@@ -38,9 +38,7 @@
 				return;
 			}
 			if (action === "reset") {
-				const lines = Array.isArray(message.lines)
-					? message.lines.filter((entry) => typeof entry === "string")
-					: [];
+				const lines = Array.isArray(message.lines) ? message.lines.filter((entry) => typeof entry === "string") : [];
 				payload = { action: "reset" };
 				if (lines.length > 0) {
 					payload.lines = lines;

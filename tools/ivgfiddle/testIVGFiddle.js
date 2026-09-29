@@ -83,7 +83,7 @@ test("WebAssembly snapshot catalog playback honors selections", async () => {
 		"\t\tRECT 0,0,1,1",
 		"\t]",
 		"]",
-		""
+		"",
 	].join("\n");
 	const size = Module.lengthBytesUTF8(source) + 1;
 	const ptr = Module._malloc(size);
@@ -92,7 +92,7 @@ test("WebAssembly snapshot catalog playback honors selections", async () => {
 	assert.notEqual(defaultRasterPtr, 0, "default raster failed");
 	const defaultResult = decodeRasterResult(Module, defaultRasterPtr);
 	Module._deallocatePixels(defaultRasterPtr);
-	assert.deepEqual(defaultResult.firstPixel, [0xFF, 0x00, 0x00, 0xFF], "default pixel should be red");
+	assert.deepEqual(defaultResult.firstPixel, [0xff, 0x00, 0x00, 0xff], "default pixel should be red");
 	assert.equal(defaultResult.selectedScenarioIndex, 0);
 	assert.equal(defaultResult.selectedEntryOrdinal, 1);
 	assert.equal(defaultResult.catalog.defaultScenarioIndex, 0);
@@ -109,7 +109,7 @@ test("WebAssembly snapshot catalog playback honors selections", async () => {
 	const variantResult = decodeRasterResult(Module, variantRasterPtr);
 	Module._deallocatePixels(variantRasterPtr);
 	Module._free(ptr);
-	assert.deepEqual(variantResult.firstPixel, [0x00, 0xFF, 0x00, 0xFF], "variant pixel should be green");
+	assert.deepEqual(variantResult.firstPixel, [0x00, 0xff, 0x00, 0xff], "variant pixel should be green");
 	assert.equal(variantResult.selectedScenarioIndex, 0);
 	assert.equal(variantResult.selectedEntryOrdinal, 2);
 });
@@ -131,9 +131,7 @@ test("WebAssembly executes common-only snapshot blocks", async () => {
 	assert.notEqual(rasterPtr, 0, "common-only raster failed");
 	const result = decodeRasterResult(Module, rasterPtr);
 	Module._deallocatePixels(rasterPtr);
-	assert.deepEqual(result.firstPixel, [0x33, 0x66, 0x99, 0xFF], "wipe should apply shared color");
+	assert.deepEqual(result.firstPixel, [0x33, 0x66, 0x99, 0xff], "wipe should apply shared color");
 	assert.equal(result.catalog.hasCommon, true);
 	assert.equal(result.catalog.hasCommonOnly, true);
 });
-
-

@@ -11,7 +11,5 @@
 		"moduleResolution": "node",
 		"types": ["vscode", "node"]
 	},
-	"include": [
-		"src"
-	]
+	"include": ["src"]
 }

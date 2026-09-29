@@ -24,13 +24,13 @@ function readRuntimeModule() {
 function requireRuntimeModule() {
 	const runtimeModule = readRuntimeModule();
 	if (
-		runtimeModule === null
-		|| typeof runtimeModule.lengthBytesUTF8 !== "function"
-		|| typeof runtimeModule.stringToUTF8 !== "function"
-		|| typeof runtimeModule._malloc !== "function"
-		|| typeof runtimeModule._free !== "function"
-		|| typeof runtimeModule._rasterizeIVG !== "function"
-		|| typeof runtimeModule._deallocatePixels !== "function"
+		runtimeModule === null ||
+		typeof runtimeModule.lengthBytesUTF8 !== "function" ||
+		typeof runtimeModule.stringToUTF8 !== "function" ||
+		typeof runtimeModule._malloc !== "function" ||
+		typeof runtimeModule._free !== "function" ||
+		typeof runtimeModule._rasterizeIVG !== "function" ||
+		typeof runtimeModule._deallocatePixels !== "function"
 	) {
 		throw new Error("WebAssembly rasterizer is not initialized");
 	}
@@ -150,10 +150,10 @@ function toggleClass(element, className, shouldHave) {
 }
 
 const Settings = (function createSettingsAdapter() {
-		function read(key, fallback) {
-				try {
-						const value = localStorage.getItem(key);
-						return value === null ? fallback : value;
+	function read(key, fallback) {
+		try {
+			const value = localStorage.getItem(key);
+			return value === null ? fallback : value;
 		} catch (error) {
 			return fallback;
 		}
@@ -171,10 +171,10 @@ const Settings = (function createSettingsAdapter() {
 		}
 	}
 
-		return {
-				read: read,
-				write: write,
-		};
+	return {
+		read: read,
+		write: write,
+	};
 })();
 
 const leftPanelElement = document.getElementById("leftPanel");
@@ -202,13 +202,7 @@ const MIN_LEFT_PANEL_WIDTH = 250;
 const heapTextDecoder = typeof TextDecoder !== "undefined" ? new TextDecoder("utf-8") : null;
 
 function readUtf8FromHeap(runtimeModule, offset, byteLength) {
-	if (
-		!runtimeModule
-		|| !runtimeModule.HEAPU8
-		|| !Number.isInteger(offset)
-		|| !Number.isInteger(byteLength)
-		|| byteLength <= 0
-	) {
+	if (!runtimeModule || !runtimeModule.HEAPU8 || !Number.isInteger(offset) || !Number.isInteger(byteLength) || byteLength <= 0) {
 		return "";
 	}
 	if (typeof runtimeModule.UTF8ArrayToString === "function") {
@@ -304,80 +298,80 @@ const SnapshotController = (function createSnapshotController() {
 		return { scenarioIndex: scenarioIndex, entryOrdinal: entryOrdinal };
 	}
 
-       function parseCatalog(jsonText) {
-               if (typeof jsonText !== "string" || jsonText.length === 0) {
-                       return null;
-               }
-               try {
-                       const parsed = JSON.parse(jsonText);
-                       if (!parsed || typeof parsed !== "object") {
-                               return null;
-                       }
-                       return parsed;
-               } catch (error) {
-                       return null;
-               }
-       }
+	function parseCatalog(jsonText) {
+		if (typeof jsonText !== "string" || jsonText.length === 0) {
+			return null;
+		}
+		try {
+			const parsed = JSON.parse(jsonText);
+			if (!parsed || typeof parsed !== "object") {
+				return null;
+			}
+			return parsed;
+		} catch (error) {
+			return null;
+		}
+	}
 
-       function deriveImplicitGroupInfo(scenario, fallbackIndex) {
-               const name = typeof scenario.name === "string" ? scenario.name : "";
-               const patternMatch = name.match(/^(.*-\d+)-(\d+)$/);
-               if (patternMatch) {
-                       const parsedIndex = parseInt(patternMatch[2], 10);
-                       return {
-                               key: patternMatch[1],
-                               listIndex: Number.isFinite(parsedIndex) ? parsedIndex - 1 : null,
-                       };
-               }
-               if (name.length > 0) {
-                       return { key: name, listIndex: null };
-               }
-               return { key: "implicit-" + String(fallbackIndex), listIndex: null };
-       }
+	function deriveImplicitGroupInfo(scenario, fallbackIndex) {
+		const name = typeof scenario.name === "string" ? scenario.name : "";
+		const patternMatch = name.match(/^(.*-\d+)-(\d+)$/);
+		if (patternMatch) {
+			const parsedIndex = parseInt(patternMatch[2], 10);
+			return {
+				key: patternMatch[1],
+				listIndex: Number.isFinite(parsedIndex) ? parsedIndex - 1 : null,
+			};
+		}
+		if (name.length > 0) {
+			return { key: name, listIndex: null };
+		}
+		return { key: "implicit-" + String(fallbackIndex), listIndex: null };
+	}
 
-       function prepareImplicitGroups(parsedCatalog) {
-               const groups = new Map();
-               if (!parsedCatalog || !Array.isArray(parsedCatalog.scenarios)) {
-                       return groups;
-               }
-               for (let i = 0; i < parsedCatalog.scenarios.length; ++i) {
-                       const scenario = parsedCatalog.scenarios[i];
-                       if (!scenario || !Array.isArray(scenario.entries) || scenario.entries.length === 0) {
-                               continue;
-                       }
-                       const hasScenarioName = typeof scenario.name === "string" && scenario.name.length > 0;
-                       const scenarioIsExplicit = scenario.explicit === true;
-                       if (scenarioIsExplicit && hasScenarioName) {
-                               continue;
-                       }
-                       const fallbackIndex = Number.isInteger(scenario.index) ? scenario.index : i;
-                       const info = deriveImplicitGroupInfo(scenario, fallbackIndex);
-                       let group = groups.get(info.key);
-                       if (!group) {
-                               group = { totalEntries: 0, firstPosition: i, ordinal: 0, processedEntries: 0 };
-                               groups.set(info.key, group);
-                       }
-                       group.totalEntries += scenario.entries.length;
-                       if (i < group.firstPosition) {
-                               group.firstPosition = i;
-                       }
-               }
-               const orderedGroups = Array.from(groups.values());
-               orderedGroups.sort((a, b) => a.firstPosition - b.firstPosition);
-               for (let index = 0; index < orderedGroups.length; ++index) {
-                       orderedGroups[index].ordinal = index + 1;
-                       orderedGroups[index].processedEntries = 0;
-               }
-               return groups;
-       }
+	function prepareImplicitGroups(parsedCatalog) {
+		const groups = new Map();
+		if (!parsedCatalog || !Array.isArray(parsedCatalog.scenarios)) {
+			return groups;
+		}
+		for (let i = 0; i < parsedCatalog.scenarios.length; ++i) {
+			const scenario = parsedCatalog.scenarios[i];
+			if (!scenario || !Array.isArray(scenario.entries) || scenario.entries.length === 0) {
+				continue;
+			}
+			const hasScenarioName = typeof scenario.name === "string" && scenario.name.length > 0;
+			const scenarioIsExplicit = scenario.explicit === true;
+			if (scenarioIsExplicit && hasScenarioName) {
+				continue;
+			}
+			const fallbackIndex = Number.isInteger(scenario.index) ? scenario.index : i;
+			const info = deriveImplicitGroupInfo(scenario, fallbackIndex);
+			let group = groups.get(info.key);
+			if (!group) {
+				group = { totalEntries: 0, firstPosition: i, ordinal: 0, processedEntries: 0 };
+				groups.set(info.key, group);
+			}
+			group.totalEntries += scenario.entries.length;
+			if (i < group.firstPosition) {
+				group.firstPosition = i;
+			}
+		}
+		const orderedGroups = Array.from(groups.values());
+		orderedGroups.sort((a, b) => a.firstPosition - b.firstPosition);
+		for (let index = 0; index < orderedGroups.length; ++index) {
+			orderedGroups[index].ordinal = index + 1;
+			orderedGroups[index].processedEntries = 0;
+		}
+		return groups;
+	}
 
-       function buildOptionLabel(baseLabel, entryCount, listIndex) {
-               if (!Number.isInteger(entryCount) || entryCount <= 1) {
-                       return baseLabel;
-               }
-               const normalizedIndex = Number.isInteger(listIndex) ? listIndex : 0;
-               return baseLabel + " #" + String(normalizedIndex);
-       }
+	function buildOptionLabel(baseLabel, entryCount, listIndex) {
+		if (!Number.isInteger(entryCount) || entryCount <= 1) {
+			return baseLabel;
+		}
+		const normalizedIndex = Number.isInteger(listIndex) ? listIndex : 0;
+		return baseLabel + " #" + String(normalizedIndex);
+	}
 
 	function selectionsEqual(a, b) {
 		if (!a || !b) {
@@ -386,75 +380,75 @@ const SnapshotController = (function createSnapshotController() {
 		return a.scenarioIndex === b.scenarioIndex && a.entryOrdinal === b.entryOrdinal;
 	}
 
-       function buildOptions(parsedCatalog) {
-               const options = [];
-               if (!parsedCatalog || !Array.isArray(parsedCatalog.scenarios)) {
-                       return options;
-               }
-               const implicitGroups = prepareImplicitGroups(parsedCatalog);
-               for (let i = 0; i < parsedCatalog.scenarios.length; ++i) {
-                       const scenario = parsedCatalog.scenarios[i];
-                       if (!scenario || !Array.isArray(scenario.entries) || scenario.entries.length === 0) {
-                               continue;
-                       }
-                       const entries = scenario.entries;
-                       const hasScenarioName = typeof scenario.name === "string" && scenario.name.length > 0;
-                       const scenarioIsExplicit = scenario.explicit === true;
-                       if (scenarioIsExplicit && hasScenarioName) {
-                               for (let j = 0; j < entries.length; ++j) {
-                                       const entry = entries[j];
-                                       if (!entry) {
-                                               continue;
-                                       }
-                                       const explicitListIndex = Number.isInteger(entry.listIndex)
-                                               ? entry.listIndex
-                                               : Number.isInteger(entry.entryOrdinal)
-                                                       ? entry.entryOrdinal - 1
-                                                       : null;
-                                       options.push({
-                                               value: String(scenario.index) + ":" + String(entry.entryOrdinal),
-                                               label: buildOptionLabel(scenario.name, entries.length, explicitListIndex),
-                                               scenarioIndex: scenario.index,
-                                               entryOrdinal: entry.entryOrdinal,
-                                       });
-                               }
-                               continue;
-                       }
-                       const fallbackIndex = Number.isInteger(scenario.index) ? scenario.index : i;
-                       const info = deriveImplicitGroupInfo(scenario, fallbackIndex);
-                       const group = implicitGroups.get(info.key);
-                       const entryCount = group && group.totalEntries > 0 ? group.totalEntries : entries.length;
-                       const baseLabel = group && group.ordinal > 0 ? "unlabeled-" + String(group.ordinal) : "unlabeled";
-                       for (let j = 0; j < entries.length; ++j) {
-                               const entry = entries[j];
-                               if (!entry) {
-                                       continue;
-                               }
-                               let listIndex = null;
-                               if (entryCount > 1) {
-                                       if (entries.length === 1 && Number.isInteger(info.listIndex)) {
-                                               listIndex = info.listIndex;
-                                       } else if (Number.isInteger(entry.listIndex)) {
-                                               listIndex = entry.listIndex;
-                                       } else if (Number.isInteger(entry.entryOrdinal)) {
-                                               listIndex = entry.entryOrdinal - 1;
-                                       } else if (group && group.totalEntries > 1) {
-                                               listIndex = group.processedEntries;
-                                       }
-                               }
-                               options.push({
-                                       value: String(scenario.index) + ":" + String(entry.entryOrdinal),
-                                       label: buildOptionLabel(baseLabel, entryCount, listIndex),
-                                       scenarioIndex: scenario.index,
-                                       entryOrdinal: entry.entryOrdinal,
-                               });
-                               if (group) {
-                                       group.processedEntries += 1;
-                               }
-                       }
-               }
-               return options;
-       }
+	function buildOptions(parsedCatalog) {
+		const options = [];
+		if (!parsedCatalog || !Array.isArray(parsedCatalog.scenarios)) {
+			return options;
+		}
+		const implicitGroups = prepareImplicitGroups(parsedCatalog);
+		for (let i = 0; i < parsedCatalog.scenarios.length; ++i) {
+			const scenario = parsedCatalog.scenarios[i];
+			if (!scenario || !Array.isArray(scenario.entries) || scenario.entries.length === 0) {
+				continue;
+			}
+			const entries = scenario.entries;
+			const hasScenarioName = typeof scenario.name === "string" && scenario.name.length > 0;
+			const scenarioIsExplicit = scenario.explicit === true;
+			if (scenarioIsExplicit && hasScenarioName) {
+				for (let j = 0; j < entries.length; ++j) {
+					const entry = entries[j];
+					if (!entry) {
+						continue;
+					}
+					const explicitListIndex = Number.isInteger(entry.listIndex)
+						? entry.listIndex
+						: Number.isInteger(entry.entryOrdinal)
+							? entry.entryOrdinal - 1
+							: null;
+					options.push({
+						value: String(scenario.index) + ":" + String(entry.entryOrdinal),
+						label: buildOptionLabel(scenario.name, entries.length, explicitListIndex),
+						scenarioIndex: scenario.index,
+						entryOrdinal: entry.entryOrdinal,
+					});
+				}
+				continue;
+			}
+			const fallbackIndex = Number.isInteger(scenario.index) ? scenario.index : i;
+			const info = deriveImplicitGroupInfo(scenario, fallbackIndex);
+			const group = implicitGroups.get(info.key);
+			const entryCount = group && group.totalEntries > 0 ? group.totalEntries : entries.length;
+			const baseLabel = group && group.ordinal > 0 ? "unlabeled-" + String(group.ordinal) : "unlabeled";
+			for (let j = 0; j < entries.length; ++j) {
+				const entry = entries[j];
+				if (!entry) {
+					continue;
+				}
+				let listIndex = null;
+				if (entryCount > 1) {
+					if (entries.length === 1 && Number.isInteger(info.listIndex)) {
+						listIndex = info.listIndex;
+					} else if (Number.isInteger(entry.listIndex)) {
+						listIndex = entry.listIndex;
+					} else if (Number.isInteger(entry.entryOrdinal)) {
+						listIndex = entry.entryOrdinal - 1;
+					} else if (group && group.totalEntries > 1) {
+						listIndex = group.processedEntries;
+					}
+				}
+				options.push({
+					value: String(scenario.index) + ":" + String(entry.entryOrdinal),
+					label: buildOptionLabel(baseLabel, entryCount, listIndex),
+					scenarioIndex: scenario.index,
+					entryOrdinal: entry.entryOrdinal,
+				});
+				if (group) {
+					group.processedEntries += 1;
+				}
+			}
+		}
+		return options;
+	}
 
 	function selectionExists(options, selection) {
 		if (!selection || !options) {
@@ -517,18 +511,27 @@ const SnapshotController = (function createSnapshotController() {
 		if (activeSourceSignature) {
 			catalogCache.set(activeSourceSignature, parsed);
 		}
-		const executedSelection = Number.isInteger(params.defaultScenarioIndex) && Number.isInteger(params.defaultEntryOrdinal) && params.defaultScenarioIndex >= 0 && params.defaultEntryOrdinal >= 0
-			? {
-				scenarioIndex: params.defaultScenarioIndex >>> 0,
-				entryOrdinal: params.defaultEntryOrdinal >>> 0,
-			}
-			: null;
-		const catalogDefault = parsed && Number.isInteger(parsed.defaultScenarioIndex) && Number.isInteger(parsed.defaultEntryOrdinal) && parsed.defaultScenarioIndex >= 0 && parsed.defaultEntryOrdinal >= 0
-			? {
-				scenarioIndex: parsed.defaultScenarioIndex >>> 0,
-				entryOrdinal: parsed.defaultEntryOrdinal >>> 0,
-			}
-			: null;
+		const executedSelection =
+			Number.isInteger(params.defaultScenarioIndex) &&
+			Number.isInteger(params.defaultEntryOrdinal) &&
+			params.defaultScenarioIndex >= 0 &&
+			params.defaultEntryOrdinal >= 0
+				? {
+						scenarioIndex: params.defaultScenarioIndex >>> 0,
+						entryOrdinal: params.defaultEntryOrdinal >>> 0,
+					}
+				: null;
+		const catalogDefault =
+			parsed &&
+			Number.isInteger(parsed.defaultScenarioIndex) &&
+			Number.isInteger(parsed.defaultEntryOrdinal) &&
+			parsed.defaultScenarioIndex >= 0 &&
+			parsed.defaultEntryOrdinal >= 0
+				? {
+						scenarioIndex: parsed.defaultScenarioIndex >>> 0,
+						entryOrdinal: parsed.defaultEntryOrdinal >>> 0,
+					}
+				: null;
 		defaultSelection = executedSelection;
 
 		const options = buildOptions(parsed);
@@ -589,19 +592,10 @@ const SnapshotController = (function createSnapshotController() {
 		if (activeSourceSignature) {
 			selectionCache.set(activeSourceSignature, activeSelection);
 		}
-		if (
-			snapshotScenarioSelect &&
-			key !== "" &&
-			snapshotScenarioSelect.value !== key
-		) {
+		if (snapshotScenarioSelect && key !== "" && snapshotScenarioSelect.value !== key) {
 			snapshotScenarioSelect.value = key;
 		}
-		trace(
-			"Snapshot selection changed to scenario " +
-				next.scenarioIndex +
-			", entry " +
-				next.entryOrdinal,
-		);
+		trace("Snapshot selection changed to scenario " + next.scenarioIndex + ", entry " + next.entryOrdinal);
 		return true;
 	}
 
@@ -641,11 +635,11 @@ const SnapshotController = (function createSnapshotController() {
 })();
 
 if (snapshotScenarioSelect !== null) {
-		snapshotScenarioSelect.addEventListener("change", function handleSnapshotChange() {
-				if (SnapshotController.handleSelectionChange(snapshotScenarioSelect.value)) {
-						runIVG("snapshot selection changed");
-				}
-		});
+	snapshotScenarioSelect.addEventListener("change", function handleSnapshotChange() {
+		if (SnapshotController.handleSelectionChange(snapshotScenarioSelect.value)) {
+			runIVG("snapshot selection changed");
+		}
+	});
 }
 
 let rasterizeInProgress = false;
@@ -1252,10 +1246,7 @@ const ZoomController = (function createZoomController() {
 	}
 
 	function persistVectorScaling() {
-		Settings.write(
-			STORAGE_KEYS.VECTOR_SCALING,
-			vectorScalingPreferred ? "1" : "0"
-		);
+		Settings.write(STORAGE_KEYS.VECTOR_SCALING, vectorScalingPreferred ? "1" : "0");
 	}
 
 	function scheduleVectorRerender(reason) {
@@ -1455,7 +1446,7 @@ const ZoomController = (function createZoomController() {
 	}
 
 	function handleVectorRasterFailure(details) {
-		invalidateBaseMetrics();	// first, since it resets lastVectorRenderLimit
+		invalidateBaseMetrics(); // first, since it resets lastVectorRenderLimit
 		if (details && Number.isFinite(details.vectorRenderLimit)) {
 			lastVectorRenderLimit = details.vectorRenderLimit;
 		}
@@ -1924,90 +1915,90 @@ function runIVG(reason) {
 			}
 		} else {
 			trace("Bitmap scaling active - requesting nearest-neighbor interpolation on the CSS transform.");
-			}
-			let rasterPointer = 0;
-			let end = Date.now();
-			const runtimeModule = skipVectorRaster ? null : requireRuntimeModule();
-			if (!skipVectorRaster) {
-				const snapshotSelection = SnapshotController.getSelectionForRender();
-				const selectionScenarioIndex =
-					snapshotSelection && Number.isInteger(snapshotSelection.scenarioIndex) ? snapshotSelection.scenarioIndex : -1;
-				const selectionEntryOrdinal =
-					snapshotSelection && Number.isInteger(snapshotSelection.entryOrdinal) ? snapshotSelection.entryOrdinal : -1;
-				rasterPointer = rasterizeIVG(runtimeModule, sourceCode, rasterScale, selectionScenarioIndex, selectionEntryOrdinal);
-				end = Date.now();
-			}
-			if (!skipVectorRaster && rasterPointer !== 0) {
-				try {
-					const heapBuffer = heapU32(runtimeModule).buffer;
-					const headerSigned = new Int32Array(heapBuffer, rasterPointer, 4);
-					const left = headerSigned[0];
-					const top = headerSigned[1];
-					const width = headerSigned[2];
-					const height = headerSigned[3];
-					const header = new Uint32Array(heapBuffer, rasterPointer, 8);
-					const pixelBytes = header[4];
-					const catalogBytes = header[5];
-					const defaultScenarioIndex = header[6];
-					const defaultEntryOrdinal = header[7];
-					const pixelOffset = rasterPointer + 8 * 4;
-					const catalogOffset = pixelOffset + pixelBytes;
-					const pixelData = new Uint8Array(heapBuffer, pixelOffset, pixelBytes);
-					const snapshotCatalogJson = catalogBytes > 0 ? readUtf8FromHeap(runtimeModule, catalogOffset, catalogBytes) : "";
-					const DEFAULT_SELECTION_SENTINEL = 0xffffffff;
-					const normalizedScenarioIndex = defaultScenarioIndex === DEFAULT_SELECTION_SENTINEL ? -1 : defaultScenarioIndex;
-					const normalizedEntryOrdinal = defaultEntryOrdinal === DEFAULT_SELECTION_SENTINEL ? -1 : defaultEntryOrdinal;
-					ivgCanvas.width = width;
-					ivgCanvas.height = height;
-					const imageData = ivgContext.createImageData(width, height);
-					imageData.data.set(pixelData);
-					const cssWidth = width / pixelRatio;
-					const cssHeight = height / pixelRatio;
-					const translateX = left / pixelRatio;
-					const translateY = top / pixelRatio;
-					ZoomController.setCanvasMetrics({
-						width: cssWidth,
-						height: cssHeight,
-						translateX: translateX,
-						translateY: translateY,
-						zoomApplied: renderZoom,
-						vectorRenderLimit: vectorRenderLimit,
-					});
-					SnapshotController.applyRenderResult({
-						catalogJson: snapshotCatalogJson,
-						defaultScenarioIndex: normalizedScenarioIndex,
-						defaultEntryOrdinal: normalizedEntryOrdinal,
-					});
-					ivgContext.putImageData(imageData, 0, 0);
-					trace("Completed IVG");
-					trace("Time spent: " + (end - start) + "ms");
-					ok = true;
-					lastRasterizedSourceSignature = sourceSignature;
+		}
+		let rasterPointer = 0;
+		let end = Date.now();
+		const runtimeModule = skipVectorRaster ? null : requireRuntimeModule();
+		if (!skipVectorRaster) {
+			const snapshotSelection = SnapshotController.getSelectionForRender();
+			const selectionScenarioIndex =
+				snapshotSelection && Number.isInteger(snapshotSelection.scenarioIndex) ? snapshotSelection.scenarioIndex : -1;
+			const selectionEntryOrdinal =
+				snapshotSelection && Number.isInteger(snapshotSelection.entryOrdinal) ? snapshotSelection.entryOrdinal : -1;
+			rasterPointer = rasterizeIVG(runtimeModule, sourceCode, rasterScale, selectionScenarioIndex, selectionEntryOrdinal);
+			end = Date.now();
+		}
+		if (!skipVectorRaster && rasterPointer !== 0) {
+			try {
+				const heapBuffer = heapU32(runtimeModule).buffer;
+				const headerSigned = new Int32Array(heapBuffer, rasterPointer, 4);
+				const left = headerSigned[0];
+				const top = headerSigned[1];
+				const width = headerSigned[2];
+				const height = headerSigned[3];
+				const header = new Uint32Array(heapBuffer, rasterPointer, 8);
+				const pixelBytes = header[4];
+				const catalogBytes = header[5];
+				const defaultScenarioIndex = header[6];
+				const defaultEntryOrdinal = header[7];
+				const pixelOffset = rasterPointer + 8 * 4;
+				const catalogOffset = pixelOffset + pixelBytes;
+				const pixelData = new Uint8Array(heapBuffer, pixelOffset, pixelBytes);
+				const snapshotCatalogJson = catalogBytes > 0 ? readUtf8FromHeap(runtimeModule, catalogOffset, catalogBytes) : "";
+				const DEFAULT_SELECTION_SENTINEL = 0xffffffff;
+				const normalizedScenarioIndex = defaultScenarioIndex === DEFAULT_SELECTION_SENTINEL ? -1 : defaultScenarioIndex;
+				const normalizedEntryOrdinal = defaultEntryOrdinal === DEFAULT_SELECTION_SENTINEL ? -1 : defaultEntryOrdinal;
+				ivgCanvas.width = width;
+				ivgCanvas.height = height;
+				const imageData = ivgContext.createImageData(width, height);
+				imageData.data.set(pixelData);
+				const cssWidth = width / pixelRatio;
+				const cssHeight = height / pixelRatio;
+				const translateX = left / pixelRatio;
+				const translateY = top / pixelRatio;
+				ZoomController.setCanvasMetrics({
+					width: cssWidth,
+					height: cssHeight,
+					translateX: translateX,
+					translateY: translateY,
+					zoomApplied: renderZoom,
+					vectorRenderLimit: vectorRenderLimit,
+				});
+				SnapshotController.applyRenderResult({
+					catalogJson: snapshotCatalogJson,
+					defaultScenarioIndex: normalizedScenarioIndex,
+					defaultEntryOrdinal: normalizedEntryOrdinal,
+				});
+				ivgContext.putImageData(imageData, 0, 0);
+				trace("Completed IVG");
+				trace("Time spent: " + (end - start) + "ms");
+				ok = true;
+				lastRasterizedSourceSignature = sourceSignature;
 				if (vectorRescaleEnabled && baselineRender && targetRenderZoom > renderZoom + 0.0001) {
 					ZoomController.requestVectorRerender("vector-baseline");
 				}
-				} finally {
-					deallocatePixels(runtimeModule, rasterPointer);
-				}
-	} else if (!skipVectorRaster) {
-		trace("Aborted IVG");
-		if (vectorRescaleEnabled) {
-			ZoomController.handleVectorRasterFailure({
-				renderZoom: renderZoom,
-				vectorRenderLimit: vectorRenderLimit,
-			});
+			} finally {
+				deallocatePixels(runtimeModule, rasterPointer);
+			}
+		} else if (!skipVectorRaster) {
+			trace("Aborted IVG");
+			if (vectorRescaleEnabled) {
+				ZoomController.handleVectorRasterFailure({
+					renderZoom: renderZoom,
+					vectorRenderLimit: vectorRenderLimit,
+				});
+			}
+		} else {
+			ok = false;
+			if (vectorRescaleEnabled) {
+				ZoomController.handleVectorRasterFailure({
+					renderZoom: renderZoom,
+					vectorRenderLimit: vectorRenderLimit,
+				});
+				trace("Vector preflight limits exceeded; retaining current zoom mode.");
+			}
 		}
-	} else {
-		ok = false;
-		if (vectorRescaleEnabled) {
-			ZoomController.handleVectorRasterFailure({
-				renderZoom: renderZoom,
-				vectorRenderLimit: vectorRenderLimit,
-			});
-			trace("Vector preflight limits exceeded; retaining current zoom mode.");
-		}
-	}
-	Settings.write(STORAGE_KEYS.RUN_ON_STARTUP, "true");
+		Settings.write(STORAGE_KEYS.RUN_ON_STARTUP, "true");
 	} catch (e) {
 		trace("Rasterization crashed");
 		trace(e);

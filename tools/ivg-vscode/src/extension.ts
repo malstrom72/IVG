@@ -272,7 +272,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			const type = (message as { type?: unknown }).type;
 			if (type === "ready") {
 				webviewReady = true;
-				seedLatestIncludeBundleMessage();	// a hidden panel's webview reloads and sends "ready" again
+				seedLatestIncludeBundleMessage(); // a hidden panel's webview reloads and sends "ready" again
 				flushPendingMessages();
 				syncActiveDocument("panelFocus");
 				return;
@@ -1208,8 +1208,7 @@ async function handleRescanIncludesCommand(): Promise<void> {
 	}
 	if (includeWatcherRootCount === 0) {
 		await vscode.window.showInformationMessage(
-			includeWatcherUnavailableMessage ??
-				"Configure at least one include root so the include watcher can rescan your assets.",
+			includeWatcherUnavailableMessage ?? "Configure at least one include root so the include watcher can rescan your assets.",
 		);
 		return;
 	}
