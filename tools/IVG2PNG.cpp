@@ -453,7 +453,6 @@ static int runIVG2PNG(int argc, const char* argv[]) {
 	}
 	return 0;
 }
-#endif
 
 #if defined(_WIN32)
 
@@ -478,4 +477,5 @@ int main(int argc, const char* argv[]) {
 	return runIVG2PNG(argc, argv);
 }
 
+#endif
 #endif
