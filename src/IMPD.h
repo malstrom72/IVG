@@ -53,6 +53,7 @@ typedef std::map<String, String> StringStringMap;
 
 const int DEFAULT_STATEMENTS_LIMIT = 1000000;																			// To prevent endless loops. 1 million instructions can take quite a while, but better than crashing. If your data require more than a million statements to execute you are probably doing it wrong.
 const int DEFAULT_RECURSION_LIMIT = 50;																					// To prevent stack overflow. If you can't describe your data without 50 times recursion, you are doing it wrong.
+const int EXPRESSION_NESTING_LIMIT = 100;																				// To prevent stack overflow, like DEFAULT_RECURSION_LIMIT. Counts nested parentheses, prefix operators, conditionals and [ ] inside one { } expression.
 const int NUMBER_PRECISION_DIGITS = 13;
 const double NUMBER_PRECISION_MAGNITUDE = 1e-13;
 
@@ -279,6 +280,7 @@ class Interpreter {
 	protected:	Interpreter& rootFrame;
 	protected:	int statementsLimit;
 	protected:	int recursionLimit;
+	protected:	int expressionNestingLimit;
 
 	protected:	enum BuiltInInstruction {
 					DEBUG_INSTRUCTION, CALL_INSTRUCTION, FOR_INSTRUCTION, FORMAT_INSTRUCTION, IF_INSTRUCTION

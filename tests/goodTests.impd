@@ -475,3 +475,9 @@ CALL x:inner [ TRACE $x ]
 CALL [ TRACE $x ] x:inner
 CALL a:1 [ TRACE $a $b ] b:2
 CALL [ TRACE $0 $1 {$n} ] first second
+
+// deep [ ] nesting is scanned without recursion, so it does not run out of stack
+o = {"["}; c = {"]"}
+REPEAT 15 [ o = {$o $o}; c = {$c $c} ]
+IF no {$o $c}
+TRACE deep nesting ok

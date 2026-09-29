@@ -336,3 +336,4 @@ inner
 inner
 1 2
 first second 2
+deep nesting ok

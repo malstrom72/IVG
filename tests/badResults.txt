@@ -159,5 +159,7 @@ Exception: Invalid integer: 2147483648
 in statement: REPEAT 2147483648 [ TRACE BAD!! ]
 Exception: Number overflow
 in statement: TRACE {1e4294967298} // exponent beyond int32_t
+Exception: Expression nesting limit reached
+in statement: TRACE {(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((1)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))} // expression nesting limit
 Exception: Statements limit reached
 in statement: []
