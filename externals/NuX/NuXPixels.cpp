@@ -1036,10 +1036,12 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 			i = edge;
 		} else {
 			assert(i == leftEdge);
-			if (width < 4.0) {
+			if (width < 4.0 || width > 32767.0) {
 				/*
-					Too narrow for the integration below: its integer slopes grow as 1 / width^2 and overflow. Such a
-					gradient is only a few pixels wide, so evaluate each pixel centre directly.
+					Outside what the integration below handles: its integer slopes grow as 1 / width^2 and overflow for
+					narrow gradients, and it counts up to 2 * width steps from the row start, which must stay below
+					1 << 16. So evaluate each pixel centre directly. This depends only on the gradient, not on the span, so
+					every row gets the same pixels however it is split.
 				*/
 				Mask8::Pixel* pixels = output.addVariable(rightEdge - leftEdge, false);
 				for (; i < rightEdge; ++i) {

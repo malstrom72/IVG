@@ -1,0 +1,7 @@
+// Huge radial gradients, wider than the 32767 px limit of the integration, so NuXPixels evaluates each pixel.
+// Top: 70000 px from the row start. Middle: 50000 px above the centre. Bottom: just below the limit.
+bounds 0,0,256,192
+wipe black
+fill gradient:[radial -29872,32,40000 from:white to:black]; rect 0,0,256,64
+fill gradient:[radial 128,50096,100000 from:white to:black]; rect 0,64,256,64
+fill gradient:[radial -15872,160,32767 from:white to:black]; rect 0,128,256,64
