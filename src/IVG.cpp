@@ -788,7 +788,13 @@ void Context::stroke(const Path& path, Stroke& stroke, const Rect<double>& paint
 		if (stroke.gap > EPSILON) {
 			double l = stroke.dash + stroke.gap;
 			double dashOffset = fmod(fmod(stroke.dashOffset, l) + l, l);  // floor modulo trick
-			strokePath.dash(stroke.dash, stroke.gap, dashOffset);
+			strokePath.dash(stroke.dash, stroke.gap, dashOffset, PATH_INSTRUCTION_LIMIT);
+			if (strokePath.size() >= PATH_INSTRUCTION_LIMIT) {
+				Interpreter::throwRunTimeError("Path instruction limit exceeded");
+			}
+		}
+		if (strokePath.size() * 3 >= PATH_INSTRUCTION_LIMIT) {
+			Interpreter::throwRunTimeError("Path instruction limit exceeded");
 		}
 		strokePath.stroke(stroke.width * widthMultiplier, stroke.caps, stroke.joints, stroke.miterLimit
 				, calcCurveQuality());
