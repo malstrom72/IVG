@@ -39,6 +39,11 @@ the defaults:
 bash tools/runIVGFuzz.sh -fork=8 -max_total_time=3600
 ```
 
+On macOS `runIVGFuzz.sh` sets `ASAN_OPTIONS=detect_container_overflow=0` unless `ASAN_OPTIONS` is already set. libFuzzer's
+prebuilt library there is not built with AddressSanitizer but shares `std::vector` code with the fuzz target, so without
+it fork mode stops at once with a false container overflow inside libFuzzer. Set it yourself when running `IVGFuzz` on a
+directory by hand.
+
 To replay a saved input, pass it to the fuzz target directly:
 
 ```bash
