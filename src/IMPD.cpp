@@ -591,21 +591,21 @@ Interpreter::EvaluationValue::operator String() const {
 
 Interpreter::Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, int statementsLimit, int recursionLimit)
 		: executor(executor), vars(vars), formatInfo(formatInfo), callingFrame(0), rootFrame(*this)
-		, statementsLimit(statementsLimit), recursionLimit(recursionLimit) { }
+		, statementsLimit(statementsLimit), recursionLimit(recursionLimit), expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
 
 Interpreter::Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame)
 		: executor(executor), vars(vars), formatInfo(callingFrame.formatInfo), callingFrame(&callingFrame), rootFrame(callingFrame.rootFrame)
-		, statementsLimit(callingFrame.statementsLimit), recursionLimit(callingFrame.recursionLimit) { }
+		, statementsLimit(callingFrame.statementsLimit), recursionLimit(callingFrame.recursionLimit), expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
 
 Interpreter::Interpreter(Executor& executor, Interpreter& enclosingInterpreter)
 		: executor(executor), vars(enclosingInterpreter.vars), formatInfo(enclosingInterpreter.formatInfo)
 		, callingFrame(enclosingInterpreter.callingFrame), rootFrame(enclosingInterpreter.rootFrame)
-		, statementsLimit(enclosingInterpreter.statementsLimit), recursionLimit(enclosingInterpreter.recursionLimit) { }
+		, statementsLimit(enclosingInterpreter.statementsLimit), recursionLimit(enclosingInterpreter.recursionLimit), expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
 
 Interpreter::Interpreter(Executor& executor, Interpreter& enclosingInterpreter, FormatInfo& formatInfo)
 		: executor(executor), vars(enclosingInterpreter.vars), formatInfo(formatInfo), callingFrame(enclosingInterpreter.callingFrame)
 		, rootFrame(enclosingInterpreter.rootFrame), statementsLimit(enclosingInterpreter.statementsLimit)
-		, recursionLimit(enclosingInterpreter.recursionLimit) { }
+		, recursionLimit(enclosingInterpreter.recursionLimit), expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
 
 void Interpreter::throwBadSyntax(const String& how) { throw SyntaxException(how); }
 void Interpreter::throwRunTimeError(const String& how) { throw RunTimeException(how); }
@@ -680,22 +680,31 @@ StringIt Interpreter::eatSymbolForAssignment(StringIt p, const StringIt& e) {
 
 StringIt Interpreter::eatBlock(StringIt p, const StringIt& e) {															// FIX : <- termination char argument is better solution
 	assert(p != e && (*p == '{' || *p == '['));
-	const Char c = *p;
+	// The open blocks, innermost last. A loop with this stack rather than recursion, so that deep nesting cannot
+	// overflow the call stack. Each block only ends at its own kind of closing bracket, as before.
+	String open(1, *p);
 	++p;
 	while (p != e) {
 		switch (*p) {
 			case '\\': p = eatEscape(p, e); break;
 			case '"': p = eatQuotedString(p, e); break;
-			case '{': case '[': p = eatBlock(p, e); break;
-			case '}': ++p; if (c == '{') return p; break;
-			case ']': ++p; if (c == '[') return p; break;
+			case '{': case '[': open += *p; ++p; break;
+			case '}': case ']': {
+				const Char c = *p;
+				++p;
+				if (open[open.size() - 1] == (c == '}' ? '{' : '[')) {
+					open.erase(open.size() - 1);
+					if (open.empty()) return p;
+				}
+				break;
+			}
 			case '/': if (isComment(p, e)) { p = eatComment(p, e); break; }
 			/* else continue */
 			default: ++p; break;
 		}
 	}
 	if (p == e) {
-		throwBadSyntax(c == '[' ? "Missing closing \"]\"." : "Missing closing \"}\".");
+		throwBadSyntax(open[open.size() - 1] == '[' ? "Missing closing \"]\"." : "Missing closing \"}\".");
 	}
 	return p;
 }
@@ -1367,7 +1376,21 @@ StringIt Interpreter::substringOperation(StringIt p, const StringIt& e, Evaluati
 
 // FIX : the naming of these two functions make no sense any more, even the splitting into two functions is pointless
 
+/**
+	Takes one level of the expression nesting limit for as long as it exists, and gives it back however the scope is left.
+**/
+class ExpressionNesting {
+	public:		ExpressionNesting(int& limit) : limit(limit) {
+					if (limit == 0) Interpreter::throwRunTimeError("Expression nesting limit reached.");
+					--limit;
+				}
+	public:		~ExpressionNesting() { ++limit; }
+	protected:	int& limit;
+};
+
 StringIt Interpreter::evaluateInner(StringIt b, const StringIt& e, EvaluationValue& v, Precedence precedence, bool dry) const {
+	// Every nested sub-expression passes through here. The limit is kept in the root frame, since this function is const.
+	const ExpressionNesting nesting(rootFrame.expressionNestingLimit);
 	StringIt p = evaluateOuter(b, e, v, dry);
 	while (p != b) {
 		b = p;

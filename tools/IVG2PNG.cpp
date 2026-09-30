@@ -270,6 +270,22 @@ struct FuzzerCanvas : public SelfContainedARGB32Canvas {
 	}
 };
 
+#if defined(_WIN32)
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+
+/*
+	On Windows a stack overflow leaves no stack for AddressSanitizer and libFuzzer to report it on, so the input that
+	caused it is never saved. Reserving some stack for the overflow handler lets libFuzzer write the crash file.
+*/
+extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
+	ULONG guarantee = 256 * 1024;
+	SetThreadStackGuarantee(&guarantee);
+	return 0;
+}
+#endif
+
 struct FuzzerExecutor : public IVGExecutor {
 	FuzzerExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform = NuXPixels::AffineTransformation())
 		: IVGExecutor(canvas, initialTransform) { }
