@@ -32,8 +32,10 @@ tools/IVG2PNG.cpp src/IVG.cpp src/IMPD.cpp externals/NuX/NuXPixels.cpp
 `tools/runIVGFuzz.cmd` and `tools/runIVGFuzz.sh` fuzz until stopped with Ctrl-C, one process per logical CPU, starting
 from every `.ivg` in the repository (collected by `tools/collectFuzzCorpus`). Crashes, out-of-memory and timeouts are
 saved in `output/fuzzArtifacts` and fuzzing goes on, so one bug can leave many files there. New inputs build up in
-`output/fuzzCorpus`, so a later run continues where the last one stopped. Extra arguments go to libFuzzer and override
-the defaults:
+`output/fuzzCorpus`, so a later run continues where the last one stopped. An input counts as a timeout after 30 s with
+clang and 120 s with MSVC, whose instrumentation makes the code about ten times slower again; both are about 3 s of
+work in a release build. A longer limit lets slow inputs into the corpus, where they hold up every later job. Extra
+arguments go to libFuzzer and override the defaults:
 
 ```bash
 bash tools/runIVGFuzz.sh -fork=8 -max_total_time=3600
