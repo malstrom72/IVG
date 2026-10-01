@@ -545,6 +545,21 @@ static int findTransformType(size_t n /* string length */, const char* s /* zero
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
+/**
+	Throws unless every element of `xf` is finite. Concatenating huge transforms can overflow to infinity and then to NaN
+	(infinity minus infinity in a rotation), which nothing further on can handle.
+**/
+static AffineTransformation checkTransformation(const AffineTransformation& xf) {
+	for (int i = 0; i < 2; ++i) {
+		for (int j = 0; j < 3; ++j) {
+			if (!isfinite(xf.matrix[i][j])) {
+				Interpreter::throwRunTimeError("Transformation out of range");
+			}
+		}
+	}
+	return xf;
+}
+
 static AffineTransformation parseSingleTransformation(Interpreter& impd, TransformType transformType, ArgumentsContainer& arguments) {
 	double numbers[6];
 	double anchor[2];
@@ -607,7 +622,7 @@ class TransformationExecutor : public Executor {
 					ArgumentsContainer args(ArgumentsContainer::parse(impd, arguments));
 					AffineTransformation thisXF = parseSingleTransformation(impd, static_cast<TransformType>(foundTransform), args);
 					args.throwIfAnyUnfetched();
-					xf = thisXF.transform(xf);
+					xf = checkTransformation(thisXF.transform(xf));
 					return true;
 				}
 	public:		virtual void trace(Interpreter& impd, const WideString& s) { parentExecutor.trace(impd, s); }
@@ -1357,7 +1372,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			AffineTransformation thisXF = parseSingleTransformation(impd, static_cast<TransformType>(ivgInstruction - MATRIX_INSTRUCTION), args);
 			args.throwIfAnyUnfetched();
 			// FIX : should reverse concat order as standard in new AffineTransform class?
-			state.transformation = thisXF.transform(state.transformation);
+			state.transformation = checkTransformation(thisXF.transform(state.transformation));
 			break;
 		}
 
