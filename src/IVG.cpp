@@ -66,6 +66,15 @@ void checkBounds(const IntRect& bounds) {
 		Interpreter::throwRunTimeError(String("\"bounds\" height \"")
 				+ Interpreter::toString(bounds.height) + "\" out of range [1..32767].");
 	}
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+	// Fuzz builds only (tools/buildIVGFuzz): canvases, images and patterns up to the full 32767 x 32767 are legal, but
+	// would be reported as out of memory, so they are capped at 16M pixels.
+	const int FUZZ_BOUNDS_PIXEL_LIMIT = 1 << 24;
+	if (bounds.width * bounds.height > FUZZ_BOUNDS_PIXEL_LIMIT) {
+		Interpreter::throwRunTimeError(String("\"bounds\" area \"")
+				+ Interpreter::toString(bounds.width * bounds.height) + "\" out of range [1.." + Interpreter::toString(FUZZ_BOUNDS_PIXEL_LIMIT) + "].");
+	}
+#endif
 }
 
 /*
