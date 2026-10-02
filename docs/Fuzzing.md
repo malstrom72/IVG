@@ -4,7 +4,8 @@
 
 The `tools/IVG2PNG.cpp` program contains an `LLVMFuzzerTestOneInput` entry point guarded by the `LIBFUZZ` macro.
 `tools/buildIVGFuzz.cmd` builds it with MSVC's libFuzzer and AddressSanitizer (Visual Studio 2022, x64), and
-`tools/buildIVGFuzz.sh` does the same with clang. Both build `output/IVGFuzz` optimized but with asserts on.
+`tools/buildIVGFuzz.sh` does the same with clang, adding UndefinedBehaviorSanitizer (which MSVC lacks) so that integer
+overflows and out-of-range conversions are reported too. Both build `output/IVGFuzz` optimized but with asserts on.
 
 ```bash
 bash tools/buildIVGFuzz.sh
