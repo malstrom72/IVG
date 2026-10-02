@@ -445,8 +445,14 @@ template<class PIXEL_TYPE> class LinearGradientPainter : public GradientPainter<
 					NuXPixels::Vertex xfEnd90 = xf.transform(Vertex(start.x - end.y + start.y, start.y + end.x - start.x));
 					double dx = xfEnd90.x - xfStart.x;
 					double dy = xfEnd90.y - xfStart.y;
-					double l = fabs((xfEnd.y - xfStart.y) * dx - (xfEnd.x - xfStart.x) * dy) / (dx * dx + dy * dy);
-					xfEnd = NuXPixels::Vertex(xfStart.x + dy * l, xfStart.y - dx * l);
+					const double dSquared = dx * dx + dy * dy;
+					if (dSquared != 0) {
+						double l = fabs((xfEnd.y - xfStart.y) * dx - (xfEnd.x - xfStart.x) * dy) / dSquared;
+						xfEnd = NuXPixels::Vertex(xfStart.x + dy * l, xfStart.y - dx * l);
+					}
+					if (!isfinite(xfStart.x) || !isfinite(xfStart.y) || !isfinite(xfEnd.x) || !isfinite(xfEnd.y)) {
+						IMPD::Interpreter::throwRunTimeError("Gradient coordinates out of range");
+					}
 					
 					inContext.accessCanvas().blend(this->gradient[NuXPixels::LinearAscend(xfStart.x, xfStart.y, xfEnd.x, xfEnd.y)]
 							* static_cast<const NuXPixels::Renderer<NuXPixels::Mask8>&>(FadedMask(mask, withPaint.opacity)));

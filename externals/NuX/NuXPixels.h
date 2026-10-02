@@ -801,7 +801,7 @@ class LinearAscend : public Renderer<Mask8> { // FIX : name? LinearMask, LinearA
 	public:		LinearAscend(double startX, double startY, double endX, double endY);
 	public:		virtual IntRect calcBounds() const;
 	public:		virtual void render(int x, int y, int length, SpanBuffer<Mask8>& output) const;
-	protected:	int start;
+	protected:	double start;	// A whole number, but kept as a double since far from the origin it does not fit an int.
 	protected:	int dx;
 	protected:	int dy;
 };
