@@ -484,6 +484,10 @@ template<class PIXEL_TYPE> class RadialGradientPainter : public GradientPainter<
 						inContext.accessCanvas().blend(NuXPixels::Solid<PIXEL_TYPE>
 								(PIXEL_TYPE::multiply(this->gradient[0], withPaint.opacity)) * mask);
 					} else {
+						// RadialAscend works out its bounds in an int, so the gradient must stay well inside that range.
+						if (!(fabs(xfCenter.x) + hSize < (1 << 30) && fabs(xfCenter.y) + vSize < (1 << 30))) {
+							IMPD::Interpreter::throwRunTimeError("Gradient coordinates out of range");
+						}
 						inContext.accessCanvas().blend(this->gradient[NuXPixels::RadialAscend(xfCenter.x, xfCenter.y, hSize, vSize)]
 								* static_cast<const NuXPixels::Renderer<NuXPixels::Mask8>&>(FadedMask(mask, withPaint.opacity)));
 					}
