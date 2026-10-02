@@ -90,10 +90,11 @@ These are the most important principles in the codebase. Get them wrong and the 
   buffers, bookkeeping - out of the public header so the client surface shows only what a client must call. Hard
   encapsulation is what makes RAII and design-by-contract enforceable: if the representation can only change through
   vetted methods, an inconsistent or half-built object is simply unobservable.
-- **Access specifiers go on every declaration.** `src/IVG.h`, `src/IMPD.h` and `externals/NuX/NuXPixels.h` all prefix
-  each declaration with its own specifier (`public:`, a tab, then the declaration, on that line) and use no grouped
-  `public:` / `private:` section headers at all. That is the form here; new declarations and new headers match it, and
-  the two forms are never mixed within one file.
+- **Grouped access-specifier sections, public first.** Write `public:` / `protected:` / `private:` as section headers
+  on their own line (one tab in), with members indented one further tab beneath them - the NuXJS style. Do NOT prefix
+  every member with its access specifier (`public:  method()` on each line): that per-declaration form is an older
+  style being phased out. New code uses grouped sections; when editing an existing file, match whatever that file
+  already uses.
 - **No heavy headers.** Big function bodies live in a `.cpp`; only small or hot inlines belong in a header. A large
   method defined inline in a header will be moved out in review. The painter and canvas templates in `src/IVG.h` are
   the unavoidable exception: being templates, they have to be visible to the client.
