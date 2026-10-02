@@ -47,7 +47,7 @@ const double DEGREES = PI2 / 360.0;
 const double MIN_CURVE_QUALITY = 0.001;
 const double MAX_CURVE_QUALITY = 100.0;
 const double COORDINATE_LIMIT = 1000000.0;
-const double MAX_RADIUS_RATIO = 10000000000.0;	// Path::arcSweep() needs the x radius to be less than this many times the y radius.
+const double MAX_RADIUS_RATIO = 10000000000.0;																			// Path::arcSweep() needs the x radius to be less than this many times the y radius.
 
 void checkBounds(const IntRect& bounds) {
 	if (bounds.left < -32768 || bounds.left >= 32768) {
@@ -565,10 +565,10 @@ static int findTransformType(size_t n /* string length */, const char* s /* zero
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
-/**
+/*
 	Throws unless every element of `xf` is finite. Concatenating huge transforms can overflow to infinity and then to NaN
 	(infinity minus infinity in a rotation), which nothing further on can handle.
-**/
+*/
 static AffineTransformation checkTransformation(const AffineTransformation& xf) {
 	for (int i = 0; i < 2; ++i) {
 		for (int j = 0; j < 3; ++j) {
