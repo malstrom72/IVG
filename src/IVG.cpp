@@ -1811,7 +1811,20 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 		impd.throwRunTimeError(String("Image scale ") + Interpreter::toString(actualScale)
 				+ String(" out of range (0..") + Interpreter::toString(maxScale) + ").");
 	}
-	
+	// Texture works in int and 32.32 fixed point, both ways; an image too far away or too small for that is not visible.
+	if (!(fabs(textureTransform.matrix[0][2]) < (1 << 29) && fabs(textureTransform.matrix[1][2]) < (1 << 29))) {
+		impd.throwRunTimeError("Image coordinates out of range.");
+	}
+	AffineTransformation inverseTransform = textureTransform;
+	if (inverseTransform.invert()) {
+		for (int i = 0; i < 2; ++i) {
+			if (!(fabs(inverseTransform.matrix[i][0]) < (1 << 14) && fabs(inverseTransform.matrix[i][1]) < (1 << 14)
+					&& fabs(inverseTransform.matrix[i][2]) < (1 << 29))) {
+				impd.throwRunTimeError("Image scale out of range.");
+			}
+		}
+	}
+
 	// FIX : sub in nuxpixels for making a sub-raster?
 	const Raster<ARGB32>* raster = image.raster;
 	Raster<ARGB32> subRaster(raster->getPixelPointer(), raster->getStride()
