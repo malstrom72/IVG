@@ -76,6 +76,26 @@ void checkBounds(const IntRect& bounds) {
 	}
 #endif
 }
+
+static void checkBoundsBeforeScaling(double left, double top, double width, double height) {
+	if (left < -32768.0 || left > 32767.0) {
+		Interpreter::throwRunTimeError(String("rescaled bounds left out of range [-32768..32767]: ")
+				+ Interpreter::toString(left));
+	}
+	if (top < -32768.0 || top > 32767.0) {
+		Interpreter::throwRunTimeError(String("rescaled bounds top out of range [-32768..32767]: ")
+				+ Interpreter::toString(top));
+	}
+	if (width < 1.0 || width > 32767.0) {
+		Interpreter::throwRunTimeError(String("rescaled bounds width out of range [1..32767]: ")
+				+ Interpreter::toString(width));
+	}
+	if (height < 1.0 || height > 32767.0) {
+		Interpreter::throwRunTimeError(String("rescaled bounds height out of range [1..32767]: ")
+				+ Interpreter::toString(height));
+	}
+}
+
 static StringIt eatSpace(StringIt p, const StringIt& e) {
 	while (p != e && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')) ++p;
 	return p;
@@ -865,7 +885,14 @@ int Context::calcPatternScale() const {
 	const AffineTransformation& xf = state.transformation;
 	const double scale = sqrt(max(square(xf.matrix[0][0]) + square(xf.matrix[1][0])
 			, square(xf.matrix[0][1]) + square(xf.matrix[1][1])));
-	return static_cast<int>(max(ceil(scale * state.options.patternResolution - 0.0001), 1.0));
+	const double scaled = ceil(scale * state.options.patternResolution - 0.0001);
+	// A pattern raster is its bounds times this scale, and `checkBounds` caps that at the maximum canvas
+	// dimension, so a larger factor can never produce a usable pattern. Clamping keeps the conversion to
+	// `int` defined and lets `defineBounds` report the real range error instead of a wrapped one.
+	if (!isfinite(scaled) || scaled > 32767.0) {
+		return 32767;
+	}
+	return static_cast<int>(max(scaled, 1.0));
 }
 
 /* Built with QuickHashGen */
@@ -1165,6 +1192,11 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 	}
 	if ((s = args.fetchOptional("clip")) != 0) {
 		parseNumberList(impd, *s, numbers, 4, 4);
+		for (int i = 0; i < 4; ++i) {
+			if (fabs(numbers[i]) > COORDINATE_LIMIT) {
+				impd.throwRunTimeError(String("clip value out of range [-1000000..1000000]: ") + impd.toString(numbers[i]));
+			}
+		}
 		if (numbers[2] < 0.0) {
 			impd.throwRunTimeError(String("Negative clip width: ") + impd.toString(numbers[2]));
 		}
@@ -1657,8 +1689,12 @@ void SelfContainedARGB32Canvas::checkBoundsDeclared() const {
 void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
 	IntRect scaledBounds = newBounds;
 	if (rescaleBounds != 1.0) {
-		scaledBounds = expandToIntRect(Rect<double>(newBounds.left * rescaleBounds
-				, newBounds.top * rescaleBounds, newBounds.width * rescaleBounds, newBounds.height * rescaleBounds));
+		const double left = newBounds.left * rescaleBounds;
+		const double top = newBounds.top * rescaleBounds;
+		const double width = newBounds.width * rescaleBounds;
+		const double height = newBounds.height * rescaleBounds;
+		checkBoundsBeforeScaling(left, top, width, height);
+		scaledBounds = expandToIntRect(Rect<double>(left, top, width, height));
 	}
 	if (raster.get() != 0) Interpreter::throwRunTimeError("Multiple bounds declarations");
 	checkBounds(scaledBounds);
