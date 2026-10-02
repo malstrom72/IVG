@@ -1027,9 +1027,13 @@ void RadialAscend::render(int x, int y, int length, SpanBuffer<Mask8>& output) c
 	const double a = 1.0 - dy * dy / (height * height);
 	const double rowWidth = (a > EPSILON) ? width * sqrt(a) : 0;
 	const double rowStart = (centerX - rowWidth);
-	const int rowStartInt = roundToInt(rowStart);
+	// The edges are clamped before rounding, since a center far off the canvas does not fit an int. A span is at most
+	// MAX_RENDER_LENGTH pixels, so an edge clamped at -(1 << 30) or 1 << 30 still lies on the same side of it.
+	const double EDGE_LIMIT = (1 << 30);
+	const int rowStartInt = roundToInt(minValue(maxValue(rowStart, -EDGE_LIMIT), EDGE_LIMIT));
 	const int leftEdge = minValue(maxValue(rowStartInt - x, 0), length);
-	const int rightEdge = minValue(roundToInt(rowStart + rowWidth * 2 - x), length);
+	const int rightEdge = minValue(roundToInt(minValue(maxValue(rowStart + rowWidth * 2, -EDGE_LIMIT), EDGE_LIMIT) - x)
+			, length);
 	
 	int i = 0;
 	while (i < length) {
