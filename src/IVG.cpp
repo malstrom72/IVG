@@ -675,10 +675,10 @@ static int findPathInstructionType(int n /* string length */, const char* s /* s
 	return (stringIndex >= 0 && strcmp(s, STRINGS[stringIndex]) == 0) ? stringIndex : -1;
 }
 
-/**
+/*
 	Throws unless every element of `xf` is finite. Concatenating huge transforms can overflow to infinity and then to NaN
 	(infinity minus infinity in a rotation), which nothing further on can handle.
-**/
+*/
 static AffineTransformation checkTransformation(const AffineTransformation& xf) {
 	for (int i = 0; i < 2; ++i) {
 		for (int j = 0; j < 3; ++j) {
