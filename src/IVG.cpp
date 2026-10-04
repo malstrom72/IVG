@@ -77,6 +77,22 @@ void checkBounds(const IntRect& bounds) {
 #endif
 }
 
+void checkTextureTransformation(const AffineTransformation& xf, const char* what) {
+	// Texture works in int and 32.32 fixed point, both ways, so the transformation must stay well inside those ranges.
+	if (!(fabs(xf.matrix[0][2]) < (1 << 29) && fabs(xf.matrix[1][2]) < (1 << 29))) {
+		Interpreter::throwRunTimeError(String(what) + " coordinates out of range.");
+	}
+	AffineTransformation inverse = xf;
+	if (inverse.invert()) {
+		for (int i = 0; i < 2; ++i) {
+			if (!(fabs(inverse.matrix[i][0]) < (1 << 14) && fabs(inverse.matrix[i][1]) < (1 << 14)
+					&& fabs(inverse.matrix[i][2]) < (1 << 29))) {
+				Interpreter::throwRunTimeError(String(what) + " scale out of range.");
+			}
+		}
+	}
+}
+
 /*
 	Applies the `checkBounds` limits while the rectangle is still `double`, before the conversion to `int`.
 */
@@ -1811,19 +1827,7 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 		impd.throwRunTimeError(String("Image scale ") + Interpreter::toString(actualScale)
 				+ String(" out of range (0..") + Interpreter::toString(maxScale) + ").");
 	}
-	// Texture works in int and 32.32 fixed point, both ways; an image too far away or too small for that is not visible.
-	if (!(fabs(textureTransform.matrix[0][2]) < (1 << 29) && fabs(textureTransform.matrix[1][2]) < (1 << 29))) {
-		impd.throwRunTimeError("Image coordinates out of range.");
-	}
-	AffineTransformation inverseTransform = textureTransform;
-	if (inverseTransform.invert()) {
-		for (int i = 0; i < 2; ++i) {
-			if (!(fabs(inverseTransform.matrix[i][0]) < (1 << 14) && fabs(inverseTransform.matrix[i][1]) < (1 << 14)
-					&& fabs(inverseTransform.matrix[i][2]) < (1 << 29))) {
-				impd.throwRunTimeError("Image scale out of range.");
-			}
-		}
-	}
+	checkTextureTransformation(textureTransform, "Image");
 
 	// FIX : sub in nuxpixels for making a sub-raster?
 	const Raster<ARGB32>* raster = image.raster;

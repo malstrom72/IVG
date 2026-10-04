@@ -73,6 +73,7 @@ const int MAX_LINE_COORDINATES = 200000; // 100000 lines
 inline double square(double d) { return d * d; }
 
 void checkBounds(const NuXPixels::IntRect& bounds);
+void checkTextureTransformation(const NuXPixels::AffineTransformation& xf, const char* what);
 
 /*
 	Lightweight ownership wrapper for pointers that are sometimes "inherited" and sometimes owned.
@@ -606,6 +607,7 @@ template<class PIXEL_TYPE> class PatternPainter : public PatternBase {
 						xf = NuXPixels::AffineTransformation().scale(1.0 / scale)
 								.transform(withPaint.transformation.transform(inContext.getTransformation()));
 					}
+					checkTextureTransformation(xf, "Pattern");
 
 					inContext.accessCanvas().blend(NuXPixels::Texture<PIXEL_TYPE>(*image, true
 							, NuXPixels::AffineTransformation().transform(xf))
