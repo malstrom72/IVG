@@ -1465,10 +1465,10 @@ void PolygonMask::render(int x, int y, int length, SpanBuffer<Mask8>& output) co
 		int segIndex = engagedStart;
 		while (segsVertically[segIndex]->topY < yFixed) {
 			Segment* seg = segsVertically[segIndex];
-			int dy = yFixed - seg->currentY;
+			const int dy = minValue(yFixed, seg->bottomY) - seg->currentY;
 			if (dy > 0) {
 				seg->x = add(seg->x, multiply(static_cast<UInt32>(dy), seg->dx));
-				seg->currentY = yFixed;
+				seg->currentY += dy;
 			}
 			++segIndex;
 		}
