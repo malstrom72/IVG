@@ -375,11 +375,11 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 								if (xAxisRotation != 0.0) {
 									Path tempPath;
 									tempPath.lineTo(startPos.x, startPos.y);
-									tempPath.arcSweep(centerX, centerY, sweepRadians, aspectRatio, curveQuality);
+									tempPath.arcSweep(centerX, centerY, sweepRadians, aspectRatio, 1.0, curveQuality);
 									tempPath.transform(affineReverse);
 									path.append(tempPath);
 								} else {
-									path.arcSweep(centerX, centerY, sweepRadians, aspectRatio, curveQuality);
+									path.arcSweep(centerX, centerY, sweepRadians, aspectRatio, 1.0, curveQuality);
 								}
 							}
 						}
