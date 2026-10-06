@@ -130,7 +130,7 @@ by Fredrik Lidström, a TypeScript wrapper around the legacy
 - [ivgfont Documentation](docs/ivgfont%20Documentation.md)
 - [Developer Guide](docs/Developer%20Guide.md)
 - [Coding Style](docs/CodingStyle.md)
-- [Fuzzing](docs/Fuzzing.md)
+- [Fuzzing](docs/fuzzing.md)
 
 ## AI Usage
 
