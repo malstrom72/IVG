@@ -130,18 +130,18 @@ static Vertex toAbsoluteVertex(const Path& path, bool sourceIsRelative, const Ve
 	}
 }
 
-static bool parseInt(StringIt& p, const StringIt& e, int32_t& v) {
+/*
+	Parses an SVG arc `large-arc-flag` or `sweep-flag`, which the SVG grammar defines as a single `0` or `1`
+	character. Advances `p` on success and leaves it untouched otherwise.
+*/
+static bool parseFlag(StringIt& p, const StringIt& e, bool& v) {
 	assert(p <= e);
-	StringIt q = p;
-	bool negative = (e - q > 1 && (*q == '+' || *q == '-') ? (*q++ == '-') : false);
-	int32_t i = 0;
-	if (q == e || *q < '0' || *q > '9') return false;
-	else {
-		p = q;
-		for (; p != e && *p >= '0' && *p <= '9'; ++p) i = i * 10 + (*p - '0');
-		v = negative ? -i : i;
-		return true;
+	if (p == e || (*p != '0' && *p != '1')) {
+		return false;
 	}
+	v = (*p == '1');
+	++p;
+	return true;
 }
 
 static bool parseSingleCoordinate(StringIt& p, const StringIt& e, double& v) {
@@ -328,14 +328,14 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 				case 'A': { // FIX : is A without arguments allowed here?
 					Vertex radii;
 					double xAxisRotation;
-					int32_t largeArcFlag;
-					int32_t sweepFlag;
+					bool largeArcFlag;
+					bool sweepFlag;
 					Vertex v;
 					StringIt q = p;
 					while (parseCoordinatePair(q, e, radii, !first)
 							&& ((void)(q = eatSpaceAndComma(q, e)), parseSingleCoordinate(q, e, xAxisRotation))
-							&& ((void)(q = eatSpaceAndComma(q, e)), parseInt(q, e, largeArcFlag))
-							&& ((void)(q = eatSpaceAndComma(q, e)), parseInt(q, e, sweepFlag))
+							&& ((void)(q = eatSpaceAndComma(q, e)), parseFlag(q, e, largeArcFlag))
+							&& ((void)(q = eatSpaceAndComma(q, e)), parseFlag(q, e, sweepFlag))
 							&& parseCoordinatePair(q, e, v, true)) {
 						first = false;
 						p = q;
@@ -358,8 +358,8 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 							double dx = endPos.x - startPos.x;
 							double dy = endPos.y - startPos.y;
 							if (fabs(dx) >= EPSILON || fabs(dy) >= EPSILON) {
-								double largeArcSign = (largeArcFlag != 0 ? 1.0 : -1.0);
-								double sweepSign = (sweepFlag != 0 ? largeArcSign : -largeArcSign);
+								double largeArcSign = (largeArcFlag ? 1.0 : -1.0);
+								double sweepSign = (sweepFlag ? largeArcSign : -largeArcSign);
 								double aspectRatio = radii.x / radii.y;
 								if (!(aspectRatio > EPSILON && aspectRatio < 1e6)) {
 									errorString = "Arc radius ratio out of range in svg path data";
