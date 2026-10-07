@@ -143,4 +143,8 @@ files or PNG output; text is only reached through `define font` in the input.
 - **Corpus and regression.** The inputs of fixed crashes are in `tests/fuzz/IVGFuzzCrashes/`, together with the
   minimized repros written while fixing them. `tools/buildAndTest.sh` and `.cmd` build the target without libFuzzer
   as `output/IVGFuzzReplay` (from `tools/FuzzMain.cpp`, with an 8 MB stack on Windows like the fuzz build) and replay
-  every one of them in each build. IVG has no corpus archive yet.
+  every one of them in each build. The merged corpus, `tests/fuzz/IVGFuzzCorpus.tar.gz`, is too slow for every
+  build, so it is the one exception to replaying the corpus in the normal build: `tools/replayFuzzCorpus.sh` and
+  `.cmd` unpack it into an emptied `output/fuzzCorpusReplay` and replay it through the last `IVGFuzzReplay` built.
+  CI runs them after the build, and they are run by hand before a freeze. The archive was merged with
+  `-max_len=8192`, and without the inputs slowest to replay.
