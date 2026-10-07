@@ -135,5 +135,7 @@ files or PNG output; text is only reached through `define font` in the input.
   30 s with clang and 120 s with MSVC, both about 3 s of work in a release build. On macOS `runIVGFuzz.sh` keeps an
   `ASAN_OPTIONS` you have exported and otherwise sets `detect_container_overflow=0` alone.
 - **Replaying.** Pass a saved input to the target: `./output/IVGFuzz output/fuzzArtifacts/crash-...`.
-- **Corpus and regression.** IVG has no `tests/fuzz/` archive and no replay `main()` yet. Past crash inputs are
-  committed in `fuzzCrashes/`, but nothing replays them automatically.
+- **Corpus and regression.** The inputs of fixed crashes are in `tests/fuzz/IVGFuzzCrashes/`, together with the
+  minimized repros written while fixing them. `tools/buildAndTest.sh` and `.cmd` build the target without libFuzzer
+  as `output/IVGFuzzReplay` (from `tools/FuzzMain.cpp`, with an 8 MB stack on Windows like the fuzz build) and replay
+  every one of them in each build. IVG has no corpus archive yet.

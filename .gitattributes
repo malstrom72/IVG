@@ -1,2 +1,4 @@
 # Mark generated files from IVG Fiddle build as linguist-generated
 /tools/ivgfiddle/output/** linguist-generated=true
+# Fuzz regression inputs are replayed byte for byte, so line-ending conversion must not touch them
+/tests/fuzz/IVGFuzzCrashes/** binary

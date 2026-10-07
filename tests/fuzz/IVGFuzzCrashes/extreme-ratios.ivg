@@ -1,0 +1,7 @@
+format IVG-1 requires:IMPD-1
+bounds 0,0,100,100
+fill black
+ellipse 50,50,1e12,0.001
+ellipse 50,50,0.001,1e12
+rect 0,0,100,100 rounded:1e12,0.001
+rect 0,0,100,100 rounded:0.001,1e12

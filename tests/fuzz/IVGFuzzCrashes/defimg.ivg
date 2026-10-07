@@ -1,0 +1,6 @@
+format IVG-1 requires:IMPD-1
+bounds 0,0,100,100
+define image big [
+	bounds 0,0,800,800
+] resolution:40
+image 0,0 big

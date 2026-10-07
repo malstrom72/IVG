@@ -52,6 +52,12 @@ C_SRCS=(./externals/libpng/png.c ./externals/libpng/pngerror.c ./externals/libpn
 -DNUXPIXELS_SIMD=$simd -I ./ -I ./externals \
 ./tools/PolygonMaskTest.cpp ./externals/NuX/NuXPixels.cpp
 
+# The fuzz target without libFuzzer, to replay the saved fuzz inputs.
+./tools/BuildCpp.sh $1 $2 ./output/IVGFuzzReplay \
+-DNUXPIXELS_SIMD=$simd -DLIBFUZZ -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION \
+-I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib \
+./tools/FuzzMain.cpp ./tools/IVG2PNG.cpp ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp
+
 echo Testing...
 cd tests
 bash ../tools/testIVG.sh ../output/IVG2PNG
@@ -64,4 +70,5 @@ else
 fi
 cd ..
 ./output/PolygonMaskTest
+./output/IVGFuzzReplay ./tests/fuzz/IVGFuzzCrashes/*
 exit 0
