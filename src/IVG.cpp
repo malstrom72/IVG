@@ -1007,7 +1007,7 @@ void IVGExecutor::runInNewContext(Interpreter& interpreter, Context& context, co
 
 bool IVGExecutor::format(Interpreter& impd, const FormatInfo& formatInfo) {
 	(void)impd;
-	return (formatInfo.formatId == "ivg-1" || formatInfo.formatId == "ivg-2") && formatInfo.requires.empty();
+	return (formatInfo.formatId == "ivg-1" || formatInfo.formatId == "ivg-2") && formatInfo.requirements.empty();
 }
 
 bool IVGExecutor::meta(Interpreter& impd, const String& key, const String& arguments) {
@@ -1823,7 +1823,7 @@ FontParser::FontParser(Executor* parentExecutor) : parentExecutor(parentExecutor
 
 bool FontParser::format(Interpreter& impd, const FormatInfo& formatInfo) {
 	(void)impd;
-	return (formatInfo.formatId == "ivgfont-1" && formatInfo.requires.empty());
+	return (formatInfo.formatId == "ivgfont-1" && formatInfo.requirements.empty());
 }
 
 bool FontParser::meta(Interpreter& impd, const String& key, const String& arguments) {
