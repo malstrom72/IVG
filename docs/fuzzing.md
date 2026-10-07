@@ -128,7 +128,7 @@ files or PNG output; text is only reached through `define font` in the input.
 - **Windows stack.** `LLVMFuzzerInitialize` also calls `SetThreadStackGuarantee`, so that a stack overflow leaves
   enough stack to save the input.
 - **Running.** `bash tools/runIVGFuzz.sh` and `tools\runIVGFuzz.cmd` fuzz until stopped, one process per logical CPU,
-  with `-ignore_crashes=1 -ignore_ooms=1 -ignore_timeouts=1 -rss_limit_mb=4096` and artifacts in
+  with `-ignore_crashes=1 -ignore_ooms=1 -ignore_timeouts=1 -rss_limit_mb=2048` and artifacts in
   `output/fuzzArtifacts/`. The seeds are every `.ivg` in the repository, gathered into `output/fuzzSeeds` by
   `tools/collectFuzzCorpus.sh` at the start of each run, and new inputs build up in `output/fuzzCorpus`, outside git.
   Extra arguments go to libFuzzer, for example `-fork=4 -max_total_time=43200`. An input counts as a timeout after

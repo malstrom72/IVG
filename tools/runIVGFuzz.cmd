@@ -10,4 +10,4 @@ REM Extra arguments go to libFuzzer and override the defaults, e.g. runIVGFuzz.c
 CALL tools\collectFuzzCorpus.cmd output\fuzzSeeds || EXIT /B 1
 IF NOT EXIST output\fuzzCorpus MKDIR output\fuzzCorpus
 IF NOT EXIST output\fuzzArtifacts MKDIR output\fuzzArtifacts
-output\IVGFuzz.exe -fork=%NUMBER_OF_PROCESSORS% -ignore_crashes=1 -ignore_ooms=1 -ignore_timeouts=1 -rss_limit_mb=4096 -timeout=120 -artifact_prefix=output\fuzzArtifacts\ %* output\fuzzCorpus output\fuzzSeeds || EXIT /B 1
+output\IVGFuzz.exe -fork=%NUMBER_OF_PROCESSORS% -ignore_crashes=1 -ignore_ooms=1 -ignore_timeouts=1 -rss_limit_mb=2048 -timeout=120 -artifact_prefix=output\fuzzArtifacts\ %* output\fuzzCorpus output\fuzzSeeds || EXIT /B 1
