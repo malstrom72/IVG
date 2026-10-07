@@ -6,9 +6,9 @@ IF "%~1"=="" (
 	ECHO.
 	ECHO InstallPika ^<target path^>
 	ECHO.
-	ECHO To run as administrator and install into C:\WINDOWS, type:
+	ECHO To install into C:\WINDOWS, open a Command Prompt with "Run as administrator", go to this folder and type:
 	ECHO.
-	ECHO runas.exe /savecred /user:administrator "cmd /c cd %CD%&&InstallPika.cmd C:\WINDOWS"
+	ECHO InstallPika.cmd C:\WINDOWS
 	EXIT /B 1
 )
 COPY Pika.cmd %1\ || GOTO error

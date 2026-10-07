@@ -1,5 +1,5 @@
 /*
-	unittests.pika v0.982
+	unittests.pika v0.983
 
 	PikaScript is released under the "New Simplified BSD License". http://www.opensource.org/licenses/bsd-license.php
 	
@@ -631,6 +631,11 @@ assert(> try(> char(2293)) !== void);
 assert(> try(> char(-1)) !== void);
 assert(> try(> char(65.5)) !== void);
 assert(> try(> invoke('max', , @nothing, 0, 2000000000)) !== void);			// A huge count allocated all arguments up front (found by fuzzing).
+
+// 0.982 -> 0.983
+
+assert(> try(> trace(>void, 50)) !== void);									// Undefined behavior: an out-of-range level was cast to the enum (found by fuzzing).
+assert(> try(> trace(>void, -1)) !== void);
 
 //////////////////////////
 

@@ -2,7 +2,7 @@
 SETLOCAL ENABLEEXTENSIONS ENABLEDELAYEDEXPANSION
 
 IF NOT EXIST PikaCmd.exe (
-	CALL BuildCpp.cmd PikaCmd.exe /D "PLATFORM_STRING=WINDOWS" PikaCmdAmalgam.cpp
+	CALL .\BuildCpp.cmd PikaCmd.exe /D "PLATFORM_STRING=WINDOWS" PikaCmdAmalgam.cpp
 	IF ERRORLEVEL 1 EXIT /B 1
 	ECHO Testing...
 	IF EXIST unittests.pika (
