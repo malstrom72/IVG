@@ -75,6 +75,12 @@ C_SRCS=(./externals/libpng/png.c ./externals/libpng/pngerror.c ./externals/libpn
 	./externals/NuX/NuXPixels.cpp \
                 "${C_SRCS[@]}"
 
+# The fuzz target without libFuzzer, to replay the saved fuzz inputs.
+./tools/BuildCpp.sh $1 $2 ./output/IVGFuzzReplay \
+-DNUXPIXELS_SIMD=$simd -DLIBFUZZ -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION \
+-I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib \
+./tools/FuzzMain.cpp ./tools/IVG2PNG.cpp ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp
+
 echo Testing...
 # One temp dir with a trap, so a failing diff does not leave files behind.
 tmpdir=$(mktemp -d)
@@ -114,4 +120,5 @@ tmp="$tmpdir/list.txt"
 diff --strip-trailing-cr tools/IVGSnapshot/tests/ListOnlySample.txt "$tmp"
 ./output/IVGSnapshot --list-only tools/IVGSnapshot/tests/ListScenarioVariants.ivg > "$tmp"
 diff --strip-trailing-cr tools/IVGSnapshot/tests/ListScenarioVariants.txt "$tmp"
+./output/IVGFuzzReplay ./tests/fuzz/IVGFuzzCrashes/*
 exit 0

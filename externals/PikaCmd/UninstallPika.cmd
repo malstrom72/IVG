@@ -6,9 +6,9 @@ IF "%~1"=="" (
 	ECHO.
 	ECHO UninstallPika ^<installation path^>
 	ECHO.
-	ECHO To run as administrator and uninstall from C:\WINDOWS, type:
+	ECHO To uninstall from C:\WINDOWS, open a Command Prompt with "Run as administrator", go to this folder and type:
 	ECHO.
-	ECHO runas.exe /savecred /user:administrator "cmd /c cd %CD%&&UninstallPika.cmd C:\WINDOWS"
+	ECHO UninstallPika.cmd C:\WINDOWS
 	EXIT /B 1
 )
 DEL %1\Pika.cmd

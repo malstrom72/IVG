@@ -1,0 +1,7 @@
+format IVG-1 requires:IMPD-1
+bounds 0,0,100,100
+scale 1e200
+scale 1e200
+rotate 45
+rotate 45
+path svg:[M0,0 L10,10]

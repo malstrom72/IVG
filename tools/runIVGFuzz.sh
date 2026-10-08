@@ -15,5 +15,5 @@ mkdir -p output/fuzzCorpus output/fuzzArtifacts
 if [[ "$(uname -s)" == "Darwin" ]]; then
 	export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_container_overflow=0}"
 fi
-./output/IVGFuzz -fork="$(getconf _NPROCESSORS_ONLN)" -ignore_crashes=1 -ignore_ooms=1 -ignore_timeouts=1 -rss_limit_mb=4096 \
+./output/IVGFuzz -fork="$(getconf _NPROCESSORS_ONLN)" -ignore_crashes=1 -ignore_ooms=1 -ignore_timeouts=1 -rss_limit_mb=2048 \
 		-timeout=30 -artifact_prefix=output/fuzzArtifacts/ "$@" output/fuzzCorpus output/fuzzSeeds

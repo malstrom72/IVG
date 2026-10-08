@@ -67,6 +67,13 @@ CALL .\tools\BuildCpp.cmd %1 %2 .\output\PolygonMaskTest ^
 		"-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" ^
 		.\tools\PolygonMaskTest.cpp .\externals\NuX\NuXPixels.cpp || EXIT /B 1
 
+REM The fuzz target without libFuzzer, to replay the saved fuzz inputs. The 8 MB stack matches the fuzz build.
+CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVGFuzzReplay ^
+		"-DNUXPIXELS_SIMD=%simd%" /D LIBFUZZ /D FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION ^
+		/I"." /I"externals" /I"externals\libpng" /I"externals\zlib" ^
+		.\tools\FuzzMain.cpp .\tools\IVG2PNG.cpp .\src\IVG.cpp .\src\IMPD.cpp .\externals\NuX\NuXPixels.cpp ^
+		/link /STACK:8388608 || EXIT /B 1
+
 CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVGSnapshot "-DNUXPIXELS_SIMD=%simd%" ^
 		/I"." /I"externals" /I"externals\libpng" /I"externals\zlib" ^
 		.\tools\IVGSnapshot\IVGSnapshot.cpp .\src\IVG.cpp .\src\IMPD.cpp ^
@@ -116,6 +123,9 @@ CALL .\output\PolygonMaskTest || GOTO error
 CALL .\output\TestSnapshotPlan || GOTO error
 CALL :listOnly ListOnlySample || GOTO error
 CALL :listOnly ListScenarioVariants || GOTO error
+FOR %%f IN (.\tests\fuzz\IVGFuzzCrashes\*) DO (
+	.\output\IVGFuzzReplay "%%f" >NUL || GOTO error
+)
 GOTO :eof
 
 REM Compares one --list-only run against its golden.

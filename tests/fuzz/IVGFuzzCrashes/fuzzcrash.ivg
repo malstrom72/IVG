@@ -1,0 +1,29 @@
+FORMAT IVG-2 requires:IMPD-1
+BOUNDS 0,0,800,800
+
+define image enbild [
+	bounds 0,0,200,100
+	mask [ ellipse 20,0,888888888888888888888888888888888888888888888888888888850,29.5 ] inverted:yes
+	fill pattern:[
+		bounds 0,0,20,20
+		wipe #C08030
+		fill yellow
+		rect 1,0,18,18
+	]
+	pen red
+	rect 80,10,80,80
+	ellipse 100,50,30
+] resolution:2
+
+define	bounds 0,0,100,100
+	wipe gradient:[linear 0,10,00,100 from:black to:green]
+	fill gradient:[radial 0.5,0.5,0.5 from:white to:silver] relative:yes
+	ellipse 49,50,30
+] resolution:3
+
+prng_ 3
+	rot!te 33
+	image 100,10 "enannanbild" opacity:0.7 align:"middle cenôer" transform:[rotat¡ßÌÏ]
+]
+
+image 4 align:"top left" width:100 height:50 stretch:yes clip:[-10,-10,50,50]

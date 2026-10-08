@@ -3,7 +3,7 @@ set -e -o pipefail -u
 cd "$(dirname "$0")"/..
 mkdir -p ./output
 # Builds the libFuzzer target in IVG2PNG.cpp with clang, optimized but with asserts on, like buildIVGFuzz.cmd.
-# tools/runIVGFuzz.sh runs it. On macOS, point CPP_COMPILER at Homebrew's llvm clang++ (see docs/Fuzzing.md).
+# tools/runIVGFuzz.sh runs it. On macOS, point CPP_COMPILER at Homebrew's llvm clang++ (see docs/fuzzing.md).
 # UndefinedBehaviorSanitizer is on too, stopping at the first report so that libFuzzer saves the input. MSVC has no
 # equivalent, so buildIVGFuzz.cmd builds without it.
 OPTIONS="-fsanitize=fuzzer,address,undefined -fno-sanitize-recover=all -UNDEBUG -DLIBFUZZ"

@@ -1,0 +1,6 @@
+bounds 0,0,100,100
+ellipse 50,50,30,10
+rect 10,10,50,50 rounded:[10,5]
+path svg:[M0,0 A30,10 0 0 1 50,50]
+ellipse 50,50,0,10
+ellipse 50,50,10,0

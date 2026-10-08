@@ -1,0 +1,6 @@
+format IVG-1 requires:IMPD-1
+bounds 0,0,100,100
+scale 500
+wipe pattern:[
+	bounds 0,0,50,50
+]

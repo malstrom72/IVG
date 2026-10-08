@@ -1,0 +1,4 @@
+format IVG-1 requires:IMPD-1
+bounds 0,0,100,100
+pen black width:2
+path svg:[M10 50 A 100000 0.0001 0 0 1 90 50]

@@ -1,30 +1,14 @@
 # svg2ivg Test Cases
 
 ## Running the Converter
-Build PikaScript via `timeout 600 ./build.sh` from the repository root, then run the converter from its folder so `xmlMini.ppeg` can be found:
-
-```
-cd tools
-../externals/PikaScript/output/PikaCmd svg2ivg.pika ../tests/svg/supported/circle.svg
-```
-
-Process all samples in one go:
-
-```
-cd tools
-for f in ../tests/svg/*/*.svg; do
-	../externals/PikaScript/output/PikaCmd svg2ivg.pika "$f" >/dev/null
-done
-```
-
-Or use the Node.js port:
+The converter is `tools/svg2ivg.js`, run with Node.js:
 
 ```
 cd tools
 node svg2ivg.js ../tests/svg/supported/circle.svg
 ```
 
-Process all samples with Node:
+Process all samples in one go:
 
 ```
 cd tools
