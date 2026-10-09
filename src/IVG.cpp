@@ -1968,13 +1968,13 @@ static Path& makeStarPath(Path& path, Interpreter& impd, ArgumentsContainer& arg
 	args.throwIfAnyUnfetched();
 	double cx = numbers[0];
 	double cy = numbers[1];
-	int points = static_cast<int>(numbers[2]);
 	double r1 = numbers[3];
 	double r2 = (count == 5 ? numbers[4] : r1);
 	double rotation = (s != 0 ? impd.toDouble(*s) * DEGREES : 0.0);
-	if (points <= 0 || points > 10000) {
-		impd.throwRunTimeError(String("Star points \"") + impd.toString(points) + "\" out of range [1..10000].");
+	if (!(numbers[2] >= 1.0 && numbers[2] < 10001.0)) {
+		impd.throwRunTimeError(String("Star points \"") + impd.toString(numbers[2]) + "\" out of range [1..10000].");
 	}
+	const int points = static_cast<int>(numbers[2]);
 	if (r1 < 0.0 || r2 < 0.0) {
 		impd.throwRunTimeError(String("Negative star radius \"") + impd.toString(r1 < 0.0 ? r1 : r2) + "\".");
 	}
