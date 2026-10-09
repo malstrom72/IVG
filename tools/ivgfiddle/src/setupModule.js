@@ -2,6 +2,9 @@ const moduleConfig = {
 print: function(text) { trace(text); },
 printErr: function(text) { trace(text); },
 onRuntimeInitialized: function() {
+// Runs before the factory's promise resolves, so take the instance from `this` rather than waiting for the `then` below.
+const runtimeModule = this;
+Module = runtimeModule;
 let initSource = localStorage.getItem("ivgSource");
 if (initSource == null || initSource === '') {
 initSource = Module.FS.readFile('demoSource.ivg', { encoding: 'utf8' });
