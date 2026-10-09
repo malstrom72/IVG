@@ -1,0 +1,18 @@
+format IVG-2 requires:IMPD-1
+bounds 0,0,420,300
+
+// The positions tests/ivg/pathTextAnchor.ivg must match, drawn with TEXT, which IVG-2 and IVG-3 render alike.
+
+WIPE white
+font sans-serif size:18 color:black
+pen none
+fill red
+ELLIPSE 40,60,3
+ELLIPSE 40,130,3
+ELLIPSE 210,200,3
+ELLIPSE 380,270,3
+TEXT at:40,60 "A: anchor 40,60; move-to 0,0; text"
+TEXT at:40,130 "B: text at:0,0"
+TEXT " then chained"
+TEXT at:210,200 anchor:center "C: center"
+TEXT at:380,270 anchor:right "D: right"

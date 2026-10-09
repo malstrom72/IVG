@@ -1,0 +1,19 @@
+format IVG-3 requires:IMPD-1
+bounds 0,0,420,300
+
+// Path text after `anchor` starts at the anchored position, not twice the origin away. The red dots mark where each
+// string must start, center or end; tests/ivg/pathTextAnchorReference.ivg draws the same with TEXT.
+
+WIPE white
+font sans-serif size:18 color:black
+pen none
+fill red
+ELLIPSE 40,60,3
+ELLIPSE 40,130,3
+ELLIPSE 210,200,3
+ELLIPSE 380,270,3
+fill black
+PATH [ anchor 40,60; move-to 0,0; text "A: anchor 40,60; move-to 0,0; text" ]
+PATH [ anchor 40,130; text at:0,0 "B: text at:0,0"; text " then chained" ]
+PATH [ anchor 210,200; move-to 0,0; text anchor:center "C: center" ]
+PATH [ anchor 380,270; move-to 0,0; text anchor:right "D: right" ]

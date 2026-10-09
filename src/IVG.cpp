@@ -982,7 +982,9 @@ class PathInstructionExecutor : public Executor {
 						}
 						case PATH_TEXT_INSTRUCTION: {
 							const String* s;
-							Vertex base = path.getPosition();
+							// `base` is local, like `at`, because `appendChecked` adds the anchor origin to the text.
+							const Vertex pos(path.getPosition());
+							Vertex base(pos.x - ao.x, pos.y - ao.y);
 							if ((s = args.fetchOptional("at", true)) != 0) {
 								double at[2];
 								parseNumberList(impd, *s, at, 2, 2);
@@ -996,8 +998,7 @@ class PathInstructionExecutor : public Executor {
 							const double offset = calcTextAnchorOffset(anchor, advance);
 							textPath.transform(AffineTransformation().translate(base.x - offset, base.y));
 							appendChecked(textPath);
-							const Vertex end(base.x + (advance - offset), base.y);
-							path.moveTo(end.x, end.y);
+							path.moveTo(base.x + (advance - offset) + ao.x, base.y + ao.y);
 							return true;
 						}
 						case PATH_PATH_INSTRUCTION: {
