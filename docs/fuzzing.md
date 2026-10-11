@@ -145,9 +145,11 @@ files or PNG output; text is only reached through `define font` in the input.
   with `-ignore_crashes=1 -ignore_ooms=1 -ignore_timeouts=1 -rss_limit_mb=2048` and artifacts in
   `output/fuzzArtifacts/`. The seeds are every `.ivg` in the repository, gathered into `output/fuzzSeeds` by
   `tools/collectFuzzCorpus.sh` at the start of each run, and new inputs build up in `output/fuzzCorpus`, outside git.
-  Extra arguments go to libFuzzer, for example `-fork=4 -max_total_time=43200`. An input counts as a timeout after
-  30 s with clang and 120 s with MSVC, both about 3 s of work in a release build. On macOS `runIVGFuzz.sh` keeps an
-  `ASAN_OPTIONS` you have exported and otherwise sets `detect_container_overflow=0` alone.
+  Both pass `-dict=tests/fuzz/IVGFuzz.dict`, the IVG and IMPD keywords, option names and syntax, taken from the
+  lookup tables and option fetches in `src/IVG.cpp` and `src/IMPD.cpp`. Extra arguments go to libFuzzer, for example
+  `-fork=4 -max_total_time=43200`. An input counts as a timeout after 30 s with clang and 120 s with MSVC, both about
+  3 s of work in a release build. On macOS `runIVGFuzz.sh` keeps an `ASAN_OPTIONS` you have exported and otherwise
+  sets `detect_container_overflow=0` alone.
 - **Replaying.** Pass a saved input to the target: `./output/IVGFuzz output/fuzzArtifacts/crash-...`.
 - **Corpus and regression.** The inputs of fixed crashes are in `tests/fuzz/IVGFuzzCrashes/`, together with the
   minimized repros written while fixing them. `tools/buildAndTest.sh` and `.cmd` build the target without libFuzzer
