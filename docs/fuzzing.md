@@ -163,3 +163,8 @@ files or PNG output; text is only reached through `define font` in the input.
   the same replay with AddressSanitizer and UndefinedBehaviorSanitizer as `output/IVGFuzzReplaySanitized` and replays
   the crash inputs and the corpus through it, so memory errors and undefined behaviour in them show up without a fuzz
   run. CI runs it on Linux. `tools\replayFuzzSanitized.cmd` does the same with MSVC's AddressSanitizer alone.
+- **IMPD target.** `IMPDFuzz` (`tools/IMPDFuzz.cpp`) runs the IMPD interpreter alone, with an executor that accepts
+  every instruction and expands every argument, so inputs exercise parsing, control flow, variables and expressions
+  without stopping at an unknown instruction. `tools/buildIMPDFuzz.sh` and `.cmd` build it; seed it with
+  `output/fuzzSeeds` and a folder holding copies of `tests/*.impd`. IMPD limits statements but not memory, so
+  inputs that keep doubling a string, as the seeds' `REPEAT 30 [ o = {$o $o} ]` does, are reported as out of memory.
