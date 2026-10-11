@@ -14,6 +14,7 @@ using namespace IMPD;
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <crtdbg.h>
 
 /*
 	On Windows a stack overflow leaves no stack for AddressSanitizer and libFuzzer to report it on, so the input that
@@ -25,6 +26,10 @@ extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
 	SetThreadStackGuarantee(&guarantee);
 	_set_error_mode(_OUT_TO_STDERR);
 	_set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+	_CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+	_CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+	_CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
+	_CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
 	SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 	return 0;
 }

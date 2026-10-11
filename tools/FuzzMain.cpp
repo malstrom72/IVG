@@ -10,9 +10,14 @@
 	every file named on a line of standard input (for corpora too large for a command line). This lets the build
 	scripts compile the fuzz target with any compiler and replay the saved inputs through it.
 	tools/buildIVGFuzz.sh and tools/buildIVGFuzz.cmd build the real fuzzer.
+	On Windows the target's LLVMFuzzerInitialize is called first, as libFuzzer does, so that a failed assert in a
+	replay reports to stderr and fails the build instead of stalling it on a dialog.
 */
 
 extern "C" int LLVMFuzzerTestOneInput(const unsigned char* data, size_t size);
+#if defined(_WIN32)
+extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv);
+#endif
 
 static bool runFile(const std::string& path) {
 	std::ifstream stream(path.c_str(), std::ios::binary);
@@ -28,6 +33,9 @@ static bool runFile(const std::string& path) {
 }
 
 int main(int argc, char** argv) {
+#if defined(_WIN32)
+	LLVMFuzzerInitialize(&argc, &argv);
+#endif
 	int count = 0;
 	for (int i = 1; i < argc; ++i) {
 		const std::string argument(argv[i]);
