@@ -366,7 +366,7 @@ bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, 
 									return false;
 								}
 								double l = dx * dx + (aspectRatio * dy) * (aspectRatio * dy);
-								double b = max(4.0 * radii.x * radii.x / l - 1.0, EPSILON);
+								double b = max(4.0 * radii.x * radii.x / l - 1.0, 0.0);
 								double a = sweepSign * sqrt(b * 0.25);
 								double centerX = startPos.x + dx * 0.5 + a * dy * aspectRatio;
 								double centerY = startPos.y + dy * 0.5 - a * dx / aspectRatio;

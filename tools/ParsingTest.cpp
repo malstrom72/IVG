@@ -303,10 +303,7 @@ static void testArc(double x1, double y1, double rx, double ry, double phi, bool
 		double angle;
 		double offEllipse;
 		ellipseFrame(arc, vertices[i].x, vertices[i].y, angle, offEllipse);
-		// When the radii are too small for the chord, or fit it exactly as in a semicircle, the specification puts the
-		// center at the chord's midpoint. buildPathFromSVG clamps the term that becomes 0 there to EPSILON instead,
-		// which moves the center up to 1e-4 of the radius away: 0.1 px at a radius of 1000. This bound pins that.
-		if (offEllipse > 1.5e-4) {
+		if (offEllipse > 1e-5) {
 			fail("arc vertex " + num(offEllipse) + " off the specified ellipse", svg);
 			return;
 		}
