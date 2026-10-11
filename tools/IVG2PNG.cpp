@@ -66,7 +66,7 @@ class IVGExecutorWithExternalFonts : public IVGExecutor {
 			    String fontCode;
 			    {
 			        std::string path = fontPath.empty() ? (fontName8Bit + ".ivgfont") : (fontPath + "/" + fontName8Bit + ".ivgfont");
-			        std::ifstream fileStream(path.c_str());
+			        std::ifstream fileStream(path.c_str(), std::ios::binary);
 			        if (!fileStream.good()) {
 			            return std::vector<const Font*>();
 			        }
@@ -176,7 +176,7 @@ int main(int argc, const char* argv[]) {
 
 		std::string ivgContents;
 		{
-			std::ifstream inStream(inputPath);
+			std::ifstream inStream(inputPath, std::ios::binary);														// Text mode on Windows stops at a Ctrl-Z byte.
 			if (!inStream.good()) throw std::runtime_error("Could not open input IVG file");
 			ivgContents.assign(std::istreambuf_iterator<char>(inStream), std::istreambuf_iterator<char>());
 			if (!inStream.good()) throw std::runtime_error("Could not read input IVG file");
