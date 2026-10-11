@@ -168,3 +168,9 @@ files or PNG output; text is only reached through `define font` in the input.
   without stopping at an unknown instruction. `tools/buildIMPDFuzz.sh` and `.cmd` build it; seed it with
   `output/fuzzSeeds` and a folder holding copies of `tests/*.impd`. IMPD limits statements but not memory, so
   inputs that keep doubling a string, as the seeds' `REPEAT 30 [ o = {$o $o} ]` does, are reported as out of memory.
+- **SIMD and scalar.** The two rasterizers must render alike, which the regression images check for the tests.
+  `tools/replaySIMDDiff.sh` and `.cmd` check it for the fuzz inputs too: they build `tools/IVGDigest.cpp`, which
+  prints each input's outcome, bounds and pixel hash, once with `NUXPIXELS_SIMD` 0 and once with 1, run both over
+  every `.ivg` under `tests`, the crash inputs and the corpus, and fail if the outputs differ. CI runs it on Linux.
+  There is no differential fuzz target, as one would need both rasterizers in one binary; a refreshed corpus is
+  checked instead.

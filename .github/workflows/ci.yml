@@ -61,3 +61,6 @@ jobs:
     - name: Replay the fuzz inputs with sanitizers
       shell: bash
       run: bash tools/replayFuzzSanitized.sh
+    - name: Compare the SIMD and scalar rasterizers on the fuzz inputs
+      shell: bash
+      run: bash tools/replaySIMDDiff.sh
