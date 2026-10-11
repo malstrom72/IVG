@@ -75,6 +75,10 @@ CALL .\tools\BuildCpp.cmd %1 %2 .\output\PolygonMaskTest ^
 	"-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" ^
 	.\tools\PolygonMaskTest.cpp .\externals\NuX\NuXPixels.cpp || EXIT /B 1
 
+CALL .\tools\BuildCpp.cmd %1 %2 .\output\ParsingTest ^
+	"-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" ^
+	.\tools\ParsingTest.cpp .\src\IVG.cpp .\src\IMPD.cpp .\externals\NuX\NuXPixels.cpp || EXIT /B 1
+
 REM The fuzz target without libFuzzer, to replay the saved fuzz inputs. The 8 MB stack matches the fuzz build.
 CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVGFuzzReplay ^
 	"-DNUXPIXELS_SIMD=%simd%" /D LIBFUZZ /D FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION ^
@@ -97,6 +101,7 @@ IF NOT "%SKIP_SVG%"=="" (
 )
 CD ..
 CALL .\output\PolygonMaskTest || GOTO error
+CALL .\output\ParsingTest || GOTO error
 FOR %%f IN (.\tests\fuzz\IVGFuzzCrashes\*) DO (
 	.\output\IVGFuzzReplay "%%f" >NUL || GOTO error
 )
