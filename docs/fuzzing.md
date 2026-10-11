@@ -159,3 +159,7 @@ files or PNG output; text is only reached through `define font` in the input.
   `.cmd` unpack it into an emptied `output/fuzzCorpusReplay` and replay it through the last `IVGFuzzReplay` built.
   CI runs them after the build, and they are run by hand before a freeze. The archive was merged with
   `-max_len=8192`, and without the inputs slowest to replay.
+- **Sanitized replay.** The plain replays only catch crashes and failed asserts. `tools/replayFuzzSanitized.sh` builds
+  the same replay with AddressSanitizer and UndefinedBehaviorSanitizer as `output/IVGFuzzReplaySanitized` and replays
+  the crash inputs and the corpus through it, so memory errors and undefined behaviour in them show up without a fuzz
+  run. CI runs it on Linux. `tools\replayFuzzSanitized.cmd` does the same with MSVC's AddressSanitizer alone.

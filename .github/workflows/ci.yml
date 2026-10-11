@@ -53,3 +53,6 @@ jobs:
     - name: Replay the fuzz corpus
       shell: bash
       run: bash tools/replayFuzzCorpus.sh
+    - name: Replay the fuzz inputs with sanitizers
+      shell: bash
+      run: bash tools/replayFuzzSanitized.sh
