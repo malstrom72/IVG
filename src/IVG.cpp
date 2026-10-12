@@ -882,8 +882,7 @@ Context::Context(Canvas& canvas, Context& parentContext)
 
 /*
 	Charges the path, then what dashing and stroke expansion produce, then the pixels, each before the work it pays for.
-	Dashing stops at the budget. Stroke expansion takes no limit, so its output is charged once built, still before it
-	is rasterized.
+	Dashing and stroke expansion stop at the budget.
 */
 void Context::stroke(const Path& path, Stroke& stroke, const Rect<double>& paintSourceBounds, double widthMultiplier) {
 	if (stroke.paint.isVisible() && stroke.width > EPSILON) {
@@ -896,7 +895,7 @@ void Context::stroke(const Path& path, Stroke& stroke, const Rect<double>& paint
 			budget.chargePathSegments(static_cast<double>(strokePath.size()));
 		}
 		strokePath.stroke(stroke.width * widthMultiplier, stroke.caps, stroke.joints, stroke.miterLimit
-				, calcCurveQuality());
+				, calcCurveQuality(), budget.calcPathSegmentLimit() + 1);
 		budget.chargePathSegments(static_cast<double>(strokePath.size()));
 		strokePath.transform(state.transformation);
 		PolygonMask polygonMask(strokePath, canvas.getBounds());

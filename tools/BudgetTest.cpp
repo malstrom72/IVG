@@ -160,12 +160,29 @@ int main() {
 			, ResourceBudget(1000.0, 1e10), "Path segment budget exceeded");
 	expectError(header + "bounds 0,0,100,100\npen blue dash:0.01,0.01\nrect 0,0,100000,100000"
 			, ResourceBudget(10000.0, 1e10), "Path segment budget exceeded");
+	expectError(header + "bounds 0,0,100,100\npen blue width:1000 caps:round dash:0.01,0.01\nrect 0,0,100,100"
+			, ResourceBudget(1e6, 1e10), "Path segment budget exceeded");
+	std::string zigzag = "M0 0";
+	for (int i = 0; i < 1000; ++i) {
+		zigzag += (i % 2 == 0 ? " L1 1" : " L2 0");
+	}
+	expectError(header + "bounds 0,0,100,100\nfill none\npen blue width:1000 joints:curve\npath svg:[" + zigzag + "]"
+			, ResourceBudget(10000.0, 1e10), "Path segment budget exceeded");
 	expectError(header + "bounds 0,0,100,100\ndefine font f [ metrics upm:1000 ascent:800 descent:-200 linegap:0; "
 			"glyph a 500 [M0,0 L500,0 L500,-500 Z] ]\nfont f size:20 color:none\ntext at:10,50 "
 			+ std::string(10000, 'a'), ResourceBudget(1000.0, 1e10)
 			, "Path segment budget exceeded");
 	expectError(header + "bounds 0,0,100,100\nrepeat 1000 [ fill red; rect 0,0,100,100 ]"
 			, ResourceBudget(1e8, 1e6), "Pixel budget exceeded");
+
+	// Path::stroke stops near its limit instead of building the whole outline first.
+	Path dashed;
+	dashed.addRect(0.0, 0.0, 100.0, 100.0);
+	dashed.dash(0.01, 0.01, 0.0);
+	dashed.stroke(1000.0, Path::ROUND, Path::BEVEL, 2.0, 1.0, 1000);
+	if (dashed.size() > 1000 + 500) {
+		fail("stroke overshoots its limit", "Path::stroke with limit 1000");
+	}
 
 	if (failures != 0) {
 		printf("BudgetTest: %d failures\n", failures);
