@@ -134,18 +134,21 @@ int main() {
 	testExact(header + "bounds 0,0,100,50\nwipe red", 0, 10000);
 	testExact(header + "bounds 0,0,100,100\nfill red\nrect 10,10,20,30", 5, 10000 + 600);
 	testExact(header + "bounds 0,0,100,100\nfill red\nrect -50,-50,100,100", 5, 10000 + 2500);
-	testExact(header + "bounds 0,0,100,100\nfill none\npen blue width:2\nrect 10,10,20,30", -1, -1);
-	testExact(header + "bounds 0,0,100,100\npen blue width:2 dash:3,2\nellipse 50,50,30", -1, -1);
+	testExact(header + "bounds 0,0,100,100\nfill none\npen blue width:2\nrect 10,10,20,30", 5 + 10, 10000 + 704);
+	testExact(header + "bounds 0,0,100,100\npen blue width:2 dash:3,2\nellipse 50,50,30", 401, 10000 + 3844);
 	// A wipe through a mask is charged the mask raster's bounds, which are the canvas's, as that is what it covers.
 	testExact(header + "bounds 0,0,100,100\nmask [ rect 0,0,50,50 ]\nwipe red", 5, 10000 + 10000 + 2500 + 10000);
 	testExact(header + "bounds 0,0,100,100\nfill pattern:[bounds 0,0,4,4; wipe red]\nrect 0,0,10,10", 5
 			, 10000 + 16 + 16 + 100);
+	// The image is charged its texture's output bounds, which include a margin around the 10 x 10 pixels.
 	testExact(header + "bounds 0,0,100,100\ndefine image dot [bounds 0,0,10,10; wipe red] resolution:2\n"
-			"image 20,20 dot", 0, -1);
-	testExact(header + "bounds 0,0,100,100\nfill red\npath svg:[M10 10 C20 0 30 20 40 10 Z]\nstar 50,50,7,20,10", -1
-			, -1);
+			"image 20,20 dot", 0, 10000 + 400 + 400 + 196);
+	// A fractional resolution is charged the whole pixels it allocates: 4.5 x 4.5 rounds out to 5 x 5.
+	testExact(header + "bounds 0,0,100,100\ndefine image d [bounds 0,0,3,3] resolution:1.5", 0, 10000 + 25);
+	testExact(header + "bounds 0,0,100,100\nfill red\npath svg:[M10 10 C20 0 30 20 40 10 Z]\nstar 50,50,7,20,10", 22
+			, 10000 + 1584);
 	testExact(header + "bounds 0,0,100,100\ndefine font f [ metrics upm:1000 ascent:800 descent:-200 linegap:0; "
-			"glyph a 500 [M0,0 L500,0 L500,-500 Z] ]\nfont f size:20\ntext at:10,50 aaa", -1, -1);
+			"glyph a 500 [M0,0 L500,0 L500,-500 Z] ]\nfont f size:20\ntext at:10,50 aaa", 3 * 4, 10000 + 3 * 100);
 
 	// Large work is refused before it is done.
 	expectError(header + "bounds 0,0,32767,32767", ResourceBudget(1e8, 1e8)
@@ -182,6 +185,25 @@ int main() {
 	dashed.stroke(1000.0, Path::ROUND, Path::BEVEL, 2.0, 1.0, 1000);
 	if (dashed.size() > 1000 + 500) {
 		fail("stroke overshoots its limit", "Path::stroke with limit 1000");
+	}
+
+	// Negative bounds fail without refunding pixels first.
+	{
+		const std::string source = header + "bounds 0,0,-30000,30000";
+		SelfContainedARGB32Canvas canvas;
+		QuietExecutor executor(canvas, ResourceBudget(1e8, 1e10));
+		STLMapVariables topVars;
+		FormatInfo formatInfo;
+		Interpreter impd(executor, topVars, formatInfo);
+		try {
+			impd.run(source);
+			fail("negative bounds do not fail", source);
+		}
+		catch (const IMPD::Exception&) {
+		}
+		if (executor.getBudget().pixelsLeft != 1e10) {
+			fail("negative bounds change the pixel budget", source);
+		}
 	}
 
 	if (failures != 0) {

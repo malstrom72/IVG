@@ -1607,7 +1607,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			const IntRect newBounds(impd.toInt(elems[0]), impd.toInt(elems[1]), impd.toInt(elems[2])
 					, impd.toInt(elems[3]));
 			Canvas& canvas = currentContext->accessCanvas();
-			currentContext->accessBudget().chargePixels(canvas.calcRasterArea(newBounds));
+			currentContext->accessBudget().chargePixels(max(canvas.calcRasterArea(newBounds), 0.0));					// Negative bounds fail in defineBounds, but must not refund first.
 			canvas.defineBounds(newBounds);
 			break;
 		}
@@ -1758,7 +1758,7 @@ void SelfContainedARGB32Canvas::checkBoundsDeclared() const {
 	if (raster.get() == 0) Interpreter::throwRunTimeError("Undeclared bounds");
 }
 
-void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
+IntRect SelfContainedARGB32Canvas::calcScaledBounds(const IntRect& newBounds) const {
 	IntRect scaledBounds = newBounds;
 	if (rescaleBounds != 1.0) {
 		const double left = newBounds.left * rescaleBounds;
@@ -1768,6 +1768,11 @@ void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
 		checkBoundsBeforeScaling(left, top, width, height);
 		scaledBounds = expandToIntRect(Rect<double>(left, top, width, height));
 	}
+	return scaledBounds;
+}
+
+void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
+	const IntRect scaledBounds = calcScaledBounds(newBounds);
 	if (raster.get() != 0) Interpreter::throwRunTimeError("Multiple bounds declarations");
 	checkBounds(scaledBounds);
 	raster.reset(new SelfContainedRaster<ARGB32>(scaledBounds));
@@ -1775,7 +1780,8 @@ void SelfContainedARGB32Canvas::defineBounds(const IntRect& newBounds) {
 }
 
 double SelfContainedARGB32Canvas::calcRasterArea(const IntRect& newBounds) const {
-	return static_cast<double>(newBounds.width) * newBounds.height * rescaleBounds * rescaleBounds;
+	const IntRect scaledBounds = calcScaledBounds(newBounds);
+	return static_cast<double>(scaledBounds.width) * scaledBounds.height;
 }
 
 void SelfContainedARGB32Canvas::blendWithARGB32(const Renderer<ARGB32>& source) { checkBoundsDeclared(); (*raster) |= source; }
@@ -1870,7 +1876,7 @@ static bool buildPathForString(const UniString& string, const std::vector<const 
 		}
 		const char* thisError = 0;
 		if (glyph != 0 && IVG::buildPathFromSVG(glyph->svgPath, fontInfoIt->effectiveQuality, glyphPath, thisError
-				, maxSize)) {
+				, maxSize - path.size())) {
 			advance += (*fontIt == lastFont
 					? (*fontIt)->findKerningAdjust(lastCharacter, thisCharacter) * fontInfoIt->mpu * size : 0.0);
 			lastFont = *fontIt;

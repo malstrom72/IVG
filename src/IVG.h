@@ -612,6 +612,7 @@ class SelfContainedARGB32Canvas : public Canvas {
 	public:		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>* accessRaster();
 	public:		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>* relinquishRaster();
 	protected:	void checkBoundsDeclared() const;
+	protected:	NuXPixels::IntRect calcScaledBounds(const NuXPixels::IntRect& newBounds) const;
 	protected:	std::unique_ptr< NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> > raster;
 	protected:	const double rescaleBounds;
 };
