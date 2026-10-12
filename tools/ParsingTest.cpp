@@ -411,6 +411,8 @@ static void testNumbers() {
 			expectParsed(buffer, 1);
 		}
 	}
+	expectParsed("0e400", 0);
+	expectParsed("-0.000e99999999999", 0);
 	expectSame("M0.30000000000000000 0 L1e1 0", "M.3 0 L10 0");
 	expectError("M1e309 0");
 	expectError("M0 0 L1.0e99999999999 0");

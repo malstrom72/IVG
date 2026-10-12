@@ -69,6 +69,7 @@ using NuXPixels::Rect; // Rect is a typedef in Carbon which can confuse the comp
 inline double square(double d) { return d * d; }
 
 void checkBounds(const NuXPixels::IntRect& bounds);
+void checkBoundsBeforeScaling(double left, double top, double width, double height);									// Scaled bounds, in double so they cannot overflow.
 void checkTextureTransformation(const NuXPixels::AffineTransformation& xf, const char* what);
 
 /*
@@ -571,6 +572,11 @@ template<class PIXEL_TYPE> class PatternPainter : public PatternBase {
 					return static_cast<double>(newBounds.width) * newBounds.height * scale * scale;
 				}
 	public:		virtual void defineBounds(const NuXPixels::IntRect& newBounds) {
+					if (scale != 1) {
+						checkBoundsBeforeScaling(static_cast<double>(newBounds.left) * scale
+								, static_cast<double>(newBounds.top) * scale, static_cast<double>(newBounds.width) * scale
+								, static_cast<double>(newBounds.height) * scale);
+					}
 					NuXPixels::IntRect physicalBounds(newBounds.left * scale, newBounds.top * scale
 						, newBounds.width * scale, newBounds.height * scale);
 					if (image.get() != 0) IMPD::Interpreter::throwRunTimeError("Multiple bounds declarations");

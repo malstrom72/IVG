@@ -116,7 +116,7 @@ Path::size_type ResourceBudget::calcPathSegmentLimit() const {
 	return static_cast<Path::size_type>(max(0.0, min(pathSegmentsLeft, 2147483647.0)));
 }
 
-static void checkBoundsBeforeScaling(double left, double top, double width, double height) {
+void checkBoundsBeforeScaling(double left, double top, double width, double height) {
 	if (left < -32768.0 || left > 32767.0) {
 		Interpreter::throwRunTimeError(String("rescaled bounds left out of range [-32768..32767]: ")
 				+ Interpreter::toString(left));

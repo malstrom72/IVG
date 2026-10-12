@@ -187,6 +187,10 @@ int main() {
 		fail("stroke overshoots its limit", "Path::stroke with limit 1000");
 	}
 
+	// Pattern bounds are range-checked once scaled, in double, so a huge left cannot wrap into range.
+	expectError(header + "bounds 0,0,100,100\nscale 3\nfill pattern:[bounds 1431655766,0,10,10; wipe red]\n"
+			"rect 0,0,10,10", ResourceBudget(), "rescaled bounds left out of range");
+
 	// Negative bounds fail without refunding pixels first.
 	{
 		const std::string source = header + "bounds 0,0,-30000,30000";

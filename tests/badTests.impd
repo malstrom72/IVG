@@ -167,4 +167,6 @@ TRACE {1e4294967298} // exponent beyond int32_t
 
 TRACE {(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((1)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))} // expression nesting limit
 
+INCLUDE "missing\u4E2D\U0001F600.impd" // non-ASCII characters come back as escapes in the message
+
 REPEAT 1073741823 [] // statements count limit
