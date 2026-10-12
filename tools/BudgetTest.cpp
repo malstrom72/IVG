@@ -23,7 +23,7 @@
 
 /*
 	Tests IVG::ResourceBudget: what each kind of work is charged, that a budget exactly as large as a document's work
-	renders it like no budget at all, that one unit less fails with the budget error, and that work which would be
+	renders it like the default budget, that one unit less fails with the budget error, and that work which would be
 	large is refused before it is done.
 */
 
