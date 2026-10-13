@@ -359,37 +359,39 @@ Interpreter::EvaluationValue::operator String() const {
 	}
 }
 
-Interpreter::Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, int statementsLimit, int recursionLimit
-		, double charactersLimit)
+Interpreter::Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, IMPDBudget& budget
+		, int statementsLimit, int recursionLimit)
 		: executor(executor), vars(vars), formatInfo(formatInfo), callingFrame(0), rootFrame(*this)
-		, statementsLimit(statementsLimit), recursionLimit(recursionLimit), charactersLimit(charactersLimit)
+		, statementsLimit(statementsLimit), recursionLimit(recursionLimit), budget(budget)
 		, expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
 
 Interpreter::Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame)
 		: executor(executor), vars(vars), formatInfo(callingFrame.formatInfo), callingFrame(&callingFrame), rootFrame(callingFrame.rootFrame)
 		, statementsLimit(callingFrame.statementsLimit), recursionLimit(callingFrame.recursionLimit)
-		, charactersLimit(callingFrame.charactersLimit), expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
+		, budget(callingFrame.budget), expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
 
 Interpreter::Interpreter(Executor& executor, Interpreter& enclosingInterpreter)
 		: executor(executor), vars(enclosingInterpreter.vars), formatInfo(enclosingInterpreter.formatInfo)
 		, callingFrame(enclosingInterpreter.callingFrame), rootFrame(enclosingInterpreter.rootFrame)
 		, statementsLimit(enclosingInterpreter.statementsLimit), recursionLimit(enclosingInterpreter.recursionLimit)
-		, charactersLimit(enclosingInterpreter.charactersLimit), expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
+		, budget(enclosingInterpreter.budget), expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
 
 Interpreter::Interpreter(Executor& executor, Interpreter& enclosingInterpreter, FormatInfo& formatInfo)
 		: executor(executor), vars(enclosingInterpreter.vars), formatInfo(formatInfo), callingFrame(enclosingInterpreter.callingFrame)
 		, rootFrame(enclosingInterpreter.rootFrame), statementsLimit(enclosingInterpreter.statementsLimit)
-		, recursionLimit(enclosingInterpreter.recursionLimit), charactersLimit(enclosingInterpreter.charactersLimit)
+		, recursionLimit(enclosingInterpreter.recursionLimit), budget(enclosingInterpreter.budget)
 		, expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
 
-/*
-	Charges characters IMPD has built or is about to scan against the limit kept in the root frame, so that one count
-	bounds both the memory and the time strings can take. A const member, as the expression code is const.
-*/
-void Interpreter::chargeCharacters(size_t count) const {
-	rootFrame.charactersLimit -= static_cast<double>(count);
-	if (rootFrame.charactersLimit < 0.0) {
-		throwRunTimeError("Characters limit reached");
+void Interpreter::chargeCharacters(size_t count) const { budget.chargeCharacters(static_cast<double>(count)); }
+
+/* --- IMPDBudget --- */
+
+IMPDBudget::IMPDBudget(double characters) : charactersLeft(characters) { }
+
+void IMPDBudget::chargeCharacters(double count) {
+	charactersLeft -= count;
+	if (charactersLeft < 0.0) {
+		Interpreter::throwRunTimeError("Characters limit reached");
 	}
 }
 
@@ -594,6 +596,7 @@ int Interpreter::parseList(const StringRange& r, StringVector& elements, bool ex
 	while (p != r.e) {
 		if (!first && *p == ',') p = eatWhite(p + 1, r.e);
 		StringIt q = eatListElement(p, r.e);
+		chargeCharacters(sizeof (String));																				// An element costs a string object even when empty.
 		String v = (expandAll ? expand(StringRange(p, q)) : String(p, q));
 		if (!removeEmpty || !v.empty()) {
 			elements.push_back(v);

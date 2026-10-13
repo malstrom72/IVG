@@ -16,7 +16,7 @@ using namespace IMPD;
 using namespace NuXPixels;
 
 struct DigestExecutor : public IVGExecutor {
-	DigestExecutor(Canvas& canvas) : IVGExecutor(canvas) { }
+	DigestExecutor(Canvas& canvas, IVGBudget& budget) : IVGExecutor(canvas, budget) { }
 	virtual void trace(IMPD::Interpreter& interpreter, const IMPD::WideString& s) { (void)interpreter; (void)s; }
 };
 
@@ -34,9 +34,10 @@ static std::string digest(const std::string& source) {
 	try {
 		{
 			STLMapVariables topVars;
-			DigestExecutor executor(canvas);
+			IVGBudget budget;
+			DigestExecutor executor(canvas, budget);
 			FormatInfo formatInfo;
-			Interpreter impd(executor, topVars, formatInfo);
+			Interpreter impd(executor, topVars, formatInfo, budget);
 			impd.run(source);
 		}
 		raster = canvas.accessRaster();																					// Throws if the document declared no bounds.

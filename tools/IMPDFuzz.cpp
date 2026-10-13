@@ -87,7 +87,8 @@ extern "C" int LLVMFuzzerTestOneInput(const unsigned char* data, size_t size) {
 		AcceptingExecutor executor;
 		STLMapVariables topVars;
 		FormatInfo formatInfo;
-		Interpreter impd(executor, topVars, formatInfo);
+		IMPDBudget budget;
+		Interpreter impd(executor, topVars, formatInfo, budget);
 		impd.run(source);
 	}
 	catch (const IMPD::Exception&) {

@@ -22,7 +22,7 @@
 **/
 
 /*
-	Tests IVG::ResourceBudget: what each kind of work is charged, that a budget exactly as large as a document's work
+	Tests IVG::IVGBudget: what each kind of work is charged, that a budget exactly as large as a document's work
 	renders it like the default budget, that one unit less fails with the budget error, and that work which would be
 	large is refused before it is done.
 */
@@ -44,13 +44,12 @@ static void fail(const std::string& what, const std::string& source) {
 }
 
 struct QuietExecutor : public IVGExecutor {
-	QuietExecutor(Canvas& canvas, const ResourceBudget& budget)
-			: IVGExecutor(canvas, AffineTransformation(), budget) { }
+	QuietExecutor(Canvas& canvas, IVGBudget& budget) : IVGExecutor(canvas, budget) { }
 	virtual void trace(Interpreter& interpreter, const WideString& s) { (void)interpreter; (void)s; }
 };
 
-// Renders source and returns the error, or "" with the pixels and what is left of the budget.
-static std::string render(const std::string& source, ResourceBudget& budget, std::vector<ARGB32::Pixel>& pixels) {
+// Renders source, charging `budget`, and returns the error, or "" with the pixels.
+static std::string render(const std::string& source, IVGBudget& budget, std::vector<ARGB32::Pixel>& pixels) {
 	pixels.clear();
 	SelfContainedARGB32Canvas canvas;
 	try {
@@ -58,9 +57,8 @@ static std::string render(const std::string& source, ResourceBudget& budget, std
 			STLMapVariables topVars;
 			QuietExecutor executor(canvas, budget);
 			FormatInfo formatInfo;
-			Interpreter impd(executor, topVars, formatInfo);
+			Interpreter impd(executor, topVars, formatInfo, budget);
 			impd.run(source);
-			budget = executor.getBudget();
 		}
 		SelfContainedRaster<ARGB32>* raster = canvas.accessRaster();
 		const IntRect bounds = raster->calcBounds();
@@ -78,13 +76,13 @@ static std::string render(const std::string& source, ResourceBudget& budget, std
 // Measures what source costs, then checks that exactly that much renders it unchanged and one unit less fails.
 static void testExact(const std::string& source, double expectedSegments, double expectedPixels) {
 	std::vector<ARGB32::Pixel> defaultPixels;
-	ResourceBudget defaults;
+	IVGBudget defaults;
 	if (!render(source, defaults, defaultPixels).empty()) {
 		fail("does not render with the default budget", source);
 		return;
 	}
 	std::vector<ARGB32::Pixel> pixels;
-	ResourceBudget measure(1e12, 1e12);
+	IVGBudget measure(1e12, 1e12);
 	render(source, measure, pixels);
 	const double usedSegments = 1e12 - measure.pathSegmentsLeft;
 	const double usedPixels = 1e12 - measure.pixelsLeft;
@@ -98,7 +96,7 @@ static void testExact(const std::string& source, double expectedSegments, double
 		snprintf(buffer, sizeof (buffer), "charged %.0f pixels, not %.0f", usedPixels, expectedPixels);
 		fail(buffer, source);
 	}
-	ResourceBudget exact(usedSegments, usedPixels);
+	IVGBudget exact(usedSegments, usedPixels);
 	if (!render(source, exact, pixels).empty() || pixels != defaultPixels) {
 		fail("does not render the same with an exact budget", source);
 	}
@@ -106,20 +104,20 @@ static void testExact(const std::string& source, double expectedSegments, double
 		fail("charges differently on a second run", source);
 	}
 	if (usedSegments > 0.0) {
-		ResourceBudget lessSegments(usedSegments - 1.0, usedPixels);
+		IVGBudget lessSegments(usedSegments - 1.0, usedPixels);
 		if (render(source, lessSegments, pixels).find("Path segment budget exceeded") == std::string::npos) {
 			fail("one path segment less does not fail", source);
 		}
 	}
 	if (usedPixels > 0.0) {
-		ResourceBudget lessPixels(usedSegments, usedPixels - 1.0);
+		IVGBudget lessPixels(usedSegments, usedPixels - 1.0);
 		if (render(source, lessPixels, pixels).find("Pixel budget exceeded") == std::string::npos) {
 			fail("one pixel less does not fail", source);
 		}
 	}
 }
 
-static void expectError(const std::string& source, ResourceBudget budget, const std::string& error) {
+static void expectError(const std::string& source, IVGBudget budget, const std::string& error) {
 	std::vector<ARGB32::Pixel> pixels;
 	if (render(source, budget, pixels).find(error) == std::string::npos) {
 		fail("does not fail with \"" + error + "\"", source);
@@ -151,36 +149,36 @@ int main() {
 			"glyph a 500 [M0,0 L500,0 L500,-500 Z] ]\nfont f size:20\ntext at:10,50 aaa", 3 * 4, 10000 + 3 * 100);
 
 	// Large work is refused before it is done.
-	expectError(header + "bounds 0,0,32767,32767", ResourceBudget(1e8, 1e8)
+	expectError(header + "bounds 0,0,32767,32767", IVGBudget(1e8, 1e8)
 			, "Pixel budget exceeded");
 	// The defaults keep one document under about 2 GB: no 32767 x 32767 canvas (4 GB) and no 1e8 segment dash (5 GB).
-	expectError(header + "bounds 0,0,32767,32767", ResourceBudget(), "Pixel budget exceeded");
-	expectError(header + "bounds 0,0,100,100\npen black width:1 dash:2\nfill none\nrect 0,0,1e90,190", ResourceBudget()
+	expectError(header + "bounds 0,0,32767,32767", IVGBudget(), "Pixel budget exceeded");
+	expectError(header + "bounds 0,0,100,100\npen black width:1 dash:2\nfill none\nrect 0,0,1e90,190", IVGBudget()
 			, "Path segment budget exceeded");
 	std::string longPath = "M0 0";
 	for (int i = 0; i < 200000; ++i) {
 		longPath += " L1 1";
 	}
 	expectError(header + "bounds 0,0,100,100\nfill red\npath svg:[" + longPath + "]"
-			, ResourceBudget(1000.0, 1e10), "Path segment budget exceeded");
+			, IVGBudget(1000.0, 1e10), "Path segment budget exceeded");
 	expectError(header + "bounds 0,0,100,100\nfill none\npath svg:[" + longPath + "]"
-			, ResourceBudget(1000.0, 1e10), "Path segment budget exceeded");
+			, IVGBudget(1000.0, 1e10), "Path segment budget exceeded");
 	expectError(header + "bounds 0,0,100,100\npen blue dash:0.01,0.01\nrect 0,0,100000,100000"
-			, ResourceBudget(10000.0, 1e10), "Path segment budget exceeded");
+			, IVGBudget(10000.0, 1e10), "Path segment budget exceeded");
 	expectError(header + "bounds 0,0,100,100\npen blue width:1000 caps:round dash:0.01,0.01\nrect 0,0,100,100"
-			, ResourceBudget(1e6, 1e10), "Path segment budget exceeded");
+			, IVGBudget(1e6, 1e10), "Path segment budget exceeded");
 	std::string zigzag = "M0 0";
 	for (int i = 0; i < 1000; ++i) {
 		zigzag += (i % 2 == 0 ? " L1 1" : " L2 0");
 	}
 	expectError(header + "bounds 0,0,100,100\nfill none\npen blue width:1000 joints:curve\npath svg:[" + zigzag + "]"
-			, ResourceBudget(10000.0, 1e10), "Path segment budget exceeded");
+			, IVGBudget(10000.0, 1e10), "Path segment budget exceeded");
 	expectError(header + "bounds 0,0,100,100\ndefine font f [ metrics upm:1000 ascent:800 descent:-200 linegap:0; "
 			"glyph a 500 [M0,0 L500,0 L500,-500 Z] ]\nfont f size:20 color:none\ntext at:10,50 "
-			+ std::string(10000, 'a'), ResourceBudget(1000.0, 1e10)
+			+ std::string(10000, 'a'), IVGBudget(1000.0, 1e10)
 			, "Path segment budget exceeded");
 	expectError(header + "bounds 0,0,100,100\nrepeat 1000 [ fill red; rect 0,0,100,100 ]"
-			, ResourceBudget(1e8, 1e6), "Pixel budget exceeded");
+			, IVGBudget(1e8, 1e6), "Pixel budget exceeded");
 
 	// Path::stroke stops near its limit instead of building the whole outline first.
 	Path dashed;
@@ -193,26 +191,24 @@ int main() {
 
 	// Pattern bounds are range-checked once scaled, in double, so a huge left cannot wrap into range.
 	expectError(header + "bounds 0,0,100,100\nscale 3\nfill pattern:[bounds 1431655766,0,10,10; wipe red]\n"
-			"rect 0,0,10,10", ResourceBudget(), "rescaled bounds left out of range");
+			"rect 0,0,10,10", IVGBudget(), "rescaled bounds left out of range");
 
 	// Negative bounds fail without refunding pixels first.
 	{
 		const std::string source = header + "bounds 0,0,-30000,30000";
-		SelfContainedARGB32Canvas canvas;
-		QuietExecutor executor(canvas, ResourceBudget(1e8, 1e10));
-		STLMapVariables topVars;
-		FormatInfo formatInfo;
-		Interpreter impd(executor, topVars, formatInfo);
-		try {
-			impd.run(source);
+		IVGBudget budget(1e8, 1e10);
+		std::vector<ARGB32::Pixel> pixels;
+		if (render(source, budget, pixels).empty()) {
 			fail("negative bounds do not fail", source);
 		}
-		catch (const IMPD::Exception&) {
-		}
-		if (executor.getBudget().pixelsLeft != 1e10) {
+		if (budget.pixelsLeft != 1e10) {
 			fail("negative bounds change the pixel budget", source);
 		}
 	}
+
+	// The interpreter charges its characters to the same budget, so one object limits the whole render.
+	expectError(header + "o = x\nREPEAT 40 [ o = {$o $o} ]", IVGBudget(), "Characters limit reached");
+	expectError(header + "bounds 0,0,10,10\nwipe red", IVGBudget(1e7, 5e8, 10.0), "Characters limit reached");
 
 	if (failures != 0) {
 		printf("BudgetTest: %d failures\n", failures);

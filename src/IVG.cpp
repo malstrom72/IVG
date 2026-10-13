@@ -92,19 +92,19 @@ void checkTextureTransformation(const AffineTransformation& xf, const char* what
 	}
 }
 
-/* --- ResourceBudget --- */
+/* --- IVGBudget --- */
 
-ResourceBudget::ResourceBudget(double pathSegments, double pixels)
-		: pathSegmentsLeft(pathSegments), pixelsLeft(pixels) { }
+IVGBudget::IVGBudget(double pathSegments, double pixels, double characters)
+		: IMPDBudget(characters), pathSegmentsLeft(pathSegments), pixelsLeft(pixels) { }
 
-void ResourceBudget::chargePathSegments(double count) {
+void IVGBudget::chargePathSegments(double count) {
 	pathSegmentsLeft -= count;
 	if (pathSegmentsLeft < 0.0) {
 		Interpreter::throwRunTimeError("Path segment budget exceeded");
 	}
 }
 
-void ResourceBudget::chargePixels(double count) {
+void IVGBudget::chargePixels(double count) {
 	pixelsLeft -= count;
 	if (pixelsLeft < 0.0) {
 		Interpreter::throwRunTimeError("Pixel budget exceeded");
@@ -112,7 +112,7 @@ void ResourceBudget::chargePixels(double count) {
 }
 
 // Clamped to [0, INT_MAX], which also fits a 32-bit size_type, so the conversion is always defined.
-Path::size_type ResourceBudget::calcPathSegmentLimit() const {
+Path::size_type IVGBudget::calcPathSegmentLimit() const {
 	return static_cast<Path::size_type>(max(0.0, min(pathSegmentsLeft, 2147483647.0)));
 }
 
@@ -208,7 +208,7 @@ static Mask8::Pixel parseOpacity(const Interpreter& impd, const StringRange& r) 
 
 /*
 	Stops early, with what it has built so far, once the path holds more than maxSize instructions, so that a long
-	svg string cannot build a huge path before a ResourceBudget sees it. The caller then charges the path, which
+	svg string cannot build a huge path before an IVGBudget sees it. The caller then charges the path, which
 	fails. Every command and every implicit repeat of one checks first, so the overshoot is one curve or arc at most.
 */
 static bool buildPathFromSVG(const String& svgSource, double curveQuality, Path& path, const char*& errorString
@@ -591,7 +591,8 @@ ARGB32::Pixel parseColor(const String& color) {
 	DummyExecutor executor;
 	STLMapVariables vars;
 	FormatInfo formatInfo;	// Standalone helper runs in its own format scope.
-	Interpreter impd(executor, vars, formatInfo);
+	IMPDBudget budget;
+	Interpreter impd(executor, vars, formatInfo, budget);
 	return parseColor<ARGB32>(impd, color);
 }
 
@@ -869,7 +870,7 @@ template<class PIXEL_TYPE> void Canvas::parsePaintOfType(Interpreter& impd, IVGE
 
 /* --- Context --- */
 
-Context::Context(Canvas& canvas, const AffineTransformation& initialTransform, ResourceBudget& budget)
+Context::Context(Canvas& canvas, const AffineTransformation& initialTransform, IVGBudget& budget)
 		: canvas(canvas), budget(budget) {
 	initState.transformation = initialTransform;
 	state.transformation = initState.transformation;
@@ -983,9 +984,8 @@ enum IVGInstruction {
 
 /* --- IVGExecutor --- */
 
-IVGExecutor::IVGExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform
-		, const ResourceBudget& budget)
-		: budget(budget), rootContext(canvas, initialTransform, this->budget), currentContext(&rootContext) { }
+IVGExecutor::IVGExecutor(Canvas& canvas, IVGBudget& budget, const NuXPixels::AffineTransformation& initialTransform)
+		: budget(budget), rootContext(canvas, initialTransform, budget), currentContext(&rootContext) { }
 
 void IVGExecutor::parseStroke(Interpreter& impd, ArgumentsContainer& args, Stroke& stroke) {
 	const String* s;

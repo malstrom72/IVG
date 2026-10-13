@@ -36,8 +36,8 @@ using namespace IMPD;
 using namespace NuXPixels;
 
 class IVGExecutorWithExternalFonts : public IVGExecutor {
-	public:	IVGExecutorWithExternalFonts(Canvas& canvas, const AffineTransformation& xform)
-					: IVGExecutor(canvas, xform) {
+	public:	IVGExecutorWithExternalFonts(Canvas& canvas, IVGBudget& budget, const AffineTransformation& xform)
+					: IVGExecutor(canvas, budget, xform) {
 			}
 			virtual std::vector<const Font*> lookupFonts(Interpreter& interpreter, const WideString& fontName
 					, const UniString& forString) {
@@ -60,7 +60,8 @@ class IVGExecutorWithExternalFonts : public IVGExecutor {
 					FontParser fontParser;
 					STLMapVariables vars;
 					FormatInfo formatInfo;
-					Interpreter impd(fontParser, vars, formatInfo);
+					// A font file counts toward the render that loads it.
+					Interpreter impd(fontParser, vars, formatInfo, accessBudget());
 					impd.run(fontCode);
 					insertResult.first->second = fontParser.finalizeFont();
 				}
@@ -78,9 +79,10 @@ uint8_t* rasterizeIVG(const char* ivgSource, double scaling) {
 		SelfContainedARGB32Canvas canvas(scaling);
 		{
 			STLMapVariables topVars;
-			IVGExecutorWithExternalFonts ivgExecutor(canvas, AffineTransformation().scale(scaling));
+			IVGBudget budget;
+			IVGExecutorWithExternalFonts ivgExecutor(canvas, budget, AffineTransformation().scale(scaling));
 			FormatInfo formatInfo;
-			Interpreter impd(ivgExecutor, topVars, formatInfo);
+			Interpreter impd(ivgExecutor, topVars, formatInfo, budget);
 			const string source(ivgSource);
 			impd.run(source);
 		}

@@ -53,9 +53,9 @@ static bool isLittleEndian() {
 
 class IVGExecutorWithExternalFonts : public IVGExecutor {
 	public:
-		IVGExecutorWithExternalFonts(Canvas& canvas, const std::string& fontPath,
+		IVGExecutorWithExternalFonts(Canvas& canvas, IVGBudget& budget, const std::string& fontPath,
 			    const AffineTransformation& xform = AffineTransformation())
-			    : IVGExecutor(canvas, xform), fontPath(fontPath) {
+			    : IVGExecutor(canvas, budget, xform), fontPath(fontPath) {
 		}
 		virtual std::vector<const Font*> lookupFonts(IMPD::Interpreter& interpreter, const IMPD::WideString& fontName,
 			    const IMPD::UniString& forString) {
@@ -79,7 +79,8 @@ class IVGExecutorWithExternalFonts : public IVGExecutor {
 			    FontParser fontParser;
 			    STLMapVariables vars;
 			    FormatInfo formatInfo;
-			    Interpreter impd(fontParser, vars, formatInfo);
+			    // A font file counts toward the render that loads it.
+			    Interpreter impd(fontParser, vars, formatInfo, accessBudget());
 			    impd.run(fontCode);
 			    insertResult.first->second = fontParser.finalizeFont();
 			}
@@ -117,10 +118,8 @@ extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
 }
 #endif
 
-// A tighter budget than the default keeps every input within libFuzzer's 2 GB and the replays fast.
 struct FuzzerExecutor : public IVGExecutor {
-	FuzzerExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform = NuXPixels::AffineTransformation())
-			: IVGExecutor(canvas, initialTransform, ResourceBudget(5e6, 2.5e8)) { }
+	FuzzerExecutor(Canvas& canvas, IVGBudget& budget) : IVGExecutor(canvas, budget) { }
 	virtual void trace(IMPD::Interpreter& interpreter, const IMPD::WideString& s) { }
 };
 
@@ -130,9 +129,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 	try {
 		{
 			STLMapVariables topVars;
-			FuzzerExecutor ivgExecutor(canvas);
+			// Tighter than the defaults, so every input stays within libFuzzer's 2 GB and replays fast.
+			IVGBudget budget(5e6, 2.5e8);
+			FuzzerExecutor ivgExecutor(canvas, budget);
 			FormatInfo formatInfo;
-			Interpreter impd(ivgExecutor, topVars, formatInfo);
+			Interpreter impd(ivgExecutor, topVars, formatInfo, budget);
 			impd.run(ivgSource);
 		}
 	}
@@ -193,9 +194,10 @@ int main(int argc, const char* argv[]) {
 		SelfContainedARGB32Canvas canvas;
 		{
 			STLMapVariables topVars;
-			IVGExecutorWithExternalFonts ivgExecutor(canvas, fontPath);
+			IVGBudget budget;
+			IVGExecutorWithExternalFonts ivgExecutor(canvas, budget, fontPath);
 			FormatInfo formatInfo;
-			Interpreter impd(ivgExecutor, topVars, formatInfo);
+			Interpreter impd(ivgExecutor, topVars, formatInfo, budget);
 			impd.run(ivgContents);
 		}
 		std::cerr << "Rasterized image..." << std::endl;

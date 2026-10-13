@@ -53,7 +53,7 @@ typedef std::map<String, String> StringStringMap;
 
 const int DEFAULT_STATEMENTS_LIMIT = 1000000;																			// To prevent endless loops. 1 million instructions can take quite a while, but better than crashing. If your data require more than a million statements to execute you are probably doing it wrong.
 const int DEFAULT_RECURSION_LIMIT = 50;																					// To prevent stack overflow. If you can't describe your data without 50 times recursion, you are doing it wrong.
-const double DEFAULT_CHARACTERS_LIMIT = 1e8;																			// To bound the memory and time strings can take, since statements can grow strings without limit. Counts characters scanned, expanded, read from variables and concatenated. Real documents use a few million.
+const double DEFAULT_CHARACTERS_LIMIT = 1e8;																			// Default for IMPDBudget. Real documents use a few million characters.
 const int EXPRESSION_NESTING_LIMIT = 100;																				// To prevent stack overflow, like DEFAULT_RECURSION_LIMIT. Counts nested parentheses, prefix operators, conditionals and [ ] inside one { } expression.
 const int NUMBER_PRECISION_DIGITS = 13;
 const double NUMBER_PRECISION_MAGNITUDE = 1e-13;
@@ -175,6 +175,19 @@ class STLMapVariables : public Variables {
 	protected:	StringStringMap vars;
 };
 
+/*
+	Limits the string work one document can cause, counted in characters. The interpreter charges what it scans,
+	expands, reads from variables and joins, before or as it builds it; going over throws "Characters limit reached".
+	The count is cumulative and never refunded, so it bounds both the time and the memory strings can take. The host
+	creates one budget per document, or one IVG::IVGBudget per render, and passes it to the root Interpreter. See
+	docs/Resource Budgets.md for what it captures and what it does not.
+*/
+class IMPDBudget {
+	public:		IMPDBudget(double characters = DEFAULT_CHARACTERS_LIMIT);
+	public:		void chargeCharacters(double count);
+	public:		double charactersLeft;
+};
+
 /**
 	Abstract interface for executing instructions and loading resources.
 **/
@@ -217,14 +230,14 @@ class Interpreter {
 	public:		static StringIt parseInt(StringIt p, const StringIt& e, int& i);										///< Parses and converts as much as possible of decimal string starting at `p` and ending at `e` into a signed int (accepts leading '+' or '-'). Returns an iterator pointing to the first character that could not be parsed.
 	public:		static StringIt parseDouble(StringIt p, const StringIt& e, double& d);			/// Parses a floating point string starting at `p` and ending at `e` (supports scientific e notation). Returns an iterator pointing to the first character that could not be parsed. Returns `p` on failure.
 		
-	public:		Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo
+	public:		Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, IMPDBudget& budget
 						, int statementsLimit = DEFAULT_STATEMENTS_LIMIT
-						, int recursionLimit = DEFAULT_RECURSION_LIMIT
-						, double charactersLimit = DEFAULT_CHARACTERS_LIMIT);											///< Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`.
+						, int recursionLimit = DEFAULT_RECURSION_LIMIT);												///< Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`.
 	public:		Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame);
 	public:		Interpreter(Executor& executor, Interpreter& enclosingInterpreter);
 	public:		Interpreter(Executor& executor, Interpreter& enclosingInterpreter, FormatInfo& formatInfo);
 	public:		Executor& getExecutor() const { return executor; }
+	public:		IMPDBudget& accessBudget() const { return budget; }
 	public:		Variables& getVariables() const { return vars; }
 	public:		FormatInfo& getFormatInfo() { return formatInfo; }
 	public:		const FormatInfo& getFormatInfo() const { return formatInfo; }
@@ -278,7 +291,7 @@ class Interpreter {
 	protected:	Interpreter& rootFrame;
 	protected:	int statementsLimit;
 	protected:	int recursionLimit;
-	protected:	double charactersLimit;
+	protected:	IMPDBudget& budget;
 	protected:	int expressionNestingLimit;
 
 	protected:	enum BuiltInInstruction {

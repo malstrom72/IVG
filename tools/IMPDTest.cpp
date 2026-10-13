@@ -111,7 +111,8 @@ static String runWithCharactersLimit(const String& source, double charactersLimi
 	QuietExecutor executor;
 	STLMapVariables vars;
 	FormatInfo formatInfo;
-	Interpreter impd(executor, vars, formatInfo, DEFAULT_STATEMENTS_LIMIT, DEFAULT_RECURSION_LIMIT, charactersLimit);
+	IMPDBudget budget(charactersLimit);
+	Interpreter impd(executor, vars, formatInfo, budget);
 	try {
 		impd.run(source);
 	}
@@ -157,7 +158,8 @@ int main(int argc, const char* argv[]) {
 	MyExecutor myExecutor;
 	STLMapVariables topVars;
 	FormatInfo formatInfo;
-	Interpreter imp(myExecutor, topVars, formatInfo);
+	IMPDBudget budget;	// Shared by all the scripts below, like the statement limit of the one interpreter that runs them.
+	Interpreter imp(myExecutor, topVars, formatInfo, budget);
 
 	if (!testUniStringConversions()) {
 		std::cerr << "UniString conversion test failed" << std::endl;
