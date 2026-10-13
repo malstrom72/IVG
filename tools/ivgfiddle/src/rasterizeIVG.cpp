@@ -79,7 +79,13 @@ uint8_t* rasterizeIVG(const char* ivgSource, double scaling) {
 		SelfContainedARGB32Canvas canvas(scaling);
 		{
 			STLMapVariables topVars;
-			IVGBudget budget;
+			/*
+				The WebAssembly heap is a fixed 64 MB, far below what the default budget allows, so this one is sized to
+				it: strings within about 10 MB, paths within about 30 MB (about 130 bytes per segment when filled), and
+				enough pixels for every example but the huge.ivg stress test. Real documents use at most 4.4 million
+				characters, 85,000 segments and 13 million pixels.
+			*/
+			IVGBudget budget(1e7, DEFAULT_STATEMENTS_LIMIT, 2.5e5, 5e7);
 			IVGExecutorWithExternalFonts ivgExecutor(canvas, budget, AffineTransformation().scale(scaling));
 			FormatInfo formatInfo;
 			Interpreter impd(ivgExecutor, topVars, formatInfo, budget);
