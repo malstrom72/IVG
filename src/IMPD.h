@@ -52,7 +52,7 @@ typedef std::vector<String> StringVector;
 typedef std::map<String, String> StringStringMap;
 
 const double DEFAULT_STATEMENTS_LIMIT = 1e6;																			// Default for IMPDBudget. To prevent endless loops. 1 million instructions can take quite a while, but better than crashing. If your data require more than a million statements to execute you are probably doing it wrong.
-const int DEFAULT_RECURSION_LIMIT = 50;																					// To prevent stack overflow. If you can't describe your data without 50 times recursion, you are doing it wrong.
+const int DEFAULT_RECURSION_LIMIT = 50;																					// To prevent stack overflow. Counts nesting of every kind together: IF, REPEAT, FOR and [ ] blocks, CALL, INCLUDE and an executor's nested runs. If you can't describe your data within 50 levels, you are doing it wrong.
 const double DEFAULT_CHARACTERS_LIMIT = 1e8;																			// Default for IMPDBudget. Real documents use a few million characters.
 const int EXPRESSION_NESTING_LIMIT = 100;																				// To prevent stack overflow, like DEFAULT_RECURSION_LIMIT. Counts nested parentheses, prefix operators, conditionals and [ ] inside one { } expression.
 const int NUMBER_PRECISION_DIGITS = 13;
@@ -180,7 +180,7 @@ class STLMapVariables : public Variables {
 	expands, reads from variables and joins, charged before or as it builds them; statements are charged one by one as
 	they run. Going over throws "Characters limit reached" or "Statements limit reached". The counts are cumulative and
 	never refunded, so together they bound both the time and the memory a document can take. The host creates one
-	budget per document, or one IVG::IVGBudget per render, and passes it to the root Interpreter. See
+	budget per document and passes it to the root Interpreter; an executor may extend it with counts of its own. See
 	docs/Resource Budgets.md for what it captures and what it does not.
 */
 class IMPDBudget {
