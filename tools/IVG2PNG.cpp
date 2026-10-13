@@ -120,7 +120,7 @@ extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
 // A tighter budget than the default keeps every input within libFuzzer's 2 GB and the replays fast.
 struct FuzzerExecutor : public IVGExecutor {
 	FuzzerExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform = NuXPixels::AffineTransformation())
-			: IVGExecutor(canvas, initialTransform, ResourceBudget(1e7, 1e9)) { }
+			: IVGExecutor(canvas, initialTransform, ResourceBudget(5e6, 2.5e8)) { }
 	virtual void trace(IMPD::Interpreter& interpreter, const IMPD::WideString& s) { }
 };
 

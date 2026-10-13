@@ -153,6 +153,10 @@ int main() {
 	// Large work is refused before it is done.
 	expectError(header + "bounds 0,0,32767,32767", ResourceBudget(1e8, 1e8)
 			, "Pixel budget exceeded");
+	// The defaults keep one document under about 2 GB: no 32767 x 32767 canvas (4 GB) and no 1e8 segment dash (5 GB).
+	expectError(header + "bounds 0,0,32767,32767", ResourceBudget(), "Pixel budget exceeded");
+	expectError(header + "bounds 0,0,100,100\npen black width:1 dash:2\nfill none\nrect 0,0,1e90,190", ResourceBudget()
+			, "Path segment budget exceeded");
 	std::string longPath = "M0 0";
 	for (int i = 0; i < 200000; ++i) {
 		longPath += " L1 1";

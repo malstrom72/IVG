@@ -74,11 +74,11 @@ void checkTextureTransformation(const NuXPixels::AffineTransformation& xf, const
 
 /*
 	Limits the work a document can cause, counted in path segments and pixels rather than time. Work is charged before
-	it is done; going over throws "Path segment budget exceeded" or "Pixel budget exceeded". The defaults are far beyond
-	what real documents use.
+	it is done; going over throws "Path segment budget exceeded" or "Pixel budget exceeded". The defaults keep one
+	document under about 2 GB and are still far beyond what real documents use. A host can pass larger ones.
 */
 class ResourceBudget {
-	public:		ResourceBudget(double pathSegments = 1e8, double pixels = 1e10);
+	public:		ResourceBudget(double pathSegments = 1e7, double pixels = 5e8);
 	public:		void chargePathSegments(double count);
 	public:		void chargePixels(double count);
 	public:		NuXPixels::Path::size_type calcPathSegmentLimit() const;												// The largest path that can still be charged.
