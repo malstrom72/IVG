@@ -62,7 +62,7 @@ recursion can run, but not how much each statement does; the character count cov
 
 ### What is charged
 
-There are five points in `src/IMPD.cpp`, all in `Interpreter`:
+There are four points in `src/IMPD.cpp`, all in `Interpreter`:
 
 1. `run(r)` charges the length of the text it is about to scan. This covers loops that re-run long blocks,
    including blocks that are only comments.
@@ -71,8 +71,6 @@ There are five points in `src/IMPD.cpp`, all in `Interpreter`:
 3. `get(name)` charges the length of the value it copies out of a variable. This covers `$x` inside expressions,
    where a big value can be read and then cut down by a substring.
 4. `concatOperation` charges the lengths of both operands, before joining them.
-5. `parseList` charges `sizeof (String)` for each element, so a list of tiny elements pays for the string objects it
-   becomes.
 
 These are where IMPD creates strings whose size is not already bounded by charged text. Everything else IMPD does
 with strings is proportional to text already charged: substrings, assignment, argument and list parsing, unescaping,
@@ -92,7 +90,10 @@ document costs about two to three times its own size.
 
 These cost memory or time beyond the characters charged, by a bounded factor:
 
-- **Variables.** Each variable is a map node of about 100 bytes. The statement limit caps this at about 100 MB.
+- **Per-object overhead.** Only characters are counted, not the objects that hold them:
+  - Each variable is a map node of about 100 bytes. The statement limit caps this at about 100 MB.
+  - Each list element (`FOR x in:`, argument lists) is a string object of about 32 bytes, so a list of one-character
+    elements takes about 16 times its text, an estimated 0.4 GB at most at the default.
 - **Wide strings.** `unescapeToUni` and `unescapeToWide` produce 4 or 2 bytes per character, for text, trace and
   file names.
 - **Separate root interpreters.** A host or IVG may create its own root interpreter, and it uses whatever budget is
@@ -196,8 +197,12 @@ largest is 13 million).
 - Create one `IVGBudget` per render, pass it to both the executor and the interpreter, and discard it afterwards.
   Both keep a reference to it, so it must outlive them: declare it before them, never pass a temporary.
 - Choose budgets for your memory and your documents. Measure your own documents at your largest render scale. The
-  defaults suit a desktop with several GB to spare. Use smaller budgets on mobile or WebAssembly (the fuzz harness
-  uses 5e6 segments and 2.5e8 pixels).
+  defaults suit a desktop with several GB to spare. Use smaller budgets on mobile or WebAssembly:
+  - the fuzz harness uses 5e6 segments and 2.5e8 pixels, to stay within libFuzzer's 2 GB;
+  - IVGFiddle uses 1e7 characters, 2.5e5 segments and 5e7 pixels, for its fixed 64 MB heap.
+
+  The pixel count is cumulative painting, not the size of a raster, so a budget alone cannot keep every allocation
+  within a small heap. Catch `std::bad_alloc` as well.
 - Catch `IMPD::Exception` for budget and document errors, and `std::exception` for `std::bad_alloc`. A budget bounds
   work, not the heap, so a small heap can still run out within budget.
 - Treat images you decode in `loadImage` as outside the budget.
