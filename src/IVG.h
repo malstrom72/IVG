@@ -84,6 +84,7 @@ const double DEFAULT_PIXELS_LIMIT = 5e8;																				// Default for IVGBu
 */
 class IVGBudget : public IMPD::IMPDBudget {
 	public:		IVGBudget(double characters = IMPD::DEFAULT_CHARACTERS_LIMIT
+						, double statements = IMPD::DEFAULT_STATEMENTS_LIMIT
 						, double pathSegments = DEFAULT_PATH_SEGMENTS_LIMIT, double pixels = DEFAULT_PIXELS_LIMIT);
 	public:		void chargePathSegments(double count);
 	public:		void chargePixels(double count);

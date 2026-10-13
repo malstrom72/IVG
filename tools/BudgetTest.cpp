@@ -43,6 +43,11 @@ static void fail(const std::string& what, const std::string& source) {
 	printf("FAIL %s: %s\n", what.c_str(), source.c_str());
 }
 
+// A budget with the given path segments and pixels, and the default characters and statements.
+static IVGBudget segmentsAndPixels(double pathSegments, double pixels) {
+	return IVGBudget(DEFAULT_CHARACTERS_LIMIT, DEFAULT_STATEMENTS_LIMIT, pathSegments, pixels);
+}
+
 struct QuietExecutor : public IVGExecutor {
 	QuietExecutor(Canvas& canvas, IVGBudget& budget) : IVGExecutor(canvas, budget) { }
 	virtual void trace(Interpreter& interpreter, const WideString& s) { (void)interpreter; (void)s; }
@@ -82,7 +87,7 @@ static void testExact(const std::string& source, double expectedSegments, double
 		return;
 	}
 	std::vector<ARGB32::Pixel> pixels;
-	IVGBudget measure(DEFAULT_CHARACTERS_LIMIT, 1e12, 1e12);
+	IVGBudget measure = segmentsAndPixels(1e12, 1e12);
 	render(source, measure, pixels);
 	const double usedSegments = 1e12 - measure.pathSegmentsLeft;
 	const double usedPixels = 1e12 - measure.pixelsLeft;
@@ -96,7 +101,7 @@ static void testExact(const std::string& source, double expectedSegments, double
 		snprintf(buffer, sizeof (buffer), "charged %.0f pixels, not %.0f", usedPixels, expectedPixels);
 		fail(buffer, source);
 	}
-	IVGBudget exact(DEFAULT_CHARACTERS_LIMIT, usedSegments, usedPixels);
+	IVGBudget exact = segmentsAndPixels(usedSegments, usedPixels);
 	if (!render(source, exact, pixels).empty() || pixels != defaultPixels) {
 		fail("does not render the same with an exact budget", source);
 	}
@@ -104,13 +109,13 @@ static void testExact(const std::string& source, double expectedSegments, double
 		fail("charges differently on a second run", source);
 	}
 	if (usedSegments > 0.0) {
-		IVGBudget lessSegments(DEFAULT_CHARACTERS_LIMIT, usedSegments - 1.0, usedPixels);
+		IVGBudget lessSegments = segmentsAndPixels(usedSegments - 1.0, usedPixels);
 		if (render(source, lessSegments, pixels).find("Path segment budget exceeded") == std::string::npos) {
 			fail("one path segment less does not fail", source);
 		}
 	}
 	if (usedPixels > 0.0) {
-		IVGBudget lessPixels(DEFAULT_CHARACTERS_LIMIT, usedSegments, usedPixels - 1.0);
+		IVGBudget lessPixels = segmentsAndPixels(usedSegments, usedPixels - 1.0);
 		if (render(source, lessPixels, pixels).find("Pixel budget exceeded") == std::string::npos) {
 			fail("one pixel less does not fail", source);
 		}
@@ -149,7 +154,7 @@ int main() {
 			"glyph a 500 [M0,0 L500,0 L500,-500 Z] ]\nfont f size:20\ntext at:10,50 aaa", 3 * 4, 10000 + 3 * 100);
 
 	// Large work is refused before it is done.
-	expectError(header + "bounds 0,0,32767,32767", IVGBudget(DEFAULT_CHARACTERS_LIMIT, 1e8, 1e8)
+	expectError(header + "bounds 0,0,32767,32767", segmentsAndPixels(1e8, 1e8)
 			, "Pixel budget exceeded");
 	// The defaults keep one document under about 2 GB: no 32767 x 32767 canvas (4 GB) and no 1e8 segment dash (5 GB).
 	expectError(header + "bounds 0,0,32767,32767", IVGBudget(), "Pixel budget exceeded");
@@ -160,25 +165,25 @@ int main() {
 		longPath += " L1 1";
 	}
 	expectError(header + "bounds 0,0,100,100\nfill red\npath svg:[" + longPath + "]"
-			, IVGBudget(DEFAULT_CHARACTERS_LIMIT, 1000.0, 1e10), "Path segment budget exceeded");
+			, segmentsAndPixels(1000.0, 1e10), "Path segment budget exceeded");
 	expectError(header + "bounds 0,0,100,100\nfill none\npath svg:[" + longPath + "]"
-			, IVGBudget(DEFAULT_CHARACTERS_LIMIT, 1000.0, 1e10), "Path segment budget exceeded");
+			, segmentsAndPixels(1000.0, 1e10), "Path segment budget exceeded");
 	expectError(header + "bounds 0,0,100,100\npen blue dash:0.01,0.01\nrect 0,0,100000,100000"
-			, IVGBudget(DEFAULT_CHARACTERS_LIMIT, 10000.0, 1e10), "Path segment budget exceeded");
+			, segmentsAndPixels(10000.0, 1e10), "Path segment budget exceeded");
 	expectError(header + "bounds 0,0,100,100\npen blue width:1000 caps:round dash:0.01,0.01\nrect 0,0,100,100"
-			, IVGBudget(DEFAULT_CHARACTERS_LIMIT, 1e6, 1e10), "Path segment budget exceeded");
+			, segmentsAndPixels(1e6, 1e10), "Path segment budget exceeded");
 	std::string zigzag = "M0 0";
 	for (int i = 0; i < 1000; ++i) {
 		zigzag += (i % 2 == 0 ? " L1 1" : " L2 0");
 	}
 	expectError(header + "bounds 0,0,100,100\nfill none\npen blue width:1000 joints:curve\npath svg:[" + zigzag + "]"
-			, IVGBudget(DEFAULT_CHARACTERS_LIMIT, 10000.0, 1e10), "Path segment budget exceeded");
+			, segmentsAndPixels(10000.0, 1e10), "Path segment budget exceeded");
 	expectError(header + "bounds 0,0,100,100\ndefine font f [ metrics upm:1000 ascent:800 descent:-200 linegap:0; "
 			"glyph a 500 [M0,0 L500,0 L500,-500 Z] ]\nfont f size:20 color:none\ntext at:10,50 "
-			+ std::string(10000, 'a'), IVGBudget(DEFAULT_CHARACTERS_LIMIT, 1000.0, 1e10)
+			+ std::string(10000, 'a'), segmentsAndPixels(1000.0, 1e10)
 			, "Path segment budget exceeded");
 	expectError(header + "bounds 0,0,100,100\nrepeat 1000 [ fill red; rect 0,0,100,100 ]"
-			, IVGBudget(DEFAULT_CHARACTERS_LIMIT, 1e8, 1e6), "Pixel budget exceeded");
+			, segmentsAndPixels(1e8, 1e6), "Pixel budget exceeded");
 
 	// Path::stroke stops near its limit instead of building the whole outline first.
 	Path dashed;
@@ -196,7 +201,7 @@ int main() {
 	// Negative bounds fail without refunding pixels first.
 	{
 		const std::string source = header + "bounds 0,0,-30000,30000";
-		IVGBudget budget(DEFAULT_CHARACTERS_LIMIT, 1e8, 1e10);
+		IVGBudget budget = segmentsAndPixels(1e8, 1e10);
 		std::vector<ARGB32::Pixel> pixels;
 		if (render(source, budget, pixels).empty()) {
 			fail("negative bounds do not fail", source);

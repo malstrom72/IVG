@@ -16,8 +16,10 @@ program. Without limits, a few lines can make the host use unbounded memory or t
 | `bounds 0,0,32767,32767` | Allocates a 4.3 GB canvas. |
 
 The older limits do not cover these:
-- The statement limit (1,000,000) counts statements, not their size, and 35 statements are enough above.
-- The recursion and expression nesting limits only protect the stack.
+- The statement count (1,000,000) counts statements, not their size, and 35 statements are enough above. It is now
+  part of the budget.
+- The recursion and expression nesting limits only protect the stack. They stay on the interpreter, since they guard
+  depth, which is refunded on return, not work.
 - `PATH_INSTRUCTION_LIMIT`, an earlier fixed limit on dashed and stroked paths, is gone; the segment budget replaced
   it.
 
@@ -27,11 +29,11 @@ memory and time a host can afford. The goal is not to measure memory exactly.
 ## The design in one paragraph
 
 The budgets count work, not memory, and they count it before the work is done wherever that is possible. The
-interpreter charges characters to an `IMPDBudget`. The IVG executor charges path segments and pixels to an
-`IVGBudget`, which extends `IMPDBudget`. The host creates one `IVGBudget` per render and passes it to both:
+interpreter charges characters and statements to an `IMPDBudget`. The IVG executor charges path segments and pixels
+to an `IVGBudget`, which extends `IMPDBudget`. The host creates one `IVGBudget` per render and passes it to both:
 
 ```cpp
-IVG::IVGBudget budget;	// or IVGBudget(characters, pathSegments, pixels)
+IVG::IVGBudget budget;	// or IVGBudget(characters, statements, pathSegments, pixels)
 IVG::IVGExecutor executor(canvas, budget);
 IMPD::Interpreter impd(executor, vars, formatInfo, budget);
 ```
@@ -42,12 +44,19 @@ are public members, so a host can read what is left after a render, or measure a
 
 Going over a count throws an `IMPD::RunTimeException`:
 - "Characters limit reached";
+- "Statements limit reached";
 - "Path segment budget exceeded";
 - "Pixel budget exceeded".
 
 The counts are cumulative over the whole render. Nothing is refunded when memory is freed, so each count bounds the
 total work of its kind. Memory is then bounded indirectly: nothing can hold more data than was charged to build it,
 times a small factor.
+
+## IMPDBudget: statements
+
+`run()` charges one statement before each statement runs, and the executor's `progress()` hears how many are left,
+counting the current one, as before. Default: `IMPD::DEFAULT_STATEMENTS_LIMIT` = 1e6. It bounds how long loops and
+recursion can run, but not how much each statement does; the character count covers that.
 
 ## IMPDBudget: characters
 

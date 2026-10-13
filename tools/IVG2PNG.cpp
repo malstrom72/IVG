@@ -130,7 +130,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 		{
 			STLMapVariables topVars;
 			// Tighter than the defaults, so every input stays within libFuzzer's 2 GB and replays fast.
-			IVGBudget budget(DEFAULT_CHARACTERS_LIMIT, 5e6, 2.5e8);
+			IVGBudget budget(DEFAULT_CHARACTERS_LIMIT, DEFAULT_STATEMENTS_LIMIT, 5e6, 2.5e8);
 			FuzzerExecutor ivgExecutor(canvas, budget);
 			FormatInfo formatInfo;
 			Interpreter impd(ivgExecutor, topVars, formatInfo, budget);

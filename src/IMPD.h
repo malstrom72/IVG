@@ -51,7 +51,7 @@ typedef String::const_iterator StringIt;
 typedef std::vector<String> StringVector;
 typedef std::map<String, String> StringStringMap;
 
-const int DEFAULT_STATEMENTS_LIMIT = 1000000;																			// To prevent endless loops. 1 million instructions can take quite a while, but better than crashing. If your data require more than a million statements to execute you are probably doing it wrong.
+const double DEFAULT_STATEMENTS_LIMIT = 1e6;																			// Default for IMPDBudget. To prevent endless loops. 1 million instructions can take quite a while, but better than crashing. If your data require more than a million statements to execute you are probably doing it wrong.
 const int DEFAULT_RECURSION_LIMIT = 50;																					// To prevent stack overflow. If you can't describe your data without 50 times recursion, you are doing it wrong.
 const double DEFAULT_CHARACTERS_LIMIT = 1e8;																			// Default for IMPDBudget. Real documents use a few million characters.
 const int EXPRESSION_NESTING_LIMIT = 100;																				// To prevent stack overflow, like DEFAULT_RECURSION_LIMIT. Counts nested parentheses, prefix operators, conditionals and [ ] inside one { } expression.
@@ -176,16 +176,20 @@ class STLMapVariables : public Variables {
 };
 
 /*
-	Limits the string work one document can cause, counted in characters. The interpreter charges what it scans,
-	expands, reads from variables and joins, before or as it builds it; going over throws "Characters limit reached".
-	The count is cumulative and never refunded, so it bounds both the time and the memory strings can take. The host
-	creates one budget per document, or one IVG::IVGBudget per render, and passes it to the root Interpreter. See
+	Limits the work one document can cause in the interpreter: characters and statements. Characters are what it scans,
+	expands, reads from variables and joins, charged before or as it builds them; statements are charged one by one as
+	they run. Going over throws "Characters limit reached" or "Statements limit reached". The counts are cumulative and
+	never refunded, so together they bound both the time and the memory a document can take. The host creates one
+	budget per document, or one IVG::IVGBudget per render, and passes it to the root Interpreter. See
 	docs/Resource Budgets.md for what it captures and what it does not.
 */
 class IMPDBudget {
-	public:		IMPDBudget(double characters = DEFAULT_CHARACTERS_LIMIT);
+	public:		IMPDBudget(double characters = DEFAULT_CHARACTERS_LIMIT
+						, double statements = DEFAULT_STATEMENTS_LIMIT);
 	public:		void chargeCharacters(double count);
+	public:		void chargeStatements(double count);
 	public:		double charactersLeft;
+	public:		double statementsLeft;
 };
 
 /**
@@ -231,7 +235,6 @@ class Interpreter {
 	public:		static StringIt parseDouble(StringIt p, const StringIt& e, double& d);			/// Parses a floating point string starting at `p` and ending at `e` (supports scientific e notation). Returns an iterator pointing to the first character that could not be parsed. Returns `p` on failure.
 		
 	public:		Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, IMPDBudget& budget
-						, int statementsLimit = DEFAULT_STATEMENTS_LIMIT
 						, int recursionLimit = DEFAULT_RECURSION_LIMIT);												///< Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`.
 	public:		Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame);
 	public:		Interpreter(Executor& executor, Interpreter& enclosingInterpreter);
@@ -289,7 +292,6 @@ class Interpreter {
 	protected:	FormatInfo& formatInfo;
 	protected:	Interpreter* callingFrame;
 	protected:	Interpreter& rootFrame;
-	protected:	int statementsLimit;
 	protected:	int recursionLimit;
 	protected:	IMPDBudget& budget;
 	protected:	int expressionNestingLimit;
