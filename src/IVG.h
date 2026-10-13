@@ -76,11 +76,12 @@ const double DEFAULT_PATH_SEGMENTS_LIMIT = 1e7;																			// Default for
 const double DEFAULT_PIXELS_LIMIT = 5e8;																				// Default for IVGBudget. Real documents use at most a few hundred million.
 
 /*
-	Limits the work one render can cause: path segments and pixels here, and the characters of IMPD::IMPDBudget. Work is
-	charged before it is done where possible; going over throws "Path segment budget exceeded" or "Pixel budget
-	exceeded". The counts are cumulative over the render. The host creates one per render and passes it to both the
-	IVGExecutor and the root IMPD::Interpreter. The defaults are far beyond what real documents use. See
-	docs/Resource Budgets.md for what the counts capture, what they do not, and how they can go wrong.
+	Limits the work one render can cause: path segments and pixels here, and the characters and statements of
+	IMPD::IMPDBudget. Work is charged before it is done where possible; going over throws "Path segment budget exceeded"
+	or "Pixel budget exceeded". The counts are cumulative over the render. The host creates one per render and passes it
+	to both the IVGExecutor and the root IMPD::Interpreter, which keep a reference to it, so it must outlive both. The
+	defaults are far beyond what real documents use. See docs/Resource Budgets.md for what the counts capture, what they
+	do not, and how they can go wrong.
 */
 class IVGBudget : public IMPD::IMPDBudget {
 	public:		IVGBudget(double characters = IMPD::DEFAULT_CHARACTERS_LIMIT
@@ -344,7 +345,7 @@ struct Image {
 **/
 class IVGExecutor : public IMPD::Executor {
 	public:		IVGExecutor(Canvas& canvas, IVGBudget& budget
-						, const NuXPixels::AffineTransformation& initialTransform = NuXPixels::AffineTransformation());	// Pass the same budget to the root Interpreter.
+						, const NuXPixels::AffineTransformation& initialTransform = NuXPixels::AffineTransformation());	// Keeps a reference: the budget must outlive the executor. Pass the same one to the root Interpreter.
 	public:		IVGBudget& accessBudget() const { return budget; }
 	public:		virtual bool format(IMPD::Interpreter& interpreter, const IMPD::FormatInfo& formatInfo);
 	public:		virtual bool execute(IMPD::Interpreter& interpreter, const IMPD::String& instruction

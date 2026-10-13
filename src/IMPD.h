@@ -180,8 +180,9 @@ class STLMapVariables : public Variables {
 	expands, reads from variables and joins, charged before or as it builds them; statements are charged one by one as
 	they run. Going over throws "Characters limit reached" or "Statements limit reached". The counts are cumulative and
 	never refunded, so together they bound both the time and the memory a document can take. The host creates one
-	budget per document and passes it to the root Interpreter; an executor may extend it with counts of its own. See
-	docs/Resource Budgets.md for what it captures and what it does not.
+	budget per document and passes it to the root Interpreter, which keeps a reference to it, so it must outlive the
+	interpreter. An executor may extend it with counts of its own. See docs/Resource Budgets.md for what it captures and
+	what it does not.
 */
 class IMPDBudget {
 	public:		IMPDBudget(double characters = DEFAULT_CHARACTERS_LIMIT
@@ -235,7 +236,7 @@ class Interpreter {
 	public:		static StringIt parseDouble(StringIt p, const StringIt& e, double& d);			/// Parses a floating point string starting at `p` and ending at `e` (supports scientific e notation). Returns an iterator pointing to the first character that could not be parsed. Returns `p` on failure.
 		
 	public:		Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, IMPDBudget& budget
-						, int recursionLimit = DEFAULT_RECURSION_LIMIT);												///< Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`.
+						, int recursionLimit = DEFAULT_RECURSION_LIMIT);												///< Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`. It keeps a reference to `budget`, which must outlive it and every frame it creates.
 	public:		Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame);
 	public:		Interpreter(Executor& executor, Interpreter& enclosingInterpreter);
 	public:		Interpreter(Executor& executor, Interpreter& enclosingInterpreter, FormatInfo& formatInfo);

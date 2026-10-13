@@ -194,6 +194,7 @@ largest is 13 million).
 ## Guidance for hosts
 
 - Create one `IVGBudget` per render, pass it to both the executor and the interpreter, and discard it afterwards.
+  Both keep a reference to it, so it must outlive them: declare it before them, never pass a temporary.
 - Choose budgets for your memory and your documents. Measure your own documents at your largest render scale. The
   defaults suit a desktop with several GB to spare. Use smaller budgets on mobile or WebAssembly (the fuzz harness
   uses 5e6 segments and 2.5e8 pixels).
