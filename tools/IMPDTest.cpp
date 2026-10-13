@@ -102,6 +102,57 @@ static bool testUniStringConversions() {
 	return true;
 }
 
+class QuietExecutor : public MyExecutor {
+	public:		virtual void trace(Interpreter& interpreter, const WideString& s) { (void)interpreter; (void)s; }
+};
+
+// Runs source in a fresh interpreter with the given characters limit and returns the error, or "".
+static String runWithCharactersLimit(const String& source, double charactersLimit) {
+	QuietExecutor executor;
+	STLMapVariables vars;
+	FormatInfo formatInfo;
+	Interpreter impd(executor, vars, formatInfo, DEFAULT_STATEMENTS_LIMIT, DEFAULT_RECURSION_LIMIT, charactersLimit);
+	try {
+		impd.run(source);
+	}
+	catch (const Exception& x) {
+		return x.getError();
+	}
+	return "";
+}
+
+static bool testCharactersLimit() {
+	bool ok = true;
+
+	/*
+		Exactly as many characters as a script counts runs it, one less stops it. Here: the script (21), "x = abc"
+		expanded (7), $x read twice (3 + 3), the two joined (6) and "TRACE abcabc" expanded (12).
+	*/
+	const String counted = "x = abc\nTRACE {$x $x}";
+	const double COUNTED_CHARACTERS = 52;
+	if (!runWithCharactersLimit(counted, COUNTED_CHARACTERS).empty()
+			|| runWithCharactersLimit(counted, COUNTED_CHARACTERS - 1) != "Characters limit reached") {
+		std::cerr << "Characters limit: the exact count is not " << COUNTED_CHARACTERS << std::endl;
+		ok = false;
+	}
+
+	// Doubling a string, copying a big one and scanning a long block all stop at the default limit.
+	const char* RUNAWAYS[] = {
+		"o = x\nREPEAT 40 [ o = {$o $o} ]"
+		, "o = x\nREPEAT 20 [ o = {$o $o} ]\nREPEAT 1000000 [ y = $o ]"
+		, "REPEAT 1000000 [ /* a block that is only a comment, but long enough to cost more than the statements"
+				" it runs: 0123456789012345678901234567890123456789012345678901234567890123456789 */ ]"
+	};
+	for (size_t i = 0; i < sizeof (RUNAWAYS) / sizeof (*RUNAWAYS); ++i) {
+		const String error = runWithCharactersLimit(RUNAWAYS[i], DEFAULT_CHARACTERS_LIMIT);
+		if (error != "Characters limit reached") {
+			std::cerr << "Characters limit: \"" << RUNAWAYS[i] << "\" gave \"" << error << "\"" << std::endl;
+			ok = false;
+		}
+	}
+	return ok;
+}
+
 int main(int argc, const char* argv[]) {
 	MyExecutor myExecutor;
 	STLMapVariables topVars;
@@ -110,6 +161,10 @@ int main(int argc, const char* argv[]) {
 
 	if (!testUniStringConversions()) {
 		std::cerr << "UniString conversion test failed" << std::endl;
+		return 1;
+	}
+	if (!testCharactersLimit()) {
+		std::cerr << "Characters limit test failed" << std::endl;
 		return 1;
 	}
 

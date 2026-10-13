@@ -359,23 +359,39 @@ Interpreter::EvaluationValue::operator String() const {
 	}
 }
 
-Interpreter::Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, int statementsLimit, int recursionLimit)
+Interpreter::Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, int statementsLimit, int recursionLimit
+		, double charactersLimit)
 		: executor(executor), vars(vars), formatInfo(formatInfo), callingFrame(0), rootFrame(*this)
-		, statementsLimit(statementsLimit), recursionLimit(recursionLimit), expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
+		, statementsLimit(statementsLimit), recursionLimit(recursionLimit), charactersLimit(charactersLimit)
+		, expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
 
 Interpreter::Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame)
 		: executor(executor), vars(vars), formatInfo(callingFrame.formatInfo), callingFrame(&callingFrame), rootFrame(callingFrame.rootFrame)
-		, statementsLimit(callingFrame.statementsLimit), recursionLimit(callingFrame.recursionLimit), expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
+		, statementsLimit(callingFrame.statementsLimit), recursionLimit(callingFrame.recursionLimit)
+		, charactersLimit(callingFrame.charactersLimit), expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
 
 Interpreter::Interpreter(Executor& executor, Interpreter& enclosingInterpreter)
 		: executor(executor), vars(enclosingInterpreter.vars), formatInfo(enclosingInterpreter.formatInfo)
 		, callingFrame(enclosingInterpreter.callingFrame), rootFrame(enclosingInterpreter.rootFrame)
-		, statementsLimit(enclosingInterpreter.statementsLimit), recursionLimit(enclosingInterpreter.recursionLimit), expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
+		, statementsLimit(enclosingInterpreter.statementsLimit), recursionLimit(enclosingInterpreter.recursionLimit)
+		, charactersLimit(enclosingInterpreter.charactersLimit), expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
 
 Interpreter::Interpreter(Executor& executor, Interpreter& enclosingInterpreter, FormatInfo& formatInfo)
 		: executor(executor), vars(enclosingInterpreter.vars), formatInfo(formatInfo), callingFrame(enclosingInterpreter.callingFrame)
 		, rootFrame(enclosingInterpreter.rootFrame), statementsLimit(enclosingInterpreter.statementsLimit)
-		, recursionLimit(enclosingInterpreter.recursionLimit), expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
+		, recursionLimit(enclosingInterpreter.recursionLimit), charactersLimit(enclosingInterpreter.charactersLimit)
+		, expressionNestingLimit(EXPRESSION_NESTING_LIMIT) { }
+
+/*
+	Charges characters IMPD has built or is about to scan against the limit kept in the root frame, so that one count
+	bounds both the memory and the time strings can take. A const member, as the expression code is const.
+*/
+void Interpreter::chargeCharacters(size_t count) const {
+	rootFrame.charactersLimit -= static_cast<double>(count);
+	if (rootFrame.charactersLimit < 0.0) {
+		throwRunTimeError("Characters limit reached");
+	}
+}
 
 void Interpreter::throwBadSyntax(const String& how) { throw SyntaxException(how); }
 void Interpreter::throwRunTimeError(const String& how) { throw RunTimeException(how); }
@@ -550,6 +566,7 @@ String Interpreter::get(const String& name) const {
 	const Interpreter* f = this;
 	for (; f != 0 && !f->vars.lookup(name, value); f = f->callingFrame) { }
 	if (f == 0) throwRunTimeError(String("Variable ") + name + " does not exist");
+	chargeCharacters(value.size());
 	return value;
 }
 
@@ -633,6 +650,7 @@ void Interpreter::runStatement(const StringRange& r) {
 
 void Interpreter::run(const StringRange& r) {
 	if (recursionLimit == 0) throwRunTimeError("Recursion limit reached");
+	chargeCharacters(r.e - r.b);
 	--recursionLimit;
 	StringRange activeRange = r;
 	String expanded;
@@ -882,7 +900,10 @@ StringIt Interpreter::concatOperation(StringIt p, const StringIt& e, EvaluationV
 		if (q != p) {
 			p = q;
 			if (!dry) {
-				v = static_cast<String>(v) + static_cast<String>(r);
+				const String left = v;
+				const String right = r;
+				chargeCharacters(left.size() + right.size());
+				v = left + right;
 			}
 		}
 	}
@@ -1320,6 +1341,7 @@ String Interpreter::performExpansion(const StringRange& r) const {
 	}
 	if (pendingSpace && b != p) processed.append(" ");
 	processed.append(b, p);
+	chargeCharacters(processed.size());
 	return processed;
 }
 
