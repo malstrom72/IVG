@@ -294,7 +294,7 @@ class Interpreter {
 	protected:	Interpreter& rootFrame;
 	protected:	int recursionLimit;
 	protected:	IMPDBudget& budget;
-	protected:	int expressionNestingLimit;
+	protected:	int expressionNestingLimit;																				// Only the root frame's is used, as a document's nesting is counted across frames.
 
 	protected:	enum BuiltInInstruction {
 					DEBUG_INSTRUCTION, CALL_INSTRUCTION, FOR_INSTRUCTION, FORMAT_INSTRUCTION, IF_INSTRUCTION
