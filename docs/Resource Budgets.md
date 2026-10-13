@@ -31,7 +31,7 @@ interpreter charges characters to an `IMPDBudget`. The IVG executor charges path
 `IVGBudget`, which extends `IMPDBudget`. The host creates one `IVGBudget` per render and passes it to both:
 
 ```cpp
-IVG::IVGBudget budget;	// or IVGBudget(segments, pixels, characters)
+IVG::IVGBudget budget;	// or IVGBudget(characters, pathSegments, pixels)
 IVG::IVGExecutor executor(canvas, budget);
 IMPD::Interpreter impd(executor, vars, formatInfo, budget);
 ```
@@ -69,9 +69,9 @@ These are where IMPD creates strings whose size is not already bounded by charge
 with strings is proportional to text already charged: substrings, assignment, argument and list parsing, unescaping,
 tracing, error messages. Statement text is charged about twice, once when scanned and once when expanded.
 
-Default: 1e8. Measured on the 135 `.ivg` files in the repository, the most any document uses is 4.4 million
-(`bitbox_logo.ivg`), and the fuzz corpus uses at most 42 million. In practice a flat document costs about two to
-three times its own size.
+Default: `IMPD::DEFAULT_CHARACTERS_LIMIT` = 1e8. Measured on the 135 `.ivg` files in the repository, the most any
+document uses is 4.4 million (`bitbox_logo.ivg`), and the fuzz corpus uses at most 42 million. In practice a flat
+document costs about two to three times its own size.
 
 ### What it bounds
 
@@ -133,8 +133,9 @@ Pixels:
   allocated;
 - the canvas area for each `mask`.
 
-Defaults: 1e7 segments and 5e8 pixels. Real documents use at most 85,000 segments (`gammaTest.ivg`) and 278 million
-pixels (`huge.ivg`, a stress test; the next largest is 13 million).
+Defaults: `IVG::DEFAULT_PATH_SEGMENTS_LIMIT` = 1e7 segments and `IVG::DEFAULT_PIXELS_LIMIT` = 5e8 pixels. Real
+documents use at most 85,000 segments (`gammaTest.ivg`) and 278 million pixels (`huge.ivg`, a stress test; the next
+largest is 13 million).
 
 ### What it bounds (measured at the defaults)
 

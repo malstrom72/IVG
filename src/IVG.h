@@ -72,6 +72,9 @@ void checkBounds(const NuXPixels::IntRect& bounds);
 void checkBoundsBeforeScaling(double left, double top, double width, double height);									// Scaled bounds, in double so they cannot overflow.
 void checkTextureTransformation(const NuXPixels::AffineTransformation& xf, const char* what);
 
+const double DEFAULT_PATH_SEGMENTS_LIMIT = 1e7;																			// Default for IVGBudget. Real documents use at most about 100 thousand.
+const double DEFAULT_PIXELS_LIMIT = 5e8;																				// Default for IVGBudget. Real documents use at most a few hundred million.
+
 /*
 	Limits the work one render can cause: path segments and pixels here, and the characters of IMPD::IMPDBudget. Work is
 	charged before it is done where possible; going over throws "Path segment budget exceeded" or "Pixel budget
@@ -80,8 +83,8 @@ void checkTextureTransformation(const NuXPixels::AffineTransformation& xf, const
 	docs/Resource Budgets.md for what the counts capture, what they do not, and how they can go wrong.
 */
 class IVGBudget : public IMPD::IMPDBudget {
-	public:		IVGBudget(double pathSegments = 1e7, double pixels = 5e8
-						, double characters = IMPD::DEFAULT_CHARACTERS_LIMIT);
+	public:		IVGBudget(double characters = IMPD::DEFAULT_CHARACTERS_LIMIT
+						, double pathSegments = DEFAULT_PATH_SEGMENTS_LIMIT, double pixels = DEFAULT_PIXELS_LIMIT);
 	public:		void chargePathSegments(double count);
 	public:		void chargePixels(double count);
 	public:		NuXPixels::Path::size_type calcPathSegmentLimit() const;												// The largest path that can still be charged.

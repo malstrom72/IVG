@@ -94,7 +94,7 @@ void checkTextureTransformation(const AffineTransformation& xf, const char* what
 
 /* --- IVGBudget --- */
 
-IVGBudget::IVGBudget(double pathSegments, double pixels, double characters)
+IVGBudget::IVGBudget(double characters, double pathSegments, double pixels)
 		: IMPDBudget(characters), pathSegmentsLeft(pathSegments), pixelsLeft(pixels) { }
 
 void IVGBudget::chargePathSegments(double count) {
