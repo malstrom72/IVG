@@ -23,6 +23,7 @@
 
 #include <cmath>
 #include <cerrno>
+#include <cstddef>
 #include <cstring>
 #include <algorithm>
 #include <cstdlib>
@@ -601,7 +602,6 @@ int Interpreter::parseList(const StringRange& r, StringVector& elements, bool ex
 	while (p != r.e) {
 		if (!first && *p == ',') p = eatWhite(p + 1, r.e);
 		StringIt q = eatListElement(p, r.e);
-		chargeCharacters(sizeof (String));																				// An element costs a string object even when empty.
 		String v = (expandAll ? expand(StringRange(p, q)) : String(p, q));
 		if (!removeEmpty || !v.empty()) {
 			elements.push_back(v);
@@ -1040,9 +1040,9 @@ StringIt Interpreter::substringOperation(StringIt p, const StringIt& e, Evaluati
 
 		if (!dry) {
 			const String source = static_cast<String>(v);
-			const long sourceLength = lossless_cast<long>(source.size());
+			const ptrdiff_t sourceLength = static_cast<ptrdiff_t>(source.size());
 
-			// Worked out as doubles and clamped before the conversion, so a huge offset or length cannot overflow a long.
+			// Worked out as doubles and clamped to the source before the conversion, so any offset or length is safe.
 			const double sourceLengthValue = static_cast<double>(sourceLength);
 			const double offsetValue = (gotOffset ? floor(static_cast<double>(offset)) : 0.0);
 			const double lengthValue = (gotLength ? floor(static_cast<double>(length)) : 0.0);
@@ -1050,8 +1050,8 @@ StringIt Interpreter::substringOperation(StringIt p, const StringIt& e, Evaluati
 			const double startValue = (gotOffset ? (offsetValue < 0.0 ? sourceLengthValue + offsetValue : offsetValue)
 					: (lengthValue < 0.0 ? sourceLengthValue : 0.0));
 			const double endValue = (gotLength ? startValue + lengthValue : sourceLengthValue);
-			const long start = static_cast<long>(min(max(startValue, 0.0), sourceLengthValue));
-			const long end = static_cast<long>(min(max(endValue, 0.0), sourceLengthValue));
+			const ptrdiff_t start = static_cast<ptrdiff_t>(min(max(startValue, 0.0), sourceLengthValue));
+			const ptrdiff_t end = static_cast<ptrdiff_t>(min(max(endValue, 0.0), sourceLengthValue));
 			if (end < start) {
 				v = String(source.rbegin() + (sourceLength - start), source.rbegin() + (sourceLength - end));
 			} else {
