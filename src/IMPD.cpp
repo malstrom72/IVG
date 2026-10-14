@@ -455,6 +455,19 @@ bool Interpreter::isSymbolLetter(Char c) {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
 
+/*
+	True if an operand begins at `p`, i.e. if evaluateOuter() would consume something there. It also tells modulo
+	from percent: `%` followed by an operand is modulo, otherwise percent.
+*/
+bool Interpreter::startsOperand(StringIt p, const StringIt& e) {
+	if (p == e) {
+		return false;
+	}
+	const Char c = *p;
+	return (c == '[' || c == '"' || c == '$' || c == '!' || c == '-' || c == '+' || c == '(' || c == '.'
+			|| (c >= '0' && c <= '9') || isSymbolLetter(c) || (c == '\\' && p + 1 != e));
+}
+
 StringIt Interpreter::eatSymbol(StringIt p, const StringIt& e) {
 	while (p != e && (isSymbolLetter(*p) || *p == '.' || *p == '-' || (*p >= '0' && *p <= '9'))) ++p;
 	return p;
@@ -870,6 +883,7 @@ StringIt Interpreter::numericOperation(StringIt p, const StringIt& e, Evaluation
 				case '-': l -= r; break;
 				case '*': l *= r; break;
 				case '/': if (r == 0.0) throwRunTimeError("Division by zero"); else l /= r; break;
+				case '%': if (r == 0.0) throwRunTimeError("Modulo by zero"); else l = fmod(l, r); break;
 				case '^': { errno = 0; l = pow(l, r); if (errno != 0) throwRunTimeError("Math error"); break; }
 				default: assert(0); break;
 			}
@@ -880,22 +894,11 @@ StringIt Interpreter::numericOperation(StringIt p, const StringIt& e, Evaluation
 	return p;
 }
 
-StringIt Interpreter::moduloPercentOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence, bool dry) const {
+StringIt Interpreter::percentOperation(StringIt p, EvaluationValue& v, Precedence precedence, bool dry) const {
 	if (precedence < POSTFIX) {
-		EvaluationValue rv;
-		StringIt q = evaluateInner(p + 1, e, rv, MUL_DIV_MOD, dry);
-		if (q == p + 1) {
-			++p;
-			if (!dry) {
-				v = static_cast<double>(v) / 100.0;
-			}
-		} else if (precedence < MUL_DIV_MOD) {
-			p = q;
-			if (!dry) {
-				double r = static_cast<double>(rv);
-				if (r == 0.0) throwRunTimeError("Modulo by zero");
-				else v = fmod(static_cast<double>(v), r);
-			}
+		++p;
+		if (!dry) {
+			v = static_cast<double>(v) / 100.0;
 		}
 	}
 	return p;
@@ -1094,7 +1097,9 @@ StringIt Interpreter::evaluateInner(StringIt b, const StringIt& e, EvaluationVal
 				case '*': if (t + 1 != e && t[1] == '*') { q = numericOperation(t, e, v, precedence, '^', POW, dry); break; }
 				/* else continue */
 				case '/': q = numericOperation(t, e, v, precedence, *t, MUL_DIV_MOD, dry); break;
-				case '%': q = moduloPercentOperation(t, e, v, precedence, dry); break;
+				case '%': q = (startsOperand(eatWhite(t + 1, e), e)
+						? numericOperation(t, e, v, precedence, '%', MUL_DIV_MOD, dry)
+						: percentOperation(t, v, precedence, dry)); break;
 				case '<': case '>': case '=': case '!': q = comparisonOperation(t, e, v, precedence, dry); break;
 				case '&': case '|': q = booleanOperation(t, e, v, precedence, dry); break;
 				case '?': q = conditionalOperation(t, e, v, precedence, dry); break;
