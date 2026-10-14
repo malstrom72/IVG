@@ -882,15 +882,25 @@ StringIt Interpreter::numericOperation(StringIt p, const StringIt& e, Evaluation
 
 StringIt Interpreter::moduloPercentOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence, bool dry) const {
 	if (precedence < POSTFIX) {
+		/*
+			Percent if no operand follows, modulo otherwise. The first character tells, as it is exactly what makes
+			evaluateOuter consume anything; errors further in surface when the operand is evaluated. Evaluating the
+			operand here instead, at every precedence level that meets this %, made chains like {1+-2%+-2%...}
+			exponential, as each level redid the whole rest. The operand is now evaluated once, where modulo applies.
+		*/
+		const StringIt t = eatWhite(p + 1, e);
+		if (t == e) throwBadSyntax("Unexpected end");
+		const Char c = *t;
+		const bool operandFollows = (c == '[' || c == '"' || c == '$' || c == '!' || c == '-' || c == '+' || c == '('
+				|| c == '\\' || c == '.' || (c >= '0' && c <= '9') || isSymbolLetter(c));
 		EvaluationValue rv;
-		StringIt q = evaluateInner(p + 1, e, rv, MUL_DIV_MOD, dry);
-		if (q == p + 1) {
+		if (!operandFollows) {
 			++p;
 			if (!dry) {
 				v = static_cast<double>(v) / 100.0;
 			}
 		} else if (precedence < MUL_DIV_MOD) {
-			p = q;
+			p = evaluateInner(p + 1, e, rv, MUL_DIV_MOD, dry);
 			if (!dry) {
 				double r = static_cast<double>(rv);
 				if (r == 0.0) throwRunTimeError("Modulo by zero");
