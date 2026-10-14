@@ -33,7 +33,7 @@ C_SRCS=(
 
 mkdir -p ./output
 ./tools/BuildCpp.sh beta native ./output/IVGSnapshot \
--ffp-contract=off -DNUXPIXELS_SIMD=0 \
+-ffp-contract=off -UTARGET_OS_MAC -DNUXPIXELS_SIMD=0 \
 -I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib \
 ./tools/IVGSnapshot/IVGSnapshot.cpp ./src/IVG.cpp ./src/IMPD.cpp \
 ./externals/NuX/NuXThreads.cpp ./externals/NuX/NuXThreadsPosix.cpp \

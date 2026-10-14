@@ -61,7 +61,7 @@ C_SRCS=(./externals/libpng/png.c ./externals/libpng/pngerror.c ./externals/libpn
 ./tools/BudgetTest.cpp ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp
 
 ./tools/BuildCpp.sh $1 $2 ./output/IVGSnapshot \
--ffp-contract=off -DNUXPIXELS_SIMD=$simd \
+-ffp-contract=off -UTARGET_OS_MAC -DNUXPIXELS_SIMD=$simd \
 -I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib \
 ./tools/IVGSnapshot/IVGSnapshot.cpp ./src/IVG.cpp ./src/IMPD.cpp \
 ./externals/NuX/NuXThreads.cpp ./externals/NuX/NuXThreadsPosix.cpp \
@@ -70,7 +70,7 @@ C_SRCS=(./externals/libpng/png.c ./externals/libpng/pngerror.c ./externals/libpn
 "${C_SRCS[@]}"
 
 ./tools/BuildCpp.sh $1 $2 ./output/TestSnapshotPlan \
--DIVG_SNAPSHOT_TESTING=1 -ffp-contract=off -DNUXPIXELS_SIMD=$simd \
+-DIVG_SNAPSHOT_TESTING=1 -ffp-contract=off -UTARGET_OS_MAC -DNUXPIXELS_SIMD=$simd \
 -I ./ -I ./externals -I ./externals/libpng -I ./externals/zlib \
 ./tools/IVGSnapshot/tests/TestSnapshotPlan.cpp ./src/IVG.cpp ./src/IMPD.cpp \
 ./externals/NuX/NuXThreads.cpp ./externals/NuX/NuXThreadsPosix.cpp \
