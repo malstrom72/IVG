@@ -456,10 +456,11 @@ bool Interpreter::isSymbolLetter(Char c) {
 }
 
 /*
-	True if an operand begins at `p`, i.e. if evaluateOuter() would consume something there. It also tells modulo
-	from percent: `%` followed by an operand is modulo, otherwise percent.
+	True if an operand begins at `p`, after any white space. evaluateOuter() parses one exactly when this is true, and
+	`%` is modulo when it is true after the `%`, percent otherwise.
 */
 bool Interpreter::startsOperand(StringIt p, const StringIt& e) {
+	p = eatWhite(p, e);
 	if (p == e) {
 		return false;
 	}
@@ -894,7 +895,10 @@ StringIt Interpreter::numericOperation(StringIt p, const StringIt& e, Evaluation
 	return p;
 }
 
-StringIt Interpreter::percentOperation(StringIt p, EvaluationValue& v, Precedence precedence, bool dry) const {
+StringIt Interpreter::moduloPercentOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence, bool dry) const {
+	if (startsOperand(p + 1, e)) {
+		return numericOperation(p, e, v, precedence, '%', MUL_DIV_MOD, dry);
+	}
 	if (precedence < POSTFIX) {
 		++p;
 		if (!dry) {
@@ -1097,9 +1101,7 @@ StringIt Interpreter::evaluateInner(StringIt b, const StringIt& e, EvaluationVal
 				case '*': if (t + 1 != e && t[1] == '*') { q = numericOperation(t, e, v, precedence, '^', POW, dry); break; }
 				/* else continue */
 				case '/': q = numericOperation(t, e, v, precedence, *t, MUL_DIV_MOD, dry); break;
-				case '%': q = (startsOperand(eatWhite(t + 1, e), e)
-						? numericOperation(t, e, v, precedence, '%', MUL_DIV_MOD, dry)
-						: percentOperation(t, v, precedence, dry)); break;
+				case '%': q = moduloPercentOperation(t, e, v, precedence, dry); break;
 				case '<': case '>': case '=': case '!': q = comparisonOperation(t, e, v, precedence, dry); break;
 				case '&': case '|': q = booleanOperation(t, e, v, precedence, dry); break;
 				case '?': q = conditionalOperation(t, e, v, precedence, dry); break;
@@ -1113,10 +1115,14 @@ StringIt Interpreter::evaluateInner(StringIt b, const StringIt& e, EvaluationVal
 }
 
 StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationValue& v, bool dry) const {
-	StringIt p = b;
-	StringIt t = eatWhite(p, e);
-	p = t;
+	StringIt p = eatWhite(b, e);
 	if (p == e) throwBadSyntax("Unexpected end");
+	if (!startsOperand(p, e)) {
+		if (!dry) {
+			v = String();																								// A missing operand is an empty string.
+		}
+		return b;
+	}
 	switch (*p) {
 			case '[': {
 				StringIt q = eatBlock(p, e);
@@ -1212,7 +1218,6 @@ StringIt Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationVal
 			break;
 		}
 	}
-	if (p == t) p = b;
 	return p;
 }
 

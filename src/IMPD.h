@@ -280,7 +280,7 @@ class Interpreter {
 	protected:	bool evaluationValueToNumber(const EvaluationValue& v, double& d, String& s) const;
 	protected:	StringIt numericOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence
 						, Char op, Precedence opPrecedence, bool dry) const;
-	protected:	StringIt percentOperation(StringIt p, EvaluationValue& v, Precedence precedence, bool dry) const;
+	protected:	StringIt moduloPercentOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence, bool dry) const;
 	protected:	StringIt concatOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence, Precedence concatType, bool dry) const;
 	protected:	StringIt comparisonOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence, bool dry) const;
 	protected:	StringIt booleanOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence, bool dry) const;
