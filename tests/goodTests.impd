@@ -481,3 +481,8 @@ o = {"["}; c = {"]"}
 REPEAT 15 [ o = {$o $o}; c = {$c $c} ]
 IF no {$o $c}
 TRACE deep nesting ok
+
+// % is modulo when an operand follows and percent otherwise
+TRACE {5%} {7%3} {5%+3} {5%-3} {10%%} {-7%3} {50%%+1} {8%(3)} {9%-+2%} {5% } {5% 3} {2*7%4} {50%*2}
+// A % followed by unary operators once made parsing exponential in the length of a chain like this
+TRACE {1+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%+-2%}
