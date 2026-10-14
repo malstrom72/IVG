@@ -83,6 +83,21 @@ CALL .\tools\BuildCpp.cmd %1 %2 .\output\BudgetTest ^
 	"-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" ^
 	.\tools\BudgetTest.cpp .\src\IVG.cpp .\src\IMPD.cpp .\externals\NuX\NuXPixels.cpp || EXIT /B 1
 
+CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVGSnapshot "-DNUXPIXELS_SIMD=%simd%" ^
+	/I"." /I"externals" /I"externals\libpng" /I"externals\zlib" ^
+	.\tools\IVGSnapshot\IVGSnapshot.cpp .\src\IVG.cpp .\src\IMPD.cpp ^
+	.\externals\NuX\NuXThreads.cpp .\externals\NuX\NuXThreadsWin32.cpp ^
+	.\externals\NuX\NuXFiles.cpp .\externals\NuX\NuXFilesWin32.cpp ^
+	.\externals\NuX\NuXPixels.cpp %C_SRCS% || EXIT /B 1
+
+CALL .\tools\BuildCpp.cmd %1 %2 .\output\TestSnapshotPlan ^
+	"-DIVG_SNAPSHOT_TESTING=1" "-DNUXPIXELS_SIMD=%simd%" ^
+	/I"." /I"externals" /I"externals\libpng" /I"externals\zlib" ^
+	.\tools\IVGSnapshot\tests\TestSnapshotPlan.cpp .\src\IVG.cpp .\src\IMPD.cpp ^
+	.\externals\NuX\NuXThreads.cpp .\externals\NuX\NuXThreadsWin32.cpp ^
+	.\externals\NuX\NuXFiles.cpp .\externals\NuX\NuXFilesWin32.cpp ^
+	.\externals\NuX\NuXPixels.cpp %C_SRCS% || EXIT /B 1
+
 REM The fuzz target without libFuzzer, to replay the saved fuzz inputs. The 8 MB stack matches the fuzz build.
 CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVGFuzzReplay ^
 	"-DNUXPIXELS_SIMD=%simd%" /D LIBFUZZ /D FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION ^
@@ -107,10 +122,20 @@ CD ..
 CALL .\output\PolygonMaskTest || GOTO error
 CALL .\output\ParsingTest || GOTO error
 CALL .\output\BudgetTest || GOTO error
+CALL .\output\TestSnapshotPlan || GOTO error
+CALL :listOnly ListOnlySample || GOTO error
+CALL :listOnly ListScenarioVariants || GOTO error
 FOR %%f IN (.\tests\fuzz\IVGFuzzCrashes\*) DO (
 	.\output\IVGFuzzReplay "%%f" >NUL || GOTO error
 )
 GOTO :eof
+
+:listOnly
+SET "check=%TEMP%\%~1.check"
+.\output\IVGSnapshot --list-only tools/IVGSnapshot/tests/%~1.ivg >"%check%" || EXIT /B 1
+FC "%check%" ".\tools\IVGSnapshot\tests\%~1.txt" || EXIT /B 1
+DEL "%check%"
+EXIT /B 0
 
 :error
 ECHO Error %ERRORLEVEL%
