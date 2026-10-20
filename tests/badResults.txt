@@ -194,5 +194,7 @@ Exception: Number overflow.
 in statement: TRACE {1e4294967298} // exponent beyond int32_t
 Exception: Expression nesting limit reached.
 in statement: TRACE {(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((1)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))} // expression nesting limit
+Exception: Could not include file "missing中😀.impd".
+in statement: INCLUDE "missing\u4E2D\U0001F600.impd"
 Exception: Statements limit reached.
 in statement: []

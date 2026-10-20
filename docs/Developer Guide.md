@@ -35,15 +35,21 @@ using namespace IVG;
 
 SelfContainedARGB32Canvas canvas;
 STLMapVariables vars;
-IVGExecutor executor(canvas);
+IVGBudget budget; // one per render, shared by the executor and the interpreter
+IVGExecutor executor(canvas, budget);
 IMPD::FormatInfo formatInfo;
-IMPD::Interpreter impd(executor, vars, formatInfo);
+IMPD::Interpreter impd(executor, vars, formatInfo, budget);
 
 impd.run(ivgSource); // ivgSource contains the IVG text
 NuXPixels::SelfContainedRaster<NuXPixels::ARGB32>* raster = canvas.accessRaster();
 ```
 
 After running the interpreter the resulting raster can be written to PNG or uploaded to another graphics API.
+
+The budget limits the path segments, pixels, characters and statements one render may use, so that an untrusted
+document fails with an `IMPD::Exception` instead of exhausting memory or time. Create a new one for every render. The
+executor and the interpreter keep a reference to it, so it must outlive them: declare it first, as above. See
+[Resource Budgets](Resource%20Budgets.md) for the defaults, what they capture and how to choose your own.
 
 ## Extending the executor
 
@@ -52,7 +58,7 @@ Applications typically subclass `IVGExecutor` to supply images and fonts from cu
 ```cpp
 class MyExecutor : public IVG::IVGExecutor {
 public:
-	MyExecutor(Canvas& canvas) : IVGExecutor(canvas) {}
+	MyExecutor(Canvas& canvas, IVGBudget& budget) : IVGExecutor(canvas, budget) {}
 	Image loadImage(IMPD::Interpreter&, const IMPD::WideString& source,
 					const NuXPixels::IntRect* rect, double scale) override {
 		// Provide image data from your own asset system

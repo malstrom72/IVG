@@ -112,14 +112,109 @@ static bool testUniStringConversions() {
 	return true;
 }
 
+// Traces nothing, and records what progress() hears.
+class QuietExecutor : public MyExecutor {
+	public:		virtual void trace(Interpreter& interpreter, const WideString& s) { (void)interpreter; (void)s; }
+	public:		virtual bool progress(Interpreter& interpreter, int maxStatementsLeft) {
+					(void)interpreter;
+					heard.push_back(maxStatementsLeft);
+					return true;
+				}
+	public:		std::vector<int> heard;
+};
+
+// Runs source in a fresh interpreter charging `budget`, and returns the error, or "".
+static String runWithBudget(const String& source, IMPDBudget& budget, QuietExecutor& executor) {
+	STLMapVariables vars;
+	FormatInfo formatInfo;
+	Interpreter impd(executor, vars, formatInfo, budget);
+	try {
+		impd.run(source);
+	}
+	catch (const Exception& x) {
+		return x.getError();
+	}
+	return "";
+}
+
+static bool testCharactersLimit() {
+	bool ok = true;
+
+	/*
+		Exactly as many characters as a script counts runs it, one less stops it. Here: the script (21), "x = abc"
+		expanded (7), $x read twice (3 + 3), the two joined (6) and "TRACE abcabc" expanded (12).
+	*/
+	const String counted = "x = abc\nTRACE {$x $x}";
+	const double COUNTED_CHARACTERS = 52;
+	QuietExecutor executor;
+	IMPDBudget exact(COUNTED_CHARACTERS);
+	IMPDBudget oneLess(COUNTED_CHARACTERS - 1);
+	if (!runWithBudget(counted, exact, executor).empty() || exact.charactersLeft != 0.0
+			|| runWithBudget(counted, oneLess, executor) != "Characters limit reached.") {
+		std::cerr << "Characters limit: the exact count is not " << COUNTED_CHARACTERS << std::endl;
+		ok = false;
+	}
+
+	// Doubling a string, copying a big one and scanning a long block all stop at the default limit.
+	const char* RUNAWAYS[] = {
+		"o = x\nREPEAT 40 [ o = {$o $o} ]"
+		, "o = x\nREPEAT 20 [ o = {$o $o} ]\nREPEAT 1000000 [ y = $o ]"
+		, "REPEAT 1000000 [ /* a block that is only a comment, but long enough to cost more than the statements"
+				" it runs: 0123456789012345678901234567890123456789012345678901234567890123456789 */ ]"
+	};
+	for (size_t i = 0; i < sizeof (RUNAWAYS) / sizeof (*RUNAWAYS); ++i) {
+		IMPDBudget budget;
+		const String error = runWithBudget(RUNAWAYS[i], budget, executor);
+		if (error != "Characters limit reached.") {
+			std::cerr << "Characters limit: \"" << RUNAWAYS[i] << "\" gave \"" << error << "\"" << std::endl;
+			ok = false;
+		}
+	}
+	return ok;
+}
+
+static bool testStatementsLimit() {
+	bool ok = true;
+
+	// A script of three statements runs with exactly three, and progress() hears 3, 2 and 1, counting each one.
+	const String script = "a = 1\nb = 2\nc = 3";
+	QuietExecutor executor;
+	IMPDBudget exact(DEFAULT_CHARACTERS_LIMIT, 3.0);
+	const String error = runWithBudget(script, exact, executor);
+	const int EXPECTED_HEARD[] = { 3, 2, 1 };
+	if (!error.empty() || exact.statementsLeft != 0.0
+			|| executor.heard != std::vector<int>(EXPECTED_HEARD, EXPECTED_HEARD + 3)) {
+		std::cerr << "Statements limit: three statements with a budget of three gave \"" << error << "\"" << std::endl;
+		ok = false;
+	}
+
+	// One fewer stops it before the third statement runs.
+	IMPDBudget oneLess(DEFAULT_CHARACTERS_LIMIT, 2.0);
+	if (runWithBudget(script, oneLess, executor) != "Statements limit reached.") {
+		std::cerr << "Statements limit: three statements with a budget of two did not fail" << std::endl;
+		ok = false;
+	}
+	return ok;
+}
+
 int main(int argc, const char* argv[]) {
 	MyExecutor myExecutor;
 	STLMapVariables topVars;
 	FormatInfo formatInfo;
-	Interpreter imp(myExecutor, topVars, formatInfo);
+	// One interpreter runs all the scripts below in turn, so this budget's counts add up over all of them.
+	IMPDBudget budget;
+	Interpreter imp(myExecutor, topVars, formatInfo, budget);
 
 	if (!testUniStringConversions()) {
 		std::cerr << "UniString conversion test failed" << std::endl;
+		return 1;
+	}
+	if (!testCharactersLimit()) {
+		std::cerr << "Characters limit test failed" << std::endl;
+		return 1;
+	}
+	if (!testStatementsLimit()) {
+		std::cerr << "Statements limit test failed" << std::endl;
 		return 1;
 	}
 

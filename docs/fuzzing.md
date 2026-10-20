@@ -145,9 +145,11 @@ files or PNG output; text is only reached through `define font` in the input.
   with `-ignore_crashes=1 -ignore_ooms=1 -ignore_timeouts=1 -rss_limit_mb=2048` and artifacts in
   `output/fuzzArtifacts/`. The seeds are every `.ivg` in the repository, gathered into `output/fuzzSeeds` by
   `tools/collectFuzzCorpus.sh` at the start of each run, and new inputs build up in `output/fuzzCorpus`, outside git.
-  Extra arguments go to libFuzzer, for example `-fork=4 -max_total_time=43200`. An input counts as a timeout after
-  30 s with clang and 120 s with MSVC, both about 3 s of work in a release build. On macOS `runIVGFuzz.sh` keeps an
-  `ASAN_OPTIONS` you have exported and otherwise sets `detect_container_overflow=0` alone.
+  Both pass `-dict=tests/fuzz/IVGFuzz.dict`, the IVG and IMPD keywords, option names and syntax, taken from the
+  lookup tables and option fetches in `src/IVG.cpp` and `src/IMPD.cpp`. Extra arguments go to libFuzzer, for example
+  `-fork=4 -max_total_time=43200`. An input counts as a timeout after 30 s with clang and 120 s with MSVC, both about
+  3 s of work in a release build. On macOS `runIVGFuzz.sh` keeps an `ASAN_OPTIONS` you have exported and otherwise
+  sets `detect_container_overflow=0` alone.
 - **Replaying.** Pass a saved input to the target: `./output/IVGFuzz output/fuzzArtifacts/crash-...`.
 - **Corpus and regression.** The inputs of fixed crashes are in `tests/fuzz/IVGFuzzCrashes/`, together with the
   minimized repros written while fixing them. `tools/buildAndTest.sh` and `.cmd` build the target without libFuzzer
@@ -157,3 +159,18 @@ files or PNG output; text is only reached through `define font` in the input.
   `.cmd` unpack it into an emptied `output/fuzzCorpusReplay` and replay it through the last `IVGFuzzReplay` built.
   CI runs them after the build, and they are run by hand before a freeze. The archive was merged with
   `-max_len=8192`, and without the inputs slowest to replay.
+- **Sanitized replay.** The plain replays only catch crashes and failed asserts. `tools/replayFuzzSanitized.sh` builds
+  the same replay with AddressSanitizer and UndefinedBehaviorSanitizer as `output/IVGFuzzReplaySanitized` and replays
+  the crash inputs and the corpus through it, so memory errors and undefined behaviour in them show up without a fuzz
+  run. CI runs it on Linux. `tools\replayFuzzSanitized.cmd` does the same with MSVC's AddressSanitizer alone.
+- **IMPD target.** `IMPDFuzz` (`tools/IMPDFuzz.cpp`) runs the IMPD interpreter alone, with an executor that accepts
+  every instruction and expands every argument, so inputs exercise parsing, control flow, variables and expressions
+  without stopping at an unknown instruction. `tools/buildIMPDFuzz.sh` and `.cmd` build it; seed it with
+  `output/fuzzSeeds` and a folder holding copies of `tests/*.impd`. IMPD limits statements but not memory, so
+  inputs that keep doubling a string, as the seeds' `REPEAT 30 [ o = {$o $o} ]` does, are reported as out of memory.
+- **SIMD and scalar.** The two rasterizers must render alike, which the regression images check for the tests.
+  `tools/replaySIMDDiff.sh` and `.cmd` check it for the fuzz inputs too: they build `tools/IVGDigest.cpp`, which
+  prints each input's outcome, bounds and pixel hash, once with `NUXPIXELS_SIMD` 0 and once with 1, run both over
+  every `.ivg` under `tests`, the crash inputs and the corpus, and fail if the outputs differ. CI runs it on Linux.
+  There is no differential fuzz target, as one would need both rasterizers in one binary; a refreshed corpus is
+  checked instead.

@@ -50,6 +50,17 @@ jobs:
       run: |
         bash build.sh 2>&1 | tee build.log
         grep -qF '=== ALL BUILDS AND TESTS COMPLETED SUCCESSFULLY ===' build.log
+    # build.sh has just rebuilt tools/ivgfiddle/output, so any difference means the committed fiddle is stale. Rebuild
+    # it with tools/ivgfiddle/buildIVGFiddle.sh and Emscripten 6.0.10 and commit the output.
+    - name: Check that the committed IVGFiddle build is current
+      shell: bash
+      run: git diff --exit-code --stat -- tools/ivgfiddle/output
     - name: Replay the fuzz corpus
       shell: bash
       run: bash tools/replayFuzzCorpus.sh
+    - name: Replay the fuzz inputs with sanitizers
+      shell: bash
+      run: bash tools/replayFuzzSanitized.sh
+    - name: Compare the SIMD and scalar rasterizers on the fuzz inputs
+      shell: bash
+      run: bash tools/replaySIMDDiff.sh

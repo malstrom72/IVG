@@ -75,6 +75,14 @@ C_SRCS=(./externals/libpng/png.c ./externals/libpng/pngerror.c ./externals/libpn
 	./externals/NuX/NuXPixels.cpp \
                 "${C_SRCS[@]}"
 
+./tools/BuildCpp.sh $1 $2 ./output/ParsingTest \
+-DNUXPIXELS_SIMD=$simd -I ./ -I ./externals \
+./tools/ParsingTest.cpp ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp
+
+./tools/BuildCpp.sh $1 $2 ./output/BudgetTest \
+-DNUXPIXELS_SIMD=$simd -I ./ -I ./externals \
+./tools/BudgetTest.cpp ./src/IVG.cpp ./src/IMPD.cpp ./externals/NuX/NuXPixels.cpp
+
 # The fuzz target without libFuzzer, to replay the saved fuzz inputs.
 ./tools/BuildCpp.sh $1 $2 ./output/IVGFuzzReplay \
 -DNUXPIXELS_SIMD=$simd -DLIBFUZZ -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION \
@@ -114,6 +122,8 @@ for grammar in ivg impd; do
 	cmp tools/grammars/$grammar.tmLanguage tools/ivg-vscode/syntaxes/$grammar.tmLanguage
 done
 ./output/PolygonMaskTest
+./output/ParsingTest
+./output/BudgetTest
 ./output/TestSnapshotPlan
 tmp="$tmpdir/list.txt"
 ./output/IVGSnapshot --list-only tools/IVGSnapshot/tests/ListOnlySample.ivg > "$tmp"
