@@ -67,6 +67,14 @@ CALL .\tools\BuildCpp.cmd %1 %2 .\output\PolygonMaskTest ^
 		"-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" ^
 		.\tools\PolygonMaskTest.cpp .\externals\NuX\NuXPixels.cpp || EXIT /B 1
 
+CALL .\tools\BuildCpp.cmd %1 %2 .\output\ParsingTest ^
+		"-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" ^
+		.\tools\ParsingTest.cpp .\src\IVG.cpp .\src\IMPD.cpp .\externals\NuX\NuXPixels.cpp || EXIT /B 1
+
+CALL .\tools\BuildCpp.cmd %1 %2 .\output\BudgetTest ^
+		"-DNUXPIXELS_SIMD=%simd%" /I"." /I"externals" ^
+		.\tools\BudgetTest.cpp .\src\IVG.cpp .\src\IMPD.cpp .\externals\NuX\NuXPixels.cpp || EXIT /B 1
+
 REM The fuzz target without libFuzzer, to replay the saved fuzz inputs. The 8 MB stack matches the fuzz build.
 CALL .\tools\BuildCpp.cmd %1 %2 .\output\IVGFuzzReplay ^
 		"-DNUXPIXELS_SIMD=%simd%" /D LIBFUZZ /D FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION ^
@@ -120,6 +128,8 @@ FOR %%g IN (ivg impd) DO (
 	FC /B tools\grammars\%%g.tmLanguage tools\ivg-vscode\syntaxes\%%g.tmLanguage >NUL || GOTO error
 )
 CALL .\output\PolygonMaskTest || GOTO error
+CALL .\output\ParsingTest || GOTO error
+CALL .\output\BudgetTest || GOTO error
 CALL .\output\TestSnapshotPlan || GOTO error
 CALL :listOnly ListOnlySample || GOTO error
 CALL :listOnly ListScenarioVariants || GOTO error

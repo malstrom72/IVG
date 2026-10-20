@@ -59,8 +59,8 @@ void logIncludeResolutionFailure(const std::string& includePath, const std::stri
 
 class IVGExecutorWithExternalFonts : public IVGExecutor {
 	public:
-		IVGExecutorWithExternalFonts(Canvas& canvas, const AffineTransformation& xform)
-			: IVGExecutor(canvas, xform) {
+		IVGExecutorWithExternalFonts(Canvas& canvas, IVGBudget& budget, const AffineTransformation& xform)
+			: IVGExecutor(canvas, budget, xform) {
 		}
 		virtual std::vector<const Font*> lookupFonts(Interpreter& interpreter, const WideString& fontName
 				, const UniString& forString) {
@@ -90,7 +90,8 @@ class IVGExecutorWithExternalFonts : public IVGExecutor {
                                 FontParser fontParser;
                                 STLMapVariables vars;
                                 FormatInfo formatInfo;
-                                Interpreter impd(fontParser, vars, formatInfo);
+                                // A font file counts toward the render that loads it.
+                                Interpreter impd(fontParser, vars, formatInfo, accessBudget());
                                 impd.run(fontCode);
                                 insertResult.first->second = fontParser.finalizeFont();
                         }
@@ -143,6 +144,16 @@ namespace {
 const int MAX_RASTER_DIMENSION = 16384;
 const long long MAX_RASTER_PIXELS = 67108864LL;
 const size_t VECTOR_HEAP_RESERVE_BYTES = 2 * 1024 * 1024;
+
+/*
+	The WebAssembly heap is a fixed 64 MB, far below what the default budget allows, so this one is sized to
+	it: strings within about 10 MB, paths within about 30 MB (about 130 bytes per segment when filled), and
+	enough pixels for every example but the huge.ivg stress test. Real documents use at most 4.4 million
+	characters, 85,000 segments and 13 million pixels.
+*/
+IVGBudget makeFiddleBudget() {
+	return IVGBudget(1e7, DEFAULT_STATEMENTS_LIMIT, 2.5e5, 5e7);
+}
 const size_t RASTER_HEADER_BYTES = 8 * sizeof(uint32_t); // left, top, width, height, pixel and catalog bytes, selection
 static const char* const SNAPSHOT_SOURCE_PATH = "/ivgfiddle/source.ivg";
 static const char* const INCLUDE_ARCHIVE_ROOT = "/__ivg/includes";
@@ -933,8 +944,8 @@ enum SnapshotExecutorMode {
 
 class SnapshotExecutor : public IVGExecutorWithExternalFonts {
         public:
-                SnapshotExecutor(GuardedSelfContainedARGB32Canvas& canvas, const AffineTransformation& xform, const std::vector<std::string>& includeDirs, const std::string& sourcePath, SnapshotPlan& plan, const String& sourceText)
-                                : IVGExecutorWithExternalFonts(canvas, xform)
+                SnapshotExecutor(GuardedSelfContainedARGB32Canvas& canvas, IVGBudget& budget, const AffineTransformation& xform, const std::vector<std::string>& includeDirs, const std::string& sourcePath, SnapshotPlan& plan, const String& sourceText)
+                                : IVGExecutorWithExternalFonts(canvas, budget, xform)
                                 , mode(SnapshotExecutorModeCollect)
                                 , plan(&plan)
                                 , sourceText(&sourceText)
@@ -948,8 +959,8 @@ class SnapshotExecutor : public IVGExecutorWithExternalFonts {
                 {
                 }
 
-		SnapshotExecutor(GuardedSelfContainedARGB32Canvas& canvas, const AffineTransformation& xform, const std::vector<std::string>& includeDirs, const std::string& sourcePath, SnapshotPlan& planRef, const SnapshotScenario& scenario, const SnapshotEntry& entry)
-				: IVGExecutorWithExternalFonts(canvas, xform)
+		SnapshotExecutor(GuardedSelfContainedARGB32Canvas& canvas, IVGBudget& budget, const AffineTransformation& xform, const std::vector<std::string>& includeDirs, const std::string& sourcePath, SnapshotPlan& planRef, const SnapshotScenario& scenario, const SnapshotEntry& entry)
+				: IVGExecutorWithExternalFonts(canvas, budget, xform)
 				, mode(SnapshotExecutorModePlayback)
 				, plan(&planRef)
 				, sourceText(0)
@@ -963,8 +974,8 @@ class SnapshotExecutor : public IVGExecutorWithExternalFonts {
 		{
 		}
 
-		SnapshotExecutor(GuardedSelfContainedARGB32Canvas& canvas, const AffineTransformation& xform, const std::vector<std::string>& includeDirs, const std::string& sourcePath, SnapshotPlan& planRef)
-				: IVGExecutorWithExternalFonts(canvas, xform)
+		SnapshotExecutor(GuardedSelfContainedARGB32Canvas& canvas, IVGBudget& budget, const AffineTransformation& xform, const std::vector<std::string>& includeDirs, const std::string& sourcePath, SnapshotPlan& planRef)
+				: IVGExecutorWithExternalFonts(canvas, budget, xform)
 				, mode(SnapshotExecutorModePlayback)
 				, plan(&planRef)
 				, sourceText(0)
@@ -1253,10 +1264,11 @@ void SnapshotPlanCache::rebuild(const std::string& sourceTextUtf8, const String&
         newPlan->beginCollection();
         while (true) {
                 GuardedSelfContainedARGB32Canvas canvas(1.0, MAX_RASTER_PIXELS, VECTOR_HEAP_RESERVE_BYTES);
-                SnapshotExecutor collector(canvas, AffineTransformation(), includeDirs, SNAPSHOT_SOURCE_PATH, *newPlan, sourceText);
+                IVGBudget budget(makeFiddleBudget());
+                SnapshotExecutor collector(canvas, budget, AffineTransformation(), includeDirs, SNAPSHOT_SOURCE_PATH, *newPlan, sourceText);
                 STLMapVariables variables;
                 FormatInfo formatInfo;
-                Interpreter planInterpreter(collector, variables, formatInfo);
+                Interpreter planInterpreter(collector, variables, formatInfo, budget);
                 planInterpreter.run(StringRange(sourceText));
                 newPlan->completeCollectionPass();
 		if (!newPlan->prepareNextCollectionPass()) {
@@ -1441,14 +1453,15 @@ extern "C" {
 		{
 			STLMapVariables topVars;
 			FormatInfo formatInfo;
+			IVGBudget budget(makeFiddleBudget());
 				if (selectedScenarioIndex != sentinel && selectedEntryOrdinal != sentinel) {
 					const SnapshotScenario& scenario = scenarios[selectedScenarioIndex];
 					if (selectedEntryOrdinal - 1 < scenario.entryIndices.size()) {
 						const uint32_t entryIndex = scenario.entryIndices[selectedEntryOrdinal - 1];
 						if (entryIndex < entries.size()) {
 							const SnapshotEntry& entry = entries[entryIndex];
-							SnapshotExecutor executor(canvas, AffineTransformation().scale(scaling), includeDirs, SNAPSHOT_SOURCE_PATH, snapshotPlan, scenario, entry);
-							Interpreter impd(executor, topVars, formatInfo);
+							SnapshotExecutor executor(canvas, budget, AffineTransformation().scale(scaling), includeDirs, SNAPSHOT_SOURCE_PATH, snapshotPlan, scenario, entry);
+							Interpreter impd(executor, topVars, formatInfo, budget);
 							impd.run(StringRange(sourceString));
 							if (!executor.finished()) {
 								throw runtime_error("Snapshot playback did not execute all invocations.");
@@ -1456,12 +1469,12 @@ extern "C" {
 						}
 					}
 				} else if (snapshotPlan.hasCommonBlocks()) {
-					SnapshotExecutor executor(canvas, AffineTransformation().scale(scaling), includeDirs, SNAPSHOT_SOURCE_PATH, snapshotPlan);
-					Interpreter impd(executor, topVars, formatInfo);
+					SnapshotExecutor executor(canvas, budget, AffineTransformation().scale(scaling), includeDirs, SNAPSHOT_SOURCE_PATH, snapshotPlan);
+					Interpreter impd(executor, topVars, formatInfo, budget);
 					impd.run(StringRange(sourceString));
 				} else {
-					IVGExecutorWithExternalFonts ivgExecutor(canvas, AffineTransformation().scale(scaling));
-					Interpreter impd(ivgExecutor, topVars, formatInfo);
+					IVGExecutorWithExternalFonts ivgExecutor(canvas, budget, AffineTransformation().scale(scaling));
+					Interpreter impd(ivgExecutor, topVars, formatInfo, budget);
 					impd.run(StringRange(sourceString));
 				}
 		}

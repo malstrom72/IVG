@@ -169,7 +169,7 @@ class CachedDocument {
 	void render(IVG::IVGExecutor &executor) const {
 		IMPD::STLMapVariables variables;
 		IMPD::FormatInfo formatInfo;
-		IMPD::Interpreter interpreter(executor, variables, formatInfo);
+		IMPD::Interpreter interpreter(executor, variables, formatInfo, executor.accessBudget());
 		interpreter.run(IMPD::StringRange(source));
 	}
 
@@ -249,7 +249,8 @@ static FormatDetectionResult detectSnapshotFormat(const String &source) {
 	SnapshotFormatDetector detector;
 	STLMapVariables variables;
 	FormatInfo formatInfo;
-	Interpreter interpreter(detector, variables, formatInfo);
+	IMPDBudget budget;
+	Interpreter interpreter(detector, variables, formatInfo, budget);
 
 	try {
 		interpreter.run(StringRange(source));
@@ -2542,13 +2543,14 @@ static bool tryReadFile(const NuXFiles::Path &path, String &contents) {
 class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 	public:
 	SnapshotPlaybackExecutor(IVG::Canvas &canvas,
+			IVG::IVGBudget &budget,
 			const CommandLineOptions &options,
 			const NuXFiles::Path &sourcePath,
 			const String &sourceText,
 			SharedResources &sharedResources,
 			SnapshotRoundState &roundState,
 			SnapshotProgress &snapshotProgress)
-			: IVG::IVGExecutor(canvas),
+			: IVG::IVGExecutor(canvas, budget),
 			  includeDirs(options.includeDirs), fontDirs(options.fontDirs),
 			  imageDirs(options.imageDirs), sourcePath(SnapshotPathBridge::toNative(sourcePath)),
 			  sourcePathObj(sourcePath), verbose(options.verbose),
@@ -2892,7 +2894,7 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 		IVG::FontParser parser;
 		STLMapVariables variables;
 		FormatInfo formatInfo;
-		Interpreter interpreter(parser, variables, formatInfo);
+		Interpreter interpreter(parser, variables, formatInfo, accessBudget());
 		interpreter.run(StringRange(source));
 		font = parser.finalizeFont();
 		return true;
@@ -3267,7 +3269,8 @@ static SnapshotRunResult processFileIterative(const CommandLineOptions &options,
 	while (!stopAfterFailure) {
 		SnapshotRoundState round = coordinator.beginRound();
 		IVG::SelfContainedARGB32Canvas canvas;
-		SnapshotPlaybackExecutor executor(canvas, options, run.filePath, source,
+		IVG::IVGBudget budget;
+		SnapshotPlaybackExecutor executor(canvas, budget, options, run.filePath, source,
 			sharedResources, round, progress);
 
 		bool executionFailed = false;

@@ -121,11 +121,11 @@ static void PNGAPI myPNGFlushFunction(png_structp png_ptr) {
 
 class IVGExecutorWithExternalFiles : public IVGExecutor {
 	public:
-		IVGExecutorWithExternalFiles(Canvas& canvas, const NuXFiles::Path& fontPath
+		IVGExecutorWithExternalFiles(Canvas& canvas, IVGBudget& budget, const NuXFiles::Path& fontPath
 				, const NuXFiles::Path& imagePath, const NuXFiles::Path& includePath
 				, const NuXFiles::Path& inputPath
 				, const AffineTransformation& xform = AffineTransformation())
-				: IVGExecutor(canvas, xform), fontPath(fontPath), imagePath(imagePath), includePath(includePath)
+				: IVGExecutor(canvas, budget, xform), fontPath(fontPath), imagePath(imagePath), includePath(includePath)
 				, inputDirectory(inputPath.isRoot() ? NuXFiles::Path() : inputPath.getParent()) {
 		}
 		virtual std::vector<const Font*> lookupFonts(IMPD::Interpreter& interpreter, const IMPD::WideString& fontName
@@ -142,7 +142,8 @@ class IVGExecutorWithExternalFiles : public IVGExecutor {
 				FontParser fontParser(this);
 				STLMapVariables vars;
 			    FormatInfo formatInfo;
-				Interpreter impd(fontParser, vars, formatInfo);
+				// A font file counts toward the render that loads it.
+				Interpreter impd(fontParser, vars, formatInfo, accessBudget());
 				impd.run(fontCode);
 				insertResult.first->second = fontParser.finalizeFont();
 			}
@@ -259,6 +260,7 @@ class IVGExecutorWithExternalFiles : public IVGExecutor {
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <crtdbg.h>
 
 /*
 	On Windows a stack overflow leaves no stack for AddressSanitizer and libFuzzer to report it on, so the input that
@@ -270,14 +272,17 @@ extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
 	SetThreadStackGuarantee(&guarantee);
 	_set_error_mode(_OUT_TO_STDERR);
 	_set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+	_CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_FILE);
+	_CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);
+	_CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
+	_CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR);
 	SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 	return 0;
 }
 #endif
 
 struct FuzzerExecutor : public IVGExecutor {
-	FuzzerExecutor(Canvas& canvas, const NuXPixels::AffineTransformation& initialTransform = NuXPixels::AffineTransformation())
-		: IVGExecutor(canvas, initialTransform) { }
+	FuzzerExecutor(Canvas& canvas, IVGBudget& budget) : IVGExecutor(canvas, budget) { }
 	virtual void trace(IMPD::Interpreter& interpreter, const IMPD::WideString& s) { }
 };
 
@@ -287,9 +292,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 	try {
 		{
 			STLMapVariables topVars;
-			FuzzerExecutor ivgExecutor(canvas);
+			// Tighter than the defaults, so every input stays within libFuzzer's 2 GB and replays fast.
+			IVGBudget budget(DEFAULT_CHARACTERS_LIMIT, DEFAULT_STATEMENTS_LIMIT, 5e6, 2.5e8);
+			FuzzerExecutor ivgExecutor(canvas, budget);
 			FormatInfo formatInfo;
-			Interpreter impd(ivgExecutor, topVars, formatInfo);
+			Interpreter impd(ivgExecutor, topVars, formatInfo, budget);
 			impd.run(ivgSource);
 		}
 	}
@@ -363,10 +370,11 @@ static int runIVG2PNG(int argc, const char* argv[]) {
 		SelfContainedARGB32Canvas canvas(scale);
 		{
 			STLMapVariables topVars;
-			IVGExecutorWithExternalFiles ivgExecutor(canvas, fontPath, imagePath, includePath, inputFilePath
+			IVGBudget budget;
+			IVGExecutorWithExternalFiles ivgExecutor(canvas, budget, fontPath, imagePath, includePath, inputFilePath
 					, AffineTransformation().scale(scale));
 			FormatInfo formatInfo;
-			Interpreter impd(ivgExecutor, topVars, formatInfo);
+			Interpreter impd(ivgExecutor, topVars, formatInfo, budget);
 			impd.run(ivgContents);
 		}
 		std::cerr << "Rasterized image..." << std::endl;

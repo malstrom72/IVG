@@ -50,17 +50,17 @@ Testing negative_star_radius: expecting "Negative star radius "-1"." ... PASS
 Testing opacity_trailing_garbage: expecting "Invalid opacity "80junk"." ... PASS
 Testing path_arc_move_too_few: expecting "Too few list elements (got 2, expected at least 3)." ... PASS
 Testing path_close_has_args: expecting "Unrecognized labels or too many arguments." ... PASS
-Testing path_instruction_limit: expecting "Path instruction limit exceeded." ... PASS
-Testing path_size_out_of_range: expecting "Path instruction limit exceeded." ... PASS
+Testing path_instruction_limit: expecting "Path segment budget exceeded." ... PASS
+Testing path_size_out_of_range: expecting "Path segment budget exceeded." ... PASS
 Testing path_text_missing_text: expecting "Missing indexed argument #1." ... PASS
-Testing pattern_scale_out_of_range: expecting ""bounds" width "262136" out of range [1..32767]." ... PASS
+Testing pattern_scale_out_of_range: expecting "Rescaled "bounds" width "40000" out of range [1..32767]." ... PASS
 Testing pattern_unknown_reference: expecting "Undefined pattern "missing"." ... PASS
 Testing radial_gradient_huge_transform: expecting "Radial gradient radius "3276700000" out of range (0..32767]." ... PASS
 Testing radial_gradient_radius_out_of_range: expecting "Radial gradient radius "200000" out of range (0..32767]." ... PASS
 Testing rescaled_bounds_out_of_range: expecting "Rescaled "bounds" width "40000" out of range [1..32767]." ... PASS
 Testing star_points_out_of_range: expecting "Star points "0" out of range [1..10000]." ... PASS
 Testing svg_arc_flag_not_binary: expecting "Invalid command in svg path data" ... PASS
-Testing svg_path_instruction_limit: expecting "Path instruction limit exceeded in svg path data" ... PASS
+Testing svg_path_instruction_limit: expecting "Path segment budget exceeded." ... PASS
 Testing text_invalid_anchor: expecting "Unrecognized anchor "upside"." ... PASS
 Testing text_missing_font: expecting "Writing text requires a font to be set first." ... PASS
 Testing undefined_path: expecting "Undefined path "foo"." ... PASS

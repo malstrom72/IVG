@@ -51,8 +51,9 @@ typedef String::const_iterator StringIt;
 typedef std::vector<String> StringVector;
 typedef std::map<String, String> StringStringMap;
 
-const int DEFAULT_STATEMENTS_LIMIT = 1000000;																			// To prevent endless loops. 1 million instructions can take quite a while, but better than crashing. If your data require more than a million statements to execute you are probably doing it wrong.
-const int DEFAULT_RECURSION_LIMIT = 50;																					// To prevent stack overflow. If you can't describe your data without 50 times recursion, you are doing it wrong.
+const double DEFAULT_STATEMENTS_LIMIT = 1e6;																			// Default for IMPDBudget. To prevent endless loops. 1 million instructions can take quite a while, but better than crashing. If your data require more than a million statements to execute you are probably doing it wrong.
+const int DEFAULT_RECURSION_LIMIT = 50;																					// To prevent stack overflow. Counts nesting of every kind together: IF, REPEAT, FOR and [ ] blocks, CALL, INCLUDE and an executor's nested runs. If you can't describe your data within 50 levels, you are doing it wrong.
+const double DEFAULT_CHARACTERS_LIMIT = 1e8;																			// Default for IMPDBudget. Real documents use a few million characters.
 const int EXPRESSION_NESTING_LIMIT = 100;																				// To prevent stack overflow, like DEFAULT_RECURSION_LIMIT. Counts nested parentheses, prefix operators, conditionals and [ ] inside one { } expression.
 const int NUMBER_PRECISION_DIGITS = 13;
 const double NUMBER_PRECISION_MAGNITUDE = 1e-13;
@@ -175,6 +176,24 @@ class STLMapVariables : public Variables {
 };
 
 /*
+	Limits the work one document can cause in the interpreter: characters and statements. Characters are what it scans,
+	expands, reads from variables and joins, charged before or as it builds them; statements are charged one by one as
+	they run. Going over throws "Characters limit reached." or "Statements limit reached." The counts are cumulative and
+	never refunded, so together they bound both the time and the memory a document can take. The host creates one budget
+	per document and passes it to the root Interpreter, which keeps a reference to it, so it must outlive the
+	interpreter. An executor may extend it with counts of its own. See docs/Resource Budgets.md for what it captures and
+	what it does not.
+*/
+class IMPDBudget {
+	public:		IMPDBudget(double characters = DEFAULT_CHARACTERS_LIMIT
+						, double statements = DEFAULT_STATEMENTS_LIMIT);
+	public:		void chargeCharacters(double count);
+	public:		void chargeStatements(double count);
+	public:		double charactersLeft;
+	public:		double statementsLeft;
+};
+
+/*
 	Abstract interface for executing instructions and loading resources.
 */
 class Executor {
@@ -220,13 +239,13 @@ class Interpreter {
 	public:		static bool isQuotedString(const String& s);
 	public:		static bool isCurlyExpression(const String& s);
 
-	public:		Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo
-						, int statementsLimit = DEFAULT_STATEMENTS_LIMIT
-						, int recursionLimit = DEFAULT_RECURSION_LIMIT);												// Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`.
+	public:		Interpreter(Executor& executor, Variables& vars, FormatInfo& formatInfo, IMPDBudget& budget
+						, int recursionLimit = DEFAULT_RECURSION_LIMIT);												// Constructs a root interpreter. The root interpreter uses the global variables referenced to by `vars`. It keeps a reference to `budget`, which must outlive it and every frame it creates.
 	public:		Interpreter(Executor& executor, Variables& vars, Interpreter& callingFrame);
 	public:		Interpreter(Executor& executor, Interpreter& enclosingInterpreter);
 	public:		Interpreter(Executor& executor, Interpreter& enclosingInterpreter, FormatInfo& formatInfo);
 	public:		Executor& getExecutor() const { return executor; }
+	public:		IMPDBudget& accessBudget() const { return budget; }
 	public:		Variables& getVariables() const { return vars; }
 	public:		FormatInfo& getFormatInfo() { return formatInfo; }
 	public:		const FormatInfo& getFormatInfo() const { return formatInfo; }
@@ -243,6 +262,7 @@ class Interpreter {
 	protected:	class EvaluationValue;
 	protected:	static bool isComment(StringIt p, const StringIt& e);
 	protected:	static bool isSymbolLetter(Char c);															// _ is considered a letter in this context, . - and 0 to 9 are not
+	protected:	static bool startsOperand(StringIt p, const StringIt& e);
 	protected:	static StringIt eatComment(StringIt p, const StringIt& e);
 	protected:	static StringIt eatWhite(StringIt p, const StringIt& e);
 	protected:	static StringIt eatEscape(StringIt p, const StringIt& e);
@@ -272,14 +292,15 @@ class Interpreter {
 	protected:	StringIt substringOperation(StringIt p, const StringIt& e, EvaluationValue& v, Precedence precedence, bool dry) const;
 	protected:	StringIt evaluateInner(StringIt b, const StringIt& e, EvaluationValue& v, Precedence precedence, bool dry) const;
 	protected:	StringIt evaluateOuter(StringIt b, const StringIt& e, EvaluationValue& v, bool dry) const;
+	protected:	void chargeCharacters(size_t count) const;
 	protected:	Executor& executor;
 	protected:	Variables& vars;
 	protected:	FormatInfo& formatInfo;
 	protected:	Interpreter* callingFrame;
 	protected:	Interpreter& rootFrame;
-	protected:	int statementsLimit;
 	protected:	int recursionLimit;
-	protected:	int expressionNestingLimit;
+	protected:	IMPDBudget& budget;
+	protected:	int expressionNestingLimit;																				// Only the root frame's is used, as a document's nesting is counted across frames.
 
 	protected:	enum BuiltInInstruction {
 					DEBUG_INSTRUCTION, CALL_INSTRUCTION, FOR_INSTRUCTION, FORMAT_INSTRUCTION, IF_INSTRUCTION

@@ -346,3 +346,5 @@ inner
 1 2
 first second 2
 deep nesting ok
+0.05 1 2 2 0.001 -1 0.5 2 0.02 0.05 2 2 1
+1

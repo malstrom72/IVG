@@ -40,9 +40,10 @@ int main(int argc, char** argv) {
 	try {
 		SelfContainedARGB32Canvas canvas;
 		STLMapVariables vars;
-		IVGExecutor exec(canvas);
+		IVGBudget budget;
+		IVGExecutor exec(canvas, budget);
 		FormatInfo formatInfo;
-		Interpreter imp(exec, vars, formatInfo);
+		Interpreter imp(exec, vars, formatInfo, budget);
 		imp.run(source);
 	}
 	catch (const SyntaxException& x) { message = x.what(); threw = true; }

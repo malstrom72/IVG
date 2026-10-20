@@ -6,6 +6,7 @@ cd "$(dirname "$0")"/..
 # and fuzzing goes on. New inputs build up in output/fuzzCorpus, so a later run continues where this one stopped.
 # An input counts as a timeout after 30 s, about 3 s of work in a release build given the instrumentation's cost
 # with clang. A longer limit lets slow inputs into the corpus, where they hold up every later job.
+# tests/fuzz/IVGFuzz.dict feeds the mutator IVG and IMPD keywords.
 # Extra arguments go to libFuzzer and override the defaults, e.g. runIVGFuzz.sh -fork=8 -max_total_time=3600
 bash ./tools/collectFuzzCorpus.sh output/fuzzSeeds
 mkdir -p output/fuzzCorpus output/fuzzArtifacts
@@ -16,4 +17,4 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
 	export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_container_overflow=0}"
 fi
 ./output/IVGFuzz -fork="$(getconf _NPROCESSORS_ONLN)" -ignore_crashes=1 -ignore_ooms=1 -ignore_timeouts=1 -rss_limit_mb=2048 \
-		-timeout=30 -artifact_prefix=output/fuzzArtifacts/ "$@" output/fuzzCorpus output/fuzzSeeds
+		-timeout=30 -artifact_prefix=output/fuzzArtifacts/ -dict=tests/fuzz/IVGFuzz.dict "$@" output/fuzzCorpus output/fuzzSeeds
