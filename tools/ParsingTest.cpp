@@ -38,6 +38,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <stdint.h>
 #include <string>
 #include <vector>
 #include "src/IVG.h"
@@ -352,15 +353,15 @@ static void testArcs() {
 }
 
 // How many units in the last place a and b differ by.
-static long long ulpDistance(double a, double b) {
+static int64_t ulpDistance(double a, double b) {
 	if (a == b) {
 		return 0;
 	}
 	if (a != a || b != b || (a < 0.0) != (b < 0.0)) {
-		return 1LL << 60;
+		return INT64_C(1) << 60;
 	}
-	long long ia;
-	long long ib;
+	int64_t ia;
+	int64_t ib;
 	memcpy(&ia, &a, sizeof (double));
 	memcpy(&ib, &b, sizeof (double));
 	return (ia > ib ? ia - ib : ib - ia);
@@ -371,14 +372,14 @@ static long long ulpDistance(double a, double b) {
 	0.30000000000000004 where strtod gives 0.29999999999999999. These bounds pin how far from strtod it is today, so a
 	change to the parser shows up here and in the rendering tests rather than unnoticed.
 */
-static void expectParsed(const std::string& s, long long maxUlps) {
+static void expectParsed(const std::string& s, int64_t maxUlps) {
 	const IMPD::String string(s);
 	double v;
 	if (IMPD::Interpreter::parseDouble(string.begin(), string.end(), v) != string.end()) {
 		fail("number not fully parsed", s);
 		return;
 	}
-	const long long ulps = ulpDistance(v, strtod(s.c_str(), 0));
+	const int64_t ulps = ulpDistance(v, strtod(s.c_str(), 0));
 	if (ulps > maxUlps) {
 		fail(num(static_cast<double>(ulps)) + " ulps from strtod, more than " + num(static_cast<double>(maxUlps)), s);
 	}

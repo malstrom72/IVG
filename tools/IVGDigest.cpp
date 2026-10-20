@@ -5,6 +5,7 @@
 	are named on the command line, and for a `-` one per line of standard input, as for tools/FuzzMain.cpp.
 */
 #include <cstdio>
+#include <inttypes.h>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -21,10 +22,10 @@ struct DigestExecutor : public IVGExecutor {
 };
 
 // 64-bit FNV-1a, enough to tell two renderings apart.
-static void hashBytes(const void* data, size_t size, unsigned long long& hash) {
+static void hashBytes(const void* data, size_t size, uint64_t& hash) {
 	const unsigned char* bytes = static_cast<const unsigned char*>(data);
 	for (size_t i = 0; i < size; ++i) {
-		hash = (hash ^ bytes[i]) * 1099511628211ULL;
+		hash = (hash ^ bytes[i]) * UINT64_C(1099511628211);
 	}
 }
 
@@ -46,14 +47,14 @@ static std::string digest(const std::string& source) {
 		return "error " + x.getError();
 	}
 	const IntRect bounds = raster->calcBounds();
-	unsigned long long hash = 14695981039346656037ULL;
+	uint64_t hash = UINT64_C(14695981039346656037);
 	const int stride = raster->getStride();
 	const ARGB32::Pixel* pixels = raster->getPixelPointer() + bounds.top * stride + bounds.left;
 	for (int y = 0; y < bounds.height; ++y) {
 		hashBytes(pixels + y * stride, sizeof (ARGB32::Pixel) * bounds.width, hash);
 	}
 	char line[128];
-	snprintf(line, sizeof (line), "%d,%d,%d,%d %016llx", bounds.left, bounds.top, bounds.width, bounds.height, hash);
+	snprintf(line, sizeof (line), "%d,%d,%d,%d %016" PRIx64, bounds.left, bounds.top, bounds.width, bounds.height, hash);
 	return line;
 }
 
