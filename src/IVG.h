@@ -424,13 +424,14 @@ class IVGExecutor : public IMPD::Executor {
 	protected:	void executeDefine(IMPD::Interpreter& impd, const IMPD::String& instruction, const IMPD::String& arguments
 						, IMPD::ArgumentsContainer& args);
 	protected:	void buildPath(IMPD::Interpreter& impd, const IMPD::String* svgArgument, const IMPD::String* definitionArgument, const IMPD::String* transformArgument
-						, Path& path);
+						, Path::size_type maxSize, Path& path);
 	protected:	void parseStroke(IMPD::Interpreter& impd, IMPD::ArgumentsContainer& args, Stroke& stroke);
 	protected:	void versionRequired(IMPD::Interpreter& impd, FormatVersion required, const IMPD::String& instruction
 						, const IMPD::String& arguments);
 	protected:	std::vector<const Font*> lookupExternalOrInternalFonts(IMPD::Interpreter& impd
 						, const IMPD::WideString& name, const IMPD::UniString& forString);
-	protected:	Path makeTextPath(IMPD::Interpreter& impd, const IMPD::UniString& text, double& advance);
+	protected:	Path makeTextPath(IMPD::Interpreter& impd, const IMPD::UniString& text, Path::size_type maxSize
+						, double& advance);
 	protected:	IVGBudget& budget;
 	protected:	Context rootContext;
 	protected:	Context* currentContext;
@@ -706,7 +707,6 @@ class SelfContainedARGB32Canvas : public Canvas {
 NuXPixels::ARGB32::Pixel parseColor(const IMPD::String& color);
 
 bool buildPathFromSVG(const IMPD::String& svgSource, double curveQuality, NuXPixels::Path& path, const char*& errorString);
-bool buildPathFromInstructions(IMPD::Interpreter& impd, const IMPD::String& instructionBlock, double curveQuality, NuXPixels::Path& path);
 bool buildPathForString(const IMPD::UniString& string, const std::vector<const Font*>& fonts, double size
 				, const NuXPixels::AffineTransformation& glyphTransform, double letterSpacing, double curveQuality
 				, NuXPixels::Path& path, double& advance, const char*& errorString, IMPD::UniChar lastCharacter = 0);

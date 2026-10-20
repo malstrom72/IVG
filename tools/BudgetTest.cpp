@@ -215,8 +215,13 @@ int main() {
 	expectError(header + "o = x\nREPEAT 40 [ o = {$o $o} ]", IVGBudget(), "Characters limit reached");
 	expectError(header + "bounds 0,0,10,10\nwipe red", IVGBudget(10.0), "Characters limit reached");
 
-	// IVG-3's path blocks, coordinate lists, path definitions and mask inversion are charged the same way.
+	// IVG-3's path blocks, coordinate lists, path definitions and mask inversion are charged the same way. A defined
+	// path is paid for once when it is defined, since it stays in memory, and again each time it is drawn.
 	const std::string header3 = "format IVG-3\n";
+	testExact(header3 + "bounds 0,0,100,100\nfill red\npath [ move-to 10,10; line-to 20,10,20,20 ]", 3, 10000 + 100);
+	testExact(header3 + "bounds 0,0,100,100\ndefine path p [ move-to 10,10; line-to 20,10,20,20 ]\nfill red\npath p"
+			, 3 + 3, 10000 + 100);
+	testExact(header3 + "bounds 0,0,100,100\nmask invert", 0, 10000 + 10000);
 	std::string coordinates = "0,0";
 	for (int i = 0; i < 2000; ++i) {
 		coordinates += (i % 2 == 0 ? ",1,1" : ",2,0");

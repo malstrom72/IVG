@@ -117,6 +117,13 @@ Path::size_type IVGBudget::calcPathSegmentLimit() const {
 	return static_cast<Path::size_type>(max(0.0, min(pathSegmentsLeft, 2147483647.0)));
 }
 
+// For paths built up to a limit: the builders stop once past it, so a path this large is refused before it is used.
+static void checkPathSize(Path::size_type size, Path::size_type maxSize) {
+	if (size > maxSize) {
+		Interpreter::throwRunTimeError("Path segment budget exceeded.");
+	}
+}
+
 /*
 	Applies the `checkBounds` limits while the rectangle is still `double`, before the conversion to `int`.
 */
@@ -798,9 +805,8 @@ static double calcTextAnchorOffset(TextAnchor anchor, double advance);
 static AffineTransformation parseTransformationBlock(Interpreter& impd, const String& source);
 
 class PathInstructionExecutor : public Executor {
-	public:		PathInstructionExecutor(IVGExecutor& ivgExecutor, Path& path, double curveQuality)
-						: ivgExecutor(ivgExecutor), path(path), curveQuality(curveQuality)
-						, maxSize(ivgExecutor.accessBudget().calcPathSegmentLimit())
+	public:		PathInstructionExecutor(IVGExecutor& ivgExecutor, Path& path, double curveQuality, Path::size_type maxSize)
+						: ivgExecutor(ivgExecutor), path(path), curveQuality(curveQuality), maxSize(maxSize)
 						, anchorOrigin(0.0, 0.0) {
 				};
 	public:		virtual bool format(Interpreter& impd, const FormatInfo& formatInfo) {
@@ -815,9 +821,7 @@ class PathInstructionExecutor : public Executor {
 					// `appendChecked` covers the sub-shape instructions, but `line-to`, `line-angle`, `bezier-to`,
 					// `arc-to`, `arc-sweep` and `arc-move` emit straight into `path`. The line instructions stop at
 					// `maxSize` and the others add one curve each, so checking once per instruction bounds the overshoot.
-					if (path.size() > maxSize) {
-						Interpreter::throwRunTimeError("Path segment budget exceeded.");
-					}
+					checkPathSize(path.size(), maxSize);
 					ArgumentsContainer args(ArgumentsContainer::parse(impd, arguments));
 					Vertex& ao = anchorOrigin;
 					Path subPath;
@@ -996,7 +1000,7 @@ class PathInstructionExecutor : public Executor {
 							const UniString text = impd.unescapeToUni(args.fetchRequired(0, true));
 							args.throwIfAnyUnfetched();
 							double advance = 0.0;
-							Path textPath = ivgExecutor.makeTextPath(impd, text, advance);
+							Path textPath = ivgExecutor.makeTextPath(impd, text, maxSize - path.size(), advance);
 							const double offset = calcTextAnchorOffset(anchor, advance);
 							textPath.transform(AffineTransformation().translate(base.x - offset, base.y));
 							appendChecked(textPath);
@@ -1008,7 +1012,8 @@ class PathInstructionExecutor : public Executor {
 							const String* definitionArgument = (svgArgument != 0 ? 0 : &args.fetchRequired(0, false));
 							const String* transformArgument = args.fetchOptional("transform");
 							Path fragment;
-							ivgExecutor.buildPath(impd, svgArgument, definitionArgument, transformArgument, fragment);
+							ivgExecutor.buildPath(impd, svgArgument, definitionArgument, transformArgument, maxSize - path.size()
+									, fragment);
 							args.throwIfAnyUnfetched();
 							appendChecked(fragment);
 							return true;
@@ -1032,9 +1037,7 @@ class PathInstructionExecutor : public Executor {
 					if (anchorOrigin.x != 0.0 || anchorOrigin.y != 0.0) {
 						p.transform(AffineTransformation().translate(anchorOrigin.x, anchorOrigin.y));
 					}
-					if (path.size() + p.size() > maxSize) {
-						Interpreter::throwRunTimeError("Path segment budget exceeded.");
-					}
+					checkPathSize(path.size() + p.size(), maxSize);
 					path.append(p);
 				}
 	protected:	IVGExecutor& ivgExecutor;
@@ -1577,7 +1580,8 @@ void IVGExecutor::executeDefine(Interpreter& impd, const String& instruction, co
 		}
 
 		Path path;
-		buildPath(impd, svgArgument, definitionArgument, transformArgument, path);
+		buildPath(impd, svgArgument, definitionArgument, transformArgument
+				, currentContext->accessBudget().calcPathSegmentLimit(), path);
 		currentContext->accessBudget().chargePathSegments(static_cast<double>(path.size()));							// It stays in memory, so it is paid for here; each draw pays again.
 		definedPaths[name] = path;
 	
@@ -1628,16 +1632,12 @@ static IntRect expandToIntRect(const Rect<double>& floatRect) {
 }
 
 void IVGExecutor::buildPath(Interpreter& impd, const String* svgArgument, const String* definitionArgument, const String* transformArgument
-			, Path& path) {
+			, Path::size_type maxSize, Path& path) {
 	const double curveQuality = currentContext->calcCurveQuality();
 	if (svgArgument != 0) {
 		const char* errorString;
-		const Path::size_type pathSegmentLimit = currentContext->accessBudget().calcPathSegmentLimit();
-		if (!buildPathFromSVG(*svgArgument, curveQuality, path, errorString, pathSegmentLimit)) {
+		if (!buildPathFromSVG(*svgArgument, curveQuality, path, errorString, maxSize)) {
 			impd.throwBadSyntax(errorString);
-		}
-		if (path.size() > pathSegmentLimit) {
-			Interpreter::throwRunTimeError("Path segment budget exceeded.");
 		}
 	} else {
 		if (definitionArgument == 0) {
@@ -1652,14 +1652,12 @@ void IVGExecutor::buildPath(Interpreter& impd, const String* svgArgument, const 
 			}
 			path = it->second;
 		} else {
-			PathInstructionExecutor pathExecutor(*this, path, curveQuality);
+			PathInstructionExecutor pathExecutor(*this, path, curveQuality, maxSize);
 			Interpreter pathInterpreter(pathExecutor, impd);
 			pathInterpreter.run(arg0);
-			if (path.size() > currentContext->accessBudget().calcPathSegmentLimit()) {
-				Interpreter::throwRunTimeError("Path segment budget exceeded.");
-			}
 		}
 	}
+	checkPathSize(path.size(), maxSize);
 
 	if (transformArgument != 0) {
 		path.transform(parseTransformationBlock(impd, *transformArgument));
@@ -1876,6 +1874,7 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 }
 
 // Path-building helpers
+
 // Stops early once the path holds more than maxSize instructions, like buildPathFromSVG with a limit.
 static Path& makeLinePath(Path& path, Interpreter& impd, ArgumentsContainer& args, Path::size_type maxSize
 		, int minPairs) {
@@ -2035,7 +2034,7 @@ static double calcTextAnchorOffset(TextAnchor anchor, double advance) {
 	return 0.0;
 }
 
-Path IVGExecutor::makeTextPath(Interpreter& impd, const UniString& text, double& advance) {
+Path IVGExecutor::makeTextPath(Interpreter& impd, const UniString& text, Path::size_type maxSize, double& advance) {
 	const State& state = currentContext->accessState();
 	if (state.textStyle.fontName.empty()) {
 		Interpreter::throwRunTimeError("Writing text requires a font to be set first.");
@@ -2047,13 +2046,10 @@ Path IVGExecutor::makeTextPath(Interpreter& impd, const UniString& text, double&
 	}
 	const char* errorString;
 	Path textPath;
-	const Path::size_type pathSegmentLimit = currentContext->accessBudget().calcPathSegmentLimit();
 	const bool success = buildPathForString(text, fonts, state.textStyle.size, state.textStyle.glyphTransform
 			, state.textStyle.letterSpacing, currentContext->calcCurveQuality(), textPath, advance
-			, errorString, 0, pathSegmentLimit);
-	if (textPath.size() > pathSegmentLimit) {
-		Interpreter::throwRunTimeError("Path segment budget exceeded.");
-	}
+			, errorString, 0, maxSize);
+	checkPathSize(textPath.size(), maxSize);
 	if (!success) {
 		trace(impd, WideString(errorString, errorString + strlen(errorString)));
 	}
@@ -2112,7 +2108,8 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			if (definitionArgument != 0) {
 				versionRequired(impd, IVG_3, instruction, arguments);
 			}
-			buildPath(impd, svgArgument, definitionArgument, transformArgument, builtPath);
+			buildPath(impd, svgArgument, definitionArgument, transformArgument
+					, currentContext->accessBudget().calcPathSegmentLimit(), builtPath);
 			args.throwIfAnyUnfetched();
 			if (builtPath.empty()) {
 				break;
@@ -2351,7 +2348,7 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			const String* caretVariable = args.fetchOptional("caret", true);
 			args.throwIfAnyUnfetched();
 			double advance = 0.0;
-			Path textPath = makeTextPath(impd, text, advance);
+			Path textPath = makeTextPath(impd, text, currentContext->accessBudget().calcPathSegmentLimit(), advance);
 			const double offset = calcTextAnchorOffset(anchor, advance);
 			state.textCaret.x -= offset;
 			textPath.transform(AffineTransformation().translate(state.textCaret.x, state.textCaret.y));
