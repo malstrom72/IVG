@@ -103,7 +103,7 @@ ECHO Invalid IVG tests...
 CALL ..\tools\testInvalidIVG.cmd ..\output\InvalidIVGTest >invalidIVGCheck.txt
 SET err=%ERRORLEVEL%
 TYPE invalidIVGCheck.txt
-IF NOT "%err%"=="0" GOTO error
+IF NOT "%err%"=="0" EXIT /B %err%
 REM Sorted on both sides before comparing: each harness walks the fixtures in its own
 REM platform's order, and which order that is says nothing about the results.
 SORT invalidIVGCheck.txt >"%TEMP%\invalidIVGCheck.sorted"
