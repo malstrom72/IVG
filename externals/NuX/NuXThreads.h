@@ -516,17 +516,10 @@ template<typename T> class Snapshot {
 	public:		Snapshot(const Snapshot<T>& copy) : slots(0), locks(0) {
 					construct(copy.capacity, Guard(copy).get());
 				}
-				
-	public:		template<class U> Snapshot(const Snapshot<U>& copy) : slots(0), locks(0) {
-					construct(copy.capacity, Snapshot<U>::Guard(copy).get());
-				}
-				
-	public:		template<class U> Snapshot(const Snapshot<U>& copy, int capacity) : slots(0), locks(0) {
-					construct(capacity, Snapshot<U>::Guard(copy).get());
-				}
-				
+
 	public:		void rescale(int newCapacity) { // rescaling is not a thread-safe operation, i.e. you should not call this method while accessing the snapshot from other threads.
 					assert(newCapacity >= 2);
+					newCapacity = (newCapacity < 2 ? 2 : newCapacity); // Clamped like construct(), since assert() is compiled out in release builds.
 					volatile T* xSlots = 0;
 					AtomicInt* xLocks = 0;
 					try {
@@ -538,7 +531,7 @@ template<typename T> class Snapshot {
 
 						xSlots = reinterpret_cast<volatile T*>(operator new(sizeof (T) * newCapacity));
 						xLocks = new AtomicInt[newCapacity];
-						new (const_cast<T*>(&xSlots[0])) T(const_cast<T&>(slots[active])); // FIX : not deleted on catch
+						new (const_cast<T*>(&xSlots[0])) T(const_cast<T&>(slots[active]));
 						xLocks[0] = 2;
 						std::swap(slots, xSlots);
 						std::swap(locks, xLocks);
@@ -560,10 +553,8 @@ template<typename T> class Snapshot {
 				}
 				
 	public:		template<class U> T swap(const U& x) {
-					const T& y = exchange(x);
-					T z(y);
-					unlock(y);
-					return z;
+					const Unlocker old(*this, exchange(x)); // Unlocks the old slot even if copying it out throws.
+					return T(old.x);
 				}
 
 	public:		Guard guard() const { return Guard(*this); }
@@ -593,6 +584,13 @@ template<typename T> class Snapshot {
 					operator delete(const_cast<T*>(slots));
 				}
 				
+	protected:	class Unlocker {
+					public:		Unlocker(const Snapshot& s, const T& x) : s(s), x(x) { }
+					public:		~Unlocker() { s.unlock(x); }
+					public:		const Snapshot& s;
+					public:		const T& x;
+				};
+
 	protected:	template<class U> void construct(int n, U& copy) {
 					// One slot always holds the active value, so a write needs a second one; with a single slot,
 					// allocate() would spin forever. Clamped too, since assert() is compiled out in release builds.
@@ -691,9 +689,10 @@ template<typename T> class Snapshot {
 	Bounded, lock-free FIFO for multiple producers and multiple consumers. Capacity must be a power of two. See
 	docs/queueConcurrency.md for the concurrency model.
 
-	T's copy constructor, move constructor and destructor must not throw. A push reserves its slots before constructing
-	elements in them, and a reservation cannot be rolled back once other producers may have reserved slots after it, so
-	an exception there would leave the queue stuck.
+	T's copy and move constructors, copy and move assignment and destructor must not throw. A push reserves its slots
+	before constructing elements in them, and a pop reserves its slots before assigning the elements out; a reservation
+	cannot be rolled back once other threads may have reserved slots after it, so an exception there would leave the
+	queue stuck.
 */
 // TODO : it would be cool in a single writer / reader situation to be able to access queue elements without copying them (if they are big), would this be possible?
 template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
@@ -717,9 +716,6 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 #if NUXTHREADS_HAS_CPP11
 	public:		Queue(Queue&& other) throw() : capacity(0), elements(0) { // Not thread-safe.
 					swap(other);
-					other.readBegin = other.readEnd = other.writeBegin = other.writeEnd = 0;
-					other.elements = 0;
-					other.capacity = 0;
 				}
 #endif
 
@@ -729,15 +725,13 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 				}
 #if NUXTHREADS_HAS_CPP11
 	public:		Queue& operator=(Queue&& other) throw() { // Not thread-safe.
-					swap(other);
-					other.readBegin = other.readEnd = other.writeBegin = other.writeEnd = 0;
-					other.elements = 0;
-					other.capacity = 0;
+					Queue moved(std::move(other)); // Leaves other empty; our old contents go to moved and die with it.
+					swap(moved);
 					return (*this);
 				}
 #endif
 
-	public:		void setCapacity(int capacity) { // Not thread-safe.
+	public:		void setCapacity(int capacity) { // Not thread-safe. Must hold every queued element (asserted); release builds drop the newest ones that don't fit.
 					assert(capacity > 0 && (capacity & (capacity - 1)) == 0); // Capacity must be power of 2.
 					assign(*this, capacity);
 				}
