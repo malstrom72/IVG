@@ -44,13 +44,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifdef __APPLE__
 #if (__MAC_OS_X_VERSION_MAX_ALLOWED < 1050)
 #if (__LP64__)
-inline bool OSAtomicCompareAndSwapPtrBarrier( void *oldValue, void *newValue, void * volatile *theValue )
+static bool OSAtomicCompareAndSwapPtrBarrier( void *oldValue, void *newValue, void * volatile *theValue )
 {
 	return OSAtomicCompareAndSwap64Barrier(reinterpret_cast<int64_t>(oldValue), reinterpret_cast<int64_t>(newValue)
 			, (int64_t*)(theValue));
 }
 #else
-inline bool OSAtomicCompareAndSwapPtrBarrier( void *oldValue, void *newValue, void * volatile *theValue )
+static bool OSAtomicCompareAndSwapPtrBarrier( void *oldValue, void *newValue, void * volatile *theValue )
 {
 	return OSAtomicCompareAndSwap32Barrier(reinterpret_cast<int32_t>(oldValue), reinterpret_cast<int32_t>(newValue)
 			, (int32_t*)(theValue));
