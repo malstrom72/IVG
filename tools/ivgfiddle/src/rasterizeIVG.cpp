@@ -142,7 +142,7 @@ class IVGExecutorWithExternalFonts : public IVGExecutor {
 
 namespace {
 const int MAX_RASTER_DIMENSION = 16384;
-const long long MAX_RASTER_PIXELS = 67108864LL;
+const int64_t MAX_RASTER_PIXELS = 67108864;
 const size_t VECTOR_HEAP_RESERVE_BYTES = 2 * 1024 * 1024;
 const size_t RASTER_HEADER_BYTES = 8 * sizeof(uint32_t); // left, top, width, height, pixel and catalog bytes, selection
 static const char* const SNAPSHOT_SOURCE_PATH = "/ivgfiddle/source.ivg";
@@ -370,7 +370,7 @@ IntRect computeScaledBounds(const IntRect& bounds, double rescale)
 
 class GuardedSelfContainedARGB32Canvas : public SelfContainedARGB32Canvas {
 	public:
-		GuardedSelfContainedARGB32Canvas(double rescaleBounds, long long pixelBudget, size_t heapReserveBytes)
+		GuardedSelfContainedARGB32Canvas(double rescaleBounds, int64_t pixelBudget, size_t heapReserveBytes)
 				: SelfContainedARGB32Canvas(rescaleBounds)
 				, maxRasterPixels(pixelBudget)
 				, heapReserve(heapReserveBytes) {
@@ -387,7 +387,8 @@ class GuardedSelfContainedARGB32Canvas : public SelfContainedARGB32Canvas {
 			if (scaledBounds.width <= 0 || scaledBounds.height <= 0) {
 				return;
 			}
-			const long long pixelCount = static_cast<long long>(scaledBounds.width) * static_cast<long long>(scaledBounds.height);
+			const int64_t pixelCount = static_cast<int64_t>(scaledBounds.width)
+					* static_cast<int64_t>(scaledBounds.height);
 			if (scaledBounds.width > MAX_RASTER_DIMENSION || scaledBounds.height > MAX_RASTER_DIMENSION) {
 				std::ostringstream message;
 				message << "Rasterization aborted: scaled bounds " << scaledBounds.width << "x"
@@ -417,7 +418,7 @@ class GuardedSelfContainedARGB32Canvas : public SelfContainedARGB32Canvas {
 #endif
 		}
 
-	private: const long long maxRasterPixels;
+	private: const int64_t maxRasterPixels;
 	private: const size_t heapReserve;
 };
 
@@ -1493,7 +1494,7 @@ extern "C" {
 						<< " exceed the " << MAX_RASTER_DIMENSION << "px dimension cap.";
 				throw runtime_error(message.str());
 		}
-		const long long pixelCount = static_cast<long long>(bounds.width) * static_cast<long long>(bounds.height);
+		const int64_t pixelCount = static_cast<int64_t>(bounds.width) * static_cast<int64_t>(bounds.height);
 		if (pixelCount > MAX_RASTER_PIXELS) {
 				std::ostringstream message;
 				message << "Rasterization aborted: " << bounds.width << "x" << bounds.height

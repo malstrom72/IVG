@@ -2309,21 +2309,21 @@ loadPngRaster(const std::string &path,
 			top = static_cast<int>(rawOffsetY);
 		}
 
-		const long long widthLL = static_cast<long long>(widthInt);
-		const long long heightLL = static_cast<long long>(heightInt);
-		const long long pixelCount = widthLL * heightLL;
-		if (pixelCount > static_cast<long long>(std::numeric_limits<int>::max())) {
+		const int64_t width64 = static_cast<int64_t>(widthInt);
+		const int64_t height64 = static_cast<int64_t>(heightInt);
+		const int64_t pixelCount = width64 * height64;
+		if (pixelCount > static_cast<int64_t>(std::numeric_limits<int>::max())) {
 			throw std::runtime_error("PNG dimensions exceed supported range");
 		}
 
-		const long long strideLL = widthLL;
-		const long long topLL = static_cast<long long>(top);
-		const long long leftLL = static_cast<long long>(left);
-		const long long minOffset = topLL * strideLL + leftLL;
-		const long long maxOffset
-				= (topLL + heightLL - 1) * strideLL + (leftLL + widthLL - 1);
-		if (minOffset < static_cast<long long>(std::numeric_limits<int>::min())
-				|| maxOffset > static_cast<long long>(std::numeric_limits<int>::max())) {
+		const int64_t stride64 = width64;
+		const int64_t top64 = static_cast<int64_t>(top);
+		const int64_t left64 = static_cast<int64_t>(left);
+		const int64_t minOffset = top64 * stride64 + left64;
+		const int64_t maxOffset
+				= (top64 + height64 - 1) * stride64 + (left64 + width64 - 1);
+		if (minOffset < static_cast<int64_t>(std::numeric_limits<int>::min())
+				|| maxOffset > static_cast<int64_t>(std::numeric_limits<int>::max())) {
 			throw std::runtime_error("PNG offsets exceed supported range");
 		}
 
