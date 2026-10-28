@@ -53,6 +53,7 @@ Testing path_close_has_args: expecting "Unrecognized labels or too many argument
 Testing path_instruction_limit: expecting "Path segment budget exceeded." ... PASS
 Testing path_size_out_of_range: expecting "Path segment budget exceeded." ... PASS
 Testing path_text_missing_text: expecting "Missing indexed argument #1." ... PASS
+Testing pattern_scale_huge: expecting "Pixel budget exceeded." ... PASS
 Testing pattern_scale_out_of_range: expecting "Rescaled "bounds" width "40000" out of range [1..32767]." ... PASS
 Testing pattern_unknown_reference: expecting "Undefined pattern "missing"." ... PASS
 Testing radial_gradient_huge_transform: expecting "Radial gradient radius "3276700000" out of range (0..32767]." ... PASS

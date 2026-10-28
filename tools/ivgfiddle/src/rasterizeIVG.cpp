@@ -144,6 +144,9 @@ namespace {
 const int MAX_RASTER_DIMENSION = 16384;
 const long long MAX_RASTER_PIXELS = 67108864LL;
 const size_t VECTOR_HEAP_RESERVE_BYTES = 2 * 1024 * 1024;
+const size_t RASTER_HEADER_BYTES = 8 * sizeof(uint32_t); // left, top, width, height, pixel and catalog bytes, selection
+static const char* const SNAPSHOT_SOURCE_PATH = "/ivgfiddle/source.ivg";
+static const char* const INCLUDE_ARCHIVE_ROOT = "/__ivg/includes";
 
 /*
 	The WebAssembly heap is a fixed 64 MB, far below what the default budget allows, so this one is sized to
@@ -154,9 +157,6 @@ const size_t VECTOR_HEAP_RESERVE_BYTES = 2 * 1024 * 1024;
 IVGBudget makeFiddleBudget() {
 	return IVGBudget(1e7, DEFAULT_STATEMENTS_LIMIT, 2.5e5, 5e7);
 }
-const size_t RASTER_HEADER_BYTES = 8 * sizeof(uint32_t); // left, top, width, height, pixel and catalog bytes, selection
-static const char* const SNAPSHOT_SOURCE_PATH = "/ivgfiddle/source.ivg";
-static const char* const INCLUDE_ARCHIVE_ROOT = "/__ivg/includes";
 
 size_t computeFreeHeapBytes();
 

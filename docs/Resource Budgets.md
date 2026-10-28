@@ -51,7 +51,9 @@ Going over a count throws an `IMPD::RunTimeException`:
 
 The counts are cumulative over the whole render. Nothing is refunded when memory is freed, so each count bounds the
 total work of its kind. Memory is then bounded indirectly: nothing can hold more data than was charged to build it,
-times a small factor.
+times a small factor. The largest is a list split into elements (`FOR ... IN`, and the coordinates of `line-to`,
+`line-angle`, `LINE` and `POLYGON`): each element costs about 30 bytes on top of its characters, so the default
+budget lets one list take about 250 MB.
 
 ## IMPDBudget: statements
 
@@ -148,7 +150,8 @@ Pixels:
 
 Defaults: `IVG::DEFAULT_PATH_SEGMENTS_LIMIT` = 1e7 segments and `IVG::DEFAULT_PIXELS_LIMIT` = 5e8 pixels. Real
 documents use at most 85,000 segments (`gammaTest.ivg`) and 278 million pixels (`huge.ivg`, a stress test; the next
-largest is 13 million).
+largest is 13 million). That holds for IVG-3 too: of the 102 documents in `tests/ivg`, 40 are IVG-3, and none of them
+goes past these peaks.
 
 ### What it bounds (measured at the defaults)
 

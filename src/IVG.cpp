@@ -805,7 +805,8 @@ static double calcTextAnchorOffset(TextAnchor anchor, double advance);
 static AffineTransformation parseTransformationBlock(Interpreter& impd, const String& source);
 
 class PathInstructionExecutor : public Executor {
-	public:		PathInstructionExecutor(IVGExecutor& ivgExecutor, Path& path, double curveQuality, Path::size_type maxSize)
+	public:		PathInstructionExecutor(IVGExecutor& ivgExecutor, Path& path, double curveQuality
+						, Path::size_type maxSize)
 						: ivgExecutor(ivgExecutor), path(path), curveQuality(curveQuality), maxSize(maxSize)
 						, anchorOrigin(0.0, 0.0) {
 				};
@@ -820,7 +821,7 @@ class PathInstructionExecutor : public Executor {
 					}
 					// `appendChecked` covers the sub-shape instructions, but `line-to`, `line-angle`, `bezier-to`,
 					// `arc-to`, `arc-sweep` and `arc-move` emit straight into `path`. The line instructions stop at
-					// `maxSize` and the others add one curve each, so checking once per instruction bounds the overshoot.
+					// `maxSize` and the others add one curve each, so one check per instruction bounds the overshoot.
 					checkPathSize(path.size(), maxSize);
 					ArgumentsContainer args(ArgumentsContainer::parse(impd, arguments));
 					Vertex& ao = anchorOrigin;

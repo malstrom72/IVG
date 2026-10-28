@@ -2891,10 +2891,13 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 	}
 
 	bool parseFont(const String &source, IVG::Font &font) {
+		// Fonts are cached across documents and threads, so each is parsed on a budget of its own instead of being
+		// charged to whichever document happens to load it first.
+		IMPDBudget fontBudget;
 		IVG::FontParser parser;
 		STLMapVariables variables;
 		FormatInfo formatInfo;
-		Interpreter interpreter(parser, variables, formatInfo, accessBudget());
+		Interpreter interpreter(parser, variables, formatInfo, fontBudget);
 		interpreter.run(StringRange(source));
 		font = parser.finalizeFont();
 		return true;
