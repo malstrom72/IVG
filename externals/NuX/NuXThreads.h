@@ -111,8 +111,14 @@ class Exception : public std::exception {
 	processor systems. The reason is that the memory writes involved may need to be synchronized in the proper sequence
 	across all cpu's. This is not guaranteed unless a so called "read/write barrier" is performed. This class ensures
 	this as well.
+
+	All operations on AtomicInt, AtomicFloat and AtomicPointer are sequentially consistent (like std::memory_order_seq_cst):
+	every thread sees them happen in the same single order. Writes and read-modify-writes (assign, swap, increment etc)
+	are full barriers. Reads are acquire barriers: memory accesses after a read cannot move before it, so data written
+	before an atomic write is visible to a thread that has read the written value.
 */
 class AtomicInt {
+	public:		static int load(const volatile int* x);							// Reads the 32-bit integer pointed to by `x`.
 	public:		static int assign(volatile int* x, int y); // FIX : comment
 	public:		static int increment(volatile int* x);							///< Increments the 32-bit integer pointed to by \p x by one "atomically" and returns the resulting value. You can use this static method on your 32-bit ints as an alternative to using the entire class.
 	public:		static int decrement(volatile int* x);							///< Decrements the 32-bit integer pointed to by \p x by one "atomically" and returns the resulting value. You can use this static method on your 32-bit ints as an alternative to using the entire class.
@@ -121,10 +127,10 @@ class AtomicInt {
 	public:		static bool swapIfEqual(volatile int* x, int equalTo, int y);	///< Like swap() but only sets the new value if the previous value equals to \p equalTo. Returns true if the previous value equalled \p equalTo. You can use this static method on your 32-bit ints as an alternative to using the entire class.
 	public:		AtomicInt() : x(0) { }											///< (AtomicInts are always initialized to 0 by default.)
 	public:		AtomicInt(int x) : x(x) { }
-	public:		AtomicInt(const AtomicInt& copy) { assign(&x, copy.x); }
-	public:		AtomicInt& operator=(const AtomicInt& copy) { assign(&x, copy.x); return (*this); }
+	public:		AtomicInt(const AtomicInt& copy) { assign(&x, load(&copy.x)); }
+	public:		AtomicInt& operator=(const AtomicInt& copy) { assign(&x, load(&copy.x)); return (*this); }
 	public:		AtomicInt& operator=(int y) { assign(&x, y); return (*this); }
-	public:		operator int() const { return x; }
+	public:		operator int() const { return load(&x); }
 	public:		int operator++() { return increment(&x); }
 	// The postfix forms and -= adjust in unsigned arithmetic, so a counter that wraps at INT_MIN / INT_MAX stays defined.
 	public:		int operator++(int) { return wrapToInt32(static_cast<unsigned int>(increment(&x)) - 1U); }
@@ -145,15 +151,16 @@ class AtomicInt {
 	You cannot increment or decrement floats atomically nor add to or subtract from them.
 */
 class AtomicFloat {
+	public:		static float load(const volatile float* x);							// Reads the 32-bit float pointed to by `x`.
 	public:		static float assign(volatile float* x, float y);
 	public:		static float swap(volatile float* x, float y);						///< Sets the 32-bit float pointed to by \p x to \p y "atomically" and returns the previous value. You can use this static method on your 32-bit floats as an alternative to using the entire class.
 	public:		static bool swapIfEqual(volatile float* x, float equalTo, float y); ///< Like swap() but only sets the new value if the previous value equals to \p equalTo. Returns true if the previous value equalled \p equalTo. Values are compared bitwise, so -0.0f does not equal 0.0f, but a NaN equals an identical NaN. You can use this static method on your 32-bit floats as an alternative to using the entire class.
 	public:		AtomicFloat() : x(0.0f) { }											///< (AtomicFloats are always initialized to 0 by default.)
 	public:		AtomicFloat(float x) : x(x) { }
-	public:		AtomicFloat(const AtomicFloat& copy) { assign(&x, copy.x); }
-	public:		AtomicFloat& operator=(const AtomicFloat& copy) { assign(&x, copy.x); return (*this); }
+	public:		AtomicFloat(const AtomicFloat& copy) { assign(&x, load(&copy.x)); }
+	public:		AtomicFloat& operator=(const AtomicFloat& copy) { assign(&x, load(&copy.x)); return (*this); }
 	public:		AtomicFloat& operator=(float y) { assign(&x, y); return (*this); }
-	public:		operator float() const { return x; }
+	public:		operator float() const { return load(&x); }
 	public:		float swap(float y) { return swap(&x, y); }							///< Sets the value to \p y "atomically" and returns the previous value.
 	public:		bool swapIfEqual(float equalTo, float y) {							///< Like swap() but only sets the new value if the previous value equals to \p equalTo. Returns true if the previous value equalled \p equalTo. Values are compared bitwise (see the static version).
 					return swapIfEqual(&x, equalTo, y);
@@ -162,6 +169,7 @@ class AtomicFloat {
 };
 
 class AtomicPointerBaseClass { // FIX : comments
+	public:		static const void* load(const void* const volatile* p);
 	public:		static const void* assign(const void* volatile* p, const void* q);
 	public:		static const void* swap(const void* volatile* p, const void* q);
 	public:		static bool swapIfEqual(const void* volatile* p, const void* equalTo, const void* q);
@@ -178,11 +186,11 @@ class AtomicPointerBaseClass { // FIX : comments
 template<typename T> class AtomicPointer : public AtomicPointerBaseClass { // FIX : comments
 	public:		AtomicPointer() : p(0) { }
 	public:		AtomicPointer(T* p) : p(p) { }
-	public:		AtomicPointer(const AtomicPointer<T>& copy) { assign(&p, copy.p); }
-	public:		AtomicPointer& operator=(const AtomicPointer<T>& copy) { assign(&p, copy.p); return (*this); }
+	public:		AtomicPointer(const AtomicPointer<T>& copy) { (*this) = static_cast<T*>(copy); }
+	public:		AtomicPointer& operator=(const AtomicPointer<T>& copy) { return ((*this) = static_cast<T*>(copy)); }
 	public:		AtomicPointer& operator=(T* q) { AtomicPointerBaseClass::assign((const void* volatile*)(&p), q); return (*this); }
-	public:		operator T*() const { return p; }
-	public:		T* operator->() const { assert(p != 0); return p; }
+	public:		operator T*() const { return reinterpret_cast<T*>(const_cast<void*>(load(reinterpret_cast<const void* const volatile*>(&p)))); }
+	public:		T* operator->() const { T* const q = (*this); assert(q != 0); return q; }
 	public:		T* swap(T* q) { return reinterpret_cast<T*>(const_cast<void*>(AtomicPointerBaseClass::swap(reinterpret_cast<const void* volatile*>(const_cast<const T* volatile*>(&p)), q))); }
 	public:		bool swapIfEqual(T* equalTo, T* q) { return AtomicPointerBaseClass::swapIfEqual(reinterpret_cast<const void* volatile*>(const_cast<const T* volatile*>(&p)), equalTo, q); }
 	protected:	T* volatile p;
@@ -358,7 +366,7 @@ class Event {
 	public:		void signal();				///< Sets the event state to "signaled". If a thread is blocked waiting for this signal it will be released. If several threads are waiting only one will be released. If no thread is waiting the state will remain "signaled" and the next thread that waits will be released immediately (and only that thread).
 	public:		void reset();				///< Resets a "signaled" event to unsignaled. The next thread that waits for this signal will be blocked until signal() is called.
 	public:		void wait();				///< Waits on the event to be signaled (by a call to signal() by another thread). This method will wait infinitely on the signal to be raised. The signal is automatically reset when the wait completes.
-	public:		bool timedWait(int ms);		///< Like wait() but with a time-out (in milliseconds). Returns true if the signal was raised within the time-out period.
+	public:		bool timedWait(int ms);		///< Like wait() but with a time-out (in milliseconds). Returns true if the signal was raised within the time-out period. A negative \p ms is taken as 0.
 	public:		virtual ~Event();
 	
 	// Implementation
@@ -387,6 +395,9 @@ typedef struct ThreadIdVoid {} * ThreadId;
 	There are two ways to create a thread and implement the code that it should run. Either create a subclass of Thread,
 	override run() and use the default constructor, or create an object that inherits and implements the Runnable
 	interface and pass this object to the Thread constructor.
+
+	run() should catch its own exceptions: an exception that escapes it ends the thread silently in release builds and
+	asserts in debug builds.
 */
 class Thread : public Runnable {
 // FIX : should these really be statics or rather global functions in the namespace?
@@ -400,7 +411,7 @@ class Thread : public Runnable {
 	public:		void setPriority(int priority);	///< Sets the thread priority. \p priority is between -10 and 10, where 0 is normal, -10 is lowest priority and 10 is highest.
 	public:		void start();					///< Starts running the thread. Calling this method more than once has no effect.
 	public:		void join() const;				///< Blocks the current thread and waits infinitely for the thread represented by this object to exit "naturally". (The thread must have been started by start() before calling this method.) Any number of threads may join the same thread, at once or repeatedly; all are released when it exits.
-	public:		bool timedJoin(int ms) const;	///< As join() but with a time-out of \p ms milliseconds. Returns false if the thread didn't exit. Like join(), safe to call from any number of threads, at once or repeatedly.
+	public:		bool timedJoin(int ms) const;	///< As join() but with a time-out of \p ms milliseconds. Returns false if the thread didn't exit. A negative \p ms is taken as 0. Like join(), safe to call from any number of threads, at once or repeatedly.
 	public:		ThreadId getId() const;			///< Gets the unique id of the thread represented by this object.
 	public:		bool isRunning() const;			///< Returns true if the thread has started and not exited yet.
 // FIX : drop, this is such a stupid routine, async cancelling even doesn't work right with pthreads on MacOS
@@ -516,17 +527,10 @@ template<typename T> class Snapshot {
 	public:		Snapshot(const Snapshot<T>& copy) : slots(0), locks(0) {
 					construct(copy.capacity, Guard(copy).get());
 				}
-				
-	public:		template<class U> Snapshot(const Snapshot<U>& copy) : slots(0), locks(0) {
-					construct(copy.capacity, Snapshot<U>::Guard(copy).get());
-				}
-				
-	public:		template<class U> Snapshot(const Snapshot<U>& copy, int capacity) : slots(0), locks(0) {
-					construct(capacity, Snapshot<U>::Guard(copy).get());
-				}
-				
+
 	public:		void rescale(int newCapacity) { // rescaling is not a thread-safe operation, i.e. you should not call this method while accessing the snapshot from other threads.
 					assert(newCapacity >= 2);
+					newCapacity = (newCapacity < 2 ? 2 : newCapacity); // Clamped like construct(), since assert() is compiled out in release builds.
 					volatile T* xSlots = 0;
 					AtomicInt* xLocks = 0;
 					try {
@@ -538,7 +542,7 @@ template<typename T> class Snapshot {
 
 						xSlots = reinterpret_cast<volatile T*>(operator new(sizeof (T) * newCapacity));
 						xLocks = new AtomicInt[newCapacity];
-						new (const_cast<T*>(&xSlots[0])) T(const_cast<T&>(slots[active])); // FIX : not deleted on catch
+						new (const_cast<T*>(&xSlots[0])) T(const_cast<T&>(slots[active]));
 						xLocks[0] = 2;
 						std::swap(slots, xSlots);
 						std::swap(locks, xLocks);
@@ -560,10 +564,8 @@ template<typename T> class Snapshot {
 				}
 				
 	public:		template<class U> T swap(const U& x) {
-					const T& y = exchange(x);
-					T z(y);
-					unlock(y);
-					return z;
+					const Unlocker old(*this, exchange(x)); // Unlocks the old slot even if copying it out throws.
+					return T(old.x);
 				}
 
 	public:		Guard guard() const { return Guard(*this); }
@@ -593,6 +595,13 @@ template<typename T> class Snapshot {
 					operator delete(const_cast<T*>(slots));
 				}
 				
+	protected:	class Unlocker {
+					public:		Unlocker(const Snapshot& s, const T& x) : s(s), x(x) { }
+					public:		~Unlocker() { s.unlock(x); }
+					public:		const Snapshot& s;
+					public:		const T& x;
+				};
+
 	protected:	template<class U> void construct(int n, U& copy) {
 					// One slot always holds the active value, so a write needs a second one; with a single slot,
 					// allocate() would spin forever. Clamped too, since assert() is compiled out in release builds.
@@ -688,12 +697,14 @@ template<typename T> class Snapshot {
 };
 
 /**
-	Bounded, lock-free FIFO for multiple producers and multiple consumers. Capacity must be a power of two. See
-	docs/queueConcurrency.md for the concurrency model.
+	Bounded, lock-free FIFO for multiple producers and multiple consumers. The capacity is rounded up to a power of two
+	(at most 2^30), so getCapacity() can be larger than requested. See docs/queueConcurrency.md for the concurrency
+	model.
 
-	T's copy constructor, move constructor and destructor must not throw. A push reserves its slots before constructing
-	elements in them, and a reservation cannot be rolled back once other producers may have reserved slots after it, so
-	an exception there would leave the queue stuck.
+	T's copy and move constructors, copy and move assignment and destructor must not throw. A push reserves its slots
+	before constructing elements in them, and a pop reserves its slots before assigning the elements out; a reservation
+	cannot be rolled back once other threads may have reserved slots after it, so an exception there would leave the
+	queue stuck.
 */
 // TODO : it would be cool in a single writer / reader situation to be able to access queue elements without copying them (if they are big), would this be possible?
 template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
@@ -706,9 +717,8 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 					other.writeEnd = writeEnd.swap(other.writeEnd);
 				}
 
-	public:		Queue(int capacity) : capacity(capacity)
-					, elements(reinterpret_cast<volatile T*>(operator new(sizeof (T) * capacity))) {
-					assert(capacity > 0 && (capacity & (capacity - 1)) == 0); // Capacity must be power of 2.
+	public:		Queue(int capacity) : capacity(roundUpCapacity(capacity))
+					, elements(reinterpret_cast<volatile T*>(operator new(sizeof (T) * this->capacity))) {
 				}
 
 	public:		Queue(const Queue& copy) : elements(0) { assign(copy, copy.capacity); }
@@ -717,9 +727,6 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 #if NUXTHREADS_HAS_CPP11
 	public:		Queue(Queue&& other) throw() : capacity(0), elements(0) { // Not thread-safe.
 					swap(other);
-					other.readBegin = other.readEnd = other.writeBegin = other.writeEnd = 0;
-					other.elements = 0;
-					other.capacity = 0;
 				}
 #endif
 
@@ -729,16 +736,13 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 				}
 #if NUXTHREADS_HAS_CPP11
 	public:		Queue& operator=(Queue&& other) throw() { // Not thread-safe.
-					swap(other);
-					other.readBegin = other.readEnd = other.writeBegin = other.writeEnd = 0;
-					other.elements = 0;
-					other.capacity = 0;
+					Queue moved(std::move(other)); // Leaves other empty; our old contents go to moved and die with it.
+					swap(moved);
 					return (*this);
 				}
 #endif
 
-	public:		void setCapacity(int capacity) { // Not thread-safe.
-					assert(capacity > 0 && (capacity & (capacity - 1)) == 0); // Capacity must be power of 2.
+	public:		void setCapacity(int capacity) { // Not thread-safe. Must hold every queued element (asserted); release builds drop the newest ones that don't fit.
 					assign(*this, capacity);
 				}
 				
@@ -862,8 +866,7 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 				}
 
 	protected:	void assign(const Queue& copy, int newCapacity) { // reserving is not a thread-safe operation, i.e. you should not call this method while accessing the queue from other threads.
-					assert((newCapacity & (newCapacity - 1)) == 0); // Capacity must be power of 2.
-					assert(newCapacity >= copy.getSize());
+					assert(roundUpCapacity(newCapacity) >= copy.getSize());
 					// FIX : optimize, don't push one at a time
 					Queue xQueue(newCapacity);
 					int n = copy.getSize();
@@ -871,6 +874,24 @@ template<typename T> class Queue { // FIX : name ConcurrentQueue, LockFreeQueue?
 						xQueue.push(const_cast<T&>(copy.elements[(static_cast<unsigned int>(copy.readBegin) + i) & (copy.capacity - 1)]));
 					}
 					swap(xQueue);
+				}
+
+	// Indices are masked with capacity - 1, so the capacity must be a power of two.
+	protected:	static int roundUpCapacity(int n) {
+					assert(n > 0);
+					if (n <= 1) {
+						return 1;
+					}
+					if (n > (1 << 30)) {
+						return (1 << 30);
+					}
+					unsigned int v = static_cast<unsigned int>(n) - 1U;
+					v |= v >> 1;
+					v |= v >> 2;
+					v |= v >> 4;
+					v |= v >> 8;
+					v |= v >> 16;
+					return static_cast<int>(v + 1U);
 				}
 
 	protected:	AtomicInt capacity;

@@ -37,26 +37,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string.h>
 #include "NuXThreadsPosix.h"
 #ifdef __APPLE__
-#include <sys/sysctl.h>
-#include <libkern/OSAtomic.h>
-#endif
-
-#ifdef __APPLE__
-#if (__MAC_OS_X_VERSION_MAX_ALLOWED < 1050)
-#if (__LP64__)
-inline bool OSAtomicCompareAndSwapPtrBarrier( void *oldValue, void *newValue, void * volatile *theValue )
-{
-	return OSAtomicCompareAndSwap64Barrier(reinterpret_cast<int64_t>(oldValue), reinterpret_cast<int64_t>(newValue)
-			, (int64_t*)(theValue));
-}
-#else
-inline bool OSAtomicCompareAndSwapPtrBarrier( void *oldValue, void *newValue, void * volatile *theValue )
-{
-	return OSAtomicCompareAndSwap32Barrier(reinterpret_cast<int32_t>(oldValue), reinterpret_cast<int32_t>(newValue)
-			, (int32_t*)(theValue));
-}
-#endif
-#endif
+#include <mach/mach_time.h>
 #endif
 
 namespace NuXThreads {
@@ -72,6 +53,25 @@ void threadMemoryFence() {
 	__sync_synchronize();
 }
 
+/*
+	Time-outs and readMsTimer() run on a monotonic clock, so a change of the wall clock (NTP, a VM resume, the user
+	setting the time) neither stretches nor shortens them. Nanoseconds from an arbitrary start.
+*/
+static uint64_t readMonotonicNanoseconds() {
+#ifdef __APPLE__
+	::mach_timebase_info_data_t timebase;
+	::mach_timebase_info(&timebase);
+	const uint64_t ticks = ::mach_absolute_time();
+	// Split so that multiplying by `numer` cannot overflow.
+	return ticks / timebase.denom * timebase.numer + ticks % timebase.denom * timebase.numer / timebase.denom;
+#else
+	::timespec now;
+	int err = ::clock_gettime(CLOCK_MONOTONIC, &now);
+	(void)err;
+	assert(err == 0);
+	return static_cast<uint64_t>(now.tv_sec) * 1000000000U + static_cast<uint64_t>(now.tv_nsec);
+#endif
+}
 
 /* --- Mutex --- */
 
@@ -128,7 +128,20 @@ Mutex::~Mutex() { delete impl; }
 /* --- Event --- */
 
 Event::Impl::Impl() : signaled(false) {
+#ifdef __APPLE__
 	int err = ::pthread_cond_init(&condition, 0);
+#else
+	// Its time-outs are deadlines on the monotonic clock (see timedWait()).
+	::pthread_condattr_t attributes;
+	int err = ::pthread_condattr_init(&attributes);
+	if (err == 0) {
+		err = ::pthread_condattr_setclock(&attributes, CLOCK_MONOTONIC);
+		if (err == 0) {
+			err = ::pthread_cond_init(&condition, &attributes);
+		}
+		::pthread_condattr_destroy(&attributes);
+	}
+#endif
 	if (err != 0) {
 		throwPThreadException("Error initializing pthread condition", err);
 	}
@@ -165,7 +178,7 @@ void Event::reset() {
 }
 
 bool Event::timedWait(int ms) {
-	if (ms == 0) {
+	if (ms <= 0) {
 		int err = ::pthread_mutex_lock(&impl->mutex);
 		assert(err == 0);
 		bool ok = impl->signaled;
@@ -174,38 +187,31 @@ bool Event::timedWait(int ms) {
 		assert(err == 0);
 		return ok;
 	} else {
-		timespec waitTS;
-		waitTS.tv_sec = ms / 1000;
-		waitTS.tv_nsec = (ms - waitTS.tv_sec * 1000) * 1000000;
-		assert(waitTS.tv_nsec < 1000000000L);
-
-		::timespec nowTS;
-	#if 0 // older OS X doesn't have clock_gettime
-		int err = ::clock_gettime(CLOCK_REALTIME, &nowTS);
-		assert(err == 0);
-		assert(nowTS.tv_nsec < 1000000000L);
-	#else
-		::timeval nowTV;
-		int err = ::gettimeofday(&nowTV, 0);
-		assert(err == 0);
-		nowTS.tv_sec = nowTV.tv_sec;
-		nowTS.tv_nsec = nowTV.tv_usec * 1000;
+		const uint64_t deadline = readMonotonicNanoseconds() + static_cast<uint64_t>(ms) * 1000000U;
+	#ifndef __APPLE__
+		::timespec absTS;
+		absTS.tv_sec = static_cast<time_t>(deadline / 1000000000U);
+		absTS.tv_nsec = static_cast<long>(deadline % 1000000000U);
 	#endif
 
-		timespec absTS;
-		absTS.tv_sec = nowTS.tv_sec + waitTS.tv_sec;
-		absTS.tv_nsec = nowTS.tv_nsec + waitTS.tv_nsec;
-		if (absTS.tv_nsec >= 1000000000L) {		/* Carry? */
-			++absTS.tv_sec;
-			absTS.tv_nsec -= 1000000000L;
-		}
-		assert(absTS.tv_nsec < 1000000000L);
-
-		err = ::pthread_mutex_lock(&impl->mutex);
+		int err = ::pthread_mutex_lock(&impl->mutex);
 		assert(err == 0);
 
 		while (!impl->signaled && err == 0) {
+		#ifdef __APPLE__
+			// The Mac has no pthread_condattr_setclock(), so it waits for what is left until the deadline instead.
+			const uint64_t now = readMonotonicNanoseconds();
+			if (now >= deadline) {
+				err = ETIMEDOUT;
+			} else {
+				::timespec leftTS;
+				leftTS.tv_sec = static_cast<time_t>((deadline - now) / 1000000000U);
+				leftTS.tv_nsec = static_cast<long>((deadline - now) % 1000000000U);
+				err = ::pthread_cond_timedwait_relative_np(&impl->condition, &impl->mutex, &leftTS);
+			}
+		#else
 			err = ::pthread_cond_timedwait(&impl->condition, &impl->mutex, &absTS);
+		#endif
 			assert(err == 0 || err == ETIMEDOUT);
 		}
 		// Decided by the flag, not by `err`: POSIX lets the wait report ETIMEDOUT although the signal came in time.
@@ -237,70 +243,66 @@ Event::~Event() {
 
 /* --- AtomicInt --- */
 
-// An unconditional store. (A single compare-and-swap would silently skip it if another thread changed `x` first.)
-int AtomicInt::assign(volatile int* x, int y)
+/*
+	The writes are full barriers, so a sequentially consistent read only has to be an acquire. Compilers without the
+	`__atomic` builtins (GCC before 4.7) get a full barrier after the read instead.
+*/
+template<typename T> static T loadSeqCst(const volatile T* x)
 {
-#ifdef __APPLE__
-	(void)swap(x, y);
-	return y;
+#ifdef __ATOMIC_SEQ_CST
+	return __atomic_load_n(x, __ATOMIC_SEQ_CST);
 #else
-	(void)__sync_lock_test_and_set(const_cast<int*>(x), y);
+	const T y = *x;
 	__sync_synchronize();
 	return y;
 #endif
 }
 
+// __sync_lock_test_and_set() is only an acquire barrier, so the barrier in front makes the exchange a full one.
+template<typename T> static T exchangeSeqCst(volatile T* x, T y)
+{
+	__sync_synchronize();
+	return __sync_lock_test_and_set(const_cast<T*>(x), y);
+}
+
+int AtomicInt::load(const volatile int* x)
+{
+	return loadSeqCst(x);
+}
+
+// An unconditional store. (A single compare-and-swap would silently skip it if another thread changed `x` first.)
+int AtomicInt::assign(volatile int* x, int y)
+{
+	(void)exchangeSeqCst(x, y);
+	__sync_synchronize();
+	return y;
+}
+
 int AtomicInt::increment(volatile int* x)
 {
-#ifdef __APPLE__
-	return ::OSAtomicIncrement32Barrier(const_cast<int32_t*>(x));
-#else
 	return __sync_add_and_fetch(const_cast<int*>(x), 1);
-#endif
 }
 
 int AtomicInt::decrement(volatile int* x)
 {
-#ifdef __APPLE__
-	return ::OSAtomicDecrement32Barrier(const_cast<int32_t*>(x));
-#else
 	return __sync_sub_and_fetch(const_cast<int*>(x), 1);
-#endif
 }
 
 int AtomicInt::add(volatile int* x, int y)
 {
-#ifdef __APPLE__
-	return ::OSAtomicAdd32Barrier(y, const_cast<int32_t*>(x));
-#else
 	return __sync_add_and_fetch(const_cast<int*>(x), y);
-#endif
 }
 
 int AtomicInt::swap(volatile int* x, int y)
 {
-	// We must retry the swap until success or we don't know what value to return. We cannot simply return z if the swap
-	// goes through and (*x) if not, since the sequence of returned values between concurrent threads / CPU may be important,
-	// i.e. the previous value (z) must be returned by this thread / CPU only and the next time, the new value (y) must be returned.
-	// Consider the following code: { x = new ...; delete p.swap(x); }
-#ifdef __APPLE__
-	volatile int z;
-	do {
-		z = *x;
-	} while (!OSAtomicCompareAndSwap32Barrier(z, y, const_cast<int32_t*>(x)));
-	return z;
-#else
-	return __sync_lock_test_and_set(const_cast<int*>(x), y);
-#endif
+	// The exchange returns the previous value in the same step; a compare-and-swap would have to be retried until success
+	// or we wouldn't know what value to return.
+	return exchangeSeqCst(x, y);
 }
 
 bool AtomicInt::swapIfEqual(volatile int* x, int equalTo, int y)
 {
-#ifdef __APPLE__
-	return ::OSAtomicCompareAndSwap32Barrier(equalTo, y, const_cast<int32_t*>(x));
-#else
 	return __sync_bool_compare_and_swap(const_cast<int*>(x), equalTo, y);
-#endif
 }
 
 /* --- AtomicFloat --- */
@@ -322,74 +324,55 @@ static float bitsToFloat(int bits)
 	return f;
 }
 
+float AtomicFloat::load(const volatile float* x)
+{
+	return bitsToFloat(loadSeqCst(reinterpret_cast<const volatile int*>(x)));
+}
+
 // An unconditional store, through swap(). (A single compare-and-swap would silently skip it if another thread changed
 // `x` first.)
 float AtomicFloat::assign(volatile float* x, float y)
 {
 	(void)swap(x, y);
-#ifndef __APPLE__
 	__sync_synchronize();
-#endif
 	return y;
 }
 
 float AtomicFloat::swap(volatile float* x, float y)
 {
-#ifdef __APPLE__
-	return bitsToFloat(AtomicInt::swap(reinterpret_cast<volatile int*>(x), floatToBits(y)));
-#else
-	return bitsToFloat(__sync_lock_test_and_set(reinterpret_cast<volatile int*>(x), floatToBits(y)));
-#endif
+	return bitsToFloat(exchangeSeqCst(reinterpret_cast<volatile int*>(x), floatToBits(y)));
 }
 
 bool AtomicFloat::swapIfEqual(volatile float* x, float equalTo, float y)
 {
-#ifdef __APPLE__
-	return ::OSAtomicCompareAndSwap32Barrier(floatToBits(equalTo), floatToBits(y), (int32_t*)(x));
-#else
 	return __sync_bool_compare_and_swap(reinterpret_cast<volatile int*>(x), floatToBits(equalTo), floatToBits(y));
-#endif
 }
 
 /* --- AtomicPointerBaseClass --- */
 
+const void* AtomicPointerBaseClass::load(const void* const volatile* p)
+{
+	return loadSeqCst(p);
+}
+
 // An unconditional store. (A single compare-and-swap would silently skip it if another thread changed `p` first.)
 const void* AtomicPointerBaseClass::assign(const void* volatile* p, const void* q)
 {
-#ifdef __APPLE__
-	(void)swap(p, q);
-	return q;
-#else
-	(void)__sync_lock_test_and_set(const_cast<const void**>(p), q);
+	(void)exchangeSeqCst(p, q);
 	__sync_synchronize();
 	return q;
-#endif
 }
 
 const void* AtomicPointerBaseClass::swap(const void* volatile* p, const void* q)
 {
-	// We must retry the swap until success or we don't know what value to return. We cannot simply return z if the swap
-	// goes through and (*x) if not, since the sequence of returned values between concurrent threads / CPU may be important,
-	// i.e. the previous value (z) must be returned by this thread / CPU only and the next time, the new value (y) must be returned.
-	// Consider the following code: { x = new ...; delete p.swap(x); }
-#ifdef __APPLE__
-	volatile const void* r;
-	do {
-		r = *p;
-	} while (!::OSAtomicCompareAndSwapPtrBarrier(const_cast<void*>(r), const_cast<void*>(q), const_cast<void**>(p)));
-	return const_cast<const void*>(r);
-#else
-	return __sync_lock_test_and_set(const_cast<const void**>(p), q);
-#endif
+	// The exchange returns the previous value in the same step; a compare-and-swap would have to be retried until success
+	// or we wouldn't know what value to return.
+	return exchangeSeqCst(p, q);
 }
 
 bool AtomicPointerBaseClass::swapIfEqual(const void* volatile* p, const void* equalTo, const void* q)
 {
-#ifdef __APPLE__
-	return ::OSAtomicCompareAndSwapPtrBarrier(const_cast<void*>(equalTo), const_cast<void*>(q), const_cast<void**>(p));
-#else
 	return __sync_bool_compare_and_swap(const_cast<const void**>(p), equalTo, q);
-#endif
 }
 
 /* --- Thread --- */
@@ -447,11 +430,7 @@ Thread::Impl::~Impl()
 
 int Thread::readMsTimer()
 {
-	::timeval nowTV;
-	int err = ::gettimeofday(&nowTV, 0);
-	(void)err;
-	assert(err == 0);
-	return wrapToInt32(static_cast<unsigned int>(nowTV.tv_sec * 1000) + nowTV.tv_usec / 1000);
+	return wrapToInt32(static_cast<unsigned int>(readMonotonicNanoseconds() / 1000000U));
 }
 
 void Thread::sleep(int ms) {
@@ -466,11 +445,7 @@ void Thread::sleep(int ms) {
 
 void Thread::yield()
 {
-#ifdef __APPLE__
-	::pthread_yield_np();
-#else
 	::sched_yield();
-#endif
 }
 
 ThreadId Thread::getCurrentId() { return reinterpret_cast<ThreadId>(::pthread_self()); }
@@ -547,15 +522,8 @@ Thread::~Thread()
 
 int queryCPUCount()
 {
-#ifdef __APPLE__
-	uint32_t cpuCount = 0;
-	size_t length = sizeof (cpuCount);
-	const int error = sysctlbyname("hw.logicalcpu", &cpuCount, &length, 0, 0);
-	return (error == 0 && length == sizeof (cpuCount) ? cpuCount : 0);
-#else
 	long cpuCount = ::sysconf(_SC_NPROCESSORS_ONLN);
 	return (cpuCount > 0 ? static_cast<int>(cpuCount) : 0);
-#endif
 }
 
 } /* namespace NuX */

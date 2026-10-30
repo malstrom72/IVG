@@ -29,7 +29,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <errno.h>
 #include <fcntl.h>
 #include <glob.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include "NuXFilesCocoa.h"
 
@@ -53,6 +56,14 @@ static NSString* toNSString(const std::wstring& s) {
 	const wchar_t* bytes = (s.empty() ? 0 : &s[0]);
 	return [[[NSString alloc] initWithBytes:bytes
 			length:s.size() * sizeof (wchar_t) encoding:NSUTF32LittleEndianStringEncoding] autorelease];
+}
+
+// Converts a path string from a caller, refusing a NUL: the system calls would stop at it.
+static NSString* pathToNSString(const std::wstring& s) {
+	if (s.find(L'\0') != std::wstring::npos) {
+		throw Exception("Invalid character in path");
+	}
+	return toNSString(s);
 }
 
 static std::wstring toStdWString(const NSString* s) {
@@ -111,18 +122,18 @@ static bool hasDirectoryPath(NSURL* url) {
 /* --- PathTime --- */
 
 PathTime::PathTime(time_t cTime) {
-	const long long nsSince1970 = static_cast<long long>(cTime) * 1000000;
+	const int64_t nsSince1970 = static_cast<int64_t>(cTime) * 1000000;
 	high = static_cast<int>(nsSince1970 >> 32);
 	low = static_cast<unsigned int>(nsSince1970);
 	assert(convertToCTime() == cTime);
 }
 
 time_t PathTime::convertToCTime() const {
-	const long long nsSince1970 = (static_cast<long long>(getHigh()) << 32) | getLow();
+	const int64_t nsSince1970 = static_cast<int64_t>((static_cast<uint64_t>(static_cast<unsigned int>(getHigh())) << 32) | getLow());
 	if (nsSince1970 < 0) {
 		return 0;
-	} else if (static_cast<unsigned long long>(nsSince1970)
-			> static_cast<unsigned long long>(std::numeric_limits<time_t>::max()) * 1000000) {
+	} else if (static_cast<uint64_t>(nsSince1970)
+			> static_cast<uint64_t>(std::numeric_limits<time_t>::max()) * 1000000) {
 		return std::numeric_limits<time_t>::max();
 	} else {
 		return (nsSince1970 + 500000) / 1000000;
@@ -131,7 +142,7 @@ time_t PathTime::convertToCTime() const {
 
 static PathTime toPathTime(id dateValue) {
 	if (dateValue != nil && [dateValue isKindOfClass:[NSDate class]]) {
-		const long long nsSince1970 = static_cast<long long>(floor([((NSDate*) dateValue) timeIntervalSince1970] * 1000000.0 + 0.5));
+		const int64_t nsSince1970 = static_cast<int64_t>(floor([((NSDate*) dateValue) timeIntervalSince1970] * 1000000.0 + 0.5));
 		return PathTime(static_cast<int>(nsSince1970 >> 32), static_cast<unsigned int>(nsSince1970));
 	} else {
 		return PathTime();
@@ -142,7 +153,8 @@ static NSDate* toNSDate(const PathTime& pathTime) {
 	if (!pathTime.isAvailable()) {
 		return nil;
 	} else {
-		const long long nsSince1970 = (static_cast<unsigned long long>(pathTime.getHigh()) << 32) | pathTime.getLow();
+		const int64_t nsSince1970 = static_cast<int64_t>((static_cast<uint64_t>(static_cast<unsigned int>(pathTime.getHigh())) << 32)
+				| pathTime.getLow());
 		const NSTimeInterval secsSince1970 = nsSince1970 / 1000000.0;
 		NSDate* date = [NSDate dateWithTimeIntervalSince1970:secsSince1970];
 		assert(toPathTime(date) == pathTime);
@@ -256,7 +268,7 @@ void Path::listRoots(std::vector<Path>& roots) {
 
 Path::Path(const std::wstring& pathString) : impl(0) {
 	@autoreleasepool {
-		NSString* pathStringNS = toNSString(pathString);
+		NSString* pathStringNS = pathToNSString(pathString);
 		NSURL* url = [NSURL fileURLWithPath:pathStringNS isDirectory:(isDirPath(pathString) ? YES : NO)];
 		if (url == nil) {
 			const std::string utf8PathString = [pathStringNS UTF8String];
@@ -341,7 +353,7 @@ Path Path::getRelative(const std::wstring& pathString) const {
 		if (pathString.size() >= 1 && pathString[0] == '/') {
 			return Path(pathString);
 		} else {
-			NSString* pathStringNS = toNSString(pathString);
+			NSString* pathStringNS = pathToNSString(pathString);
 			NSURL* url = [impl->url URLByAppendingPathComponent:pathStringNS
 					isDirectory:(isDirPath(pathString) ? YES : NO)];
 			if (url == nil) {
@@ -367,11 +379,12 @@ Path Path::withoutExtension() const {
 Path Path::withExtension(const std::wstring& extensionString) const {
 	assert(!isNull());
 	@autoreleasepool {
+		NSString* extension = pathToNSString(extensionString);
 		NSURL* url = impl->url;
 		if ([[impl->url pathExtension] length] != 0) {
 			url = [url URLByDeletingPathExtension];
 		}
-		return Path(new Impl([url URLByAppendingPathExtension:toNSString(extensionString)]));
+		return Path(new Impl([url URLByAppendingPathExtension:extension]));
 	}
 }
 
@@ -518,10 +531,15 @@ PathInfo Path::getInfo() const {
 	assert(!isNull());
 
 	@autoreleasepool {
+		/*
+			An NSURL caches resource values until a pass through the run loop, and copies of a Path share their NSURL, so
+			a worker thread or a command-line tool would see stale values. A fresh NSURL has nothing cached.
+		*/
+		NSURL* url = [NSURL fileURLWithPath:[impl->url path] isDirectory:(hasDirectoryPath(impl->url) ? YES : NO)];
 		NSError* error = nil;
 		NSDictionary<NSFileAttributeKey, id>* attributes;
 		NSDictionary<NSURLResourceKey, id>* resourceValues
-				= [impl->url resourceValuesForKeys:@[ NSURLIsDirectoryKey, NSURLFileSizeKey
+				= [url resourceValuesForKeys:@[ NSURLIsDirectoryKey, NSURLFileSizeKey
 				, NSURLContentModificationDateKey, NSURLCreationDateKey, NSURLIsHiddenKey
 				, NSURLIsUserImmutableKey, NSURLContentAccessDateKey ] error:&error];
 		if (resourceValues != nil) {
@@ -539,7 +557,7 @@ PathInfo Path::getInfo() const {
 		if (!info.isDirectory) {
 			id fileSizeValue = resourceValues[NSURLFileSizeKey];
 			if (fileSizeValue != nil && [fileSizeValue isKindOfClass:[NSNumber class]]) {
-				const unsigned long long fileSize = [((NSNumber*) fileSizeValue) unsignedLongLongValue];
+				const uint64_t fileSize = [((NSNumber*) fileSizeValue) unsignedLongLongValue];
 				info.fileSize = Int64(static_cast<int>(fileSize >> 32), static_cast<unsigned int>(fileSize));
 			}
 		}
@@ -557,7 +575,7 @@ PathInfo Path::getInfo() const {
 		if (info.isDirectory) {
 			info.fileSize = Int64(0, 0);
 		} else {
-			const unsigned long long fileSize = [attributes fileSize];
+			const uint64_t fileSize = [attributes fileSize];
 			info.fileSize = Int64(static_cast<int>(fileSize >> 32), static_cast<unsigned int>(fileSize));
 		}
 
@@ -777,13 +795,37 @@ Path Path::createTempFile() const {
 }
 
 /*
+	glob() reads wildcards in every part of a pattern, so the directory part gets [ ] * ? and the escape character itself
+	escaped and names its folders literally, as on Windows. Only the last name is a pattern; a trailing slash is not one.
+*/
+static std::string escapeGlobDirectory(const std::string& pattern) {
+	const size_t searchFrom = (pattern.size() >= 2 && pattern[pattern.size() - 1] == '/'
+			? pattern.size() - 2 : std::string::npos);
+	const size_t lastSlash = pattern.rfind('/', searchFrom);
+	if (lastSlash == std::string::npos) {
+		return pattern;
+	}
+	std::string escaped;
+	for (size_t i = 0; i <= lastSlash; ++i) {
+		const char c = pattern[i];
+		if (c == '[' || c == ']' || c == '*' || c == '?' || c == '\\') {
+			escaped += '\\';
+		}
+		escaped += c;
+	}
+	escaped.append(pattern, lastSlash + 1, std::string::npos);
+	return escaped;
+}
+
+/*
 	Expands the wildcard pattern with glob(), as the POSIX backend does, and keeps the matches that pass `filter`.
 	GLOB_MARK appends a slash to directories so they become directory paths.
 */
 void Path::findPaths(std::vector<Path>& paths, const std::wstring& wildcardPattern, const PathListFilter& filter) {
 	@autoreleasepool {
 		glob_t g;
-		const int result = ::glob([toNSString(wildcardPattern) fileSystemRepresentation], GLOB_MARK, 0, &g);
+		const std::string pattern = escapeGlobDirectory([pathToNSString(wildcardPattern) fileSystemRepresentation]);
+		const int result = ::glob(pattern.c_str(), GLOB_MARK, 0, &g);
 		try {
 			if (result == 0) {
 				NSFileManager* manager = [NSFileManager defaultManager];
@@ -827,14 +869,41 @@ ReadOnlyFile::Impl::~Impl() {
 	fileHandle = 0;
 }
 
+#if (NUXFILES_COCOA_USE_POSIX_FOR_IO)
+// Returns an autoreleased handle that owns the new descriptor, or nil with `errorCode` set to errno.
+static NSFileHandle* openFileHandle(NSURL* url, int flags, int& errorCode) {
+	int fd;
+	do {
+		fd = ::open([url fileSystemRepresentation], flags, 0666);
+	} while (fd < 0 && errno == EINTR);
+	if (fd < 0) {
+		errorCode = errno;
+		return nil;
+	}
+	return [[[NSFileHandle alloc] initWithFileDescriptor:fd closeOnDealloc:YES] autorelease];
+}
+#else
+// Returns an autoreleased handle for reading, or for updating when `flags` is O_RDWR, or nil with a Cocoa `errorCode`.
+static NSFileHandle* openFileHandle(NSURL* url, int flags, int& errorCode) {
+	assert((flags == O_RDONLY || flags == O_RDWR) && "files are created by createForWriting() here");
+	NSError* error = nil;
+	NSFileHandle* handle = (flags == O_RDWR ? [NSFileHandle fileHandleForUpdatingURL:url error:&error]
+			: [NSFileHandle fileHandleForReadingFromURL:url error:&error]);
+	if (handle == nil) {
+		assert(error != nil);
+		errorCode = static_cast<int>([error code]);
+	}
+	return handle;
+}
+#endif
+
 static ReadOnlyFile::Impl* openForReading(const Path& path) {
 	assert(!path.isNull());
 	@autoreleasepool {
-		NSError* error = nil;
-		NSFileHandle* handle = [NSFileHandle fileHandleForReadingFromURL:path.getImpl()->getNSURL() error:&error];
+		int errorCode = 0;
+		NSFileHandle* handle = openFileHandle(path.getImpl()->getNSURL(), O_RDONLY, errorCode);
 		if (handle == nil) {
-			assert(error != nil);
-			throw Exception("Error opening file", path, static_cast<int>([error code]));
+			throw Exception("Error opening file", path, errorCode);
 		}
 		return new ReadOnlyFile::Impl(path, handle);
 	}
@@ -843,11 +912,10 @@ static ReadOnlyFile::Impl* openForReading(const Path& path) {
 static ReadOnlyFile::Impl* openForUpdating(const Path& path) {
 	assert(!path.isNull());
 	@autoreleasepool {
-		NSError* error = nil;
-		NSFileHandle* handle = [NSFileHandle fileHandleForUpdatingURL:path.getImpl()->getNSURL() error:&error];
+		int errorCode = 0;
+		NSFileHandle* handle = openFileHandle(path.getImpl()->getNSURL(), O_RDWR, errorCode);
 		if (handle == nil) {
-			assert(error != nil);
-			throw Exception("Error opening file", path, static_cast<int>([error code]));
+			throw Exception("Error opening file", path, errorCode);
 		}
 		return new ReadOnlyFile::Impl(path, handle);
 	}
@@ -856,6 +924,20 @@ static ReadOnlyFile::Impl* openForUpdating(const Path& path) {
 static ReadOnlyFile::Impl* createForWriting(const Path& path, const PathAttributes& attributes, bool replaceExisting) {
 	assert(!path.isNull());
 	@autoreleasepool {
+	#if (NUXFILES_COCOA_USE_POSIX_FOR_IO)
+		/*
+			O_EXCL refuses an existing file in the same step that creates the new one, as on Win32 and POSIX.
+			O_TRUNC keeps the old file's flags and Finder info, so every attribute is set again by path.
+		*/
+		int errorCode = 0;
+		NSFileHandle* handle = openFileHandle(path.getImpl()->getNSURL()
+				, O_RDWR | O_CREAT | (replaceExisting ? O_TRUNC : O_EXCL), errorCode);
+		if (handle == nil) {
+			throw Exception("Error creating file", path, errorCode);
+		}
+		path.updateAttributes(attributes);
+		return new ReadOnlyFile::Impl(path, handle);
+	#else
 		NSURL* url = path.getImpl()->getNSURL();
 		NSFileManager* fileManager = [NSFileManager defaultManager];
 		if (!replaceExisting && [fileManager fileExistsAtPath:[url path]] != NO) {
@@ -867,10 +949,17 @@ static ReadOnlyFile::Impl* createForWriting(const Path& path, const PathAttribut
 		};
 		[fileManager createFileAtPath:[url path] contents:[NSData data] attributes:attributesDictionary];
 		NSError* error = nil;
-		NSFileHandle* handle = [NSFileHandle fileHandleForWritingToURL:url error:&error];
+		NSFileHandle* handle = [NSFileHandle fileHandleForUpdatingURL:url error:&error];
 		if (handle == nil) {
 			assert(error != nil);
 			throw Exception("Error creating file", path, static_cast<int>([error code]));
+		}
+		/*
+			createFileAtPath can fail while the old file stays writable (it writes atomically), and the handle doesn't
+			truncate, so truncate here or a shorter file would keep the old tail.
+		*/
+		if (::ftruncate([handle fileDescriptor], 0) != 0) {
+			throw Exception("Error creating file", path, errno);
 		}
 		NSDictionary<NSURLResourceKey, id>* resourceValues = @{
 			NSURLIsHiddenKey: [NSNumber numberWithBool:attributes.isHidden],
@@ -881,6 +970,7 @@ static ReadOnlyFile::Impl* createForWriting(const Path& path, const PathAttribut
 			throw Exception("Error creating file", path, static_cast<int>([error code]));
 		}
 		return new ReadOnlyFile::Impl(path, handle);
+	#endif
 	}
 }
 
@@ -895,6 +985,52 @@ static int getNSExceptionErrorCode(NSException* exception) {
 	return 0;
 }
 
+#if (NUXFILES_COCOA_USE_POSIX_FOR_IO)
+/*
+	As in the POSIX backend: pread and pwrite leave the shared file position alone, so threads sharing a file can't move
+	each other's reads, and the loops retry EINTR and the short transfers that network and FUSE file systems make.
+*/
+
+// Returns the number of bytes read, which is less than `count` only at the end of the file, or -1 with errno set.
+static ssize_t readFully(int fd, off_t offset, size_t count, unsigned char* bytes) {
+	size_t done = 0;
+	while (done < count) {
+		const ssize_t r = ::pread(fd, bytes + done, count - done, offset + static_cast<off_t>(done));
+		if (r < 0) {
+			if (errno == EINTR) {
+				continue;
+			}
+			return -1;
+		}
+		if (r == 0) {
+			break;
+		}
+		done += static_cast<size_t>(r);
+	}
+	return static_cast<ssize_t>(done);
+}
+
+// Returns true once all `count` bytes are written, false with errno set otherwise.
+static bool writeFully(int fd, off_t offset, size_t count, const unsigned char* bytes) {
+	size_t done = 0;
+	while (done < count) {
+		const ssize_t w = ::pwrite(fd, bytes + done, count - done, offset + static_cast<off_t>(done));
+		if (w < 0) {
+			if (errno == EINTR) {
+				continue;
+			}
+			return false;
+		}
+		if (w == 0) {
+			errno = EIO; // No progress and no error: fail rather than spin.
+			return false;
+		}
+		done += static_cast<size_t>(w);
+	}
+	return true;
+}
+#endif
+
 /* --- ReadOnlyFile --- */
 
 ReadOnlyFile::ReadOnlyFile(const Path& path, bool allowConcurrentWrites) : impl(openForReading(path)) {
@@ -904,14 +1040,15 @@ ReadOnlyFile::ReadOnlyFile(const Path& path, bool allowConcurrentWrites) : impl(
 
 Int64 ReadOnlyFile::getSize() const {
 #if (NUXFILES_COCOA_USE_POSIX_FOR_IO)
-	const int fileDescriptor = [impl->fileHandle fileDescriptor];
-	const off_t fileOffset = lseek(fileDescriptor, 0, SEEK_END);
-	assert(fileOffset != -1);
-	return Int64(static_cast<int>(fileOffset >> 32), static_cast<unsigned int>(fileOffset));
+	struct stat st;
+	if (::fstat([impl->fileHandle fileDescriptor], &st) != 0) {
+		throw Exception("Error obtaining file size", getPath(), errno);
+	}
+	return Int64(static_cast<int>(st.st_size >> 32), static_cast<unsigned int>(st.st_size));
 #else
 	@autoreleasepool {
 		@try {
-			const unsigned long long offset = [impl->fileHandle seekToEndOfFile];
+			const uint64_t offset = [impl->fileHandle seekToEndOfFile];
 			return Int64(static_cast<int>(offset >> 32), static_cast<unsigned int>(offset));
 		}
 		@catch (NSException* exception) {
@@ -923,22 +1060,18 @@ Int64 ReadOnlyFile::getSize() const {
 
 int ReadOnlyFile::tryToRead(Int64 position, int count, unsigned char* bytes) const {
 #if (NUXFILES_COCOA_USE_POSIX_FOR_IO)
-	const int fileDescriptor = [impl->fileHandle fileDescriptor];
+	assert(count >= 0);
 	const off_t fileOffset = (static_cast<off_t>(position.getHigh()) << 32) | position.getLow();
-	const off_t seekResult = lseek(fileDescriptor, fileOffset, SEEK_SET);
-	assert(seekResult == -1 || seekResult == fileOffset);
-	if (seekResult == -1) {
-		throw Exception("Error reading from file", getPath(), errno);
-	}
-	const ssize_t readResult = ::read(fileDescriptor, bytes, count);
-	if (readResult == -1) {
+	const int fileDescriptor = [impl->fileHandle fileDescriptor];
+	const ssize_t readResult = readFully(fileDescriptor, fileOffset, static_cast<size_t>(count), bytes);
+	if (readResult < 0) {
 		throw Exception("Error reading from file", getPath(), errno);
 	}
 	return static_cast<int>(readResult);
 #else
 	@autoreleasepool {
 		@try {
-			const unsigned long long fileOffset = (static_cast<unsigned long long>(position.getHigh()) << 32) | position.getLow();
+			const uint64_t fileOffset = (static_cast<uint64_t>(position.getHigh()) << 32) | position.getLow();
 			[impl->fileHandle seekToFileOffset:fileOffset];
 			NSData* data = [impl->fileHandle readDataOfLength:count];
 			const int readCount = static_cast<int>([data length]);
@@ -991,21 +1124,15 @@ ReadWriteFile::ReadWriteFile(const Path& path, const PathAttributes& attributes
 
 void ReadWriteFile::write(Int64 position, int count, const unsigned char* bytes) {
 #if (NUXFILES_COCOA_USE_POSIX_FOR_IO)
-	const int fileDescriptor = [impl->fileHandle fileDescriptor];
+	assert(count >= 0);
 	const off_t fileOffset = (static_cast<off_t>(position.getHigh()) << 32) | position.getLow();
-	const off_t seekResult = lseek(fileDescriptor, fileOffset, SEEK_SET);
-	assert(seekResult == -1 || seekResult == fileOffset);
-	if (seekResult == -1) {
-		throw Exception("Error writing to file", getPath(), errno);
-	}
-	const ssize_t writeResult = ::write(fileDescriptor, bytes, count);
-	if (writeResult != count) {
+	if (!writeFully([impl->fileHandle fileDescriptor], fileOffset, static_cast<size_t>(count), bytes)) {
 		throw Exception("Error writing to file", getPath(), errno);
 	}
 #else
 	@autoreleasepool {
 		@try {
-			const unsigned long long fileOffset = (static_cast<unsigned long long>(position.getHigh()) << 32) | position.getLow();
+			const uint64_t fileOffset = (static_cast<uint64_t>(position.getHigh()) << 32) | position.getLow();
 			[impl->fileHandle seekToFileOffset:fileOffset];
 			NSData* data = [NSData dataWithBytes:bytes length:count];
 			[impl->fileHandle writeData:data];
@@ -1030,9 +1157,33 @@ void ReadWriteFile::flush() {
 
 /* --- ExchangingFile --- */
 
+// Saving through a symlink replaces its target and keeps the link; a dangling link is replaced like any name.
+static Path resolveFileLink(const Path& path) {
+	@autoreleasepool {
+		const char* const linkPath = [path.getImpl()->getNSURL() fileSystemRepresentation];
+		struct stat st;
+		if (::lstat(linkPath, &st) != 0 || !S_ISLNK(st.st_mode)) {
+			return path;
+		}
+		char* const resolved = ::realpath(linkPath, 0);
+		if (resolved == 0) {
+			return path;
+		}
+		NSURL* const url = [NSURL fileURLWithFileSystemRepresentation:resolved isDirectory:NO relativeToURL:nil];
+		::free(resolved);
+		return Path(new Path::Impl(url));
+	}
+}
+
 ExchangingFile::ExchangingFile(const Path& path, const PathAttributes& attributes)
-		: ReadWriteFile(path.createTempFile(), attributes), originalPath(path) {
+		: ReadWriteFile(resolveFileLink(path).createTempFile(), attributes), originalPath(resolveFileLink(path))
+		, requestedPath(path) {
 	assert(!path.isNull());
+	// A link retargeted between the two resolutions above would leave the temp file beside another file.
+	if (!(getPath().getParent() == originalPath.getParent())) {
+		getPath().tryToErase();
+		throw Exception("Error creating file (the link changed while opening)", path);
+	}
 }
 
 void ExchangingFile::commit() {
@@ -1055,13 +1206,35 @@ void ExchangingFile::commit() {
 					success = [tempURL setResourceValue:[NSNumber numberWithBool:NO] forKey:NSURLIsUserImmutableKey error:&error];
 					assert(success != NO);
 				}
-				success = [[NSFileManager defaultManager] replaceItemAtURL:originalURL
+				/*
+					The default options keep the original's metadata (creation date, permissions, extended attributes),
+					as NuXFiles.h promises. The merge can take the hidden flag and the type and creator codes from the
+					original too, so the ones the caller asked for are applied again.
+				*/
+				NSFileManager* fileManager = [NSFileManager defaultManager];
+				NSDictionary* tempAttributes = [fileManager attributesOfItemAtPath:[tempURL path] error:nil];
+				const OSType typeCode = (tempAttributes != nil ? [tempAttributes fileHFSTypeCode] : 0);
+				const OSType creatorCode = (tempAttributes != nil ? [tempAttributes fileHFSCreatorCode] : 0);
+				id hiddenValue = nil;
+				const bool wasHidden = ([tempURL getResourceValue:&hiddenValue forKey:NSURLIsHiddenKey error:nil] != NO
+						&& toBool(hiddenValue));
+				success = [fileManager replaceItemAtURL:originalURL
 						withItemAtURL:tempURL
 						backupItemName:nil
-						options:NSFileManagerItemReplacementUsingNewMetadataOnly
+						options:0
 						resultingItemURL:&newURL error:&error];
 				if (success != NO) {
 					assert([newURL isEqual:originalPath.getImpl()->getNSURL()]);
+					// Best effort, like the permissions in the POSIX backend: some volumes can't store these.
+					if (typeCode != 0 || creatorCode != 0) {
+						[fileManager setAttributes:@{
+								NSFileHFSTypeCode: [NSNumber numberWithUnsignedInt:typeCode],
+								NSFileHFSCreatorCode: [NSNumber numberWithUnsignedInt:creatorCode]
+							} ofItemAtPath:[originalURL path] error:nil];
+					}
+					if (wasHidden) {
+						[originalURL setResourceValue:[NSNumber numberWithBool:YES] forKey:NSURLIsHiddenKey error:nil];
+					}
 					if (wasReadOnly) {
 						success = [originalURL setResourceValue:[NSNumber numberWithBool:YES] forKey:NSURLIsUserImmutableKey error:&error];
 						assert(success != NO);
@@ -1069,7 +1242,7 @@ void ExchangingFile::commit() {
 				}
 				if (success != NO) {
 					// The file stays readable after commit() (see NuXFiles.h), now as the committed original.
-					ReadOnlyFile::Impl* reopened = openForReading(originalPath);
+					ReadOnlyFile::Impl* reopened = openForReading(requestedPath);
 					delete impl;
 					impl = reopened;
 					originalPath = NuXFiles::Path();
