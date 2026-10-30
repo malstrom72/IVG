@@ -34,6 +34,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <dirent.h>
 #include <glob.h>
 #include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <cstring>
@@ -99,13 +100,16 @@ static std::wstring fromUTF8(const std::string& s) {
 	return result;
 }
 
-// Wide strings may come straight from a caller, so the code points are validated here too.
+// Wide strings may come straight from a caller, so the code points are validated here too (a NUL included).
 static std::string toUTF8(const std::wstring& s) {
 	static const unsigned char LEAD_BITS[4] = { 0x00, 0xC0, 0xE0, 0xF0 };
 	std::string result;
 	result.reserve(s.size());
 	for (size_t i = 0; i < s.size(); ++i) {
 		const UniChar c = static_cast<UniChar>(s[i]);
+		if (c == 0) {
+			throw Exception("Invalid character in path");
+		}
 		if ((c >= 0xD800 && c < 0xE000) || c > 0x10FFFF) {
 			throw Exception("Invalid Unicode code point in path");
 		}
@@ -201,14 +205,14 @@ static bool writeFully(int fd, off_t offset, size_t count, const unsigned char* 
 /* --- PathTime --- */
 
 PathTime::PathTime(time_t cTime) {
-	long long t = static_cast<long long>(cTime);
+	const int64_t t = static_cast<int64_t>(cTime);
 	high = static_cast<int>(t >> 32);
 	low = static_cast<unsigned int>(t);
 }
 
 time_t PathTime::convertToCTime() const {
 	// Rebuilt through an unsigned type since left-shifting a negative `high` (any pre-1970 time) is undefined.
-	const unsigned long long t = (static_cast<unsigned long long>(static_cast<unsigned int>(high)) << 32) | low;
+	const uint64_t t = (static_cast<uint64_t>(static_cast<unsigned int>(high)) << 32) | low;
 	return static_cast<time_t>(t);
 }
 
@@ -342,7 +346,9 @@ Path Path::getParent() const {
 	assert(!isRoot());
 	std::wstring p = removeSlash(fromUTF8(impl->path));
 	size_t pos = p.find_last_of(L'/');
-	if (pos == std::wstring::npos) return Path(L"/");
+	if (pos == std::wstring::npos) {
+		return Path(L"/");
+	}
 	return Path(p.substr(0, pos + 1));
 }
 
@@ -453,7 +459,7 @@ PathInfo Path::getInfo() const {
 		st_ctime is the inode change time, not the creation time. Linux reports the real birth time through statx() on
 		file systems that record it; otherwise creationTime stays "not available".
 	*/
-#if defined(__linux__) && defined(STATX_BTIME)
+#if defined(__linux__) && defined(STATX_BTIME) && (!defined(__ANDROID__) || __ANDROID_API__ >= 30)						// Bionic has it from API 30
 	struct statx sx;
 	if (::statx(AT_FDCWD, impl->path.c_str(), 0, STATX_BTIME, &sx) == 0 && (sx.stx_mask & STATX_BTIME) != 0) {
 		info.creationTime = PathTime(static_cast<time_t>(sx.stx_btime.tv_sec));
@@ -555,7 +561,7 @@ void Path::moveRename(const Path& dst) const {
 	assert(!isNull());
 	const char* const from = impl->path.c_str();
 	const char* const to = dst.impl->path.c_str();
-#if defined(__linux__) && defined(RENAME_NOREPLACE)
+#if defined(__linux__) && defined(RENAME_NOREPLACE) && (!defined(__ANDROID__) || __ANDROID_API__ >= 30)					// Bionic has it from API 30
 	if (::renameat2(AT_FDCWD, from, AT_FDCWD, to, RENAME_NOREPLACE) == 0) {
 		return;
 	}
@@ -662,14 +668,20 @@ static bool equalsIgnoringASCIICase(const std::wstring& a, const std::wstring& b
 
 bool Path::matchesFilter(const PathListFilter& filter) const {
 	assert(!isNull());
-	if (filter.excludeHidden && isHiddenName(getNameWithExtension())) return false;
+	if (filter.excludeHidden && isHiddenName(getNameWithExtension())) {
+		return false;
+	}
 	struct stat st;
 	if (::stat(impl->path.c_str(), &st) != 0) {
 		return false; // A path that doesn't exist (or can't be examined) matches nothing, as on Win32.
 	}
 	const bool isDir = S_ISDIR(st.st_mode);
-	if (filter.excludeFiles && !isDir) return false;
-	if (filter.excludeDirectories && isDir) return false;
+	if (filter.excludeFiles && !isDir) {
+		return false;
+	}
+	if (filter.excludeDirectories && isDir) {
+		return false;
+	}
 	// The extension filter applies to directories too, as documented and as on Win32 and Cocoa.
 	if (!filter.includeExtension.empty() && !equalsIgnoringASCIICase(getExtension(), filter.includeExtension)) {
 		return false;
@@ -695,39 +707,74 @@ class GlobResultFreer {
 	private:	GlobResultFreer& operator=(const GlobResultFreer& copy); // N/A
 };
 
+/*
+	glob() reads wildcards in every part of a pattern, so the directory part gets [ ] * ? and the escape character itself
+	escaped and names its folders literally, as on Windows. Only the last name is a pattern; a trailing slash is not one.
+*/
+static std::string escapeGlobDirectory(const std::string& pattern) {
+	const size_t searchFrom = (pattern.size() >= 2 && pattern[pattern.size() - 1] == '/'
+			? pattern.size() - 2 : std::string::npos);
+	const size_t lastSlash = pattern.rfind('/', searchFrom);
+	if (lastSlash == std::string::npos) {
+		return pattern;
+	}
+	std::string escaped;
+	for (size_t i = 0; i <= lastSlash; ++i) {
+		const char c = pattern[i];
+		if (c == '[' || c == ']' || c == '*' || c == '?' || c == '\\') {
+			escaped += '\\';
+		}
+		escaped += c;
+	}
+	escaped.append(pattern, lastSlash + 1, std::string::npos);
+	return escaped;
+}
+
 void Path::listSubPaths(std::vector<Path>& subPaths, const PathListFilter& filter) const {
 	assert(!isNull());
 	DIR* dir = ::opendir(impl->path.c_str());
-	if (!dir) throw Exception("Error listing file directory", *this, errno);
+	if (!dir) {
+		throw Exception("Error listing file directory", *this, errno);
+	}
 	DirectoryStreamCloser closer(dir);
 	struct dirent* ent;
 	while ((ent = ::readdir(dir)) != 0) {
 		std::string name(ent->d_name);
-		if (name == "." || name == "..") continue;
+		if (name == "." || name == "..") {
+			continue;
+		}
 		// A name that isn't valid UTF-8 (legal on Linux) cannot become a Path, so it is skipped rather than failing the
 		// whole listing.
 		std::wstring w;
-		if (!tryFromUTF8(name, w)) continue;
+		if (!tryFromUTF8(name, w)) {
+			continue;
+		}
 		// Directory paths end with a slash, as from findPaths().
 		struct stat st;
 		const std::string entryPath = withoutTrailingSlash(impl->path) + '/' + name;
 		const bool isDirectory = (::stat(entryPath.c_str(), &st) == 0 && S_ISDIR(st.st_mode));
 		Path child = getRelative(isDirectory ? w + L'/' : w);
-		if (child.matchesFilter(filter)) subPaths.push_back(child);
+		if (child.matchesFilter(filter)) {
+			subPaths.push_back(child);
+		}
 	}
 }
 
 void Path::findPaths(std::vector<Path>& paths, const std::wstring& pattern, const PathListFilter& filter) {
-	std::string utf8 = toUTF8(pattern);
+	const std::string utf8 = escapeGlobDirectory(toUTF8(pattern));
 	glob_t g;
 	int r = ::glob(utf8.c_str(), GLOB_MARK, 0, &g); // GLOB_MARK ends directories (and links to them) with a slash.
 	GlobResultFreer freer(&g);
 	if (r == 0) {
 		for (size_t i = 0; i < g.gl_pathc; ++i) {
 			std::wstring w;
-			if (!tryFromUTF8(g.gl_pathv[i], w)) continue; // Cannot become a Path; skipped, as in listSubPaths().
+			if (!tryFromUTF8(g.gl_pathv[i], w)) {
+				continue; // Cannot become a Path; skipped, as in listSubPaths().
+			}
 			Path path(w);
-			if (path.matchesFilter(filter)) paths.push_back(path);
+			if (path.matchesFilter(filter)) {
+				paths.push_back(path);
+			}
 		}
 	}
 }
@@ -833,14 +880,36 @@ void ReadWriteFile::flush() {
 
 /* --- ExchangingFile --- */
 
+// Saving through a symlink replaces its target and keeps the link; a dangling link is replaced like any name.
+static Path resolveFileLink(const Path& path) {
+	struct stat st;
+	if (::lstat(path.getImpl()->getPosixPath().c_str(), &st) != 0 || !S_ISLNK(st.st_mode)) {
+		return path;
+	}
+	char* const resolved = ::realpath(path.getImpl()->getPosixPath().c_str(), 0);
+	if (resolved == 0) {
+		return path;
+	}
+	std::wstring target;
+	const bool isUTF8 = tryFromUTF8(resolved, target);
+	::free(resolved);
+	return (isUTF8 ? Path(target) : path);																				// A target the paths can't hold is saved over like any other name.
+}
+
 /*
 	Saving over a file keeps its permissions, as Win32's ReplaceFileW and Cocoa do. This is best effort: some file
 	systems (FAT, SMB mounts) refuse fchmod(), and that should not stop a save.
 */
 ExchangingFile::ExchangingFile(const Path& path, const PathAttributes& attrs)
-		: ReadWriteFile(path.createTempFile(), attrs, true, false, false), originalPath(path) {
+		: ReadWriteFile(resolveFileLink(path).createTempFile(), attrs, true, false, false)
+		, originalPath(resolveFileLink(path)), requestedPath(path) {
+	// A link retargeted between the two resolutions above would leave the temp file beside another file.
+	if (!(getPath().getParent() == originalPath.getParent())) {
+		::unlink(getPath().getImpl()->getPosixPath().c_str());
+		throw Exception("Error creating file (the link changed while opening)", path);
+	}
 	struct stat st;
-	if (::stat(path.getImpl()->getPosixPath().c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
+	if (::stat(originalPath.getImpl()->getPosixPath().c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
 		::fchmod(impl->fileDescriptor, st.st_mode & 07777 & (attrs.isReadOnly ? ~WRITE_BITS : ~0));
 	}
 }
@@ -880,7 +949,7 @@ void ExchangingFile::commit() {
 		if (fd < 0) {
 			throw Exception("Error opening file", original, errno);
 		}
-		impl = new Impl(original, fd);
+		impl = new Impl(requestedPath, fd);
 	}
 }
 

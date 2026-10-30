@@ -190,6 +190,10 @@ class PathListFilter {
 	"c:\temp\x".
 	
 	Internally, paths are implemented with unicode strings under Windows NT and Core Foundation URLs under Mac OS X.
+
+	On Windows, paths of up to 32,767 UTF-16 units (255 per component) work in every NuXFiles call. From MAX_PATH
+	characters getFullPath() returns the \\?\ form, which Unicode file APIs accept but shell calls don't. A path that
+	must work on every platform stays within 1,023 UTF-8 bytes, 255 per component.
 */
 class Path {
 	public:		class Impl;
@@ -202,7 +206,7 @@ class Path {
 	// public:		static void listVolumes(std::vector<Path>& roots);				///< On Windows this is the same as listRoots(). On Mac this will be a list of all mounted volumes.
 	// FIX : I don't like this convention of basing everything from current-dir here, it could be more flexible if you had to use getCurrentDirectoryPath()?
 	// FIX : also, this is kind of crippled now, often you need the wildcard pattern matching, like for example searching all dirs for '*.stuff'
-	public:		static void findPaths(std::vector<Path>& paths, const std::wstring& wildcardPattern, const PathListFilter& filter = PathListFilter()); ///< Appends a list of all found paths that matches the wildcard pattern according to operating system conventions (e.g. ".\qwe*.rty" on Windows would return all files in current directory starting with "qwe" and ending with ".rty")
+	public:		static void findPaths(std::vector<Path>& paths, const std::wstring& wildcardPattern, const PathListFilter& filter = PathListFilter()); ///< Appends a list of all found paths that matches the wildcard pattern according to operating system conventions (e.g. ".\qwe*.rty" on Windows would return all files in current directory starting with "qwe" and ending with ".rty"). Only the last name is a pattern: the directory part is taken literally on every platform.
 	public:		static wchar_t getSeparator();									///< Returns the OS directory separator (i.e. '\' under Windows, '/' under OS X)
 	public:		static std::wstring appendSeparator(const std::wstring& path); // FIX : description
 	public:		static std::wstring removeSeparator(const std::wstring& path);
@@ -328,7 +332,9 @@ class ReadWriteFile : public ReadOnlyFile {
 	
 	When the new file is being exchanged with the old file certain file attributes (such as creation date) will be
 	copied from the original to the new file.
-	
+
+	Saving through a symbolic link replaces the file it points to and keeps the link, as editors do.
+
 	Notice that it is meaningful to use ExchangingFile even if you are not replacing an old file if you wish the file to
 	be thrown away automatically on any error. This is good to prevent the existence of corrupt files.
 	
@@ -339,7 +345,8 @@ class ExchangingFile : public ReadWriteFile {
 	public:		ExchangingFile(const Path& path, const PathAttributes& attributes = PathAttributes()); ///< Creates a file for reading and writing. The file remains open until this object is destructed. \p path must point to a file in an existing directory.
 	public:		void commit(); ///< You should call commit() at least once before the ExchangingFile is destructed or the new file will not be kept. Calling commit() more than once makes no difference. After you have committed the file you cannot write to it anymore (reading from it is still ok).
 	public:		virtual ~ExchangingFile();
-	protected:	Path originalPath;
+	protected:	Path originalPath;																						// The file commit() replaces: where a symbolic link leads.
+	protected:	Path requestedPath;																						// The path as given, which getPath() returns after commit().
 	private:	ExchangingFile(const ExchangingFile& copy); // N/A
 	private:	ExchangingFile& operator=(const ExchangingFile& copy); // N/A
 };

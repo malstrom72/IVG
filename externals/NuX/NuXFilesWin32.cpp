@@ -26,6 +26,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 #include "NuXFilesWin32.h"
 #include <sstream>
+#include <iomanip>
+#include <stdint.h>
 
 namespace NuXFiles {
 
@@ -53,7 +55,9 @@ static bool gotTrailingBackslash(const std::wstring& source)
 
 static std::wstring stripTrailingBackslash(std::wstring source)
 {
-	while (gotTrailingBackslash(source)) source = source.substr(0, source.size() - 1);
+	while (gotTrailingBackslash(source)) {
+		source = source.substr(0, source.size() - 1);
+	}
 	return source;
 }
 
@@ -62,11 +66,11 @@ static std::wstring addTrailingBackslash(const std::wstring& source)
 	return (gotTrailingBackslash(source) ? source : source + L'\\');
 }
 
-// Compares the part after the last dot of `nameWithExtension` with `extension`. A name without a dot has no extension.
+// Compares the part after the last dot of `nameWithExtension` with `extension`. A leading dot starts no extension.
 static bool extensionMatches(const std::wstring& nameWithExtension, const std::wstring& extension)
 {
 	const size_t dot = nameWithExtension.find_last_of(L'.');
-	if (dot == std::wstring::npos) {
+	if (dot == std::wstring::npos || dot == 0) {
 		return false;
 	}
 	return (::CompareStringW(LOCALE_USER_DEFAULT, NORM_IGNORECASE, nameWithExtension.c_str() + dot + 1
@@ -74,11 +78,30 @@ static bool extensionMatches(const std::wstring& nameWithExtension, const std::w
 			, lossless_cast<int>(extension.size())) == CSTR_EQUAL);
 }
 
+/*
+	Path holds the \\?\ form from MAX_PATH, but CreateDirectoryW and the other plain calls fail from 248 characters, so
+	the paths in between get the prefix here. They are normalised by GetFullPathNameW, so it names the same file.
+*/
+static std::wstring win32Path(std::wstring path)
+{
+	if (path.size() < 248 || path.compare(0, 4, L"\\\\?\\") == 0 || path.compare(0, 4, L"\\\\.\\") == 0) {
+		return path;
+	}
+	if (path.compare(0, 2, L"\\\\") == 0) {
+		path.replace(0, 2, L"\\\\?\\UNC\\");
+	} else {
+		path.insert(0, L"\\\\?\\");
+	}
+	return path;
+}
+
+static std::wstring win32Path(const Path& path) { return win32Path(path.getFullPath()); }
+
 // A path that doesn't exist (or can't be examined) matches nothing, as on POSIX.
 bool Path::matchesFilter(const PathListFilter& filter) const {
 	assert(!isNull());
 
-	const ::DWORD fileAttributes = ::GetFileAttributesW(getFullPath().c_str());
+	const ::DWORD fileAttributes = ::GetFileAttributesW(win32Path(*this).c_str());
 	if (fileAttributes == INVALID_FILE_ATTRIBUTES) {
 		return false;
 	}
@@ -109,7 +132,7 @@ static void appendPaths(const Path& parent, std::vector<Path>& paths, const std:
 		, const PathListFilter& filter, bool missingDirectoryMatchesNothing)
 {
 	::WIN32_FIND_DATAW findFileData;
-	::HANDLE findFirstHandle = ::FindFirstFileW(wildcardPattern.c_str(), &findFileData);
+	::HANDLE findFirstHandle = ::FindFirstFileW(win32Path(wildcardPattern).c_str(), &findFileData);
 	if (findFirstHandle == INVALID_HANDLE_VALUE) {
 		::DWORD lastError = ::GetLastError();
 		if (lastError != ERROR_FILE_NOT_FOUND
@@ -130,7 +153,15 @@ static void appendPaths(const Path& parent, std::vector<Path>& paths, const std:
 					|| (!filter.includeExtension.empty() && !extensionMatches(name, filter.includeExtension))) {
 					;
 				} else {
-					paths.push_back(parent.getRelative(isDirectory ? (name + L'\\') : name));
+					/*
+						Win32 path rules drop a trailing dot or space and, before Windows 11, turn reserved names such
+						as "con" into devices, so such an entry would name a different file, and erasing it could erase
+						that one. It is skipped, as the POSIX backend skips names that aren't valid UTF-8.
+					*/
+					const Path entry = parent.getRelative(isDirectory ? (name + L'\\') : name);
+					if (entry.getNameWithExtension() == name) {
+						paths.push_back(entry);
+					}
 				}
 
 				::BOOL findNextFileReturn = ::FindNextFileW(findFirstHandle, &findFileData);
@@ -180,6 +211,14 @@ static ::FILETIME* convertPathTime(const PathTime& pathTime, ::FILETIME* buffer)
 	}
 }
 
+// The Win32 calls stop at a NUL, so "evil.sh\0.wav" would name evil.sh while getExtension() says wav.
+static void checkNoNul(const std::wstring& pathString)
+{
+	if (pathString.find(L'\0') != std::wstring::npos) {
+		throw Exception("Invalid character in path");
+	}
+}
+
 static std::wstring convertToAbsolutePath(const std::wstring& path)
 {
 	wchar_t* filePart;
@@ -199,7 +238,6 @@ static std::wstring convertToAbsolutePath(const std::wstring& path)
 	if (getFullPathNameReturnAgain < absolute.size()) {
 		absolute = absolute.substr(0, getFullPathNameReturnAgain);
 	}
-	assert(path.size() < 4 || path.substr(0, 4) != L"\\\\?\\");
 	return absolute;
 }
 
@@ -235,15 +273,11 @@ std::string Exception::describe() const
 
 /* --- PathTime --- */
 
-#if (__GNUC__)
-	const __int64 kWindowsFileTimeToCTimeOffset = 116444736000000000LL;
-#else
-	const __int64 kWindowsFileTimeToCTimeOffset = 116444736000000000i64;
-#endif
+static const int64_t kWindowsFileTimeToCTimeOffset = static_cast<int64_t>(11644473600) * 10000000;						// 1601 to 1970 in 100 ns
 
 PathTime::PathTime(time_t cTime)
 {
-	__int64 y = (static_cast<__int64>(cTime) * 10000000) + kWindowsFileTimeToCTimeOffset;
+	int64_t y = (static_cast<int64_t>(cTime) * 10000000) + kWindowsFileTimeToCTimeOffset;
 	high = static_cast<unsigned int>(y >> 32);
 	low = static_cast<unsigned int>(y);
 	assert(convertToCTime() == cTime);
@@ -253,8 +287,8 @@ time_t PathTime::convertToCTime() const
 {
 	assert(isAvailable());
 	// Rebuilt through an unsigned type since left-shifting a negative `high` is undefined.
-	const unsigned __int64 bits = (static_cast<unsigned __int64>(static_cast<unsigned int>(high)) << 32) | low;
-	__int64 x = static_cast<__int64>(bits);
+	const uint64_t bits = (static_cast<uint64_t>(static_cast<unsigned int>(high)) << 32) | low;
+	int64_t x = static_cast<int64_t>(bits);
 	if (x < kWindowsFileTimeToCTimeOffset) {
 		return 0;
 	}
@@ -390,20 +424,26 @@ Path::Path(const std::wstring& pathString)
 	: impl(new Impl()) // Ok to allocate single initializer
 {
 	try {
+		checkNoNul(pathString);
 		std::wstring newPathString;
-		if (pathString.size() >= 8 && pathString.substr(0, 8) == L"\\\\?\\UNC\\") {
-			// It starts with the long unicode UNC name prefix, drop it and replace with standard UNC syntax.
+		const bool longPrefix = (pathString.size() >= 4 && pathString.compare(0, 4, L"\\\\?\\") == 0);
+		if (longPrefix && pathString.size() >= 8 && ::_wcsnicmp(pathString.c_str() + 4, L"UNC\\", 4) == 0) {
+			// It starts with the long unicode UNC name prefix (any case), drop it and replace with standard UNC syntax.
 			newPathString = std::wstring(L"\\") + pathString.substr(7, pathString.size() - 7);
-		} else if (pathString.size() >= 4 && pathString.substr(0, 4) == L"\\\\?\\") {
-			// It starts with the long unicode name prefix, drop it.
+		} else if (longPrefix && pathString.size() >= 6 && pathString[5] == L':') {
+			// It starts with the long unicode name prefix before a drive letter, drop it.
 			newPathString = pathString.substr(4, pathString.size() - 4);
 		} else {
+			// Any other long name (e.g. \\?\Volume{GUID}\ for a volume without a drive letter) stays as it is, and its
+			// first component is the root, like a UNC share's.
 			newPathString = pathString;
 		}
 		
 		if (!newPathString.empty()) {
 			size_t i = newPathString.size() - 1;
-			while (i + 1 > 0 && newPathString[i] == L'.') --i;
+			while (i + 1 > 0 && newPathString[i] == L'.') {
+				--i;
+			}
 		
 			// If it ends with a relative path ('.', '..' etc) or if is a drive letter only, add directory backslash.
 			if ((i + 1 <= 0 || (i < newPathString.size() - 1
@@ -429,21 +469,29 @@ Path::Path(const std::wstring& pathString)
 			--i;
 		}
 		size_t ext = i + 1;
-		while (i + 1 > 0 && fullPath[i] != L'.' && fullPath[i] != L'\\') --i;
+		while (i + 1 > 0 && fullPath[i] != L'.' && fullPath[i] != L'\\') {
+			--i;
+		}
 		if (i + 1 > 0 && fullPath[i] == L'.') {
-			ext = i;
-			while (i + 1 > 0 && fullPath[i] != L'\\') --i;
+			if (i > 0 && fullPath[i - 1] != L'\\') {																	// ".gitignore" has no extension
+				ext = i;
+			}
+			while (i + 1 > 0 && fullPath[i] != L'\\') {
+				--i;
+			}
 		}
 		// Note: is it an UNC root? ('\\x\y\'), if so, we should never split the network name from the drive.
 		if (fullPath.size() >= 2 && fullPath[0] == L'\\' && fullPath[1] == L'\\') {
 			size_t j = 2;
-			while (j < i && fullPath[j] != L'\\') ++j;
+			while (j < i && fullPath[j] != L'\\') {
+				++j;
+			}
 			if (j >= i) {
 				i = -1;		// We have now reached the current backslash, so it must be a UNC root
 			}
 		}
 		++i;
-		if (fullPath.size() < MAX_PATH) {
+		if (fullPath.size() < MAX_PATH || fullPath.compare(0, 4, L"\\\\?\\") == 0) {
 			impl->path = fullPath;
 			impl->parentOffset = i;
 			impl->nameOffset = i;
@@ -553,21 +601,23 @@ Path Path::withExtension(const std::wstring& extensionString) const
 
 void Path::findPaths(std::vector<Path>& paths, const std::wstring& wildcardPattern, const PathListFilter& filter)
 {
+	checkNoNul(wildcardPattern);
 	std::wstring pattern = stripTrailingBackslash(wildcardPattern);
 	const wchar_t* s = pattern.c_str();
 	const wchar_t* p = s + pattern.size();
 	while (--p >= s && *p != L'/' && *p != L'\\' && *p != L':') {
 		;
 	}
-	appendPaths((p >= s) ? Path(std::wstring(s, p + 1)) : getCurrentDirectoryPath(), paths, pattern, filter, true);
+	const Path directory = ((p >= s) ? Path(std::wstring(s, p + 1)) : getCurrentDirectoryPath());
+	appendPaths(directory, paths, directory.getFullPath() + std::wstring(p + 1), filter, true);
 }
 
 void Path::listSubPaths(std::vector<Path>& subPaths, const PathListFilter& filter) const
 {
 	assert(!isNull());
 	// "*.ext" also matches 8.3 short names ("*.htm" finds "page.html"), so appendPaths() checks the extension again.
-	appendPaths(*this, subPaths, addTrailingBackslash(impl->path) + L"*."
-			+ ((filter.includeExtension.empty() ? L"*" : filter.includeExtension)), filter, false);
+	appendPaths(*this, subPaths, addTrailingBackslash(impl->path)
+			+ (filter.includeExtension.empty() ? std::wstring(L"*") : L"*." + filter.includeExtension), filter, false);
 }
 
 std::wstring Path::getName() const
@@ -596,21 +646,21 @@ std::wstring Path::getNameWithExtension() const
 bool Path::exists() const
 {
 	assert(!isNull());
-	::DWORD fileAttributes = ::GetFileAttributesW(getFullPath().c_str());
+	::DWORD fileAttributes = ::GetFileAttributesW(win32Path(*this).c_str());
 	return (fileAttributes != INVALID_FILE_ATTRIBUTES);
 }
 
 bool Path::isFile() const
 {
 	assert(!isNull());
-	::DWORD fileAttributes = ::GetFileAttributesW(getFullPath().c_str());
+	::DWORD fileAttributes = ::GetFileAttributesW(win32Path(*this).c_str());
 	return (fileAttributes != INVALID_FILE_ATTRIBUTES && (fileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0);
 }
 
 bool Path::isDirectory() const
 {
 	assert(!isNull());
-	::DWORD fileAttributes = ::GetFileAttributesW(getFullPath().c_str());
+	::DWORD fileAttributes = ::GetFileAttributesW(win32Path(*this).c_str());
 	return (fileAttributes != INVALID_FILE_ATTRIBUTES && (fileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0);
 }
 
@@ -619,7 +669,7 @@ PathInfo Path::getInfo() const
 	assert(!isNull());
 	::WIN32_FILE_ATTRIBUTE_DATA attributes;
 	::BOOL getFileAttributesExReturn = ::GetFileAttributesExW
-			( getFullPath().c_str() // pointer to string that specifies a file or directory
+			( win32Path(*this).c_str() // pointer to string that specifies a file or directory
 			, GetFileExInfoStandard // value that specifies the type of attribute information to obtain
 			, &attributes // pointer to buffer to receive attribute information
 			);
@@ -643,7 +693,7 @@ PathInfo Path::getInfo() const
 void Path::updateAttributes(const PathAttributes& newAttributes) const
 {
 	assert(!isNull());
-	::BOOL setFileAttributesReturn = ::SetFileAttributesW(getFullPath().c_str()
+	::BOOL setFileAttributesReturn = ::SetFileAttributesW(win32Path(*this).c_str()
 			, calcFileAttributesBits(newAttributes));
 	if (!setFileAttributesReturn) {
 		throw Exception("Error updating attributes on file or directory", (*this), ::GetLastError());
@@ -656,7 +706,7 @@ void Path::updateTimes(const PathTime& newCreationTime, const PathTime& newModif
 	assert(!isNull());
 	::HANDLE fileHandle = INVALID_HANDLE_VALUE;
 	try {
-		fileHandle = ::CreateFileW(getFullPath().c_str(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE
+		fileHandle = ::CreateFileW(win32Path(*this).c_str(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE
 				, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
 		if (fileHandle == INVALID_HANDLE_VALUE) {
 			throw Exception("Error updating time info on file or directory", (*this), ::GetLastError());
@@ -685,10 +735,10 @@ bool Path::tryToErase() const
 {
 	assert(!isNull());
 	if (isDirectory()) {
-		::BOOL removeDirectoryReturn = ::RemoveDirectoryW(getFullPath().c_str());
+		::BOOL removeDirectoryReturn = ::RemoveDirectoryW(win32Path(*this).c_str());
 		return (removeDirectoryReturn != FALSE);
 	} else {
-		::BOOL deleteFileReturn = ::DeleteFileW(getFullPath().c_str());
+		::BOOL deleteFileReturn = ::DeleteFileW(win32Path(*this).c_str());
 		return (deleteFileReturn != FALSE);
 	}
 }
@@ -706,7 +756,7 @@ void Path::moveRename(const Path& destination) const
 	assert(!isNull());
 	// No MOVEFILE_COPY_ALLOWED: a move to another volume fails (ERROR_NOT_SAME_DEVICE) instead of copying and deleting,
 	// and without MOVEFILE_REPLACE_EXISTING an existing destination is refused.
-	::BOOL moveFileReturn = ::MoveFileExW(getFullPath().c_str(), destination.getFullPath().c_str(), 0);
+	::BOOL moveFileReturn = ::MoveFileExW(win32Path(*this).c_str(), win32Path(destination).c_str(), 0);
 	if (!moveFileReturn) {
 		throw Exception("Error renaming or moving file or directory", (*this), ::GetLastError());
 	}
@@ -716,7 +766,7 @@ void Path::create() const
 {
 	assert(!isNull());
 	assert(!isRoot());
-	::BOOL createDirectoryReturn = ::CreateDirectoryW(getFullPath().c_str(), 0);
+	::BOOL createDirectoryReturn = ::CreateDirectoryW(win32Path(*this).c_str(), 0);
 	if (!createDirectoryReturn) {
 		throw Exception("Error creating directory", (*this), ::GetLastError());
 	}
@@ -726,14 +776,14 @@ bool Path::tryToCreate() const
 {
 	assert(!isNull());
 	assert(!isRoot());
-	::BOOL createDirectoryReturn = ::CreateDirectoryW(getFullPath().c_str(), 0);
+	::BOOL createDirectoryReturn = ::CreateDirectoryW(win32Path(*this).c_str(), 0);
 	return (createDirectoryReturn != FALSE);
 }
 
 void Path::copy(const Path& destination) const
 {
 	assert(!isNull());
-	::BOOL copyFileExReturn = ::CopyFileExW(getFullPath().c_str(), destination.getFullPath().c_str(), 0, 0, 0
+	::BOOL copyFileExReturn = ::CopyFileExW(win32Path(*this).c_str(), win32Path(destination).c_str(), 0, 0, 0
 			, COPY_FILE_FAIL_IF_EXISTS | COPY_FILE_ALLOW_DECRYPTED_DESTINATION);
 	if (!copyFileExReturn) {
 		throw Exception("Error copying file", (*this), ::GetLastError());
@@ -751,19 +801,36 @@ Path Path::createTempFile() const
 		directory = getParent().getFullPath();
 		prefix = getName();
 	}
-	wchar_t tempFilePathBuffer[MAX_PATH + 1];
-	::UINT getTempFileNameReturn = ::GetTempFileNameW
-			( directory.c_str() // pointer to directory name for temporary file
-			, prefix.c_str() // pointer to filename prefix
-			, 0 // number used to create temporary filename
-			, tempFilePathBuffer // pointer to buffer that receives the new filename
-			);
-	if (getTempFileNameReturn == 0) {
-		// Read the error before anything else can change it. The buffer was never written, so report the directory.
-		const ::DWORD error = ::GetLastError();
-		throw Exception("Error creating temporary file", Path(addTrailingBackslash(directory)), error);
+	// GetTempFileNameW fails from 248 characters even with the \\?\ prefix, so its naming is done here.
+	directory = addTrailingBackslash(directory);
+	prefix = prefix.substr(0, 3);
+	const ::DWORD NAME_STEP = 0x9E3779B9UL;																				// odd, so every 16-bit name comes up
+	static volatile ::LONG counter = 0;
+	::DWORD number = ::GetTickCount() ^ (::GetCurrentProcessId() * NAME_STEP)
+			^ (static_cast< ::DWORD >(::InterlockedIncrement(&counter)) * NAME_STEP);
+	::DWORD error = ERROR_FILE_EXISTS;
+	int accessDeniedCount = 0;
+	for (int attempt = 0; attempt < 100; ++attempt, number += NAME_STEP) {
+		std::wostringstream name;
+		name << directory << prefix << std::hex << std::uppercase << std::setw(4) << std::setfill(L'0')
+				<< (number & 0xFFFFU) << L".tmp";
+		const std::wstring candidate = name.str();
+		const ::HANDLE handle = ::CreateFileW(win32Path(candidate).c_str(), GENERIC_WRITE, 0, 0, CREATE_NEW
+				, FILE_ATTRIBUTE_NORMAL, 0);
+		if (handle != INVALID_HANDLE_VALUE) {
+			::CloseHandle(handle);
+			return Path(candidate);
+		}
+		error = ::GetLastError();
+		// A file being deleted gives ERROR_ACCESS_DENIED, and so does every name in an unwritable folder.
+		if (error == ERROR_ACCESS_DENIED) {
+			++accessDeniedCount;
+		}
+		if (error != ERROR_FILE_EXISTS && (error != ERROR_ACCESS_DENIED || accessDeniedCount >= 4)) {
+			break;
+		}
 	}
-	return Path(tempFilePathBuffer);
+	throw Exception("Error creating temporary file", Path(directory), error);
 }
 
 Path::~Path()
@@ -784,8 +851,8 @@ static ::HANDLE createFile(const Path& path, ::DWORD dwDesiredAccess, ::DWORD dw
 		, ::HANDLE hTemplateFile, int retryCount = 0, int retrySleepMS = 100)
 {
 	do {
-		const ::HANDLE handle = ::CreateFileW(path.getFullPath().c_str(), dwDesiredAccess, dwShareMode, lpSecurityAttributes
-				, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
+		const ::HANDLE handle = ::CreateFileW(win32Path(path).c_str(), dwDesiredAccess, dwShareMode
+				, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
 		if (handle != INVALID_HANDLE_VALUE) {
 			return handle;
 		}
@@ -891,9 +958,52 @@ void ReadWriteFile::write(Int64 index, int count, const unsigned char* bytes)
 	}
 }
 
+/*
+	Saving through a symlink replaces its target and keeps the link. Only real symlinks are followed: other reparse
+	points (cloud placeholders, for one) are files in their own right. A dangling link is replaced like any name.
+*/
+static Path resolveFileLink(const Path& path)
+{
+	const std::wstring fullPath = win32Path(path);
+	::WIN32_FIND_DATAW findData;
+	const ::HANDLE find = ::FindFirstFileW(fullPath.c_str(), &findData);
+	if (find == INVALID_HANDLE_VALUE) {
+		return path;
+	}
+	::FindClose(find);
+	if ((findData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0
+			|| (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0
+			|| findData.dwReserved0 != 0xA000000CUL /* IO_REPARSE_TAG_SYMLINK */) {
+		return path;
+	}
+	// Looked up at run time: the default target (_WIN32_WINNT 0x0500, see NuXFilesWin32.h) doesn't declare it.
+	typedef ::DWORD (WINAPI *GetFinalPathNameByHandleWFunction)(::HANDLE, ::LPWSTR, ::DWORD, ::DWORD);
+	const GetFinalPathNameByHandleWFunction getFinalPathNameByHandleW = reinterpret_cast<GetFinalPathNameByHandleWFunction>(
+			::GetProcAddress(::GetModuleHandleW(L"kernel32.dll"), "GetFinalPathNameByHandleW"));
+	if (getFinalPathNameByHandleW == 0) {
+		return path;
+	}
+	const ::HANDLE handle = ::CreateFileW(fullPath.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0
+			, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
+	if (handle == INVALID_HANDLE_VALUE) {
+		return path;
+	}
+	// Asked with no buffer, it returns the size it needs, terminating zero included.
+	const ::DWORD required = getFinalPathNameByHandleW(handle, 0, 0, 0 /* FILE_NAME_NORMALIZED | VOLUME_NAME_DOS */);
+	std::wstring target(required > 1 ? required - 1 : 0, '?');
+	const ::DWORD length = (required > 1 ? getFinalPathNameByHandleW(handle, &target[0], required, 0) : 0);
+	::CloseHandle(handle);
+	if (length == 0 || length >= required) {
+		return path;
+	}
+	target.resize(length);
+	return Path(target); // The constructor drops the \\?\ prefix where a plain path names the same file.
+}
+
 ExchangingFile::ExchangingFile(const Path& path, const PathAttributes& attributes)
 	: ReadWriteFile(0)
-	, originalPath(path)
+	, originalPath(resolveFileLink(path))
+	, requestedPath(path)
 {
 	Path tempPath(originalPath.createTempFile());
 	impl = new ReadOnlyFile::Impl(tempPath, createFile(tempPath, GENERIC_WRITE | GENERIC_READ, 0, 0, CREATE_ALWAYS
@@ -916,23 +1026,28 @@ void ExchangingFile::commit()
 			tempPath.tryToErase();
 			throw Exception("Error committing file", original, flushError);
 		}
-		::BOOL success = ::ReplaceFileW(original.getFullPath().c_str(), tempPath.getFullPath().c_str()
-				, NULL, 0, 0, 0);
+		/*
+			With a backup name, a ReplaceFileW that fails halfway leaves the original under a name we know: unchanged
+			on ERROR_UNABLE_TO_MOVE_REPLACEMENT, at the backup name on ERROR_UNABLE_TO_MOVE_REPLACEMENT_2.
+		*/
+		const Path backupPath = original.createTempFile();
+		::BOOL success = ::ReplaceFileW(win32Path(original).c_str(), win32Path(tempPath).c_str()
+				, win32Path(backupPath).c_str(), 0, 0, 0);
 		::DWORD error = ::GetLastError();
 		if (!success && error == ERROR_ACCESS_DENIED) {
-			const ::DWORD fileAttributes = ::GetFileAttributesW(tempPath.getFullPath().c_str());
+			const ::DWORD fileAttributes = ::GetFileAttributesW(win32Path(tempPath).c_str());
 			if (fileAttributes != INVALID_FILE_ATTRIBUTES && (fileAttributes & FILE_ATTRIBUTE_READONLY) != 0) {
-				::BOOL didSetAttributes = ::SetFileAttributesW(tempPath.getFullPath().c_str()
+				::BOOL didSetAttributes = ::SetFileAttributesW(win32Path(tempPath).c_str()
 						, fileAttributes & ~FILE_ATTRIBUTE_READONLY);
 				assert(didSetAttributes);
 				(void)didSetAttributes;
-				success = ::ReplaceFileW(original.getFullPath().c_str(), tempPath.getFullPath().c_str()
-						, NULL, 0, 0, 0);
+				success = ::ReplaceFileW(win32Path(original).c_str(), win32Path(tempPath).c_str()
+						, win32Path(backupPath).c_str(), 0, 0, 0);
 				error = ::GetLastError();
 				if (success) {
-					const ::DWORD attributesAgain = ::GetFileAttributesW(original.getFullPath().c_str());
+					const ::DWORD attributesAgain = ::GetFileAttributesW(win32Path(original).c_str());
 					if (attributesAgain != INVALID_FILE_ATTRIBUTES) {
-						didSetAttributes = ::SetFileAttributesW(original.getFullPath().c_str()
+						didSetAttributes = ::SetFileAttributesW(win32Path(original).c_str()
 								, attributesAgain | FILE_ATTRIBUTE_READONLY);
 						assert(didSetAttributes);
 						(void)didSetAttributes;
@@ -941,11 +1056,23 @@ void ExchangingFile::commit()
 			}
 		}
 		if (!success && error == ERROR_FILE_NOT_FOUND) {
-			success = ::MoveFileW(tempPath.getFullPath().c_str(), original.getFullPath().c_str());
+			success = ::MoveFileW(win32Path(tempPath).c_str(), win32Path(original).c_str());
 			if (!success) {
 				error = ::GetLastError();
 			}
 		}
+		if (!success && error == ERROR_UNABLE_TO_MOVE_REPLACEMENT_2) {
+			/*
+				ReplaceFileW got halfway: the original is at the backup name and the temp file could not take its name.
+				If the name is free, move the temp file into place, without replacing whatever may have taken it;
+				otherwise keep both files and report where the new contents are.
+			*/
+			success = ::MoveFileW(win32Path(tempPath).c_str(), win32Path(original).c_str());
+			if (!success) {
+				throw Exception("Error committing file (the new contents are kept in this file)", tempPath, error);
+			}
+		}
+		backupPath.tryToErase();
 		if (!success) {
 			tempPath.tryToErase(); // Don't leave the temp file behind on a failed commit.
 			throw Exception("Error committing file", original, error);
@@ -955,7 +1082,7 @@ void ExchangingFile::commit()
 			but is not exclusive to them. To address this, we implement a retry mechanism. On encountering a 'busy'
 			error, we attempt to reopen the file every 100ms, with a 2-second timeout.
 		*/
-		impl = new ReadOnlyFile::Impl(original, createFile(original, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0, 20, 100));
+		impl = new ReadOnlyFile::Impl(requestedPath, createFile(original, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0, 20, 100));
 	}
 }
 

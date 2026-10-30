@@ -28,6 +28,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <sstream>
 #include <string.h>
 #include <process.h>
+#include <intrin.h>
+#include <stdint.h>
 
 #if defined(_UINTPTR_T_DEFINED)
 	typedef uintptr_t beginthreadexReturnType;
@@ -127,16 +129,19 @@ void Event::reset() {
 	}
 }
 
-bool Event::timedWait(int ms) {
-	::DWORD waitForSingleObjectExReturn = ::WaitForSingleObjectEx(impl->handle, ms, FALSE);
-	switch (waitForSingleObjectExReturn) {
+// A negative time-out counts as 0: as a DWORD it would be INFINITE or about 49 days.
+static ::DWORD toTimeout(int ms) { return (ms > 0 ? static_cast< ::DWORD >(ms) : 0); }
+
+static bool waitForHandle(::HANDLE handle, ::DWORD timeout, const char* errorMessage) {
+	switch (::WaitForSingleObject(handle, timeout)) {
 		case WAIT_OBJECT_0: return true;
-		case WAIT_FAILED: throwWin32Exception("Error waiting on an event", ::GetLastError());
+		case WAIT_FAILED: throwWin32Exception(errorMessage, ::GetLastError());
 	}
 	return false;
 }
 
-void Event::wait() { timedWait(INFINITE); }
+bool Event::timedWait(int ms) { return waitForHandle(impl->handle, toTimeout(ms), "Error waiting on an event"); }
+void Event::wait() { waitForHandle(impl->handle, INFINITE, "Error waiting on an event"); }
 
 Event::~Event() {
 	::BOOL closeHandleReturn = ::CloseHandle(impl->handle);
@@ -145,6 +150,41 @@ Event::~Event() {
 }
 
 /* --- AtomicInt --- */
+
+/*
+	The Interlocked writes are full barriers, so a sequentially consistent read only has to be an acquire: a plain read
+	on x86 and x64 (kept in place by a compiler barrier), a load-acquire on ARM64 and a read and a full barrier
+	elsewhere.
+*/
+static LONG loadSeqCst(const volatile LONG* x) {
+#if defined(_M_ARM64) || defined(_M_ARM64EC)
+	return static_cast<LONG>(__ldar32(reinterpret_cast<const volatile unsigned __int32*>(x)));
+#elif defined(_M_IX86) || defined(_M_X64)
+	const LONG y = *x;
+	_ReadWriteBarrier();
+	return y;
+#else
+	const LONG y = *x;
+	MemoryBarrier();
+	return y;
+#endif
+}
+
+static const void* loadSeqCst(const void* const volatile* p) {
+#if defined(_M_ARM64) || defined(_M_ARM64EC)
+	return reinterpret_cast<const void*>(__ldar64(reinterpret_cast<const volatile uint64_t*>(p)));
+#elif defined(_M_IX86) || defined(_M_X64)
+	const void* const q = *p;
+	_ReadWriteBarrier();
+	return q;
+#else
+	const void* const q = *p;
+	MemoryBarrier();
+	return q;
+#endif
+}
+
+int AtomicInt::load(const volatile int* x) { return loadSeqCst(reinterpret_cast<const volatile LONG*>(x)); }
 
 int AtomicInt::assign(volatile int* x, int y) {
 	InterlockedExchange((LPLONG)(x), y);
@@ -176,6 +216,10 @@ static float bitsToFloat(LONG bits) {
 	return f;
 }
 
+float AtomicFloat::load(const volatile float* x) {
+	return bitsToFloat(loadSeqCst(reinterpret_cast<const volatile LONG*>(x)));
+}
+
 float AtomicFloat::assign(volatile float* x, float y) { (void)swap(x, y); return y; }
 
 float AtomicFloat::swap(volatile float* x, float y) {
@@ -188,6 +232,8 @@ bool AtomicFloat::swapIfEqual(volatile float* x, float equalTo, float y) {
 }
 
 /* --- AtomicPointerBaseClass --- */
+
+const void* AtomicPointerBaseClass::load(const void* const volatile* p) { return loadSeqCst(p); }
 
 const void* AtomicPointerBaseClass::swap(const void* volatile* p, const void* q) {
 	#if (_MSC_VER >= 1300) // Version 7 and 8 of the MSVC compiler issues warnings on the 32-bit version of 'InterlockedExchangePointer' that are of no importance.
@@ -263,7 +309,7 @@ int Thread::readMsTimer()
 #endif
 }
 
-void Thread::sleep(int ms) { ::Sleep(ms > 0 ? static_cast< ::DWORD >(ms) : 0); } // -1 would be INFINITE
+void Thread::sleep(int ms) { ::Sleep(toTimeout(ms)); } // -1 would be INFINITE
 void Thread::yield() { ::SwitchToThread(); }
 ThreadId Thread::getCurrentId() { return reinterpret_cast<ThreadId>(static_cast<intptr_t>(::GetCurrentThreadId())); }
 
@@ -330,14 +376,13 @@ void Thread::start() {
 
 bool Thread::timedJoin(int ms) const {
 	assert(impl->started != 0);
-	switch (::WaitForSingleObject(impl->handle, ms)) {
-		case WAIT_OBJECT_0: return true;
-		case WAIT_FAILED: throwWin32Exception("Error waiting on thread to finish", ::GetLastError());
-	}
-	return false;
+	return waitForHandle(impl->handle, toTimeout(ms), "Error waiting on thread to finish");
 }
 
-void Thread::join() const { assert(impl->started != 0); timedJoin(INFINITE); }
+void Thread::join() const {
+	assert(impl->started != 0);
+	waitForHandle(impl->handle, INFINITE, "Error waiting on thread to finish");
+}
 ThreadId Thread::getId() const { return impl->id; }
 bool Thread::isRunning() const { return (impl->started != 0 && !timedJoin(0)); }
 

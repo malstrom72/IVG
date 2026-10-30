@@ -52,34 +52,35 @@ bool Path::makeRelative(const Path& toPath, bool walkUpwards, std::wstring& path
 	assert(!isNull());
 	assert(!toPath.isNull());
 	
-	// Build path component lists of names and extensions of all intermediate directories
-	// (backwards so first element will be the last component, i.e. the name of the final file / directory).
-	
-	std::vector<std::wstring> fromComponents;
-	std::vector<std::wstring> toComponents;
+	// Build path component lists of all intermediate directories
+	// (backwards so first element will be the last component, i.e. the final file / directory).
+	// They are compared with equals(), so each platform decides what counts as the same name (e.g. case on Windows).
+
+	std::vector<Path> fromComponents;
+	std::vector<Path> toComponents;
 	Path currentPath(*this);
 	while (!currentPath.isRoot()) {
-		fromComponents.push_back(currentPath.getNameWithExtension());
+		fromComponents.push_back(currentPath);
 		currentPath = currentPath.getParent();
 	}
 	const Path fromRoot = currentPath;
 	currentPath = toPath;
 	while (!currentPath.isRoot()) {
-		toComponents.push_back(currentPath.getNameWithExtension());
+		toComponents.push_back(currentPath);
 		currentPath = currentPath.getParent();
 	}
 	const Path toRoot = currentPath;
-	std::vector<std::wstring>::reverse_iterator fromIt = fromComponents.rbegin();
-	std::vector<std::wstring>::reverse_iterator toIt = toComponents.rbegin();
-	while (fromIt != fromComponents.rend() && toIt != toComponents.rend() && *fromIt == *toIt) {
+	std::vector<Path>::reverse_iterator fromIt = fromComponents.rbegin();
+	std::vector<Path>::reverse_iterator toIt = toComponents.rbegin();
+	while (fromIt != fromComponents.rend() && toIt != toComponents.rend() && fromIt->equals(*toIt)) {
 		++fromIt;
 		++toIt;
 	}
-	
+
 	// Return full path if the roots differ (drives or network shares), if the first component mismatched or if we are not
 	// allowed to use '..' when we have to.
-	
-	if (fromRoot.getFullPath() != toRoot.getFullPath() || fromIt == fromComponents.rbegin()
+
+	if (!fromRoot.equals(toRoot) || fromIt == fromComponents.rbegin()
 			|| (!walkUpwards && toIt != toComponents.rend())) {
 		pathString = getFullPath();
 		return false;
@@ -92,12 +93,16 @@ bool Path::makeRelative(const Path& toPath, bool walkUpwards, std::wstring& path
 		++toIt;
 	}
 	
-	if (pathString.empty()) pathString = std::wstring(L".") + getSeparator();
+	if (pathString.empty()) {
+		pathString = std::wstring(L".") + getSeparator();
+	}
 
 	while (fromIt != fromComponents.rend()) {
-		pathString += *fromIt;
+		pathString += fromIt->getNameWithExtension();
 		++fromIt;
-		if (fromIt != fromComponents.rend()) pathString += getSeparator();
+		if (fromIt != fromComponents.rend() || isDirectoryPath()) {														// A directory keeps its separator
+			pathString += getSeparator();
+		}
 	}
 	
 	return true;
