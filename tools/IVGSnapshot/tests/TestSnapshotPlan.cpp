@@ -17,33 +17,33 @@ namespace {
 
 void Fail(const std::string &message)
 {
-        std::cerr << "TestSnapshotPlan: " << message << std::endl;
-        std::exit(1);
+	std::cerr << "TestSnapshotPlan: " << message << std::endl;
+	std::exit(1);
 }
 
 void Expect(bool condition, const std::string &message)
 {
-        if (!condition) {
-                Fail(message);
-        }
+	if (!condition) {
+		Fail(message);
+	}
 }
 
 void ExpectEqual(uint32_t actual, uint32_t expected, const std::string &label)
 {
-        if (actual != expected) {
-                std::ostringstream stream;
-                stream << label << " expected " << expected << " but got " << actual;
-                Fail(stream.str());
-        }
+	if (actual != expected) {
+		std::ostringstream stream;
+		stream << label << " expected " << expected << " but got " << actual;
+		Fail(stream.str());
+	}
 }
 
 void ExpectEqual(const std::string &actual, const std::string &expected, const std::string &label)
 {
-        if (actual != expected) {
-                std::ostringstream stream;
-                stream << label << " expected:\n" << expected << "\nbut got:\n" << actual;
-                Fail(stream.str());
-        }
+	if (actual != expected) {
+		std::ostringstream stream;
+		stream << label << " expected:\n" << expected << "\nbut got:\n" << actual;
+		Fail(stream.str());
+	}
 }
 
 /*
@@ -52,13 +52,13 @@ void ExpectEqual(const std::string &actual, const std::string &expected, const s
 */
 std::string NormalizeListing(std::string listing)
 {
-        listing.erase(std::remove(listing.begin(), listing.end(), '\r'), listing.end());
-        return listing;
+	listing.erase(std::remove(listing.begin(), listing.end(), '\r'), listing.end());
+	return listing;
 }
 
 void ExpectEqualListing(const std::string &actual, const std::string &expected, const std::string &label)
 {
-        ExpectEqual(NormalizeListing(actual), NormalizeListing(expected), label);
+	ExpectEqual(NormalizeListing(actual), NormalizeListing(expected), label);
 }
 
 std::string ReadFile(const std::string &path)
@@ -188,124 +188,124 @@ class StreamCapture {
 
 CapturedIO RunListOnlyTool(const NuXFiles::Path &path, SnapshotRunResult &outRun)
 {
-        CommandLineOptions options;
-        options.listOnly = true;
+	CommandLineOptions options;
+	options.listOnly = true;
 
-        SnapshotTotals totals;
-        std::ostringstream outBuffer;
-        std::ostringstream errBuffer;
+	SnapshotTotals totals;
+	std::ostringstream outBuffer;
+	std::ostringstream errBuffer;
 
-        {
-                StreamCapture capture(outBuffer, errBuffer);
-                outRun = processFile(options, path);
-                totals.accumulate(outRun);
-                logFileReport(path, outRun);
-                logTotalsSummary(totals);
-        }
+	{
+		StreamCapture capture(outBuffer, errBuffer);
+		outRun = processFile(options, path);
+		totals.accumulate(outRun);
+		logFileReport(path, outRun);
+		logTotalsSummary(totals);
+	}
 
-        CapturedIO captured;
-        captured.out = outBuffer.str();
-        captured.err = errBuffer.str();
-        return captured;
+	CapturedIO captured;
+	captured.out = outBuffer.str();
+	captured.err = errBuffer.str();
+	return captured;
 }
 
 void TestListOnlySample()
 {
-        const NuXFiles::Path ivgPath = NuXFiles::Path(pathStringToWide("tools/IVGSnapshot/tests/ListOnlySample.ivg"));
-        SnapshotRunResult run;
-        CapturedIO io = RunListOnlyTool(ivgPath, run);
+	const NuXFiles::Path ivgPath = NuXFiles::Path(pathStringToWide("tools/IVGSnapshot/tests/ListOnlySample.ivg"));
+	SnapshotRunResult run;
+	CapturedIO io = RunListOnlyTool(ivgPath, run);
 
-        Expect(run.exitCode == 0, "ListOnlySample run should succeed");
-        Expect(io.err.empty(), "ListOnlySample run should not print to stderr");
-        const std::string expected = ReadFile("tools/IVGSnapshot/tests/ListOnlySample.txt");
-        ExpectEqualListing(io.out, expected, "ListOnlySample list-only output");
-        ExpectEqual(run.totalEntries, static_cast<uint32_t>(3), "ListOnlySample entry count");
-        ExpectEqual(run.validatedEntries, static_cast<uint32_t>(3), "ListOnlySample validated count");
+	Expect(run.exitCode == 0, "ListOnlySample run should succeed");
+	Expect(io.err.empty(), "ListOnlySample run should not print to stderr");
+	const std::string expected = ReadFile("tools/IVGSnapshot/tests/ListOnlySample.txt");
+	ExpectEqualListing(io.out, expected, "ListOnlySample list-only output");
+	ExpectEqual(run.totalEntries, static_cast<uint32_t>(3), "ListOnlySample entry count");
+	ExpectEqual(run.validatedEntries, static_cast<uint32_t>(3), "ListOnlySample validated count");
 }
 
 void TestListScenarioVariants()
 {
-        const NuXFiles::Path ivgPath = NuXFiles::Path(pathStringToWide("tools/IVGSnapshot/tests/ListScenarioVariants.ivg"));
-        SnapshotRunResult run;
-        CapturedIO io = RunListOnlyTool(ivgPath, run);
+	const NuXFiles::Path ivgPath = NuXFiles::Path(pathStringToWide("tools/IVGSnapshot/tests/ListScenarioVariants.ivg"));
+	SnapshotRunResult run;
+	CapturedIO io = RunListOnlyTool(ivgPath, run);
 
-        Expect(run.exitCode == 0, "ListScenarioVariants run should succeed");
-        Expect(io.err.empty(), "ListScenarioVariants run should not print to stderr");
-        const std::string expected = ReadFile("tools/IVGSnapshot/tests/ListScenarioVariants.txt");
-        ExpectEqualListing(io.out, expected, "ListScenarioVariants list-only output");
-        ExpectEqual(run.totalEntries, static_cast<uint32_t>(7), "ListScenarioVariants entry count");
+	Expect(run.exitCode == 0, "ListScenarioVariants run should succeed");
+	Expect(io.err.empty(), "ListScenarioVariants run should not print to stderr");
+	const std::string expected = ReadFile("tools/IVGSnapshot/tests/ListScenarioVariants.txt");
+	ExpectEqualListing(io.out, expected, "ListScenarioVariants list-only output");
+	ExpectEqual(run.totalEntries, static_cast<uint32_t>(7), "ListScenarioVariants entry count");
 }
 
 void TestListVariableExpansion()
 {
-        const NuXFiles::Path ivgPath = NuXFiles::Path(pathStringToWide("tools/IVGSnapshot/tests/ListVariableExpansion.ivg"));
-        SnapshotRunResult run;
-        CapturedIO io = RunListOnlyTool(ivgPath, run);
+	const NuXFiles::Path ivgPath = NuXFiles::Path(pathStringToWide("tools/IVGSnapshot/tests/ListVariableExpansion.ivg"));
+	SnapshotRunResult run;
+	CapturedIO io = RunListOnlyTool(ivgPath, run);
 
-        Expect(run.exitCode == 0, "ListVariableExpansion run should succeed");
-        Expect(io.err.empty(), "ListVariableExpansion run should not print to stderr");
-        const std::string expected = ReadFile("tools/IVGSnapshot/tests/ListVariableExpansion.txt");
-        ExpectEqualListing(io.out, expected, "ListVariableExpansion list-only output");
-        ExpectEqual(run.totalEntries, static_cast<uint32_t>(4), "ListVariableExpansion entry count");
+	Expect(run.exitCode == 0, "ListVariableExpansion run should succeed");
+	Expect(io.err.empty(), "ListVariableExpansion run should not print to stderr");
+	const std::string expected = ReadFile("tools/IVGSnapshot/tests/ListVariableExpansion.txt");
+	ExpectEqualListing(io.out, expected, "ListVariableExpansion list-only output");
+	ExpectEqual(run.totalEntries, static_cast<uint32_t>(4), "ListVariableExpansion entry count");
 }
 
 void TestCommonBlockListOnly()
 {
-        const NuXFiles::Path ivgPath = NuXFiles::Path(pathStringToWide("tools/IVGSnapshot/tests/CommonBlock.ivg"));
-        SnapshotRunResult run;
-        CapturedIO io = RunListOnlyTool(ivgPath, run);
+	const NuXFiles::Path ivgPath = NuXFiles::Path(pathStringToWide("tools/IVGSnapshot/tests/CommonBlock.ivg"));
+	SnapshotRunResult run;
+	CapturedIO io = RunListOnlyTool(ivgPath, run);
 
-        Expect(run.exitCode == 0, "CommonBlock run should succeed");
-        Expect(io.err.empty(), "CommonBlock run should not print to stderr");
-        const std::string expected = ReadFile("tools/IVGSnapshot/tests/CommonBlock.txt");
-        ExpectEqualListing(io.out, expected, "CommonBlock list-only output");
-        ExpectEqual(run.totalEntries, static_cast<uint32_t>(3), "CommonBlock entry count");
+	Expect(run.exitCode == 0, "CommonBlock run should succeed");
+	Expect(io.err.empty(), "CommonBlock run should not print to stderr");
+	const std::string expected = ReadFile("tools/IVGSnapshot/tests/CommonBlock.txt");
+	ExpectEqualListing(io.out, expected, "CommonBlock list-only output");
+	ExpectEqual(run.totalEntries, static_cast<uint32_t>(3), "CommonBlock entry count");
 }
 
 void TestCommonBlockMismatchDetection()
 {
-        SnapshotRoundState round;
-        round.reset();
+	SnapshotRoundState round;
+	round.reset();
 
-        SnapshotBodies first;
-        first.common = String(" pen blue width:4 ");
-        first.statements.push_back(String("fill #123456"));
-        testRecordSnapshotBodies(round, 1, first);
+	SnapshotBodies first;
+	first.common = String(" pen blue width:4 ");
+	first.statements.push_back(String("fill #123456"));
+	testRecordSnapshotBodies(round, 1, first);
 
-        bool threw = false;
-        try {
-                SnapshotBodies second;
-                second.common = String(" pen blue width:6 ");
-                second.statements = first.statements;
-                testRecordSnapshotBodies(round, 1, second);
-        } catch (const std::runtime_error &error) {
-                threw = (std::string(error.what()) ==
-                        "snapshot common block changed within iterative round.");
-        }
-        Expect(threw, "Common block mismatch should raise runtime error");
+	bool threw = false;
+	try {
+		SnapshotBodies second;
+		second.common = String(" pen blue width:6 ");
+		second.statements = first.statements;
+		testRecordSnapshotBodies(round, 1, second);
+	} catch (const std::runtime_error &error) {
+		threw = (std::string(error.what()) ==
+			"snapshot common block changed within iterative round.");
+	}
+	Expect(threw, "Common block mismatch should raise runtime error");
 }
 
 void TestScenarioMismatchDetection()
 {
-        SnapshotRoundState round;
-        round.reset();
+	SnapshotRoundState round;
+	round.reset();
 
-        SnapshotBodies first;
-        first.common = String(" pen red width:2 ");
-        first.statements.push_back(String("fill #abcdef"));
-        testRecordSnapshotBodies(round, 2, first);
+	SnapshotBodies first;
+	first.common = String(" pen red width:2 ");
+	first.statements.push_back(String("fill #abcdef"));
+	testRecordSnapshotBodies(round, 2, first);
 
-        bool threw = false;
-        try {
-                SnapshotBodies second;
-                second.common = first.common;
-                second.statements.push_back(String("fill #fedcba"));
-                testRecordSnapshotBodies(round, 2, second);
-        } catch (const std::runtime_error &error) {
-                threw = (std::string(error.what()) ==
-                        "snapshot statements changed within iterative round.");
-        }
-        Expect(threw, "Scenario statement mismatch should raise runtime error");
+	bool threw = false;
+	try {
+		SnapshotBodies second;
+		second.common = first.common;
+		second.statements.push_back(String("fill #fedcba"));
+		testRecordSnapshotBodies(round, 2, second);
+	} catch (const std::runtime_error &error) {
+		threw = (std::string(error.what()) ==
+			"snapshot statements changed within iterative round.");
+	}
+	Expect(threw, "Scenario statement mismatch should raise runtime error");
 }
 
 NuXFiles::Path WriteTemporaryIVGPath(const std::string &contents)
@@ -364,56 +364,56 @@ void TestImplicitSnapshotRendering()
 
 void TestValidateMismatch()
 {
-        const char *source =
-                "format ivg-3 uses:snapshot-1\n"
-                "bounds 0,0,16,16\n"
-                "meta snapshot scenario:toggle validate:no [ fill red ]\n"
-                "meta snapshot scenario:toggle validate:yes [ fill blue ]\n";
+	const char *source =
+		"format ivg-3 uses:snapshot-1\n"
+		"bounds 0,0,16,16\n"
+		"meta snapshot scenario:toggle validate:no [ fill red ]\n"
+		"meta snapshot scenario:toggle validate:yes [ fill blue ]\n";
 
-        const NuXFiles::Path path = WriteTemporaryIVGPath(source);
+	const NuXFiles::Path path = WriteTemporaryIVGPath(source);
 
-        CommandLineOptions options;
-        options.listOnly = true;
+	CommandLineOptions options;
+	options.listOnly = true;
 
-        std::ostringstream outBuffer;
-        std::ostringstream errBuffer;
-        SnapshotRunResult run;
-        {
-                StreamCapture capture(outBuffer, errBuffer);
-                run = processFile(options, path);
-        }
+	std::ostringstream outBuffer;
+	std::ostringstream errBuffer;
+	SnapshotRunResult run;
+	{
+		StreamCapture capture(outBuffer, errBuffer);
+		run = processFile(options, path);
+	}
 
-        removeFileIfExists(path);
+	removeFileIfExists(path);
 
-        Expect(run.fileFailed, "validate mismatch should mark file as failed");
-        Expect(run.exitCode == 1, "validate mismatch should set exit code");
-        Expect(run.fileError == "validate flag mismatch for scenario",
-                "validate mismatch should report correct error");
-        Expect(errBuffer.str().find("validate flag mismatch for scenario") != std::string::npos,
-                "validate mismatch should log error to stderr");
+	Expect(run.fileFailed, "validate mismatch should mark file as failed");
+	Expect(run.exitCode == 1, "validate mismatch should set exit code");
+	Expect(run.fileError == "validate flag mismatch for scenario",
+		"validate mismatch should report correct error");
+	Expect(errBuffer.str().find("validate flag mismatch for scenario") != std::string::npos,
+		"validate mismatch should log error to stderr");
 }
 
 void TestMalformedSnapshotMeta()
 {
-        const char *const sources[] = {
-                "format ivg-3 uses:snapshot-1\nbounds 0,0,16,16\nmeta snapshot validate:maybe [ fill red ]\n",
-                "format ivg-3 uses:snapshot-1\nbounds 0,0,16,16\nmeta snapshot colour:red [ fill red ]\n",
-        };
-        for (size_t i = 0; i < sizeof(sources) / sizeof(sources[0]); ++i) {
-                const NuXFiles::Path path = WriteTemporaryIVGPath(sources[i]);
-                CommandLineOptions options;
-                options.listOnly = true;
-                std::ostringstream outBuffer;
-                std::ostringstream errBuffer;
-                SnapshotRunResult run;
-                {
-                        StreamCapture capture(outBuffer, errBuffer);
-                        run = processFile(options, path);
-                }
-                removeFileIfExists(path);
-                Expect(run.fileFailed && run.exitCode == 1, std::string("malformed meta snapshot should fail: ") + sources[i]);
-                Expect(!run.fileError.empty(), std::string("malformed meta snapshot should report an error: ") + sources[i]);
-        }
+	const char *const sources[] = {
+		"format ivg-3 uses:snapshot-1\nbounds 0,0,16,16\nmeta snapshot validate:maybe [ fill red ]\n",
+		"format ivg-3 uses:snapshot-1\nbounds 0,0,16,16\nmeta snapshot colour:red [ fill red ]\n",
+	};
+	for (size_t i = 0; i < sizeof(sources) / sizeof(sources[0]); ++i) {
+		const NuXFiles::Path path = WriteTemporaryIVGPath(sources[i]);
+		CommandLineOptions options;
+		options.listOnly = true;
+		std::ostringstream outBuffer;
+		std::ostringstream errBuffer;
+		SnapshotRunResult run;
+		{
+			StreamCapture capture(outBuffer, errBuffer);
+			run = processFile(options, path);
+		}
+		removeFileIfExists(path);
+		Expect(run.fileFailed && run.exitCode == 1, std::string("malformed meta snapshot should fail: ") + sources[i]);
+		Expect(!run.fileError.empty(), std::string("malformed meta snapshot should report an error: ") + sources[i]);
+	}
 }
 
 void TestSnapshotSourceTags()

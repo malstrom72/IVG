@@ -143,10 +143,10 @@ struct CommandLineOptions {
 
 	CommandLineOptions()
 		: snapshotDir(), snapshotDirDisplay(),
-		  rootDir(NuXFiles::Path::getCurrentDirectoryPath()),
-		  forceUpdate(false), listOnly(false), verbose(false),
-		  exitOnFirstFailure(false), recursive(false), goldenAudit(true),
-		  onlyDirectoryInputs(true), threads(0) {}
+		rootDir(NuXFiles::Path::getCurrentDirectoryPath()),
+		forceUpdate(false), listOnly(false), verbose(false),
+		exitOnFirstFailure(false), recursive(false), goldenAudit(true),
+		onlyDirectoryInputs(true), threads(0) {}
 };
 
 /**
@@ -897,8 +897,8 @@ struct SharedResources {
 struct SnapshotDiffStats {
 	SnapshotDiffStats()
 		: width(0), height(0), differingPixels(0), maxAlphaDiff(0),
-		  maxRedDiff(0), maxGreenDiff(0), maxBlueDiff(0), meanAlphaDiff(0.0),
-		  meanRedDiff(0.0), meanGreenDiff(0.0), meanBlueDiff(0.0) {}
+		maxRedDiff(0), maxGreenDiff(0), maxBlueDiff(0), meanAlphaDiff(0.0),
+		meanRedDiff(0.0), meanGreenDiff(0.0), meanBlueDiff(0.0) {}
 
 	uint32_t width;
 	uint32_t height;
@@ -916,8 +916,8 @@ struct SnapshotDiffStats {
 struct SnapshotEntryResult {
 	SnapshotEntryResult()
 		: entryOrdinal(0), validate(false), rendered(false), diffed(false),
-		  skipped(false), updated(false), success(false), hasDiffStats(false),
-		  planOrdinal(0), blockIndex(0) {}
+		skipped(false), updated(false), success(false), hasDiffStats(false),
+		planOrdinal(0), blockIndex(0) {}
 
 	NuXFiles::Path ivgPath;
 	std::string scenarioName;
@@ -951,8 +951,8 @@ struct SnapshotEntryResult {
 struct SnapshotRunResult {
 	SnapshotRunResult()
 		: totalEntries(0), draftEntries(0), validatedEntries(0),
-		  updatedEntries(0), failedEntries(0), diffFailures(0), exitCode(0),
-		  fileFailed(false), ignored(false) {}
+		updatedEntries(0), failedEntries(0), diffFailures(0), exitCode(0),
+		fileFailed(false), ignored(false) {}
 
 	std::vector<SnapshotEntryResult> entries;
 	NuXFiles::Path filePath;
@@ -972,8 +972,8 @@ struct SnapshotRunResult {
 struct SnapshotTotals {
 	SnapshotTotals()
 		: filesProcessed(0), failedFiles(0), totalEntries(0), draftEntries(0),
-		  validatedEntries(0), updatedEntries(0), failedEntries(0),
-		  diffFailures(0), ignoredFiles(0) {}
+		validatedEntries(0), updatedEntries(0), failedEntries(0),
+		diffFailures(0), ignoredFiles(0) {}
 
 	void accumulate(const SnapshotRunResult &run) {
 		if (run.ignored) {
@@ -1440,7 +1440,7 @@ static void collectOrphanGoldens(const std::set<std::string> &processedBases,
 // renameFile uses Path-only overload.
 
 static bool renameFile(const NuXFiles::Path &from, const NuXFiles::Path &to,
-					   std::string &error) {
+		std::string &error) {
 	if (from.isNull()) {
 		return true;
 	}
@@ -1608,7 +1608,7 @@ static void printDetailLines(const std::string &label,
 	const std::string indent = "	";
 	std::ostringstream firstLine;
 	firstLine << indent << std::left
-			  << std::setw(static_cast<int>(labelWidth)) << label;
+			<< std::setw(static_cast<int>(labelWidth)) << label;
 	firstLine << " : " << lines[0];
 	std::cout << firstLine.str() << std::endl;
 	const std::string continuation(indent.size() + labelWidth + 3, ' ');
@@ -1634,7 +1634,7 @@ static void printPathDetail(const std::string &label, const NuXFiles::Path &path
 static void printEntryReport(const SnapshotEntryResult &result) {
 	const std::string status = describeEntryStatus(result);
 	std::cout << "	Entry " << result.entryOrdinal << " (block "
-			  << result.blockIndex << ") - " << status << std::endl;
+			<< result.blockIndex << ") - " << status << std::endl;
 	printDetail("Snapshot ID", result.identifier);
 	if (result.skipped) {
 		printPathDetail("Draft path", result.oldPath);
@@ -1654,9 +1654,9 @@ static void printEntryReport(const SnapshotEntryResult &result) {
 	if (result.hasDiffStats) {
 		std::ostringstream stats;
 		stats << result.diffStats.differingPixels << " pixel"
-			  << (result.diffStats.differingPixels == 1 ? "" : "s")
-			  << " changed within a " << result.diffStats.width << 'x'
-			  << result.diffStats.height << " image.";
+				<< (result.diffStats.differingPixels == 1 ? "" : "s")
+				<< " changed within a " << result.diffStats.width << 'x'
+				<< result.diffStats.height << " image.";
 		printDetail("Diff stats", stats.str());
 		std::ostringstream maxDelta;
 		maxDelta << result.diffStats.maxAlphaDiff << '/'
@@ -1667,9 +1667,9 @@ static void printEntryReport(const SnapshotEntryResult &result) {
 		std::ostringstream meanDelta;
 		meanDelta.setf(std::ios::fixed);
 		meanDelta << std::setprecision(4) << result.diffStats.meanAlphaDiff << '/'
-				  << result.diffStats.meanRedDiff << '/'
-				  << result.diffStats.meanGreenDiff << '/'
-				  << result.diffStats.meanBlueDiff;
+				<< result.diffStats.meanRedDiff << '/'
+				<< result.diffStats.meanGreenDiff << '/'
+				<< result.diffStats.meanBlueDiff;
 		printDetail("Mean delta", meanDelta.str());
 	}
 }
@@ -1679,7 +1679,7 @@ static void printSummaryLine(const std::string &label, const std::string &value)
 	const std::string indent = "  ";
 	std::ostringstream line;
 	line << indent << std::left
-		 << std::setw(static_cast<int>(labelWidth)) << label;
+			<< std::setw(static_cast<int>(labelWidth)) << label;
 	line << " : " << value;
 	std::cout << line.str() << std::endl;
 }
@@ -1761,7 +1761,7 @@ static void logFileReport(const std::string &path, const SnapshotRunResult &run,
 			const std::string scenarioName =
 				(entry.scenarioName.empty() ? "(unnamed)" : entry.scenarioName);
 			std::cout << "FAIL: scenario \"" << scenarioName << "\" entry "
-					  << entry.entryOrdinal << " (block " << entry.blockIndex << ")";
+					<< entry.entryOrdinal << " (block " << entry.blockIndex << ")";
 			if (!entry.message.empty()) {
 				std::cout << ": " << entry.message;
 			}
@@ -1777,12 +1777,12 @@ static void logFileReport(const std::string &path, const SnapshotRunResult &run,
 		std::cout << "Summary" << std::endl;
 		std::ostringstream snapshotLine;
 		snapshotLine << run.totalEntries << " total (" << run.validatedEntries
-				 << " validated)";
+				<< " validated)";
 		printSummaryLine("Snapshots", snapshotLine.str());
 		printSummaryLine("Updated", Interpreter::toString(static_cast<int32_t>(run.updatedEntries)));
 		std::ostringstream failedLine;
 		failedLine << run.failedEntries << " snapshots (diff failures: "
-				 << run.diffFailures << ')';
+				<< run.diffFailures << ')';
 		printSummaryLine("Failed", failedLine.str());
 		std::cout << std::endl;
 	}
@@ -1808,7 +1808,7 @@ static void logTotalsSummary(const SnapshotTotals &totals) {
 	printSummaryLine("Processed files", processedLine.str());
 	std::ostringstream snapshotLine;
 	snapshotLine << totals.totalEntries << " total (" << totals.validatedEntries
-				 << " validated)";
+			<< " validated)";
 	printSummaryLine("Snapshots", snapshotLine.str());
 	printSummaryLine("Updated", Interpreter::toString(static_cast<int32_t>(totals.updatedEntries)));
 	std::ostringstream failedLine;
@@ -2023,9 +2023,9 @@ class SnapshotGolden {
 			NuXPixels::minValue(actualBounds.left, goldenBounds.left);
 		const int top = NuXPixels::minValue(actualBounds.top, goldenBounds.top);
 		const int right = NuXPixels::maxValue(actualBounds.calcRight(),
-											  goldenBounds.calcRight());
+				goldenBounds.calcRight());
 		const int bottom = NuXPixels::maxValue(actualBounds.calcBottom(),
-											   goldenBounds.calcBottom());
+				goldenBounds.calcBottom());
 		const int width = (right > left ? right - left : 0);
 		const int height = (bottom > top ? bottom - top : 0);
 
@@ -2069,10 +2069,10 @@ class SnapshotGolden {
 			for (int x = left; x < right; ++x) {
 				const bool actualContains =
 					(actualRow != 0 && x >= actualBounds.left &&
-					 x < actualBounds.calcRight());
+							x < actualBounds.calcRight());
 				const bool goldenContains =
 					(goldenRow != 0 && x >= goldenBounds.left &&
-					 x < goldenBounds.calcRight());
+							x < goldenBounds.calcRight());
 				if (actualContains != goldenContains) {
 					match = false;
 					++stats.differingPixels;
@@ -2246,12 +2246,12 @@ class SnapshotGolden {
 
 static void PNGAPI snapshotPNGError(png_structp png, png_const_charp message) {
 	throw std::runtime_error(std::string("Error reading PNG image: ") +
-							 message);
+			message);
 }
 
 static bool
 loadPngRaster(const std::string &path,
-			  NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &outRaster) {
+		NuXPixels::SelfContainedRaster<NuXPixels::ARGB32> &outRaster) {
 	FILE *file = std::fopen(path.c_str(), "rb");
 	if (file == 0) {
 		return false;
@@ -2261,7 +2261,7 @@ loadPngRaster(const std::string &path,
 	png_infop info = 0;
 	try {
 		png = png_create_read_struct(PNG_LIBPNG_VER_STRING, 0, snapshotPNGError,
-									 0);
+				0);
 		if (png == 0) {
 			throw std::runtime_error("could not initialize PNG reader");
 		}
@@ -2369,7 +2369,7 @@ static bool writeRasterToPng(
 
 	std::vector<png_bytep> rows(static_cast<size_t>(height));
 	std::vector<unsigned char> pixels(static_cast<size_t>(width) *
-									  static_cast<size_t>(height) * 4u);
+			static_cast<size_t>(height) * 4u);
 	for (int y = 0; y < height; ++y) {
 		const NuXPixels::ARGB32::Pixel *src = base + y * stride;
 		unsigned char *dest =
@@ -2396,7 +2396,7 @@ static bool writeRasterToPng(
 
 	try {
 		png = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0,
-									  snapshotPNGError, 0);
+				snapshotPNGError, 0);
 		if (png == 0) {
 			throw std::runtime_error("could not initialize PNG writer");
 		}
@@ -2408,12 +2408,12 @@ static bool writeRasterToPng(
 
 		png_init_io(png, file);
 		png_set_IHDR(png, info, static_cast<png_uint_32>(width),
-					 static_cast<png_uint_32>(height), 8,
-					 PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
-					 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+				static_cast<png_uint_32>(height), 8,
+				PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
+				PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 		png_set_sRGB_gAMA_and_cHRM(png, info, PNG_sRGB_INTENT_ABSOLUTE);
 		png_set_oFFs(png, info, static_cast<png_int_32>(bounds.left),
-					 static_cast<png_int_32>(bounds.top), PNG_OFFSET_PIXEL);
+				static_cast<png_int_32>(bounds.top), PNG_OFFSET_PIXEL);
 		png_set_rows(png, info, &rows[0]);
 		png_write_png(png, info, PNG_TRANSFORM_IDENTITY, 0);
 		png_destroy_write_struct(&png, &info);
@@ -2551,11 +2551,11 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 			SnapshotRoundState &roundState,
 			SnapshotProgress &snapshotProgress)
 			: IVG::IVGExecutor(canvas, budget),
-			  includeDirs(options.includeDirs), fontDirs(options.fontDirs),
-			  imageDirs(options.imageDirs), sourcePath(SnapshotPathBridge::toNative(sourcePath)),
-			  sourcePathObj(sourcePath), verbose(options.verbose),
-			  sharedResources(sharedResources), round(&roundState), progress(&snapshotProgress),
-			  sourceText(sourceText), scanOffset(0) {}
+			includeDirs(options.includeDirs), fontDirs(options.fontDirs),
+			imageDirs(options.imageDirs), sourcePath(SnapshotPathBridge::toNative(sourcePath)),
+			sourcePathObj(sourcePath), verbose(options.verbose),
+			sharedResources(sharedResources), round(&roundState), progress(&snapshotProgress),
+			sourceText(sourceText), scanOffset(0) {}
 
 	bool load(Interpreter &interpreter, const WideString &filename,
 			String &contents) {
@@ -2959,27 +2959,27 @@ class SnapshotPlaybackExecutor : public IVG::IVGExecutor {
 
 static void printUsage(const char *program) {
 	std::cout << "Usage: " << program << " [options] <ivg> [<ivg> ...]"
-			  << std::endl;
+			<< std::endl;
 	std::cout << "Options:" << std::endl;
 	std::cout << "\t--include-dir <path>\tAdd include search path."
-			  << std::endl;
+			<< std::endl;
 	std::cout << "\t--font-dir <path>\tAdd font search path." << std::endl;
 	std::cout << "\t--image-dir <path>\tAdd image search path." << std::endl;
 	std::cout << "\t--snapshot-dir <path>\tOverride snapshot directory."
-			  << std::endl;
+			<< std::endl;
 	std::cout << "\t--root-dir <path>\tRoot for snapshot name generation."
-			  << std::endl;
+			<< std::endl;
 	std::cout << "\t--recursive\t\tScan directories recursively for IVG files."
-			  << std::endl;
+			<< std::endl;
 	std::cout << "\t--force-update\t\tOverwrite goldens." << std::endl;
 	std::cout << "\t--threads <n>\t\tNumber of worker threads." << std::endl;
 	std::cout << "\t--list-only\t\tList collected snapshots without rendering."
-			  << std::endl;
+			<< std::endl;
 	std::cout << "\t--verbose\t\tPrint verbose diagnostics." << std::endl;
 	std::cout << "\t--exit-on-first-failure\tAbort after first failure."
-				  << std::endl;
+			<< std::endl;
 	std::cout << "\t--no-golden-audit\tDisable orphan golden PNG audit (only done when all inputs are directories)."
-				  << std::endl;
+			<< std::endl;
 	std::cout << "\t--help\t\t\tShow this message." << std::endl;
 }
 static bool parseUnsigned(const std::string &text, uint32_t &value) {
@@ -3003,7 +3003,7 @@ static bool parseUnsigned(const std::string &text, uint32_t &value) {
 }
 
 static bool parseCommandLine(int argc, char **argv,
-							 CommandLineOptions &options) {
+		CommandLineOptions &options) {
 	for (int i = 1; i < argc; ++i) {
 		const std::string arg(argv[i]);
 		if (arg == "--help") {
@@ -3095,7 +3095,7 @@ static bool parseCommandLine(int argc, char **argv,
 			uint32_t threads = 0;
 			if (!parseUnsigned(argv[i + 1], threads)) {
 				std::cerr << "invalid thread count: " << argv[i + 1]
-						  << std::endl;
+						<< std::endl;
 				return false;
 			}
 			options.threads = threads;
@@ -3574,7 +3574,7 @@ static int runIVGSnapshot(int argc, char **argv) {
 								std::vector<uint8_t> &processedRef,
 								std::atomic<bool> &stopRef)
 			: options(optionsRef), runs(runsRef), processed(processedRef),
-			  stop(stopRef) {}
+			stop(stopRef) {}
 
 		bool operator()(int index, int iterationCount, int threadIndex) const {
 			(void)iterationCount;

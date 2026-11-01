@@ -4,13 +4,13 @@ CD /D "%~dp0\..\tests"
 
 SET update=0
 IF /I "%~1"=="update" (
-    SET update=1
-    SHIFT
+	SET update=1
+	SHIFT
 )
 IF "%~1"=="" (
-    SET exe="..\output\InvalidIVGTest"
+	SET exe="..\output\InvalidIVGTest"
 ) ELSE (
-    SET exe="%~1"
+	SET exe="%~1"
 )
 
 IF %update%==1 (
