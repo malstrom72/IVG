@@ -21,7 +21,7 @@ mkdir -p "$output/ace"
 # Ship the bundled mode file which includes highlight rules and folding
 cp "$src/ace/ace.js" "$src/ace/ext-searchbox.js" "$src/ace/theme-twilight.js" "$src/ace/mode-ivg.js" "$output/ace"
 if command -v node >/dev/null 2>&1; then
- node ./testIVGFiddle.js "$output"
+	node ./testIVGFiddle.js "$output"
 else
- echo "Warning: Node.js not found, skipping ivgfiddle test" >&2
+	echo "Warning: Node.js not found, skipping ivgfiddle test" >&2
 fi
