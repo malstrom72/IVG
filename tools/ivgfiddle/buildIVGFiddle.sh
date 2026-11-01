@@ -18,7 +18,7 @@ cp "$src/ivgfiddle.html" "$src/ivgfiddle.js" "$src/setupModule.js" "$output"
 mkdir -p "$output/ace"
 cp "$src/ace/ace.js" "$src/ace/ext-searchbox.js" "$src/ace/mode-ivg.js" "$src/ace/theme-twilight.js" "$output/ace"
 if command -v node >/dev/null 2>&1; then
- node ./testIVGFiddle.js "$output"
+	node ./testIVGFiddle.js "$output"
 else
- echo "Warning: Node.js not found, skipping ivgfiddle test" >&2
+	echo "Warning: Node.js not found, skipping ivgfiddle test" >&2
 fi
