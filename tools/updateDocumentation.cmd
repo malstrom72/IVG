@@ -6,8 +6,8 @@ CALL .\BuildPikaCmd.cmd || (POPD & GOTO error)
 POPD
 where pandoc >NUL 2>&1
 IF ERRORLEVEL 1 (
-    ECHO pandoc not found. Install it first.
-    GOTO error
+	ECHO pandoc not found. Install it first.
+	GOTO error
 )
 
 ..\externals\PikaCmd\PikaCmd.exe updateDocumentationImages.pika "..\docs\IVG Documentation.md" || GOTO error

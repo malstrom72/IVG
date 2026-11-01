@@ -8,9 +8,9 @@ IF /I "%~1"=="update" (
 	SHIFT
 )
 IF "%~1"=="" (
-    SET exe="../output/IVG2PNG"
+	SET exe="../output/IVG2PNG"
 ) ELSE (
-    SET exe="%~1"
+	SET exe="%~1"
 )
 SET fonts=..\fonts
 
