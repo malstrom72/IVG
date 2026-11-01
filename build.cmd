@@ -9,9 +9,9 @@ CALL .\tools\buildAndTest.cmd release x64 simd || GOTO error
 
 WHERE emcc >NUL 2>NUL
 IF ERRORLEVEL 1 (
-    ECHO Warning: skipping ivgfiddle build; requires Emscripten
+	ECHO Warning: skipping ivgfiddle build; requires Emscripten
 ) ELSE (
-    CALL .\tools\ivgfiddle\buildIVGFiddle.cmd || GOTO error
+	CALL .\tools\ivgfiddle\buildIVGFiddle.cmd || GOTO error
 )
 ECHO.
 ECHO === ALL BUILDS AND TESTS COMPLETED SUCCESSFULLY ===

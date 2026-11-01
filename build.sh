@@ -7,8 +7,8 @@ cd "$(dirname "$0")"
 
 sys="$(uname -s)"
 if [ "$sys" = "Darwin" ] || [ "$sys" = "Linux" ]; then
-    ./tools/buildAndTest.sh beta native simd
-    ./tools/buildAndTest.sh release native simd
+	./tools/buildAndTest.sh beta native simd
+	./tools/buildAndTest.sh release native simd
 fi
 
 # Emscripten compiles the library as C++03 with clang and libc++, and Apple's toolchain is the same pair, so on
@@ -22,9 +22,9 @@ if [ "$sys" = "Darwin" ]; then
 fi
 
 if command -v emcc >/dev/null 2>&1; then
-    bash ./tools/ivgfiddle/buildIVGFiddle.sh
+	bash ./tools/ivgfiddle/buildIVGFiddle.sh
 else
-    echo "Warning: skipping ivgfiddle build; requires Emscripten" >&2
+	echo "Warning: skipping ivgfiddle build; requires Emscripten" >&2
 fi
 
 echo
