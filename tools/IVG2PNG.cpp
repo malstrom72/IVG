@@ -141,7 +141,7 @@ class IVGExecutorWithExternalFiles : public IVGExecutor {
 				std::wcerr << "parsing external font " << fontName << std::endl;
 				FontParser fontParser(this);
 				STLMapVariables vars;
-			    FormatInfo formatInfo;
+				FormatInfo formatInfo;
 				// A font file counts toward the render that loads it.
 				Interpreter impd(fontParser, vars, formatInfo, accessBudget());
 				impd.run(fontCode);
