@@ -253,6 +253,8 @@ x = -6.3; TRACE {$x%} == -0.063; TRACE {-$x%} == 0.063
 
 TRACE {1e-4294967298} == 0; TRACE {2.5e-3} == 0.0025
 
+TRACE {9.99999999999999} == 10; TRACE {-999.999999999999} == -1000 // every digit rounds up
+
 REPEAT -2147483648 [ TRACE BAD!! ]; TRACE int32 minimum accepted
 
 TRACE {  abs  (  -0.5  )   " " acos  (  0.5  )   " " asin  (  0.5  )   " " atan  (  0.5  )   " " ceil  (  0.1  )   " " ceil  (  -0.1  )   " " cos  (  0.5  )   " " cosh  (  0.5  )   " " exp  (  0.5  )  
