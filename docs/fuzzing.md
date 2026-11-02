@@ -1,6 +1,6 @@
 # Fuzzing
 
-Version: 2026-10-08
+Version: 2026-11-02
 
 How these projects fuzz with libFuzzer. Every copy of this file is identical apart from the "Local additions" section
 at the end, which holds a project's targets, scripts and exceptions.
@@ -116,6 +116,13 @@ Turn off CRT dialogs in `LLVMFuzzerInitialize`, or a failed assert hangs the wor
 - The normal build replays every past crash input, always. It also replays the corpus and the seeds as long as that
   takes no more than about 30 seconds per build configuration. A corpus over that budget is replayed by a separate
   script, run in CI and before every release or freeze, so the normal build stays fast and nothing ships unreplayed.
+- AddressSanitizer and UndefinedBehaviorSanitizer do not see reads of uninitialized memory, which change a result only
+  when the stray bytes happen to matter. CI therefore also replays the corpora through the plain replay build under
+  Valgrind on Linux (`valgrind -q --error-exitcode=1`), at about 25 times the normal replay time. MemorySanitizer
+  would be faster, but it needs every library, the C++ runtime included, built with it.
+- Where CI minutes cost money, run the fuzz builds and the replays in a workflow of their own, triggered only by
+  changes to what they compile or read. List the sources to skip rather than those to include, so that a new file
+  triggers it.
 - Commit the input of each fixed crash as a plain file in `tests/fuzz/<target>Crashes/`, outside the archives:
   `-merge=1` drops any input whose features others already cover, fixed crashes included. Mark these files `binary`
   in `.gitattributes`, so line-ending conversion cannot rewrite them.
@@ -156,13 +163,16 @@ files or PNG output; text is only reached through `define font` in the input.
   as `output/IVGFuzzReplay` (from `tools/FuzzMain.cpp`, with an 8 MB stack on Windows like the fuzz build) and replay
   every one of them in each build. The merged corpus, `tests/fuzz/IVGFuzzCorpus.tar.gz`, is too slow for every
   build, so it is the one exception to replaying the corpus in the normal build: `tools/replayFuzzCorpus.sh` and
-  `.cmd` unpack it into an emptied `output/fuzzCorpusReplay` and replay it through the last `IVGFuzzReplay` built.
-  CI runs them after the build, and they are run by hand before a freeze. The archive was merged with
-  `-max_len=8192`, and without the inputs slowest to replay.
+  `.cmd` unpack it into an emptied `output/fuzzCorpusReplay` and replay it, with the crash inputs, through the last
+  `IVGFuzzReplay` built. CI runs them after the build, and they are run by hand before a freeze. The archive was
+  merged with `-max_len=8192`, and without the inputs slowest to replay.
 - **Sanitized replay.** The plain replays only catch crashes and failed asserts. `tools/replayFuzzSanitized.sh` builds
   the same replay with AddressSanitizer and UndefinedBehaviorSanitizer as `output/IVGFuzzReplaySanitized` and replays
   the crash inputs and the corpus through it, so memory errors and undefined behaviour in them show up without a fuzz
   run. CI runs it on Linux. `tools\replayFuzzSanitized.cmd` does the same with MSVC's AddressSanitizer alone.
+- **Valgrind.** `bash tools/replayFuzzCorpus.sh valgrind` runs that replay under Valgrind, for reads of uninitialized
+  memory. On Linux CI runs it in place of the plain corpus replay, and also runs `output/IMPDTest` over
+  `tests/goodTests.impd` and `badTests.impd` under Valgrind.
 - **IMPD target.** `IMPDFuzz` (`tools/IMPDFuzz.cpp`) runs the IMPD interpreter alone, with an executor that accepts
   every instruction and expands every argument, so inputs exercise parsing, control flow, variables and expressions
   without stopping at an unknown instruction. `tools/buildIMPDFuzz.sh` and `.cmd` build it; seed it with
