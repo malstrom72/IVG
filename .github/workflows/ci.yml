@@ -55,22 +55,25 @@ jobs:
     - name: Check that the committed IVGFiddle build is current
       shell: bash
       run: git diff --exit-code --stat -- tools/ivgfiddle/output
-    - name: Replay the fuzz corpus
+    # Reads of uninitialized memory only change results when the stray bytes happen to matter, so the tests and the
+    # sanitizers can pass by luck. Valgrind reports every such read, so Linux replays the fuzz inputs under it.
+    - name: Install Valgrind
       shell: bash
-      run: bash tools/replayFuzzCorpus.sh
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq valgrind
+    - name: Replay the fuzz corpus and crash inputs under Valgrind
+      shell: bash
+      run: bash tools/replayFuzzCorpus.sh valgrind
     - name: Replay the fuzz inputs with sanitizers
       shell: bash
       run: bash tools/replayFuzzSanitized.sh
     - name: Compare the SIMD and scalar rasterizers on the fuzz inputs
       shell: bash
       run: bash tools/replaySIMDDiff.sh
-    # Reads of uninitialized memory only change results when the stray bytes happen to matter, so the tests alone can
-    # pass by luck. Valgrind reports every such read.
     - name: Run the IMPD tests under Valgrind
       shell: bash
       run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq valgrind
         cd tests
         valgrind -q --error-exitcode=1 ../output/IMPDTest <goodTests.impd >/dev/null
         valgrind -q --error-exitcode=1 ../output/IMPDTest <badTests.impd >/dev/null
