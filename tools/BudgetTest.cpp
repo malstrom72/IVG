@@ -53,10 +53,11 @@ struct QuietExecutor : public IVGExecutor {
 	virtual void trace(Interpreter& interpreter, const WideString& s) { (void)interpreter; (void)s; }
 };
 
-// Renders source, charging `budget`, and returns the error, or "" with the pixels.
-static std::string render(const std::string& source, IVGBudget& budget, std::vector<ARGB32::Pixel>& pixels) {
+// Renders source, charging `budget`, and returns the error, or "" with the pixels. `rescale` is passed to the canvas.
+static std::string render(const std::string& source, IVGBudget& budget, std::vector<ARGB32::Pixel>& pixels
+		, double rescale = 1.0) {
 	pixels.clear();
-	SelfContainedARGB32Canvas canvas;
+	SelfContainedARGB32Canvas canvas(rescale);
 	try {
 		{
 			STLMapVariables topVars;
@@ -197,6 +198,21 @@ int main() {
 	// Pattern bounds are range-checked once scaled, in double, so a huge left cannot wrap into range.
 	expectError(header + "bounds 0,0,100,100\nscale 3\nfill pattern:[bounds 1431655766,0,10,10; wipe red]\n"
 			"rect 0,0,10,10", IVGBudget(), "rescaled bounds left out of range");
+
+	// A host rescale that overflows the bounds to infinity fails instead of formatting infinity in the error.
+	{
+		const std::string source = header + "bounds 0,0,2,2";
+		IVGBudget budget;
+		std::vector<ARGB32::Pixel> pixels;
+		if (render(source, budget, pixels, 1e308) != "rescaled bounds out of range") {
+			fail("bounds rescaled to infinity do not fail", source);
+		}
+	}
+
+	// A text caret that overflows to infinity fails instead of being formatted for caret:x.
+	expectError(header + "bounds 0,0,10,10\ndefine font huge [ metrics upm:1e-300 ascent:0 descent:0 linegap:0; "
+			"glyph A 1e300 \"\" ]\nfont huge size:1 color:none outline:none\ntext at:0,0 caret:x A", IVGBudget()
+			, "text caret out of range");
 
 	// Negative bounds fail without refunding pixels first.
 	{
