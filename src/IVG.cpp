@@ -128,6 +128,9 @@ static void checkPathSize(Path::size_type size, Path::size_type maxSize) {
 	Applies the `checkBounds` limits while the rectangle is still `double`, before the conversion to `int`.
 */
 void checkBoundsBeforeScaling(double left, double top, double width, double height) {
+	if (!isfinite(left) || !isfinite(top) || !isfinite(width) || !isfinite(height)) {
+		Interpreter::throwRunTimeError("Rescaled \"bounds\" out of range.");
+	}
 	if (left < -32768.0 || left > 32767.0) {
 		Interpreter::throwRunTimeError(String("Rescaled \"bounds\" left \"")
 				+ Interpreter::toString(left) + "\" out of range [-32768..32767].");
@@ -2358,6 +2361,9 @@ bool IVGExecutor::execute(Interpreter& impd, const String& instruction, const St
 			currentContext->fill(textPath, state.textStyle.fill, false, pathBounds);
 			state.textCaret.x += (anchor == RIGHT_ANCHOR ? 0.0 : advance);
 			if (caretVariable != 0) {
+				if (!isfinite(state.textCaret.x)) {
+					impd.throwRunTimeError("Text caret out of range.");
+				}
 				impd.set(*caretVariable, impd.toString(state.textCaret.x));
 			}
 			break;
