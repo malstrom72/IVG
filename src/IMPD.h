@@ -64,21 +64,10 @@ const int UNARY_MATH_FUNCTION_COUNT = MATH_FUNCTION_COUNT - BINARY_MATH_FUNCTION
 const int BUILT_IN_INSTRUCTION_COUNT = 12;
 const int ESCAPE_CODE_COUNT = 7;
 
-/*
-	Conversions between `UniString` (UTF-32) and `WideString` (UTF-16 where `wchar_t` has 16 bits, UTF-32 otherwise).
-	The input must be valid Unicode: scalar values only (no surrogate code points, nothing above U+10FFFF), and in
-	UTF-16 every surrogate paired. Converting between UTF-16 and UTF-32 asserts that, and in release builds turns each
-	invalid code point or unpaired surrogate into U+FFFD. Where both are UTF-32 the string is copied unchanged.
-*/
+// Input must be valid Unicode (asserted); unpaired surrogates become U+FFFD in release builds.
 WideString convertUniToWideString(const UniString& s);
 UniString convertWideToUniString(const WideString& s);
-
-/*
-	Replaces every unpaired surrogate (UTF-16) or every surrogate code point and value above U+10FFFF (UTF-32) with
-	U+FFFD, and copies the rest unchanged. Strings from the OS, such as Windows file names, can hold unpaired
-	surrogates, so they go through this before they are converted.
-*/
-WideString repairWideString(const WideString& s);
+WideString repairWideString(const WideString& s);																		// Replaces unpaired surrogates (and values above U+10FFFF) with U+FFFD. For strings from the OS.
 
 /*
 	Helper representing a pair of iterators into a string.
@@ -92,11 +81,6 @@ struct StringRange {
 	StringIt e;
 };
 
-/*
-	Conversions to and from UTF-8 (`String`). The `convertUTF8To...` functions check their input and throw a
-	run-time error for malformed UTF-8. The others expect valid Unicode, as the conversions above do: that is
-	asserted, and in release builds each invalid code point or unpaired surrogate becomes U+FFFD.
-*/
 UniString convertUTF8ToUniString(const StringRange& r);
 WideString convertUTF8ToWideString(const StringRange& r);
 String convertUniToUTF8String(const UniString& s);

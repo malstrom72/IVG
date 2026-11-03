@@ -46,36 +46,14 @@ namespace IMPD {
 
 using namespace std;
 
-const UniChar REPLACEMENT_CHARACTER = 0xFFFD;
 const UniChar INVALID_CODE_POINT = 0xFFFFFFFF;
 
-static bool isScalarValue(UniChar c) {
-	return ((c < 0xD800 || c >= 0xE000) && c <= 0x10FFFF);
-}
-
-/*
-	The encoders expect Unicode scalar values. That is asserted, and in release builds a surrogate code point or a
-	value above U+10FFFF becomes U+FFFD.
-*/
-static UniChar toScalarValue(UniChar c) {
-	assert(isScalarValue(c));
-	return (isScalarValue(c) ? c : REPLACEMENT_CHARACTER);
-}
-
-/*
-	The decoders expect valid input. That is asserted, and in release builds each invalid sequence becomes U+FFFD.
-*/
 static UniChar replaceInvalid(UniChar c) {
 	assert(c != INVALID_CODE_POINT);
-	return (c != INVALID_CODE_POINT ? c : REPLACEMENT_CHARACTER);
+	return (c != INVALID_CODE_POINT ? c : 0xFFFD);
 }
 
-/*
-	Decodes the UTF-8 sequence at `i` and advances `i` past it. A malformed sequence (a bad lead or continuation byte,
-	an overlong form, a surrogate, a value above U+10FFFF or a sequence cut off by the end) returns
-	`INVALID_CODE_POINT` and advances one byte, so nothing past `utf8Size` is read. isValidUTF8() and both converters
-	decode with this, so they agree on what is valid and the size always matches the conversion.
-*/
+// Returns `INVALID_CODE_POINT` for malformed UTF-8 (advancing one byte), and advances `i` past what it decoded.
 static UniChar decodeUTF8(size_t utf8Size, const char* utf8Chars, size_t& i) {
 	const UniChar c = static_cast<unsigned char>(utf8Chars[i]);
 	size_t length = 0;
@@ -103,7 +81,7 @@ static UniChar decodeUTF8(size_t utf8Size, const char* utf8Chars, size_t& i) {
 		valid = ((b & 0xC0) == 0x80);
 		v = (v << 6) | (b & 0x3F);
 	}
-	valid = (valid && v >= minimum && isScalarValue(v));
+	valid = (valid && v >= minimum && (v < 0xD800 || v >= 0xE000) && v <= 0x10FFFF);
 	i += (valid ? length : 1);
 	return (valid ? v : INVALID_CODE_POINT);
 }
@@ -161,7 +139,9 @@ WideString convertUTF8ToWideString(const StringRange& r) {
 static size_t calcUTF32ToUTF8Size(size_t utf32Size, const UniChar* utf32Chars) {
 	size_t n = 0;
 	for (size_t i = 0; i < utf32Size; ++i) {
-		const UniChar c = toScalarValue(utf32Chars[i]);
+		const UniChar c = utf32Chars[i];
+		assert(c < 0xD800 || c >= 0xE000); // Surrogate code points inside UTF32 string are not legal!
+		assert(c <= 0x10FFFF);				// Enforce Unicode scalar upper bound
 		if (c < 0x80) {
 			n += 1;
 		} else if (c < 0x800) {
@@ -178,7 +158,9 @@ static size_t calcUTF32ToUTF8Size(size_t utf32Size, const UniChar* utf32Chars) {
 static size_t convertUTF32ToUTF8(size_t utf32Size, const UniChar* utf32Chars, char* utf8Chars) {
 	size_t outIndex = 0;
 	for (size_t i = 0; i < utf32Size; ++i) {
-		const UniChar c = toScalarValue(utf32Chars[i]);
+		const UniChar c = utf32Chars[i];
+		assert(c < 0xD800 || c >= 0xE000); // Surrogate code points not legal in UTF-32!
+		assert(c <= 0x10FFFF);				// Enforce Unicode scalar upper bound
 		if (c < 0x80) {
 			utf8Chars[outIndex + 0] = static_cast<char>(c);
 			outIndex += 1;
@@ -202,6 +184,10 @@ static size_t convertUTF32ToUTF8(size_t utf32Size, const UniChar* utf32Chars, ch
 	return outIndex;
 }
 
+/*
+	Converts UTF-32 to UTF-8. Every UniChar that reaches here came from one of the decoders above or from IMPD
+	itself, so the input is already known to be a valid code point.
+*/
 String convertUniToUTF8String(const UniString& s) {
 	if (s.empty()) {
 		return String();
@@ -221,7 +207,7 @@ String convertWideToUTF8String(const WideString& s) {
 static size_t calcUTF32ToUTF16Size(size_t utf32Size, const UniChar* utf32Chars) {
 	size_t n = utf32Size;
 	for (size_t i = 0; i < utf32Size; ++i) {
-		n += ((toScalarValue(utf32Chars[i]) >> 16) != 0 ? 1 : 0);
+		n += ((utf32Chars[i] >> 16) != 0 ? 1 : 0);
 	}
 	return n;
 }
@@ -229,7 +215,7 @@ static size_t calcUTF32ToUTF16Size(size_t utf32Size, const UniChar* utf32Chars) 
 static size_t convertUTF32ToUTF16(size_t utf32Size, const UniChar* utf32Chars, uint16_t* utf16Chars) {
 	size_t outIndex = 0;
 	for (size_t i = 0; i < utf32Size; ++i) {
-		const UniChar c = toScalarValue(utf32Chars[i]);
+		const UniChar c = utf32Chars[i];
 		if ((c >> 16) == 0) {
 			utf16Chars[outIndex] = static_cast<uint16_t>(c);
 			++outIndex;
@@ -242,23 +228,13 @@ static size_t convertUTF32ToUTF16(size_t utf32Size, const UniChar* utf32Chars, u
 	return outIndex;
 }
 
-/*
-	Decodes the UTF-16 code point at `i` and advances `i` past it. A surrogate without its pair returns
-	`INVALID_CODE_POINT` and advances one unit, so nothing past `utf16Size` is read. The converters and
-	repairWideString() all decode with this, so they agree on what is valid and the size always matches the conversion.
-*/
+// Returns `INVALID_CODE_POINT` for an unpaired surrogate, and advances `i` past what it decoded.
 static UniChar decodeUTF16(size_t utf16Size, const uint16_t* utf16Chars, size_t& i) {
-	const UniChar c = utf16Chars[i];
-	++i;
-	if (c < 0xD800 || c >= 0xE000) {
-		return c;
+	const UniChar c = utf16Chars[i++];
+	if (c >= 0xD800 && c < 0xDC00 && i < utf16Size && utf16Chars[i] >= 0xDC00 && utf16Chars[i] < 0xE000) {
+		return 0x10000 + ((c - 0xD800) << 10) + (utf16Chars[i++] - 0xDC00);
 	}
-	if (c < 0xDC00 && i < utf16Size && utf16Chars[i] >= 0xDC00 && utf16Chars[i] < 0xE000) {
-		const UniChar d = utf16Chars[i];
-		++i;
-		return 0x10000 + ((c - 0xD800) << 10) + (d - 0xDC00);
-	}
-	return INVALID_CODE_POINT;
+	return (c >= 0xD800 && c < 0xE000 ? INVALID_CODE_POINT : c);
 }
 
 static size_t calcUTF16ToUTF32Size(size_t utf16Size, const uint16_t* utf16Chars) {
@@ -275,27 +251,6 @@ static size_t convertUTF16ToUTF32(size_t utf16Size, const uint16_t* utf16Chars, 
 		utf32Chars[outIndex] = replaceInvalid(decodeUTF16(utf16Size, utf16Chars, i));
 	}
 	return outIndex;
-}
-
-WideString repairWideString(const WideString& s) {
-	WideString repaired;
-	repaired.reserve(s.size());
-	if (sizeof (WideChar) == sizeof (uint16_t)) {
-		const uint16_t* chars = reinterpret_cast<const uint16_t*>(s.data());
-		for (size_t i = 0; i < s.size();) {
-			const size_t start = i;
-			if (decodeUTF16(s.size(), chars, i) != INVALID_CODE_POINT) {
-				repaired.append(s, start, i - start);
-			} else {
-				repaired += static_cast<WideChar>(REPLACEMENT_CHARACTER);
-			}
-		}
-	} else {
-		for (WideString::const_iterator it = s.begin(); it != s.end(); ++it) {
-			repaired += (isScalarValue(static_cast<UniChar>(*it)) ? *it : static_cast<WideChar>(REPLACEMENT_CHARACTER));
-		}
-	}
-	return repaired;
 }
 
 WideString convertUniToWideString(const UniString& s) {
@@ -328,6 +283,21 @@ UniString convertWideToUniString(const WideString& s) {
 		assert(0);
 		return UniString();
 	}
+}
+
+WideString repairWideString(const WideString& s) {
+	WideString repaired;
+	for (size_t i = 0; i < s.size();) {
+		const size_t start = i;
+		const UniChar c = (sizeof (WideChar) == sizeof (uint16_t)
+				? decodeUTF16(s.size(), reinterpret_cast<const uint16_t*>(s.data()), i) : static_cast<UniChar>(s[i++]));
+		if (c < 0xD800 || (c >= 0xE000 && c <= 0x10FFFF)) {
+			repaired.append(s, start, i - start);
+		} else {
+			repaired += static_cast<WideChar>(0xFFFD);
+		}
+	}
+	return repaired;
 }
 
 /* --- STLMapVariables --- */

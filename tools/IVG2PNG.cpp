@@ -472,7 +472,7 @@ static int runIVG2PNG(int argc, const char* argv[]) {
 /*
 	Windows hands main() its arguments in the active ANSI code page, so a path with any non-ASCII character in it
 	arrives mangled. wmain() gets the same arguments as UTF-16 from the runtime, which re-encodes losslessly to the
-	UTF-8 the rest of the tool expects. Only an unpaired surrogate, which a Windows file name can hold, becomes U+FFFD.
+	UTF-8 the rest of the tool expects.
 */
 int wmain(int argc, wchar_t* argv[]) {
 	std::vector<std::string> utf8Args(static_cast<size_t>(argc));

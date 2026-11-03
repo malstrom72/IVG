@@ -1011,7 +1011,6 @@ static std::wstring pathStringToWide(const std::string &path) {
 	return IMPD::convertUTF8ToWideString(path);
 }
 
-// Paths from the file system can hold unpaired surrogates, which become U+FFFD.
 static std::string pathStringFromWide(const std::wstring &path) {
 	return IMPD::convertWideToUTF8String(IMPD::repairWideString(path));
 }
@@ -3723,7 +3722,7 @@ static int runIVGSnapshot(int argc, char **argv) {
 /*
 	Windows hands main() its arguments in the active code page, which cannot represent most characters and differs
 	between machines. wmain() gets them as UTF-16 instead, and they are re-encoded here to the UTF-8 the rest of the
-	tool works in. An unpaired surrogate, which a Windows file name can hold, becomes U+FFFD.
+	tool works in.
 */
 int wmain(int argc, wchar_t **argv) {
 	std::vector<std::string> utf8Args(static_cast<size_t>(argc));

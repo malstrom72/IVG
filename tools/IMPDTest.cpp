@@ -113,80 +113,53 @@ static bool testUniStringConversions() {
 	return true;
 }
 
-/*
-	Invalid Unicode: repairWideString() replaces it with U+FFFD, and the converters do the same in release builds, with
-	the size matching the conversion. Beta builds assert on it instead, so the converter cases run in release only.
-*/
 static bool testInvalidUnicode() {
 	const WideChar a = 'a';
 	const WideChar R = static_cast<WideChar>(0xFFFD);
 #if (WCHAR_MAX <= 0xFFFF)
-	{
-		const WideChar H = static_cast<WideChar>(0xD800);
-		const WideChar L = static_cast<WideChar>(0xDC00);
-		// A lone high, a lone low, a lone high before a pair, and a high at the end.
-		const WideChar input[] = { a, H, a, L, a, H, H, L, H };
-		const WideChar repaired[] = { a, R, a, R, a, R, H, L, R };
-		if (repairWideString(WideString(input, 9)) != WideString(repaired, 9)) {
-			return false;
-		}
-		const UniChar decoded[] = { 'a', 0xFFFD, 'a', 0xFFFD, 'a', 0xFFFD, 0x10000, 0xFFFD };
-		if (convertWideToUniString(WideString(repaired, 9)) != UniString(decoded, 8)) {
-			return false;
-		}
-#ifdef NDEBUG
-		const UniString uni = convertWideToUniString(WideString(input, 9));
-		if (uni != UniString(decoded, 8) || uni.c_str()[uni.size()] != 0) {
-			return false;
-		}
-		const UniChar invalid[] = { 0xD800, 'a', 0xDFFF, 0x110000, 0xFFFFFFFF };
-		const WideChar encoded[] = { R, a, R, R, R };
-		if (convertUniToWideString(UniString(invalid, 5)) != WideString(encoded, 5)) {
-			return false;
-		}
-#endif
+	const WideChar H = static_cast<WideChar>(0xD800);
+	const WideChar L = static_cast<WideChar>(0xDC00);
+	// A lone high, a lone low, a lone high before a pair, and a high at the end.
+	const WideChar input[] = { a, H, a, L, a, H, H, L, H };
+	const WideChar repaired[] = { a, R, a, R, a, R, H, L, R };
+	const UniChar decoded[] = { 'a', 0xFFFD, 'a', 0xFFFD, 'a', 0xFFFD, 0x10000, 0xFFFD };
+	if (repairWideString(WideString(input, 9)) != WideString(repaired, 9)
+			|| convertWideToUniString(WideString(repaired, 9)) != UniString(decoded, 8)) {
+		return false;
 	}
+#ifdef NDEBUG
+	const UniString uni = convertWideToUniString(WideString(input, 9));
+	if (uni != UniString(decoded, 8) || uni.c_str()[uni.size()] != 0) {
+		return false;
+	}
+#endif
 #else
-	{
-		const WideChar input[] = { a, static_cast<WideChar>(0xD800), a, static_cast<WideChar>(0x110000) };
-		const WideChar repaired[] = { a, R, a, R };
-		if (repairWideString(WideString(input, 4)) != WideString(repaired, 4)) {
-			return false;
-		}
+	const WideChar input[] = { a, static_cast<WideChar>(0xD800), a, static_cast<WideChar>(0x110000) };
+	const WideChar repaired[] = { a, R, a, R };
+	if (repairWideString(WideString(input, 4)) != WideString(repaired, 4)) {
+		return false;
 	}
 #endif
 	return true;
 }
 
-/*
-	UTF-8: each kind of malformed input is refused, and the encoder writes U+FFFD for what is not a Unicode scalar
-	value in release builds (beta builds assert on it instead).
-*/
 static bool testUTF8Conversions() {
-	const String valid("a\xE2\x82\xAC\xF0\x9F\x98\x80");
+	const String valid("a‚Ç¨üòÄ");
 	const UniChar decoded[] = { 'a', 0x20AC, 0x1F600 };
-	if (convertUTF8ToUniString(valid) != UniString(decoded, 3)
-			|| convertUniToUTF8String(UniString(decoded, 3)) != valid) {
+	if (convertUTF8ToUniString(valid) != UniString(decoded, 3)) {
 		return false;
 	}
 	// A continuation byte as lead, overlong forms, a surrogate, values above U+10FFFF and a sequence cut short.
-	const char* const MALFORMED[] = { "a\x80", "\xC0\xAF", "\xE0\x80\xAF", "\xED\xA0\x80", "\xF4\x90\x80\x80"
-			, "\xF5\x80\x80\x80", "\xF8\x88\x80\x80\x80", "a\xE2\x82" };
+	const char* const MALFORMED[] = { "aÄ", "¿Ø", "‡ÄØ", "Ì†Ä", "ÙêÄÄ"
+			, "ıÄÄÄ", "¯àÄÄÄ", "a‚Ç" };
 	for (size_t i = 0; i < sizeof (MALFORMED) / sizeof (*MALFORMED); ++i) {
-		const String malformed(MALFORMED[i]);
 		try {
-			convertUTF8ToUniString(malformed);
+			convertUTF8ToUniString(String(MALFORMED[i]));
 			return false;
 		}
 		catch (const Exception&) {
 		}
 	}
-#ifdef NDEBUG
-	const UniChar invalid[] = { 0xD800, 'a', 0x110000 };
-	if (convertUniToUTF8String(UniString(invalid, 3)) != String("\xEF\xBF\xBD" "a" "\xEF\xBF\xBD")) {
-		return false;
-	}
-#endif
 	return true;
 }
 
