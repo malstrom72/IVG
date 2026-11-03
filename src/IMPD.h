@@ -221,7 +221,7 @@ class Interpreter {
 
 	public:		static String toString(bool b);																// Returns "yes" or "no".
 	public:		static String toString(int32_t i, int radix = 10, int minLength = 1);						// Converts integer to string with choosable `radix` (from 2 to 16). `minLength` should be between 0 and 8 * sizeof (int).
-	public:		static String toString(double d, int precision = NUMBER_PRECISION_DIGITS);					// Converts double to string in scientific e notation, e.g. -12.34e-3.
+	public:		static String toString(double d, int precision = NUMBER_PRECISION_DIGITS);					// Converts double to string in scientific e notation, e.g. -12.34e-3. `d` must be finite.
 
 	public:		static bool toBool(const String& s);														// Tries to convert string (either "yes" or "no") to boolean. Throws a run-time error if the string isn't "yes" or "no".
 	public:		static int toInt(const StringRange& r);														// Tries to convert a string range to signed integer. Throws a run-time error if the string range could not be fully converted. Notice that a StringRange can be implicitly constructed from String, so you can pass a String as the argument to this function as well. See also parseInt().

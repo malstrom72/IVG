@@ -1,7 +1,10 @@
 Testing aagamma_out_of_range: expecting ""aa-gamma" value "200" out of range [0.0001..99.9999]." ... PASS
+Testing arc_aspect_infinity: expecting "Ellipse aspect ratio out of range (0..1000000)." ... PASS
 Testing bounds_width_out_of_range: expecting ""bounds" width "0" out of range [1..32767]." ... PASS
+Testing caret_infinity: expecting "Text caret out of range." ... PASS
 Testing clip_out_of_range: expecting "Clip value "1e+300" out of range [-1000000..1000000]." ... PASS
 Testing context_missing_bounds: expecting "Too few list elements (got 1, expected at least 4)." ... PASS
+Testing cursor_infinity: expecting "Path position out of range." ... PASS
 Testing cursor_no_args: expecting "Missing argument(s)." ... PASS
 Testing define_unknown_type: expecting "Invalid "define" instruction type "foo"." ... PASS
 Testing drawing_without_bounds: expecting "Undeclared "bounds" definition." ... PASS
@@ -21,6 +24,7 @@ Testing gradient_stop_position: expecting "Invalid gradient stop position "2"." 
 Testing gradient_stops_odd_count: expecting "Invalid gradient stop list "0,#000,#fff" (odd number of elements)." ... PASS
 Testing hex_color_trailing_garbage: expecting "Invalid color value "FF0000zzzz"." ... PASS
 Testing image_resolution_too_high: expecting ""resolution" value "1e+300" out of range [0.0001..32767]." ... PASS
+Testing image_scale_infinity: expecting "Image scale out of range." ... PASS
 Testing invalid_arc_large: expecting "Invalid boolean value "maybe"; expected "yes" or "no"." ... PASS
 Testing invalid_arc_sweep: expecting "Invalid "arc-to" turn "fast"." ... PASS
 Testing invalid_bezier_arguments: expecting "The "bezier-to" instruction requires 4 or 6 numbers." ... PASS
