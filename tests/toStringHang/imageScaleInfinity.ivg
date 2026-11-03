@@ -1,0 +1,9 @@
+format IVG-2 requires:IMPD-1
+bounds 0,0,10,10
+// The image scale overflows to infinity, and the "Image scale" error message hangs release builds.
+define image dot [
+	bounds 0,0,1,1
+	wipe white
+]
+scale 1e200
+image 0,0 dot

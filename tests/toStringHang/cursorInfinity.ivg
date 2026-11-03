@@ -1,0 +1,4 @@
+format IVG-3 requires:IMPD-1
+bounds 0,0,10,10
+// The path position overflows to infinity, and formatting it for cursor hangs release builds.
+PATH [ move-to 0,0; line-angle 0,1e308,0,1e308; cursor x:x ]

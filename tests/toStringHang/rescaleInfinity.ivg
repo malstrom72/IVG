@@ -1,0 +1,4 @@
+format IVG-2 requires:IMPD-1
+bounds 0,0,2,2
+// The rescaled bounds overflow to infinity, and the "Rescaled bounds" error message hangs release builds. Run as:
+// IVG2PNG --scale 1e308 rescaleInfinity.ivg out.png

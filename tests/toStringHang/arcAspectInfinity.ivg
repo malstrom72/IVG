@@ -1,0 +1,4 @@
+format IVG-3 requires:IMPD-1
+bounds 0,0,10,10
+// The arc aspect ratio overflows to infinity, and the "Ellipse aspect ratio" error message hangs release builds.
+PATH [ move-to 0,0; arc-to 10,10,1e308,1e-7 ]
