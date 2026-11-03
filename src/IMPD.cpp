@@ -265,10 +265,26 @@ String convertWideToUTF8String(const WideString& s) {
 	return convertUniToUTF8String(convertWideToUniString(s));
 }
 
+const UniChar REPLACEMENT_CHARACTER = 0xFFFD;
+const UniChar INVALID_CODE_POINT = 0xFFFFFFFF;
+
+static bool isScalarValue(UniChar c) {
+	return ((c < 0xD800 || c >= 0xE000) && c <= 0x10FFFF);
+}
+
+/*
+	The encoders expect Unicode scalar values. That is asserted, and in release builds a surrogate code point or a
+	value above U+10FFFF becomes U+FFFD.
+*/
+static UniChar toScalarValue(UniChar c) {
+	assert(isScalarValue(c));
+	return (isScalarValue(c) ? c : REPLACEMENT_CHARACTER);
+}
+
 static size_t calcUTF32ToUTF16Size(size_t utf32Size, const UniChar* utf32Chars) {
 	size_t n = utf32Size;
 	for (size_t i = 0; i < utf32Size; ++i) {
-		n += ((utf32Chars[i] >> 16) != 0 ? 1 : 0);
+		n += ((toScalarValue(utf32Chars[i]) >> 16) != 0 ? 1 : 0);
 	}
 	return n;
 }
@@ -276,7 +292,7 @@ static size_t calcUTF32ToUTF16Size(size_t utf32Size, const UniChar* utf32Chars) 
 static size_t convertUTF32ToUTF16(size_t utf32Size, const UniChar* utf32Chars, uint16_t* utf16Chars) {
 	size_t outIndex = 0;
 	for (size_t i = 0; i < utf32Size; ++i) {
-		const UniChar c = utf32Chars[i];
+		const UniChar c = toScalarValue(utf32Chars[i]);
 		if ((c >> 16) == 0) {
 			utf16Chars[outIndex] = static_cast<uint16_t>(c);
 			++outIndex;
@@ -289,34 +305,68 @@ static size_t convertUTF32ToUTF16(size_t utf32Size, const UniChar* utf32Chars, u
 	return outIndex;
 }
 
+/*
+	Decodes the UTF-16 code point at `i` and advances `i` past it. A surrogate without its pair returns
+	`INVALID_CODE_POINT` and advances one unit, so nothing past `utf16Size` is read. The converters and
+	repairWideString() all decode with this, so they agree on what is valid and the size always matches the conversion.
+*/
+static UniChar decodeUTF16(size_t utf16Size, const uint16_t* utf16Chars, size_t& i) {
+	const UniChar c = utf16Chars[i];
+	++i;
+	if (c < 0xD800 || c >= 0xE000) {
+		return c;
+	}
+	if (c < 0xDC00 && i < utf16Size && utf16Chars[i] >= 0xDC00 && utf16Chars[i] < 0xE000) {
+		const UniChar d = utf16Chars[i];
+		++i;
+		return 0x10000 + ((c - 0xD800) << 10) + (d - 0xDC00);
+	}
+	return INVALID_CODE_POINT;
+}
+
+/*
+	The decoders expect valid input. That is asserted, and in release builds each invalid sequence becomes U+FFFD.
+*/
+static UniChar replaceInvalid(UniChar c) {
+	assert(c != INVALID_CODE_POINT);
+	return (c != INVALID_CODE_POINT ? c : REPLACEMENT_CHARACTER);
+}
+
 static size_t calcUTF16ToUTF32Size(size_t utf16Size, const uint16_t* utf16Chars) {
-	size_t n = utf16Size;
-	for (size_t i = 0; i < utf16Size; ++i) {
-		const uint16_t c = utf16Chars[i];
-		if (c >= 0xD800 && c <= 0xDBFF) {
-			assert(i + 1 < utf16Size && utf16Chars[i + 1] >= 0xDC00 && utf16Chars[i + 1] < 0xE000);	 // Next should be low surrogate.
-			++i;
-			--n;
-		}
+	size_t n = 0;
+	for (size_t i = 0; i < utf16Size; ++n) {
+		replaceInvalid(decodeUTF16(utf16Size, utf16Chars, i));
 	}
 	return n;
 }
 
 static size_t convertUTF16ToUTF32(size_t utf16Size, const uint16_t* utf16Chars, UniChar* utf32Chars) {
 	size_t outIndex = 0;
-	for (size_t i = 0; i < utf16Size; ++i) {
-		UniChar c = utf16Chars[i];
-		if (c >= 0xD800 && c <= 0xDBFF) {
-			assert(i + 1 < utf16Size);
-			const uint16_t d = utf16Chars[i + 1];
-			assert(d >= 0xDC00 && d < 0xE000);	// Next should be low surrogate.
-			c = 0x10000 + ((c - 0xD800) << 10) + (d - 0xDC00);
-			++i;
-		}
-		utf32Chars[outIndex] = c;
-		++outIndex;
+	for (size_t i = 0; i < utf16Size; ++outIndex) {
+		utf32Chars[outIndex] = replaceInvalid(decodeUTF16(utf16Size, utf16Chars, i));
 	}
 	return outIndex;
+}
+
+WideString repairWideString(const WideString& s) {
+	WideString repaired;
+	repaired.reserve(s.size());
+	if (sizeof (WideChar) == sizeof (uint16_t)) {
+		const uint16_t* chars = reinterpret_cast<const uint16_t*>(s.data());
+		for (size_t i = 0; i < s.size();) {
+			const size_t start = i;
+			if (decodeUTF16(s.size(), chars, i) != INVALID_CODE_POINT) {
+				repaired.append(s, start, i - start);
+			} else {
+				repaired += static_cast<WideChar>(REPLACEMENT_CHARACTER);
+			}
+		}
+	} else {
+		for (WideString::const_iterator it = s.begin(); it != s.end(); ++it) {
+			repaired += (isScalarValue(static_cast<UniChar>(*it)) ? *it : static_cast<WideChar>(REPLACEMENT_CHARACTER));
+		}
+	}
+	return repaired;
 }
 
 WideString convertUniToWideString(const UniString& s) {

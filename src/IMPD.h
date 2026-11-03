@@ -64,8 +64,21 @@ const int UNARY_MATH_FUNCTION_COUNT = MATH_FUNCTION_COUNT - BINARY_MATH_FUNCTION
 const int BUILT_IN_INSTRUCTION_COUNT = 12;
 const int ESCAPE_CODE_COUNT = 7;
 
+/*
+	Conversions between `UniString` (UTF-32) and `WideString` (UTF-16 where `wchar_t` has 16 bits, UTF-32 otherwise).
+	The input must be valid Unicode: scalar values only (no surrogate code points, nothing above U+10FFFF), and in
+	UTF-16 every surrogate paired. Converting between UTF-16 and UTF-32 asserts that, and in release builds turns each
+	invalid code point or unpaired surrogate into U+FFFD. Where both are UTF-32 the string is copied unchanged.
+*/
 WideString convertUniToWideString(const UniString& s);
 UniString convertWideToUniString(const WideString& s);
+
+/*
+	Replaces every unpaired surrogate (UTF-16) or every surrogate code point and value above U+10FFFF (UTF-32) with
+	U+FFFD, and copies the rest unchanged. Strings from the OS, such as Windows file names, can hold unpaired
+	surrogates, so they go through this before they are converted.
+*/
+WideString repairWideString(const WideString& s);
 
 /*
 	Helper representing a pair of iterators into a string.
