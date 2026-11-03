@@ -266,6 +266,9 @@ static void appendArcSegment(const Vertex& startPos, const Vertex& endPos, doubl
 	const double largeArcSign = (largeArc ? 1.0 : -1.0);
 	const double sweepSign = (sweepCW ? largeArcSign : -largeArcSign);
 	const double aspectRatio = rx / ry;
+	if (!isfinite(aspectRatio)) {
+		Interpreter::throwRunTimeError("Ellipse aspect ratio out of range (0..1000000).");
+	}
 	if (!(aspectRatio > EPSILON && aspectRatio < 1e6)) {
 		Interpreter::throwRunTimeError(String("Ellipse aspect ratio \"")
 				+ Interpreter::toString(aspectRatio) + "\" out of range (0..1000000).");
@@ -954,6 +957,9 @@ class PathInstructionExecutor : public Executor {
 						}
 						case PATH_CURSOR_INSTRUCTION: {
 							Vertex ep = path.getPosition();
+							if (!isfinite(ep.x) || !isfinite(ep.y)) {
+								impd.throwRunTimeError("Path position out of range.");
+							}
 							const String* simple = args.fetchOptional(0, true);
 							if (simple != 0) {
 								impd.set(*simple, impd.toString(ep.x) + String(",") + impd.toString(ep.y));
@@ -1837,8 +1843,10 @@ void IVGExecutor::executeImage(Interpreter& impd, ArgumentsContainer& args) {
 			.transform(state.transformation);
 	const double totalXScale = sqrt(square(textureTransform.matrix[0][0]) + square(textureTransform.matrix[1][0]));
 	const double totalYScale = sqrt(square(textureTransform.matrix[0][1]) + square(textureTransform.matrix[1][1]));
-	if (!isfinite(totalXScale) || !isfinite(totalYScale)
-			|| totalXScale * subRasterBounds.width > COORDINATE_LIMIT
+	if (!isfinite(totalXScale) || !isfinite(totalYScale)) {
+		impd.throwRunTimeError("Image scale out of range.");
+	}
+	if (totalXScale * subRasterBounds.width > COORDINATE_LIMIT
 			|| totalYScale * subRasterBounds.height > COORDINATE_LIMIT) {
 		const double maxXScale = (subRasterBounds.width > 0.0
 				? COORDINATE_LIMIT / subRasterBounds.width : COORDINATE_LIMIT);
