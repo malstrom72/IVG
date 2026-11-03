@@ -1,0 +1,9 @@
+format IVG-2 requires:IMPD-1
+bounds 0,0,10,10
+define font "huge" [
+	format ivgfont-1 requires:IMPD-1
+	metrics upm:1e-300 ascent:0 descent:0 linegap:0
+	glyph A 1e300 ""
+]
+font "huge" size:1 color:none outline:none
+text at:0,0 caret:x "A"
