@@ -92,6 +92,11 @@ struct StringRange {
 	StringIt e;
 };
 
+/*
+	Conversions to and from UTF-8 (`String`). The `convertUTF8To...` functions check their input and throw a
+	run-time error for malformed UTF-8. The others expect valid Unicode, as the conversions above do: that is
+	asserted, and in release builds each invalid code point or unpaired surrogate becomes U+FFFD.
+*/
 UniString convertUTF8ToUniString(const StringRange& r);
 WideString convertUTF8ToWideString(const StringRange& r);
 String convertUniToUTF8String(const UniString& s);

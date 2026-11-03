@@ -158,6 +158,38 @@ static bool testInvalidUnicode() {
 	return true;
 }
 
+/*
+	UTF-8: each kind of malformed input is refused, and the encoder writes U+FFFD for what is not a Unicode scalar
+	value in release builds (beta builds assert on it instead).
+*/
+static bool testUTF8Conversions() {
+	const String valid("a\xE2\x82\xAC\xF0\x9F\x98\x80");
+	const UniChar decoded[] = { 'a', 0x20AC, 0x1F600 };
+	if (convertUTF8ToUniString(valid) != UniString(decoded, 3)
+			|| convertUniToUTF8String(UniString(decoded, 3)) != valid) {
+		return false;
+	}
+	// A continuation byte as lead, overlong forms, a surrogate, values above U+10FFFF and a sequence cut short.
+	const char* const MALFORMED[] = { "a\x80", "\xC0\xAF", "\xE0\x80\xAF", "\xED\xA0\x80", "\xF4\x90\x80\x80"
+			, "\xF5\x80\x80\x80", "\xF8\x88\x80\x80\x80", "a\xE2\x82" };
+	for (size_t i = 0; i < sizeof (MALFORMED) / sizeof (*MALFORMED); ++i) {
+		const String malformed(MALFORMED[i]);
+		try {
+			convertUTF8ToUniString(malformed);
+			return false;
+		}
+		catch (const Exception&) {
+		}
+	}
+#ifdef NDEBUG
+	const UniChar invalid[] = { 0xD800, 'a', 0x110000 };
+	if (convertUniToUTF8String(UniString(invalid, 3)) != String("\xEF\xBF\xBD" "a" "\xEF\xBF\xBD")) {
+		return false;
+	}
+#endif
+	return true;
+}
+
 // Traces nothing, and records what progress() hears.
 class QuietExecutor : public MyExecutor {
 	public:		virtual void trace(Interpreter& interpreter, const WideString& s) { (void)interpreter; (void)s; }
@@ -257,6 +289,10 @@ int main(int argc, const char* argv[]) {
 	}
 	if (!testInvalidUnicode()) {
 		std::cerr << "Invalid Unicode test failed" << std::endl;
+		return 1;
+	}
+	if (!testUTF8Conversions()) {
+		std::cerr << "UTF-8 conversion test failed" << std::endl;
 		return 1;
 	}
 	if (!testCharactersLimit()) {
