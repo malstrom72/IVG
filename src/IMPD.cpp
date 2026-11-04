@@ -88,10 +88,11 @@ static bool decodeUTF8(size_t utf8Size, const char* utf8Chars, size_t& i, UniCha
 	return valid;
 }
 
-static bool isValidUTF8(size_t utf8Size, const char* utf8Chars) {
+bool isValidUTF8(const StringRange& r) {
+	const size_t size = r.e - r.b;
 	UniChar c;
-	for (size_t i = 0; i < utf8Size;) {
-		if (!decodeUTF8(utf8Size, utf8Chars, i, c)) {
+	for (size_t i = 0; i < size;) {
+		if (!decodeUTF8(size, &*r.b, i, c)) {
 			return false;
 		}
 	}
@@ -101,31 +102,28 @@ static bool isValidUTF8(size_t utf8Size, const char* utf8Chars) {
 static size_t convertUTF8ToUTF32(size_t utf8Size, const char* utf8Chars, UniChar* utf32Chars) {
 	size_t outIndex = 0;
 	for (size_t i = 0; i < utf8Size; ++outIndex) {
-		decodeUTF8(utf8Size, utf8Chars, i, utf32Chars[outIndex]);
+		const bool valid = decodeUTF8(utf8Size, utf8Chars, i, utf32Chars[outIndex]);
+		assert(valid);
+		(void)valid;
 	}
 	return outIndex;
 }
 
 /*
-	Converts UTF-8 to UTF-32, throwing a run-time error if `r` is not well-formed. UTF-8 reaching IMPD comes from a
-	file system, a command line or a document, so this validates rather than assuming.
+	Converts UTF-8 to UTF-32.
 */
 UniString convertUTF8ToUniString(const StringRange& r) {
 	const size_t size = r.e - r.b;
 	if (size == 0) {
 		return UniString();
 	}
-	const char* chars = &*r.b;
-	if (!isValidUTF8(size, chars)) {
-		Interpreter::throwRunTimeError("Invalid UTF-8");
-	}
 	UniString result(size, 0);
-	result.resize(convertUTF8ToUTF32(size, chars, &result[0]));
+	result.resize(convertUTF8ToUTF32(size, &*r.b, &result[0]));
 	return result;
 }
 
 /*
-	Converts UTF-8 to the platform wide string, throwing as convertUTF8ToUniString() does.
+	Converts UTF-8 to the platform wide string.
 */
 WideString convertUTF8ToWideString(const StringRange& r) {
 	return convertUniToWideString(convertUTF8ToUniString(r));
@@ -134,9 +132,7 @@ WideString convertUTF8ToWideString(const StringRange& r) {
 static size_t calcUTF32ToUTF8Size(size_t utf32Size, const UniChar* utf32Chars) {
 	size_t n = 0;
 	for (size_t i = 0; i < utf32Size; ++i) {
-		const UniChar c = utf32Chars[i];
-		assert(c < 0xD800 || c >= 0xE000); // Surrogate code points inside UTF32 string are not legal!
-		assert(c <= 0x10FFFF);				// Enforce Unicode scalar upper bound
+		const UniChar c = checkScalar(utf32Chars[i]);
 		if (c < 0x80) {
 			n += 1;
 		} else if (c < 0x800) {
@@ -153,9 +149,7 @@ static size_t calcUTF32ToUTF8Size(size_t utf32Size, const UniChar* utf32Chars) {
 static size_t convertUTF32ToUTF8(size_t utf32Size, const UniChar* utf32Chars, char* utf8Chars) {
 	size_t outIndex = 0;
 	for (size_t i = 0; i < utf32Size; ++i) {
-		const UniChar c = utf32Chars[i];
-		assert(c < 0xD800 || c >= 0xE000); // Surrogate code points not legal in UTF-32!
-		assert(c <= 0x10FFFF);				// Enforce Unicode scalar upper bound
+		const UniChar c = checkScalar(utf32Chars[i]);
 		if (c < 0x80) {
 			utf8Chars[outIndex + 0] = static_cast<char>(c);
 			outIndex += 1;
@@ -180,8 +174,7 @@ static size_t convertUTF32ToUTF8(size_t utf32Size, const UniChar* utf32Chars, ch
 }
 
 /*
-	Converts UTF-32 to UTF-8. Every UniChar that reaches here came from one of the decoders above or from IMPD
-	itself, so the input is already known to be a valid code point.
+	Converts UTF-32 to UTF-8.
 */
 String convertUniToUTF8String(const UniString& s) {
 	if (s.empty()) {

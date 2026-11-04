@@ -60,6 +60,9 @@ static bool isAbsolutePath(const WideString& path) {
 }
 
 static NuXFiles::Path pathFromUserArgument(const std::string& path) {
+	if (!IMPD::isValidUTF8(path)) {
+		throw std::runtime_error("Invalid UTF-8 in path.");
+	}
 	const WideString wide = IMPD::convertUTF8ToWideString(path);
 	return isAbsolutePath(wide) ? NuXFiles::Path(wide) : NuXFiles::Path::getCurrentDirectoryPath().getRelative(wide);
 }
