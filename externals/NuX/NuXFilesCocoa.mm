@@ -58,10 +58,17 @@ static NSString* toNSString(const std::wstring& s) {
 			length:s.size() * sizeof (wchar_t) encoding:NSUTF32LittleEndianStringEncoding] autorelease];
 }
 
-// Converts a path string from a caller, refusing a NUL: the system calls would stop at it.
+// Converts a path string from a caller, refusing a NUL: the system calls would stop at it. A surrogate or a value
+// above U+10FFFF is refused too, as the Posix backend does: NSString cannot hold it and would come back nil.
 static NSString* pathToNSString(const std::wstring& s) {
-	if (s.find(L'\0') != std::wstring::npos) {
-		throw Exception("Invalid character in path");
+	for (size_t i = 0; i < s.size(); ++i) {
+		const uint32_t c = static_cast<uint32_t>(s[i]);
+		if (c == 0) {
+			throw Exception("Invalid character in path");
+		}
+		if ((c >= 0xD800 && c < 0xE000) || c > 0x10FFFF) {
+			throw Exception("Invalid Unicode code point in path");
+		}
 	}
 	return toNSString(s);
 }
