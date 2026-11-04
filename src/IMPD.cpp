@@ -69,26 +69,21 @@ static size_t convertUTF32ToUTF16(size_t utf32Size, const UniChar* utf32Chars, u
 	return outIndex;
 }
 
-const UniChar INVALID_CODE_POINT = 0xFFFFFFFF;
-
-// Returns `INVALID_CODE_POINT` for an unpaired surrogate, and advances `i` past what it decoded.
+// Advances `i` past one code point; an unpaired surrogate comes back as is.
 static UniChar decodeUTF16(size_t utf16Size, const uint16_t* utf16Chars, size_t& i) {
 	const UniChar c = utf16Chars[i++];
 	if (c >= 0xD800 && c < 0xDC00 && i < utf16Size && utf16Chars[i] >= 0xDC00 && utf16Chars[i] < 0xE000) {
 		return 0x10000 + ((c - 0xD800) << 10) + (utf16Chars[i++] - 0xDC00);
 	}
-	return (c >= 0xD800 && c < 0xE000 ? INVALID_CODE_POINT : c);
-}
-
-static UniChar replaceInvalid(UniChar c) {
-	assert(c != INVALID_CODE_POINT);
-	return (c != INVALID_CODE_POINT ? c : 0xFFFD);
+	return c;
 }
 
 static size_t convertUTF16ToUTF32(size_t utf16Size, const uint16_t* utf16Chars, UniChar* utf32Chars) {
 	size_t outIndex = 0;
 	for (size_t i = 0; i < utf16Size; ++outIndex) {
-		utf32Chars[outIndex] = replaceInvalid(decodeUTF16(utf16Size, utf16Chars, i));
+		const UniChar c = decodeUTF16(utf16Size, utf16Chars, i);
+		assert(c < 0xD800 || c >= 0xE000);
+		utf32Chars[outIndex] = (c < 0xD800 || c >= 0xE000 ? c : 0xFFFD);
 	}
 	return outIndex;
 }
