@@ -1008,11 +1008,11 @@ static std::string stringFromIMPD(const String &value) {
 }
 
 static std::wstring pathStringToWide(const std::string &path) {
-	return IMPD::convertUTF8ToWideString(path);
+	return IMPD::convertUTF8ToWideString(IMPD::repairUTF8String(path));
 }
 
 static std::string pathStringFromWide(const std::wstring &path) {
-	return IMPD::convertWideToUTF8String(path);
+	return IMPD::convertWideToUTF8String(IMPD::repairWideString(path));
 }
 /**
 	Centralized conversions between user-facing native strings and `NuXFiles::Path`
@@ -3728,7 +3728,7 @@ int wmain(int argc, wchar_t **argv) {
 	std::vector<std::string> utf8Args(static_cast<size_t>(argc));
 	std::vector<char *> narrowArgs(static_cast<size_t>(argc) + 1, 0);
 	for (int i = 0; i < argc; ++i) {
-		utf8Args[i] = IMPD::convertWideToUTF8String(argv[i]);
+		utf8Args[i] = IMPD::convertWideToUTF8String(IMPD::repairWideString(argv[i]));
 		narrowArgs[i] = &utf8Args[i][0];
 	}
 	return runIVGSnapshot(argc, &narrowArgs[0]);

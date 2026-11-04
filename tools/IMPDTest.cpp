@@ -24,6 +24,7 @@
 #include "assert.h"
 #include <iostream>
 #include <fstream>
+#include <cwchar>
 #include "src/IMPD.h"
 
 using namespace IMPD;
@@ -109,6 +110,72 @@ static bool testUniStringConversions() {
 	if (uni2 != uni3) {
 		return false;
 	}
+	return true;
+}
+
+static bool testInvalidUnicode() {
+	const WideChar a = 'a';
+	const WideChar R = static_cast<WideChar>(0xFFFD);
+	const WideChar H = static_cast<WideChar>(0xD800);
+#if (WCHAR_MAX <= 0xFFFF)
+	const WideChar L = static_cast<WideChar>(0xDC00);
+	// A lone high, a lone low, a lone high before a pair, and a high at the end.
+	const WideChar input[] = { a, H, a, L, a, H, H, L, H };
+	const WideChar repaired[] = { a, R, a, R, a, R, H, L, R };
+	const UniChar decoded[] = { 'a', 0xFFFD, 'a', 0xFFFD, 'a', 0xFFFD, 0x10000, 0xFFFD };
+	if (repairWideString(WideString(input, 9)) != WideString(repaired, 9)
+			|| convertWideToUniString(WideString(repaired, 9)) != UniString(decoded, 8)) {
+		return false;
+	}
+#ifdef NDEBUG
+	if (convertWideToUniString(WideString(input, 9)) != UniString(decoded, 8)) {
+		return false;
+	}
+#endif
+#else
+	const WideChar input[] = { a, H, a, static_cast<WideChar>(0x110000), static_cast<WideChar>(-1) };
+	const WideChar repaired[] = { a, R, a, R, R };
+	if (repairWideString(WideString(input, 5)) != WideString(repaired, 5)) {
+		return false;
+	}
+#ifdef NDEBUG
+	const UniChar decoded[] = { 'a', 0xFFFD, 'a', 0xFFFD, 0xFFFD };
+	if (convertWideToUniString(WideString(input, 5)) != UniString(decoded, 5)) {
+		return false;
+	}
+#endif
+#endif
+#ifdef NDEBUG
+	const UniChar invalid[] = { 'a', 0xD800, 0x110000 };
+	const WideChar encoded[] = { a, R, R };
+	if (convertUniToWideString(UniString(invalid, 3)) != WideString(encoded, 3)) {
+		return false;
+	}
+#endif
+	return true;
+}
+
+static bool testUTF8Conversions() {
+	const String valid("a" "\xE2\x82\xAC" "\xF0\x9F\x98\x80");
+	const UniChar decoded[] = { 'a', 0x20AC, 0x1F600 };
+	if (repairUTF8String(valid) != valid || convertUTF8ToUniString(valid) != UniString(decoded, 3)
+			|| convertUniToUTF8String(UniString(decoded, 3)) != valid) {
+		return false;
+	}
+	// A stray continuation byte, a sequence cut short, an overlong form and an encoded surrogate.
+	const String R("\xEF\xBF\xBD");
+	if (repairUTF8String("a\x80") != "a" + R || repairUTF8String("a\xE2\x82") != "a" + R + R
+			|| repairUTF8String("\xC0\xAF") != R + R || repairUTF8String("\xED\xA0\x80" "b") != R + R + R + "b") {
+		return false;
+	}
+#ifdef NDEBUG
+	const UniChar replaced[] = { 'a', 0xFFFD, 0xFFFD };
+	const UniChar invalid[] = { 'a', 0xD800, 0x110000 };
+	if (convertUTF8ToUniString(String("a\xE2\x82")) != UniString(replaced, 3)
+			|| convertUniToUTF8String(UniString(invalid, 3)) != "a" + R + R) {
+		return false;
+	}
+#endif
 	return true;
 }
 
@@ -207,6 +274,14 @@ int main(int argc, const char* argv[]) {
 
 	if (!testUniStringConversions()) {
 		std::cerr << "UniString conversion test failed" << std::endl;
+		return 1;
+	}
+	if (!testInvalidUnicode()) {
+		std::cerr << "Invalid Unicode test failed" << std::endl;
+		return 1;
+	}
+	if (!testUTF8Conversions()) {
+		std::cerr << "UTF-8 conversion test failed" << std::endl;
 		return 1;
 	}
 	if (!testCharactersLimit()) {

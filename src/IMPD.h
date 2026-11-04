@@ -64,9 +64,6 @@ const int UNARY_MATH_FUNCTION_COUNT = MATH_FUNCTION_COUNT - BINARY_MATH_FUNCTION
 const int BUILT_IN_INSTRUCTION_COUNT = 12;
 const int ESCAPE_CODE_COUNT = 7;
 
-WideString convertUniToWideString(const UniString& s);
-UniString convertWideToUniString(const WideString& s);
-
 /*
 	Helper representing a pair of iterators into a string.
 */
@@ -79,10 +76,15 @@ struct StringRange {
 	StringIt e;
 };
 
+// Input must be valid Unicode (asserted). Invalid input becomes U+FFFD in release builds.
+WideString convertUniToWideString(const UniString& s);
+UniString convertWideToUniString(const WideString& s);
 UniString convertUTF8ToUniString(const StringRange& r);
 WideString convertUTF8ToWideString(const StringRange& r);
 String convertUniToUTF8String(const UniString& s);
 String convertWideToUTF8String(const WideString& s);
+WideString repairWideString(const WideString& s);																		// Replaces unpaired surrogates (and values above U+10FFFF) with U+FFFD. For strings from the OS.
+String repairUTF8String(const String& s);																				// Replaces each byte that does not start valid UTF-8 with U+FFFD. For strings from the OS.
 
 /*
 	Base class for all IMPD specific exceptions carrying an optional statement.

@@ -60,7 +60,7 @@ static bool isAbsolutePath(const WideString& path) {
 }
 
 static NuXFiles::Path pathFromUserArgument(const std::string& path) {
-	const WideString wide = IMPD::convertUTF8ToWideString(path);
+	const WideString wide = IMPD::convertUTF8ToWideString(IMPD::repairUTF8String(path));
 	return isAbsolutePath(wide) ? NuXFiles::Path(wide) : NuXFiles::Path::getCurrentDirectoryPath().getRelative(wide);
 }
 
@@ -478,7 +478,7 @@ int wmain(int argc, wchar_t* argv[]) {
 	std::vector<std::string> utf8Args(static_cast<size_t>(argc));
 	std::vector<const char*> narrowArgs(static_cast<size_t>(argc) + 1, 0);
 	for (int i = 0; i < argc; ++i) {
-		utf8Args[i] = IMPD::convertWideToUTF8String(argv[i]);
+		utf8Args[i] = IMPD::convertWideToUTF8String(IMPD::repairWideString(argv[i]));
 		narrowArgs[i] = utf8Args[i].c_str();
 	}
 	return runIVG2PNG(argc, &narrowArgs[0]);
