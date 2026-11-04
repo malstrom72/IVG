@@ -123,9 +123,22 @@ static bool testInvalidUnicode() {
 	}
 #endif
 #else
-	const WideChar input[] = { a, H, a, static_cast<WideChar>(0x110000) };
-	const WideChar repaired[] = { a, R, a, R };
-	if (repairWideString(WideString(input, 4)) != WideString(repaired, 4)) {
+	const WideChar input[] = { a, H, a, static_cast<WideChar>(0x110000), static_cast<WideChar>(-1) };
+	const WideChar repaired[] = { a, R, a, R, R };
+	if (repairWideString(WideString(input, 5)) != WideString(repaired, 5)) {
+		return false;
+	}
+#ifdef NDEBUG
+	const UniChar decoded[] = { 'a', 0xFFFD, 'a', 0xFFFD, 0xFFFD };
+	if (convertWideToUniString(WideString(input, 5)) != UniString(decoded, 5)) {
+		return false;
+	}
+#endif
+#endif
+#ifdef NDEBUG
+	const UniChar invalid[] = { 'a', 0xD800, 0x110000 };
+	const WideChar encoded[] = { a, R, R };
+	if (convertUniToWideString(UniString(invalid, 3)) != WideString(encoded, 3)) {
 		return false;
 	}
 #endif

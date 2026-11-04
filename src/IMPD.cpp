@@ -45,10 +45,17 @@ namespace IMPD {
 
 using namespace std;
 
+// Asserts that `c` is a Unicode scalar value, and returns U+FFFD in its place if it is not.
+static UniChar checkScalar(UniChar c) {
+	const bool valid = ((c < 0xD800 || c >= 0xE000) && c <= 0x10FFFF);
+	assert(valid);
+	return (valid ? c : 0xFFFD);
+}
+
 static size_t calcUTF32ToUTF16Size(size_t utf32Size, const UniChar* utf32Chars) {
 	size_t n = utf32Size;
 	for (size_t i = 0; i < utf32Size; ++i) {
-		n += ((utf32Chars[i] >> 16) != 0 ? 1 : 0);
+		n += ((checkScalar(utf32Chars[i]) >> 16) != 0 ? 1 : 0);
 	}
 	return n;
 }
@@ -56,7 +63,7 @@ static size_t calcUTF32ToUTF16Size(size_t utf32Size, const UniChar* utf32Chars) 
 static size_t convertUTF32ToUTF16(size_t utf32Size, const UniChar* utf32Chars, uint16_t* utf16Chars) {
 	size_t outIndex = 0;
 	for (size_t i = 0; i < utf32Size; ++i) {
-		const UniChar c = utf32Chars[i];
+		const UniChar c = checkScalar(utf32Chars[i]);
 		if ((c >> 16) == 0) {
 			utf16Chars[outIndex] = static_cast<uint16_t>(c);
 			++outIndex;
@@ -81,9 +88,7 @@ static UniChar decodeUTF16(size_t utf16Size, const uint16_t* utf16Chars, size_t&
 static size_t convertUTF16ToUTF32(size_t utf16Size, const uint16_t* utf16Chars, UniChar* utf32Chars) {
 	size_t outIndex = 0;
 	for (size_t i = 0; i < utf16Size; ++outIndex) {
-		const UniChar c = decodeUTF16(utf16Size, utf16Chars, i);
-		assert(c < 0xD800 || c >= 0xE000);
-		utf32Chars[outIndex] = (c < 0xD800 || c >= 0xE000 ? c : 0xFFFD);
+		utf32Chars[outIndex] = checkScalar(decodeUTF16(utf16Size, utf16Chars, i));
 	}
 	return outIndex;
 }
@@ -92,7 +97,11 @@ WideString convertUniToWideString(const UniString& s) {
 	if (s.empty()) {
 		return WideString();
 	} else if (sizeof (WideChar) == sizeof (UniChar)) {
-		return WideString(reinterpret_cast<const WideChar*>(s.data()), s.size());
+		WideString ws(s.size(), 0);
+		for (size_t i = 0; i < s.size(); ++i) {
+			ws[i] = static_cast<WideChar>(checkScalar(s[i]));
+		}
+		return ws;
 	} else if (sizeof (WideChar) == sizeof (uint16_t)) {
 		const size_t requiredSize = calcUTF32ToUTF16Size(s.size(), s.data());
 		WideString ws(requiredSize, L'\0');
@@ -108,7 +117,11 @@ UniString convertWideToUniString(const WideString& s) {
 	if (s.empty()) {
 		return UniString();
 	} else if (sizeof (WideChar) == sizeof (UniChar)) {
-		return UniString(s.begin(), s.end());
+		UniString us(s.size(), 0);
+		for (size_t i = 0; i < s.size(); ++i) {
+			us[i] = checkScalar(static_cast<UniChar>(s[i]));
+		}
+		return us;
 	} else if (sizeof (WideChar) == sizeof (uint16_t)) {
 		UniString us(s.size(), 0);
 		us.resize(convertUTF16ToUTF32(s.size(), reinterpret_cast<const uint16_t*>(s.data()), &us[0]));
