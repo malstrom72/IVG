@@ -46,34 +46,28 @@ namespace IMPD {
 
 using namespace std;
 
-const UniChar INVALID_CODE_POINT = 0xFFFFFFFF;
-
-static UniChar replaceInvalid(UniChar c) {
-	assert(c != INVALID_CODE_POINT);
-	return (c != INVALID_CODE_POINT ? c : 0xFFFD);
-}
-
-// Returns `INVALID_CODE_POINT` for malformed UTF-8 (advancing one byte), and advances `i` past what it decoded.
-static UniChar decodeUTF8(size_t utf8Size, const char* utf8Chars, size_t& i) {
-	const UniChar c = static_cast<unsigned char>(utf8Chars[i]);
+// Advances `i` past one code point into `c`. Returns false for malformed UTF-8, with `c` = U+FFFD and `i` one byte on.
+static bool decodeUTF8(size_t utf8Size, const char* utf8Chars, size_t& i, UniChar& c) {
+	const UniChar first = static_cast<unsigned char>(utf8Chars[i]);
 	size_t length = 0;
 	UniChar minimum = 0;
 	UniChar v = 0;
-	if ((c & 0x80) == 0) {
+	if ((first & 0x80) == 0) {
 		++i;
-		return c;
-	} else if ((c & 0xE0) == 0xC0) {
+		c = first;
+		return true;
+	} else if ((first & 0xE0) == 0xC0) {
 		length = 2;
 		minimum = 0x80;
-		v = c & 0x1F;
-	} else if ((c & 0xF0) == 0xE0) {
+		v = first & 0x1F;
+	} else if ((first & 0xF0) == 0xE0) {
 		length = 3;
 		minimum = 0x800;
-		v = c & 0x0F;
-	} else if ((c & 0xF8) == 0xF0) {
+		v = first & 0x0F;
+	} else if ((first & 0xF8) == 0xF0) {
 		length = 4;
 		minimum = 0x10000;
-		v = c & 0x07;
+		v = first & 0x07;
 	}
 	bool valid = (length != 0 && length <= utf8Size - i);
 	for (size_t k = 1; valid && k < length; ++k) {
@@ -83,30 +77,24 @@ static UniChar decodeUTF8(size_t utf8Size, const char* utf8Chars, size_t& i) {
 	}
 	valid = (valid && v >= minimum && (v < 0xD800 || v >= 0xE000) && v <= 0x10FFFF);
 	i += (valid ? length : 1);
-	return (valid ? v : INVALID_CODE_POINT);
+	c = (valid ? v : 0xFFFD);
+	return valid;
 }
 
 static bool isValidUTF8(size_t utf8Size, const char* utf8Chars) {
+	UniChar c;
 	for (size_t i = 0; i < utf8Size;) {
-		if (decodeUTF8(utf8Size, utf8Chars, i) == INVALID_CODE_POINT) {
+		if (!decodeUTF8(utf8Size, utf8Chars, i, c)) {
 			return false;
 		}
 	}
 	return true;
 }
 
-static size_t calcUTF8ToUTF32Size(size_t utf8Size, const char* utf8Chars) {
-	size_t n = 0;
-	for (size_t i = 0; i < utf8Size; ++n) {
-		replaceInvalid(decodeUTF8(utf8Size, utf8Chars, i));
-	}
-	return n;
-}
-
 static size_t convertUTF8ToUTF32(size_t utf8Size, const char* utf8Chars, UniChar* utf32Chars) {
 	size_t outIndex = 0;
 	for (size_t i = 0; i < utf8Size; ++outIndex) {
-		utf32Chars[outIndex] = replaceInvalid(decodeUTF8(utf8Size, utf8Chars, i));
+		decodeUTF8(utf8Size, utf8Chars, i, utf32Chars[outIndex]);
 	}
 	return outIndex;
 }
@@ -124,8 +112,8 @@ UniString convertUTF8ToUniString(const StringRange& r) {
 	if (!isValidUTF8(size, chars)) {
 		Interpreter::throwRunTimeError("Invalid UTF-8");
 	}
-	UniString result(calcUTF8ToUTF32Size(size, chars), 0);
-	convertUTF8ToUTF32(size, chars, &result[0]);
+	UniString result(size, 0);
+	result.resize(convertUTF8ToUTF32(size, chars, &result[0]));
 	return result;
 }
 
