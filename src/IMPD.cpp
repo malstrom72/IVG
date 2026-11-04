@@ -228,27 +228,21 @@ static size_t convertUTF32ToUTF16(size_t utf32Size, const UniChar* utf32Chars, u
 	return outIndex;
 }
 
-// Returns `INVALID_CODE_POINT` for an unpaired surrogate, and advances `i` past what it decoded.
+// Advances `i` past one code point; an unpaired surrogate comes back as is.
 static UniChar decodeUTF16(size_t utf16Size, const uint16_t* utf16Chars, size_t& i) {
 	const UniChar c = utf16Chars[i++];
 	if (c >= 0xD800 && c < 0xDC00 && i < utf16Size && utf16Chars[i] >= 0xDC00 && utf16Chars[i] < 0xE000) {
 		return 0x10000 + ((c - 0xD800) << 10) + (utf16Chars[i++] - 0xDC00);
 	}
-	return (c >= 0xD800 && c < 0xE000 ? INVALID_CODE_POINT : c);
-}
-
-static size_t calcUTF16ToUTF32Size(size_t utf16Size, const uint16_t* utf16Chars) {
-	size_t n = 0;
-	for (size_t i = 0; i < utf16Size; ++n) {
-		replaceInvalid(decodeUTF16(utf16Size, utf16Chars, i));
-	}
-	return n;
+	return c;
 }
 
 static size_t convertUTF16ToUTF32(size_t utf16Size, const uint16_t* utf16Chars, UniChar* utf32Chars) {
 	size_t outIndex = 0;
 	for (size_t i = 0; i < utf16Size; ++outIndex) {
-		utf32Chars[outIndex] = replaceInvalid(decodeUTF16(utf16Size, utf16Chars, i));
+		const UniChar c = decodeUTF16(utf16Size, utf16Chars, i);
+		assert(c < 0xD800 || c >= 0xE000);
+		utf32Chars[outIndex] = (c < 0xD800 || c >= 0xE000 ? c : 0xFFFD);
 	}
 	return outIndex;
 }
@@ -275,9 +269,8 @@ UniString convertWideToUniString(const WideString& s) {
 	} else if (sizeof (WideChar) == sizeof (UniChar)) {
 		return UniString(s.begin(), s.end());
 	} else if (sizeof (WideChar) == sizeof (uint16_t)) {
-		const size_t requiredSize = calcUTF16ToUTF32Size(s.size(), reinterpret_cast<const uint16_t*>(s.data()));
-		UniString us(requiredSize, L'\0');
-		convertUTF16ToUTF32(s.size(), reinterpret_cast<const uint16_t*>(s.data()), &us[0]);
+		UniString us(s.size(), 0);
+		us.resize(convertUTF16ToUTF32(s.size(), reinterpret_cast<const uint16_t*>(s.data()), &us[0]));
 		return us;
 	} else {
 		assert(0);
@@ -286,15 +279,13 @@ UniString convertWideToUniString(const WideString& s) {
 }
 
 WideString repairWideString(const WideString& s) {
-	WideString repaired;
+	WideString repaired(s);
 	for (size_t i = 0; i < s.size();) {
 		const size_t start = i;
 		const UniChar c = (sizeof (WideChar) == sizeof (uint16_t)
 				? decodeUTF16(s.size(), reinterpret_cast<const uint16_t*>(s.data()), i) : static_cast<UniChar>(s[i++]));
-		if (c < 0xD800 || (c >= 0xE000 && c <= 0x10FFFF)) {
-			repaired.append(s, start, i - start);
-		} else {
-			repaired += static_cast<WideChar>(0xFFFD);
+		if ((c >= 0xD800 && c < 0xE000) || c > 0x10FFFF) {
+			repaired[start] = static_cast<WideChar>(0xFFFD);
 		}
 	}
 	return repaired;
