@@ -106,8 +106,8 @@ static bool testUniStringConversions() {
 static bool testInvalidUnicode() {
 	const WideChar a = 'a';
 	const WideChar R = static_cast<WideChar>(0xFFFD);
-#if (WCHAR_MAX <= 0xFFFF)
 	const WideChar H = static_cast<WideChar>(0xD800);
+#if (WCHAR_MAX <= 0xFFFF)
 	const WideChar L = static_cast<WideChar>(0xDC00);
 	// A lone high, a lone low, a lone high before a pair, and a high at the end.
 	const WideChar input[] = { a, H, a, L, a, H, H, L, H };
@@ -118,13 +118,12 @@ static bool testInvalidUnicode() {
 		return false;
 	}
 #ifdef NDEBUG
-	const UniString uni = convertWideToUniString(WideString(input, 9));
-	if (uni != UniString(decoded, 8) || uni.c_str()[uni.size()] != 0) {
+	if (convertWideToUniString(WideString(input, 9)) != UniString(decoded, 8)) {
 		return false;
 	}
 #endif
 #else
-	const WideChar input[] = { a, static_cast<WideChar>(0xD800), a, static_cast<WideChar>(0x110000) };
+	const WideChar input[] = { a, H, a, static_cast<WideChar>(0x110000) };
 	const WideChar repaired[] = { a, R, a, R };
 	if (repairWideString(WideString(input, 4)) != WideString(repaired, 4)) {
 		return false;

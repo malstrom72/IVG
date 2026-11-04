@@ -85,14 +85,6 @@ static UniChar replaceInvalid(UniChar c) {
 	return (c != INVALID_CODE_POINT ? c : 0xFFFD);
 }
 
-static size_t calcUTF16ToUTF32Size(size_t utf16Size, const uint16_t* utf16Chars) {
-	size_t n = 0;
-	for (size_t i = 0; i < utf16Size; ++n) {
-		replaceInvalid(decodeUTF16(utf16Size, utf16Chars, i));
-	}
-	return n;
-}
-
 static size_t convertUTF16ToUTF32(size_t utf16Size, const uint16_t* utf16Chars, UniChar* utf32Chars) {
 	size_t outIndex = 0;
 	for (size_t i = 0; i < utf16Size; ++outIndex) {
@@ -123,9 +115,8 @@ UniString convertWideToUniString(const WideString& s) {
 	} else if (sizeof (WideChar) == sizeof (UniChar)) {
 		return UniString(s.begin(), s.end());
 	} else if (sizeof (WideChar) == sizeof (uint16_t)) {
-		const size_t requiredSize = calcUTF16ToUTF32Size(s.size(), reinterpret_cast<const uint16_t*>(s.data()));
-		UniString us(requiredSize, L'\0');
-		convertUTF16ToUTF32(s.size(), reinterpret_cast<const uint16_t*>(s.data()), &us[0]);
+		UniString us(s.size(), 0);
+		us.resize(convertUTF16ToUTF32(s.size(), reinterpret_cast<const uint16_t*>(s.data()), &us[0]));
 		return us;
 	} else {
 		assert(0);
@@ -134,15 +125,13 @@ UniString convertWideToUniString(const WideString& s) {
 }
 
 WideString repairWideString(const WideString& s) {
-	WideString repaired;
+	WideString repaired(s);
 	for (size_t i = 0; i < s.size();) {
 		const size_t start = i;
 		const UniChar c = (sizeof (WideChar) == sizeof (uint16_t)
 				? decodeUTF16(s.size(), reinterpret_cast<const uint16_t*>(s.data()), i) : static_cast<UniChar>(s[i++]));
-		if (c < 0xD800 || (c >= 0xE000 && c <= 0x10FFFF)) {
-			repaired.append(s, start, i - start);
-		} else {
-			repaired += static_cast<WideChar>(0xFFFD);
+		if ((c >= 0xD800 && c < 0xE000) || c > 0x10FFFF) {
+			repaired[start] = static_cast<WideChar>(0xFFFD);
 		}
 	}
 	return repaired;
