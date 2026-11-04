@@ -83,8 +83,8 @@ UniString convertUTF8ToUniString(const StringRange& r);
 WideString convertUTF8ToWideString(const StringRange& r);
 String convertUniToUTF8String(const UniString& s);
 String convertWideToUTF8String(const WideString& s);
-bool isValidUTF8(const StringRange& r);																					// Checks UTF-8 from outside, before it is converted.
 WideString repairWideString(const WideString& s);																		// Replaces unpaired surrogates (and values above U+10FFFF) with U+FFFD. For strings from the OS.
+String repairUTF8String(const String& s);																				// Replaces each byte that does not start valid UTF-8 with U+FFFD. For strings from the OS.
 
 /*
 	Base class for all IMPD specific exceptions carrying an optional statement.

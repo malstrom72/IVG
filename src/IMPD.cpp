@@ -88,17 +88,6 @@ static bool decodeUTF8(size_t utf8Size, const char* utf8Chars, size_t& i, UniCha
 	return valid;
 }
 
-bool isValidUTF8(const StringRange& r) {
-	const size_t size = r.e - r.b;
-	UniChar c;
-	for (size_t i = 0; i < size;) {
-		if (!decodeUTF8(size, &*r.b, i, c)) {
-			return false;
-		}
-	}
-	return true;
-}
-
 static size_t convertUTF8ToUTF32(size_t utf8Size, const char* utf8Chars, UniChar* utf32Chars) {
 	size_t outIndex = 0;
 	for (size_t i = 0; i < utf8Size; ++outIndex) {
@@ -281,6 +270,17 @@ WideString repairWideString(const WideString& s) {
 		if ((c >= 0xD800 && c < 0xE000) || c > 0x10FFFF) {
 			repaired[start] = static_cast<WideChar>(0xFFFD);
 		}
+	}
+	return repaired;
+}
+
+String repairUTF8String(const String& s) {
+	String repaired;
+	for (size_t i = 0; i < s.size();) {
+		UniChar c;
+		decodeUTF8(s.size(), s.data(), i, c);
+		char utf8[4];
+		repaired.append(utf8, convertUTF32ToUTF8(1, &c, utf8));
 	}
 	return repaired;
 }

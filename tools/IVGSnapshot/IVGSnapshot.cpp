@@ -1008,10 +1008,7 @@ static std::string stringFromIMPD(const String &value) {
 }
 
 static std::wstring pathStringToWide(const std::string &path) {
-	if (!IMPD::isValidUTF8(path)) {
-		throw std::runtime_error("invalid UTF-8 in path");
-	}
-	return IMPD::convertUTF8ToWideString(path);
+	return IMPD::convertUTF8ToWideString(IMPD::repairUTF8String(path));
 }
 
 static std::string pathStringFromWide(const std::wstring &path) {

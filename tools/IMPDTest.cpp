@@ -158,23 +158,21 @@ static bool testInvalidUnicode() {
 static bool testUTF8Conversions() {
 	const String valid("a" "\xE2\x82\xAC" "\xF0\x9F\x98\x80");
 	const UniChar decoded[] = { 'a', 0x20AC, 0x1F600 };
-	if (!isValidUTF8(valid) || convertUTF8ToUniString(valid) != UniString(decoded, 3)
+	if (repairUTF8String(valid) != valid || convertUTF8ToUniString(valid) != UniString(decoded, 3)
 			|| convertUniToUTF8String(UniString(decoded, 3)) != valid) {
 		return false;
 	}
-	// A continuation byte as lead, overlong forms, a surrogate, values above U+10FFFF and a sequence cut short.
-	const char* const MALFORMED[] = { "a\x80", "\xC0\xAF", "\xE0\x80\xAF", "\xED\xA0\x80", "\xF4\x90\x80\x80"
-			, "\xF5\x80\x80\x80", "\xF8\x88\x80\x80\x80", "a\xE2\x82" };
-	for (size_t i = 0; i < sizeof (MALFORMED) / sizeof (*MALFORMED); ++i) {
-		if (isValidUTF8(String(MALFORMED[i]))) {
-			return false;
-		}
+	// A stray continuation byte, a sequence cut short, an overlong form and an encoded surrogate.
+	const String R("\xEF\xBF\xBD");
+	if (repairUTF8String("a\x80") != "a" + R || repairUTF8String("a\xE2\x82") != "a" + R + R
+			|| repairUTF8String("\xC0\xAF") != R + R || repairUTF8String("\xED\xA0\x80" "b") != R + R + R + "b") {
+		return false;
 	}
 #ifdef NDEBUG
 	const UniChar replaced[] = { 'a', 0xFFFD, 0xFFFD };
 	const UniChar invalid[] = { 'a', 0xD800, 0x110000 };
 	if (convertUTF8ToUniString(String("a\xE2\x82")) != UniString(replaced, 3)
-			|| convertUniToUTF8String(UniString(invalid, 3)) != String("a" "\xEF\xBF\xBD" "\xEF\xBF\xBD")) {
+			|| convertUniToUTF8String(UniString(invalid, 3)) != "a" + R + R) {
 		return false;
 	}
 #endif
