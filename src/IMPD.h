@@ -62,8 +62,10 @@ const int MATH_FUNCTION_COUNT = 17;
 const int BUILT_IN_INSTRUCTION_COUNT = 12;
 const int ESCAPE_CODE_COUNT = 7;
 
+// Input must be valid Unicode (asserted). Invalid code points become U+FFFD in release builds.
 WideString convertUniToWideString(const UniString& s);
 UniString convertWideToUniString(const WideString& s);
+WideString repairWideString(const WideString& s);																		// Replaces unpaired surrogates (and values above U+10FFFF) with U+FFFD. For strings from the OS.
 
 /*
 	For error messages. Scripts are ASCII and write other characters as escapes, so ASCII is kept as is and every

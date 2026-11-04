@@ -24,6 +24,7 @@
 #include "assert.h"
 #include <iostream>
 #include <fstream>
+#include <cwchar>
 #include "src/IMPD.h"
 
 using namespace IMPD;
@@ -99,6 +100,48 @@ static bool testUniStringConversions() {
 	if (wideSample != wide3) return false;
 	UniString uni3 = convertWideToUniString(wide3);
 	if (uni2 != uni3) return false;
+	return true;
+}
+
+static bool testInvalidUnicode() {
+	const WideChar a = 'a';
+	const WideChar R = static_cast<WideChar>(0xFFFD);
+	const WideChar H = static_cast<WideChar>(0xD800);
+#if (WCHAR_MAX <= 0xFFFF)
+	const WideChar L = static_cast<WideChar>(0xDC00);
+	// A lone high, a lone low, a lone high before a pair, and a high at the end.
+	const WideChar input[] = { a, H, a, L, a, H, H, L, H };
+	const WideChar repaired[] = { a, R, a, R, a, R, H, L, R };
+	const UniChar decoded[] = { 'a', 0xFFFD, 'a', 0xFFFD, 'a', 0xFFFD, 0x10000, 0xFFFD };
+	if (repairWideString(WideString(input, 9)) != WideString(repaired, 9)
+			|| convertWideToUniString(WideString(repaired, 9)) != UniString(decoded, 8)) {
+		return false;
+	}
+#ifdef NDEBUG
+	if (convertWideToUniString(WideString(input, 9)) != UniString(decoded, 8)) {
+		return false;
+	}
+#endif
+#else
+	const WideChar input[] = { a, H, a, static_cast<WideChar>(0x110000), static_cast<WideChar>(-1) };
+	const WideChar repaired[] = { a, R, a, R, R };
+	if (repairWideString(WideString(input, 5)) != WideString(repaired, 5)) {
+		return false;
+	}
+#ifdef NDEBUG
+	const UniChar decoded[] = { 'a', 0xFFFD, 'a', 0xFFFD, 0xFFFD };
+	if (convertWideToUniString(WideString(input, 5)) != UniString(decoded, 5)) {
+		return false;
+	}
+#endif
+#endif
+#ifdef NDEBUG
+	const UniChar invalid[] = { 'a', 0xD800, 0x110000 };
+	const WideChar encoded[] = { a, R, R };
+	if (convertUniToWideString(UniString(invalid, 3)) != WideString(encoded, 3)) {
+		return false;
+	}
+#endif
 	return true;
 }
 
@@ -197,6 +240,10 @@ int main(int argc, const char* argv[]) {
 
 	if (!testUniStringConversions()) {
 		std::cerr << "UniString conversion test failed" << std::endl;
+		return 1;
+	}
+	if (!testInvalidUnicode()) {
+		std::cerr << "Invalid Unicode test failed" << std::endl;
 		return 1;
 	}
 	if (!testCharactersLimit()) {
