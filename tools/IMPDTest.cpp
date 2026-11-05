@@ -145,6 +145,20 @@ static bool testInvalidUnicode() {
 	return true;
 }
 
+static bool testUTF8Conversions() {
+	const String valid("a" "\xE2\x82\xAC" "\xF0\x9F\x98\x80");
+	if (repairUTF8String(valid) != valid) {
+		return false;
+	}
+	// A stray continuation byte, a sequence cut short, an overlong form and an encoded surrogate.
+	const String R("\xEF\xBF\xBD");
+	if (repairUTF8String("a\x80") != "a" + R || repairUTF8String("a\xE2\x82") != "a" + R + R
+			|| repairUTF8String("\xC0\xAF") != R + R || repairUTF8String("\xED\xA0\x80" "b") != R + R + R + "b") {
+		return false;
+	}
+	return true;
+}
+
 // Traces nothing, and records what progress() hears.
 class QuietExecutor : public MyExecutor {
 	public:		virtual void trace(Interpreter& interpreter, const WideString& s) { (void)interpreter; (void)s; }
@@ -244,6 +258,10 @@ int main(int argc, const char* argv[]) {
 	}
 	if (!testInvalidUnicode()) {
 		std::cerr << "Invalid Unicode test failed" << std::endl;
+		return 1;
+	}
+	if (!testUTF8Conversions()) {
+		std::cerr << "UTF-8 conversion test failed" << std::endl;
 		return 1;
 	}
 	if (!testCharactersLimit()) {

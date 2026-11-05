@@ -66,6 +66,7 @@ const int ESCAPE_CODE_COUNT = 7;
 WideString convertUniToWideString(const UniString& s);
 UniString convertWideToUniString(const WideString& s);
 WideString repairWideString(const WideString& s);																		// Replaces unpaired surrogates (and values above U+10FFFF) with U+FFFD. For strings from the OS.
+String repairUTF8String(const String& s);																				// Replaces each byte that does not start valid UTF-8 with U+FFFD. For strings from the OS.
 
 /*
 	For error messages. Scripts are ASCII and write other characters as escapes, so ASCII is kept as is and every
@@ -87,13 +88,16 @@ struct StringRange {
 };
 
 /**
-	Base class for all IMPD specific exceptions carrying an optional statement.
+	Base class for all IMPD specific exceptions carrying an optional statement. Error and statement are always valid
+	UTF-8, with each invalid byte replaced by U+FFFD.
 **/
 class Exception : public std::exception {
 	friend class Interpreter;
-	protected:	Exception(const std::string& error) : error(error) { }
-	protected:	Exception(const Exception& x, const String& statement) : error(x.error), statement(statement) { }
-	protected:	Exception(const std::string& error, const String& statement) : error(error), statement(statement) { }
+	protected:	Exception(const std::string& error) : error(repairUTF8String(error)) { }
+	protected:	Exception(const Exception& x, const String& statement) : error(x.error)
+			, statement(repairUTF8String(statement)) { }
+	protected:	Exception(const std::string& error, const String& statement) : error(repairUTF8String(error))
+			, statement(repairUTF8String(statement)) { }
 	public:		std::string getError() const throw() { return error; }
 	public:		bool hasStatement() const throw() { return !statement.empty(); }
 	public:		String getStatement() const throw() { return statement; }

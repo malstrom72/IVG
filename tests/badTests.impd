@@ -68,6 +68,10 @@ TRACE cafÃ© // raw UTF-8, not an escape
 
 TRACE caf\Ã© // an escaped raw byte is no better
 
+TRACE café // a Latin-1 byte comes back as U+FFFD
+
+x = {$"é"} // in the message too
+
 TRACE \uD800 // lone surrogate
 
 TRACE \U00110000 // above U+10FFFF

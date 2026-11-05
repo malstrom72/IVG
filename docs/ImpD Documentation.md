@@ -49,6 +49,9 @@ The loading program must recognize the format (`IVG-2` above), or the file will 
 argument tells the parser that _ImpD_ version 1 is required to interpret the file (other requirements may follow
 separated by comma).
 
+The error messages and statements a loading program reports are always valid UTF-8: any byte in them that is not
+valid UTF-8 appears as U+FFFD.
+
 ### Comments
 
 Comments are written in C++ style:
