@@ -93,68 +93,27 @@ static size_t convertUTF16ToUTF32(size_t utf16Size, const uint16_t* utf16Chars, 
 	return outIndex;
 }
 
-// Advances `i` past one code point into `c`. Returns false for malformed UTF-8, with `c` = U+FFFD and `i` one byte on.
-static bool decodeUTF8(size_t utf8Size, const char* utf8Chars, size_t& i, UniChar& c) {
-	const UniChar first = static_cast<unsigned char>(utf8Chars[i]);
-	size_t length = 0;
-	UniChar minimum = 0;
-	UniChar v = 0;
-	if ((first & 0x80) == 0) {
-		++i;
-		c = first;
-		return true;
-	} else if ((first & 0xE0) == 0xC0) {
-		length = 2;
-		minimum = 0x80;
-		v = first & 0x1F;
-	} else if ((first & 0xF0) == 0xE0) {
-		length = 3;
-		minimum = 0x800;
-		v = first & 0x0F;
-	} else if ((first & 0xF8) == 0xF0) {
-		length = 4;
-		minimum = 0x10000;
-		v = first & 0x07;
+// Returns the length of the valid UTF-8 sequence that `utf8Chars` starts with, or 0 if it is malformed.
+static size_t decodeUTF8(size_t utf8Size, const char* utf8Chars) {
+	const UniChar first = static_cast<unsigned char>(utf8Chars[0]);
+	if (first < 0x80) {
+		return 1;
 	}
-	bool valid = (length != 0 && length <= utf8Size - i);
-	for (size_t k = 1; valid && k < length; ++k) {
-		const unsigned char b = static_cast<unsigned char>(utf8Chars[i + k]);
-		valid = ((b & 0xC0) == 0x80);
+	const size_t length = ((first & 0xE0) == 0xC0 ? 2 : (first & 0xF0) == 0xE0 ? 3 : (first & 0xF8) == 0xF0 ? 4 : 0);
+	if (length == 0 || length > utf8Size) {
+		return 0;
+	}
+	UniChar v = first & (0x7F >> length);
+	for (size_t k = 1; k < length; ++k) {
+		const unsigned char b = static_cast<unsigned char>(utf8Chars[k]);
+		if ((b & 0xC0) != 0x80) {
+			return 0;
+		}
 		v = (v << 6) | (b & 0x3F);
 	}
-	valid = (valid && v >= minimum && (v < 0xD800 || v >= 0xE000) && v <= 0x10FFFF);
-	i += (valid ? length : 1);
-	c = (valid ? v : 0xFFFD);
-	return valid;
+	const UniChar MINIMUM[5] = { 0, 0, 0x80, 0x800, 0x10000 };
+	return (v >= MINIMUM[length] && (v < 0xD800 || v >= 0xE000) && v <= 0x10FFFF ? length : 0);
 }
-
-static size_t convertUTF32ToUTF8(size_t utf32Size, const UniChar* utf32Chars, char* utf8Chars) {
-	size_t outIndex = 0;
-	for (size_t i = 0; i < utf32Size; ++i) {
-		const UniChar c = checkScalar(utf32Chars[i]);
-		if (c < 0x80) {
-			utf8Chars[outIndex + 0] = static_cast<char>(c);
-			outIndex += 1;
-		} else if (c < 0x800) {
-			utf8Chars[outIndex + 0] = static_cast<char>((c >> 6) | 0xC0);
-			utf8Chars[outIndex + 1] = static_cast<char>((c & 0x3F) | 0x80);
-			outIndex += 2;
-		} else if (c < 0x10000) {
-			utf8Chars[outIndex + 0] = static_cast<char>((c >> 12) | 0xE0);
-			utf8Chars[outIndex + 1] = static_cast<char>(((c >> 6) & 0x3F) | 0x80);
-			utf8Chars[outIndex + 2] = static_cast<char>((c & 0x3F) | 0x80);
-			outIndex += 3;
-		} else {
-			utf8Chars[outIndex + 0] = static_cast<char>((c >> 18) | 0xF0);
-			utf8Chars[outIndex + 1] = static_cast<char>(((c >> 12) & 0x3F) | 0x80);
-			utf8Chars[outIndex + 2] = static_cast<char>(((c >> 6) & 0x3F) | 0x80);
-			utf8Chars[outIndex + 3] = static_cast<char>((c & 0x3F) | 0x80);
-			outIndex += 4;
-		}
-	}
-	return outIndex;
-}
-
 
 WideString convertUniToWideString(const UniString& s) {
 	if (s.empty()) {
@@ -211,10 +170,14 @@ WideString repairWideString(const WideString& s) {
 String repairUTF8String(const String& s) {
 	String repaired;
 	for (size_t i = 0; i < s.size();) {
-		UniChar c;
-		decodeUTF8(s.size(), s.data(), i, c);
-		char utf8[4];
-		repaired.append(utf8, convertUTF32ToUTF8(1, &c, utf8));
+		const size_t length = decodeUTF8(s.size() - i, s.data() + i);
+		if (length != 0) {
+			repaired.append(s, i, length);
+			i += length;
+		} else {
+			repaired += "\xEF\xBF\xBD";
+			++i;
+		}
 	}
 	return repaired;
 }

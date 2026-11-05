@@ -66,7 +66,7 @@ const int ESCAPE_CODE_COUNT = 7;
 WideString convertUniToWideString(const UniString& s);
 UniString convertWideToUniString(const WideString& s);
 WideString repairWideString(const WideString& s);																		// Replaces unpaired surrogates (and values above U+10FFFF) with U+FFFD. For strings from the OS.
-String repairUTF8String(const String& s);																				// Replaces each byte that does not start valid UTF-8 with U+FFFD. For strings from the OS.
+String repairUTF8String(const String& s);																				// Replaces each byte that does not start valid UTF-8 with U+FFFD. For text that may hold invalid UTF-8, such as exception messages and statements.
 
 /*
 	For error messages. Scripts are ASCII and write other characters as escapes, so ASCII is kept as is and every
