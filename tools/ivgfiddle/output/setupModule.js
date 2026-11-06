@@ -25,17 +25,3 @@ const moduleConfig = {
 window.ivgRuntimeModule = null;
 var Module = moduleConfig;
 window.Module = moduleConfig;
-window.addEventListener("load", function () {
-	if (typeof Module === "function") {
-		Module(moduleConfig)
-			.then(function (instance) {
-				window.ivgRuntimeModule = instance;
-				window.Module = instance;
-				Module = instance;
-			})
-			.catch(function (error) {
-				trace("Failed to initialize WebAssembly module");
-				trace(error);
-			});
-	}
-});
