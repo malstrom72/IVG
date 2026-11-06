@@ -43,7 +43,6 @@ function dispatchDocumentEvent(context, type, extra) {
 }
 
 test("setupModule assigns runtime before startup run", async () => {
-	let loadHandler = null;
 	let editorValue = "";
 	let didRun = false;
 	const runtimeModule = {
@@ -74,11 +73,6 @@ test("setupModule assigns runtime before startup run", async () => {
 		runIVG: function runIVG() {
 			didRun = true;
 		},
-		addEventListener: function addEventListener(type, handler) {
-			if (type === "load") {
-				loadHandler = handler;
-			}
-		},
 	};
 	contextObject.window = contextObject;
 	const context = vm.createContext(contextObject);
@@ -89,8 +83,11 @@ test("setupModule assigns runtime before startup run", async () => {
 		moduleConfig.onRuntimeInitialized.call(runtimeModule);
 		return Promise.resolve(runtimeModule);
 	};
-	assert.equal(typeof loadHandler, "function");
-	loadHandler();
+	const fiddlePath = path.resolve(__dirname, "..", "src", "ivgfiddle.js");
+	const fiddleSource = fs.readFileSync(fiddlePath, "utf8");
+	const startIndex = fiddleSource.indexOf("// Start the runtime here");
+	assert.notEqual(startIndex, -1);
+	vm.runInContext(fiddleSource.slice(startIndex), context, { filename: "ivgfiddle.js" });
 	await Promise.resolve();
 	assert.equal(context.ivgRuntimeModule, runtimeModule);
 	assert.equal(context.Module, runtimeModule);

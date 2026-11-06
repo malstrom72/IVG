@@ -2086,3 +2086,17 @@ document.addEventListener("mouseup", function handleSplitMouseUp() {
 	isDragging = false;
 	document.body.classList.remove("is-resizing");
 });
+
+// Start the runtime here, not on window 'load', which has already fired when htmlpreview injects the scripts.
+if (typeof Module === "function") {
+	Module(moduleConfig)
+		.then(function (instance) {
+			window.ivgRuntimeModule = instance;
+			window.Module = instance;
+			Module = instance;
+		})
+		.catch(function (error) {
+			trace("Failed to initialize WebAssembly module");
+			trace(error);
+		});
+}
