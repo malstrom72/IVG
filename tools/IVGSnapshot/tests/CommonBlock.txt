@@ -1,0 +1,56 @@
+tools/IVGSnapshot/tests/CommonBlock.ivg
+  Scenario swatch (validate: yes)
+    Scenario entry #1
+      Snapshot block #1 (common setup, source line 4)
+        [ pen green width:3 ]
+      Snapshot block #2 (common setup, source line 5)
+        [ fill #cccccc ]
+      Snapshot block #3 (common setup, source line 6)
+        [ pen blue width:2 ]
+      Snapshot block #3 (block entry #1, source line 6)
+        [ fill #ff0000 ]
+    Scenario entry #2
+      Snapshot block #1 (common setup, source line 4)
+        [ pen green width:3 ]
+      Snapshot block #2 (common setup, source line 5)
+        [ fill #cccccc ]
+      Snapshot block #3 (common setup, source line 6)
+        [ pen blue width:2 ]
+      Snapshot block #3 (block entry #2, source line 6)
+        [ fill #0000ff ]
+  Scenario implicit-4 (validate: yes)
+    Scenario entry #1
+      Snapshot block #1 (common setup, source line 4)
+        [ pen green width:3 ]
+      Snapshot block #2 (common setup, source line 5)
+        [ fill #cccccc ]
+      Snapshot block #3 (common setup, source line 6)
+        [ pen blue width:2 ]
+      Snapshot block #4 (block entry #1, source line 7)
+        [ pen black width:1 ]
+# tools/IVGSnapshot/tests/CommonBlock.ivg
+
+Scenario: swatch #0
+	Entry 1 (block 1) - SKIPPED
+	Snapshot ID  : tools_IVGSnapshot_tests_CommonBlock#swatch #0#1#1
+
+Scenario: swatch #1
+	Entry 2 (block 1) - SKIPPED
+	Snapshot ID  : tools_IVGSnapshot_tests_CommonBlock#swatch #1#1#2
+
+Scenario: unlabeled-1
+	Entry 1 (block 1) - SKIPPED
+	Snapshot ID  : tools_IVGSnapshot_tests_CommonBlock#unlabeled-1#1#1
+
+Summary
+  Snapshots       : 3 total (3 validated)
+  Updated         : 0
+  Failed          : 0 snapshots (diff failures: 0)
+
+# Overall Summary
+
+  Processed files : 1 total (0 files reported failures)
+  Snapshots       : 3 total (3 validated)
+  Updated         : 0
+  Failed          : 0 snapshots (diff failures: 0)
+  Ignored files   : 0
