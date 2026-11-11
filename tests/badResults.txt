@@ -71,6 +71,8 @@ Exception: Non-ASCII character in string (use a \x, \u or \U escape)
 in statement: TRACE café
 Exception: Non-ASCII character in string (use a \x, \u or \U escape)
 in statement: TRACE caf\é
+Exception: Invalid character escape code inside { } expression
+in statement: TRACE {\xE9} // a { } escape makes one char, which must be ASCII on every platform
 Exception: Invalid Unicode character in escape
 in statement: TRACE \uD800
 Exception: Invalid Unicode character in escape
