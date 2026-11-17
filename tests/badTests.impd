@@ -68,6 +68,8 @@ TRACE café // raw UTF-8, not an escape
 
 TRACE caf\é // an escaped raw byte is no better
 
+TRACE {\xE9} // a { } escape makes one char, which must be ASCII on every platform
+
 TRACE \uD800 // lone surrogate
 
 TRACE \U00110000 // above U+10FFFF
